@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-12
-> 当前基线：`v0.1.0` 首次代码审查修复后，源码与 tag 已推送到公开 GitHub 仓库；首次 Release CI 在打包末尾失败，修复已落地但待 Windows Actions 复验，尚未完成 Windows / WeGame 实机验收。
+> 当前基线：`v0.1.0` 已由 Windows Actions 完成构建并发布到公开 GitHub Release；尚未完成 Windows / WeGame 真实运行验收，也没有商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -278,13 +278,13 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-011 electron-builder 在 tag 构建中隐式发布
 
 - 严重度：高（Release 阻塞，不影响已构建应用的运行时逻辑）
-- 状态：`FIXED / UNVERIFIED`（本地交叉构建通过，Windows Actions 复验待完成）
+- 状态：`VERIFIED`
 - 原始证据：首次 `v0.1.0` tag workflow run [31517806148](https://github.com/RocXOvO/HexBridge/actions/runs/31517806148) 在 Windows `pack:win` 的最末阶段失败；此前的 `npm audit`、OCR models / smoke、31 tests、lint、typecheck 均通过。
 - 根因：`electron-builder@26.15.3` 检测到 git tag 后隐式进入 publish 流程，但构建步骤没有也不应拥有 `GH_TOKEN`；同一 workflow 已另用 `softprops/action-gh-release` 负责 Release 上传，形成重复发布职责。
 - 影响：NSIS / ZIP 构建流程在末尾被隐式发布错误判定为失败，后续 checksums、artifact upload 和 GitHub Release 创建均未执行。
 - 修复原则：构建与发布职责必须分离。`electron-builder` 只产生本地 artifacts，唯一发布者为固定 commit SHA 的 `softprops/action-gh-release`；不得为了让 builder 隐式发布而扩大构建步骤 token 权限。
 - 代码修复：`package.json` 的 `pack:win` 已增加 `--publish never`，显式禁止 electron-builder 发布；workflow 继续由 softprops 步骤上传 EXE、ZIP 和 `SHA256SUMS.txt`。
-- 验证：macOS 本地完整执行 `npm run pack:win && npm run checksums` exit 0，生成 NSIS、ZIP 和 SHA-256 文件。这是本地交叉打包验证，不是 Windows / WeGame 实机验收；仍须让包含该修复的 commit 在 Windows Actions 中重新运行并成功创建 Release。单纯重跑仍指向旧 tagged commit 的失败 job 不能验证新代码。
+- 验证：macOS 本地完整执行 `npm run pack:win && npm run checksums` exit 0；随后 Windows Actions run [31519147662](https://github.com/RocXOvO/HexBridge/actions/runs/31519147662) 基于 commit `212a8f62` 成功，audit、OCR models / smoke、31 tests、lint、typecheck、pack:win、checksums、artifact upload、softprops Release 全部通过，耗时约 5m39s。GitHub Release 已实际创建，因此该 CI 缺陷完成验证；这仍不是 Windows / WeGame 应用运行验收。
 
 ### 附带安全与性能加固
 
@@ -303,6 +303,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 三个 PaddleOCR asset 的固定字节数和 SHA-256 校验通过；合成 OCR smoke 输出 `HEXBRIDGE OCR`。
 - 生产 renderer bundle 已检查不含 demo payload。
 - macOS 主机上的 electron-builder Windows x64 NSIS + ZIP 交叉打包通过；这不等于 Windows 实机运行验证。
+- Windows Actions run `31519147662` 已在 Windows runner 完成 audit、OCR、31 tests、lint、typecheck、NSIS / ZIP 构建、checksums、artifact upload 和公开 Release；该结果只验证自动化构建 / 发布链，不验证游戏客户端实机行为。
 - 审查前已对主界面、设置、英雄榜、选人浮窗和三卡浮窗做过浏览器视觉检查，未见控制台错误。
 
 现有测试覆盖：上游字段清洗、401 / 429 / 离线缓存、Key 验证前不落盘、初始化去重、缓存 dataVersion 恢复、LCU 凭据解析与 snapshot 归一化、GameStart 携带 / EndOfGame 清理、只读 allowlist、1080p / 2K / 4K 裁切几何、OCR 文本匹配、英雄 / 海克斯排序、sequence / 详情版本 / OCR 启停 / snapshot 去重守卫。HB-002 的完整乱序请求、HB-003 的在途扫描断线、HB-006 的 Runtime toast、HB-007 的窗口 IPC 和 HB-008 的文件保留边界仍缺直接集成测试。
@@ -322,16 +323,17 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git：分支 `main` 正在跟踪 `origin/main`；`v0.1.0` tag 已存在。HB-011 的 `--publish never` 修复当前需提交 / 推送，并由 Windows Actions 重新验证。
+- 当前 Git：分支 `main` 正在跟踪 `origin/main`；HB-011 修复 commit `212a8f62` 与 `v0.1.0` tag 已在远端，Windows Release workflow 已成功完成。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
 - 发布职责契约：`pack:win` 必须带 `--publish never`，electron-builder 只构建；`.github/workflows/release.yml` 在 Windows runner 上执行 `npm ci`、audit、下载 / 校验模型、OCR 烟测、测试、lint、typecheck、Windows 打包、校验和，最后仅由 `softprops/action-gh-release` 创建 / 上传 GitHub Release。所有第三方 GitHub Actions 固定到完整 commit SHA。
-- `v0.1.0` tag 已创建；首次 run `31517806148` 在 pack:win 末尾因 electron-builder 隐式 publish 失败，前置 audit / OCR / 31 tests / lint / typecheck 全通过。当前尚未创建 GitHub Release，待包含 HB-011 修复的 commit 重新通过 Windows Actions。
-- 本地已有但被忽略的审查修复后 `v0.1.0` 产物：
-  - `HexBridge-0.1.0-x64.exe`，198,152,759 bytes，SHA-256 `ed89efd9a366585a895c78c4c5ee1cc662eec1053f5ed940a45cbe078cff406e`。
-  - `HexBridge-0.1.0-x64.zip`，273,630,308 bytes，SHA-256 `f86d4f3bee5f46d7edbf557a5b3024ee496e0dbf9e6bd96a6134753b6d229696`。
-- HB-011 修复后本地 `pack:win` 与 `checksums` 均 exit 0。上述文件证明 macOS 主机可交叉构建 Windows x64 目标，不证明其已在 Windows / WeGame 实机运行；GitHub Release 仍待 Windows Actions 复验创建。
+- `v0.1.0` 首次 run `31517806148` 的 HB-011 失败已由成功 run [31519147662](https://github.com/RocXOvO/HexBridge/actions/runs/31519147662) 关闭。成功 run 基于 commit `212a8f62`，所有步骤通过，耗时约 5m39s。
+- GitHub Release [v0.1.0](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.0) 已公开，`draft=false`、`prerelease=false`。正式发布物以 Windows Actions assets 为准：
+  - `HexBridge-0.1.0-x64.exe`，198,647,921 bytes，SHA-256 / GitHub asset digest `a6a1eded05232dec9921689706215da2275d344abde90ad4dac30ced1bc9bf4e`。
+  - `HexBridge-0.1.0-x64.zip`，273,725,909 bytes，SHA-256 / GitHub asset digest `ae21508a3bd39e603e2cd0bf1425280e0db4204aeed312409cae765719a5dc9f`。
+  - `SHA256SUMS.txt`，180 bytes，GitHub asset digest `d4418da855a0d11bdd52661ee03ab8fcdd8e216dbc747f75ff795fb8b4e13c75`；文件内容列出的 EXE / ZIP SHA-256 与对应 GitHub asset digest 一致。
+- 上述成功结果证明 Windows runner 的构建与发布链可用，不证明安装包已在真实 Windows + WeGame 对局中运行。
 - 当前无商业 Windows 代码签名证书，发布物会显示“未知发布者”并可能触发 SmartScreen。
 
 ## 十、后续变更记录
@@ -349,3 +351,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-12 | GitHub 公开 / push | 阻塞已解除、源码已上线 | 用户补充 workflow scope，并按明确要求将 `RocXOvO/HexBridge` 从 PRIVATE 改为 PUBLIC；保留 workflow 后成功推送 root commit 到 `origin/main` | `main...origin/main`、PUBLIC visibility、远端默认分支和 workflow 文件已复核 | Windows / WeGame 真实运行仍待验证，未代码签名 | 源码已推送；尚无 release tag / GitHub Release
 - 2026-08-12 | 可整合数据源审计 | 方案记录、未实现 | 明确 data.dtodo 主统计源；CommunityDragon / Data Dragon / Meraki 静态职责；本地 LCU Match History / Live Client 可选边界；Wiki CC BY-SA 隔离；Match-V5 queue 2400 / 国服不可用；拒绝私有网页抓取 | 基于公开接口与可用性审计，未新增代码或测试 | 新来源均待单独实现与验收 | 仅更新项目记忆
 - 2026-08-12 | HB-011 / Release CI | 失败已定位，修复待 Windows 复验 | `v0.1.0` tag run 31517806148 的 Windows pack 末尾触发 electron-builder 隐式 publish；为 `pack:win` 增加 `--publish never`，保持 softprops 为唯一发布者 | 远端前置 audit / OCR / 31 tests / lint / typecheck 通过；macOS 本地 `pack:win && checksums` exit 0 | 不构成 Windows / WeGame 实机验收；仍需 Windows Actions 重新构建并创建 Release | fix 待提交 / 推送；GitHub Release 尚未创建
+- 2026-08-12 | HB-011 / v0.1.0 Release | FIXED / UNVERIFIED→VERIFIED | commit `212a8f62` 的 Windows Actions run 31519147662 以 builder-only / softprops-only 职责完成发布 | audit、OCR models / smoke、31 tests、lint、typecheck、pack:win、checksums、artifact upload、Release 全通过；约 5m39s；asset digest 与 SHA256SUMS 一致 | 构建发布链已验证；Windows + WeGame 真实运行仍待验，未商业签名 | 公开 Release `v0.1.0`，非 draft / prerelease
