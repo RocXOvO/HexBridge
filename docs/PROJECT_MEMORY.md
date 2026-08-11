@@ -86,6 +86,44 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 英雄专属海克斯：仅 `augmentId`、`rank`、`total`、`tier`。这里的 `total` 是排名总数，不是对局场次。
 - 必须丢弃：海克斯 `winRate`、`wins`、`games`、`pickRate` 及其他未列字段。
 
+### 3.2.1 可整合数据源审计（方案，尚未实现）
+
+本节记录 2026-08-12 的数据源可行性审计，不表示相应适配器已经进入代码。当前实现仍以 `data.dtodo.cn` 提供英雄 / 海克斯目录和英雄详情，并以 Riot Data Dragon URL 提供英雄原画。引入任何新来源前，必须单独确认缓存版本、字段白名单、许可、失败回退、隐私与测试。
+
+数据源定位：
+
+1. **data.dtodo.cn（当前主统计源）**
+   - 继续作为国服 ARAM Mayhem 聚合英雄 Tier / 胜率，以及英雄专属海克斯 `rank/tier` 的主来源。
+   - 仍须遵守本节上方的用户 Key、credits、版本缓存、stale 标记和字段清洗契约。
+2. **CommunityDragon（建议的海克斯静态目录源，未接入）**
+   - 版本化资源 `https://raw.communitydragon.org/{patch}/cdragon/arena/zh_cn.json` 可提供海克斯静态目录、简中名称 / 描述、ID、rarity 和 icon。
+   - 该资源没有英雄胜率、Tier、英雄专属 rank/tier 等统计字段，不能替代 data.dtodo 的统计职责。
+   - 生产缓存必须 pin 明确 patch / 版本并记录来源版本，不能依赖 `latest`；上游变化时应按静态元数据迁移而非悄悄改变同版本缓存。
+3. **Riot Data Dragon（当前静态资产源）**
+   - 用于英雄、物品、版本信息、头像和原画等 Riot 静态资产。
+   - 不包含 ARAM Mayhem 聚合统计或三张海克斯推荐数据，不能作为本模式的统计源。
+4. **本地 LCU Match History（可选个人样本，未接入）**
+   - 候选只读 GET：`/lol-match-history/v1/products/lol/current-summoner/matches`、`/lol-match-history/v1/games/{gameId}`。
+   - 仅适合在用户设备上形成个人历史样本，不能替代聚合 Tier / 胜率；属于非官方、可能变化的 LCU 接口。
+   - 会接触 PUUID 和战绩隐私，默认不得上传、遥测或跨设备同步。若未来实现，必须另行扩展只读 allowlist、最小化保存字段、明确本地保留 / 删除策略，并增加接口变化与隐私回归测试。
+5. **Live Client Data API（可选对局上下文，未接入）**
+   - 本地 `127.0.0.1:2999` 可补充对局中的玩家、英雄、事件等上下文。
+   - 不提供海克斯界面的三张候选卡，也不提供国服聚合胜率 / Tier，因此不能替代 OCR 或主统计源。
+6. **League Wiki MediaWiki Action API（英文规则交叉校验，未接入）**
+   - `Module:MayhemAugmentData/data` 可用于英文名称、禁用状态和规则的交叉校验。
+   - 内容受 CC BY-SA 3.0 约束；任何纳入或衍生发布都必须满足署名与相同方式共享要求，并与 HexBridge 的 PolyForm Noncommercial 代码 / 数据产物做好许可隔离。不能无声明地复制进主目录。
+7. **Meraki Analytics（静态英雄 / 物品扩展，未接入）**
+   - MIT 许可的静态英雄与物品数据可作为 Data Dragon 的补充。
+   - 不含 ARAM Mayhem stats，不能承担胜率、Tier 或英雄专属海克斯排名职责。
+8. **Riot Match-V5（不可作为 Mayhem 主数据源）**
+   - Riot `developer-relations` issue [#1109](https://github.com/RiotGames/developer-relations/issues/1109) 已关闭并标记为 expected behavior；Match-V5 查询 `queueId=2400` 返回 403。
+   - 国服也不在 Riot 公共 API 路由内，因此 Match-V5 既不能覆盖本项目目标区域，也不能作为 Mayhem 主统计源或历史兜底。
+9. **未文档化第三方站点接口（不采用）**
+   - 对 OP.GG、U.GG、MetaSRC、PlayARAM、arammeta 等未发现可依赖的文档化公共 API。
+   - 不把站点私有 XHR、逆向接口、Selenium / 浏览器抓取当作稳定生产上游；除稳定性外还涉及授权、反爬、字段漂移和再分发风险。
+
+审计后的整合原则：聚合统计继续来自文档化且获授权的数据接口；静态海克斯元数据可评估 pin patch 的 CommunityDragon；Riot / Meraki 只补静态资产；LCU Match History 和 Live Client Data API 如接入也仅限本地最小化上下文；Wiki 只在满足 CC BY-SA 许可隔离时用于交叉校验；不使用私有网页抓取填补数据空缺。
+
 ### 3.3 IPC 契约
 
 安全基线：`contextIsolation=true`、`sandbox=true`、`nodeIntegration=false`、`webSecurity=true`、CSP；窗口拒绝新窗口。开发导航只允许与配置入口精确相同的 origin、pathname、search（hash 可用于四个内部窗口），生产导航只允许解析后精确等于打包 `dist/index.html` 的 `file:` 入口；`will-navigate` 与 `will-redirect` 使用同一守卫。Preload 只暴露 `window.hexbridge`，不暴露 Node、文件系统、网络客户端、LCU 凭据或 API Key。
@@ -298,3 +336,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-12 | GitHub 远端 | 已创建私有仓库 | 创建 `RocXOvO/HexBridge`（PRIVATE）并配置本地 `origin` | 远端 URL 与本地 remote 已复核 | 不涉及 | 等待首个源码 commit / push
 - 2026-08-12 | 初始提交 / push | 本地已提交、远端阻塞 | 创建 root commit `Initial HexBridge v0.1.0`；向 `origin/main` 推送时因 OAuth 缺少 `workflow` scope 被 GitHub 拒绝 | 本地 commit 与 remote 已复核；提交将 amend 纳入后续记忆更新，不在提交自身记录可变哈希 | 不涉及 | 等待用户执行 `gh auth refresh -h github.com -s workflow` 后重试；远端仍无源码
 - 2026-08-12 | GitHub 公开 / push | 阻塞已解除、源码已上线 | 用户补充 workflow scope，并按明确要求将 `RocXOvO/HexBridge` 从 PRIVATE 改为 PUBLIC；保留 workflow 后成功推送 root commit 到 `origin/main` | `main...origin/main`、PUBLIC visibility、远端默认分支和 workflow 文件已复核 | Windows / WeGame 真实运行仍待验证，未代码签名 | 源码已推送；尚无 release tag / GitHub Release
+- 2026-08-12 | 可整合数据源审计 | 方案记录、未实现 | 明确 data.dtodo 主统计源；CommunityDragon / Data Dragon / Meraki 静态职责；本地 LCU Match History / Live Client 可选边界；Wiki CC BY-SA 隔离；Match-V5 queue 2400 / 国服不可用；拒绝私有网页抓取 | 基于公开接口与可用性审计，未新增代码或测试 | 新来源均待单独实现与验收 | 仅更新项目记忆
