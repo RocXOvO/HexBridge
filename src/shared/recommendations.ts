@@ -1,0 +1,153 @@
+import type {
+  AugmentMeta,
+  AugmentSlot,
+  ChampionAugmentRank,
+  ChampionCandidate,
+  ChampionSummary,
+  ChampSelectSnapshot,
+  OcrSlotResult,
+  RankedAugmentSlot,
+} from './contracts.js'
+
+const finiteNumber = (value: number | null): number | null =>
+  value != null && Number.isFinite(value) ? value : null
+
+export function compareChampions(a: ChampionSummary, b: ChampionSummary): number {
+  const aTier = finiteNumber(a.tier) ?? Number.POSITIVE_INFINITY
+  const bTier = finiteNumber(b.tier) ?? Number.POSITIVE_INFINITY
+  if (aTier !== bTier) return aTier - bTier
+
+  const aWinRate = finiteNumber(a.winRate) ?? Number.NEGATIVE_INFINITY
+  const bWinRate = finiteNumber(b.winRate) ?? Number.NEGATIVE_INFINITY
+  if (aWinRate !== bWinRate) return bWinRate - aWinRate
+  return a.id - b.id
+}
+
+export function buildChampionCandidates(
+  snapshot: ChampSelectSnapshot,
+  champions: ChampionSummary[],
+): ChampionCandidate[] {
+  const byId = new Map(champions.map((champion) => [champion.id, champion]))
+  const orderedIds = [
+    ...(snapshot.currentChampionId ? [snapshot.currentChampionId] : []),
+    ...snapshot.benchChampionIds,
+  ].filter((id, index, values) => id > 0 && values.indexOf(id) === index)
+
+  const available = orderedIds
+    .map((id) => byId.get(id))
+    .filter((champion): champion is ChampionSummary => Boolean(champion))
+
+  const best = [...available].sort(compareChampions)[0] ?? null
+  const current = snapshot.currentChampionId
+    ? byId.get(snapshot.currentChampionId) ?? null
+    : null
+
+  const toCandidate = (champion: ChampionSummary): ChampionCandidate => ({
+    ...champion,
+    sourceType: champion.id === snapshot.currentChampionId ? 'current' : 'bench',
+    isCurrent: champion.id === snapshot.currentChampionId,
+    isBest: champion.id === best?.id,
+    winRateDelta:
+      champion.winRate != null && current?.winRate != null
+        ? champion.winRate - current.winRate
+        : null,
+  })
+
+  const currentCandidate = current ? toCandidate(current) : null
+  const benchCandidates = available
+    .filter((champion) => champion.id !== snapshot.currentChampionId)
+    .sort(compareChampions)
+    .map(toCandidate)
+
+  return currentCandidate ? [currentCandidate, ...benchCandidates] : benchCandidates
+}
+
+type RankKey = [number, number, number]
+
+function augmentRankKey(
+  rank: ChampionAugmentRank | undefined,
+  meta: AugmentMeta | undefined,
+): RankKey | null {
+  if (rank?.rank != null) return [0, rank.rank, rank.tier ?? Number.POSITIVE_INFINITY]
+  if (rank?.tier != null) return [1, rank.tier, Number.POSITIVE_INFINITY]
+  if (meta?.globalTier != null) return [2, meta.globalTier, Number.POSITIVE_INFINITY]
+  return null
+}
+
+function compareRankKey(a: RankKey | null, b: RankKey | null): number {
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
+  for (let index = 0; index < a.length; index += 1) {
+    const delta = (a[index] ?? 0) - (b[index] ?? 0)
+    if (delta !== 0) return delta
+  }
+  return 0
+}
+
+function rankReason(
+  rank: ChampionAugmentRank | undefined,
+  meta: AugmentMeta | undefined,
+): string {
+  if (rank?.rank != null) {
+    return `英雄专属 #${rank.rank}${rank.total ? ` / ${rank.total}` : ''}`
+  }
+  if (rank?.tier != null) return `英雄专属 Tier ${rank.tier}`
+  if (meta?.globalTier != null) return `全局 Tier ${meta.globalTier}`
+  return '暂无可靠数据'
+}
+
+export function rankAugmentSlots(
+  slots: OcrSlotResult[],
+  ranks: ChampionAugmentRank[],
+  augments: AugmentMeta[],
+): RankedAugmentSlot[] {
+  const ranksById = new Map(ranks.map((rank) => [rank.augmentId, rank]))
+  const augmentsById = new Map(augments.map((augment) => [augment.id, augment]))
+
+  const enriched = slots.map((slot) => {
+    const rank = slot.augmentId ? ranksById.get(slot.augmentId) : undefined
+    const meta = slot.augmentId ? augmentsById.get(slot.augmentId) : undefined
+    return { slot, rank, meta, key: augmentRankKey(rank, meta) }
+  })
+
+  const sorted = [...enriched].sort((a, b) => compareRankKey(a.key, b.key))
+  let lastKey: RankKey | null = null
+  let lastPosition: number | null = null
+  const positions = new Map<AugmentSlot, { position: number | null; tied: boolean }>()
+
+  sorted.forEach((item, index) => {
+    const position = item.key
+      ? lastKey && compareRankKey(lastKey, item.key) === 0
+        ? lastPosition
+        : index + 1
+      : null
+    positions.set(item.slot.slot, { position, tied: false })
+    lastKey = item.key
+    lastPosition = position
+  })
+
+  for (const item of enriched) {
+    const own = positions.get(item.slot.slot)
+    if (!own?.position) continue
+    own.tied = enriched.some(
+      (other) =>
+        other.slot.slot !== item.slot.slot &&
+        other.key &&
+        item.key &&
+        compareRankKey(other.key, item.key) === 0,
+    )
+  }
+
+  return enriched.map(({ slot, rank, meta }) => {
+    const result = positions.get(slot.slot) ?? { position: null, tied: false }
+    return {
+      ...slot,
+      position: result.position,
+      tied: result.tied,
+      reason: rankReason(rank, meta),
+      iconUrl: meta?.iconUrl ?? '',
+      rarityName: meta?.rarityName ?? '',
+    }
+  })
+}

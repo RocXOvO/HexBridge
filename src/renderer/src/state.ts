@@ -1,0 +1,108 @@
+import { computed, ref } from 'vue'
+import type {
+  AppSettings,
+  HexBridgeApi,
+  RuntimeState,
+} from '../../shared/contracts'
+
+const defaultViewSettings: AppSettings = {
+  visualMode: 'auto',
+  autoOcr: true,
+  showChampionPanel: true,
+  showAugmentOverlay: true,
+  hotkey: 'F8',
+  gameDirectory: '',
+  displayId: '',
+  calibration: null,
+  diagnosticsScreenshots: false,
+}
+
+const demoEnabled = import.meta.env.DEV && import.meta.env.VITE_HEXBRIDGE_DEMO === 'true'
+const bridgeUnavailable = !window.hexbridge && !demoEnabled
+const unavailableState: RuntimeState = {
+  lcu: {
+    connected: false,
+    source: null,
+    lastError: '安全桥接未加载，请重新安装或查看启动日志',
+    lastConnectedAt: null,
+  },
+  snapshot: {
+    phase: 'None',
+    locale: 'zh_CN',
+    queueId: null,
+    modeActive: false,
+    currentChampionId: null,
+    benchChampionIds: [],
+    benchEnabled: false,
+    updatedAt: Date.now(),
+  },
+  api: {
+    configured: false,
+    status: 'error',
+    gamePatch: '',
+    dataVersion: '',
+    publishedAt: '',
+    lastError: 'Renderer preload bridge unavailable',
+  },
+  champions: [],
+  candidates: [],
+  overlay: { visible: false, championId: null, slots: [], detectedAt: null, message: '不可用' },
+  settings: { ...defaultViewSettings },
+  displays: [],
+  diagnostics: {
+    ocrReady: false,
+    ocrBusy: false,
+    ocrLastDurationMs: null,
+    ocrLastError: 'Renderer preload bridge unavailable',
+    polling: false,
+    activeVisualMode: 'eco',
+    gpuAcceleration: false,
+    logLines: ['HexBridge 安全桥接初始化失败，未启用演示数据。'],
+  },
+}
+
+const state = ref<RuntimeState>(structuredClone(unavailableState))
+const ready = ref(false)
+
+const unavailableApi: HexBridgeApi = {
+  getState: async () => unavailableState,
+  onStateChanged: () => () => undefined,
+  updateSettings: async () => unavailableState.settings,
+  validateAndSaveApiKey: async () => ({ ok: false, message: '安全桥接未加载' }),
+  clearApiKey: async () => undefined,
+  refreshData: async () => ({ ok: false, message: '安全桥接未加载' }),
+  triggerOcr: async () => ({ ok: false, message: '安全桥接未加载' }),
+  clearDiagnosticScreenshots: async () => ({ ok: false, message: '安全桥接未加载' }),
+  startCalibration: async () => undefined,
+  completeCalibration: async () => undefined,
+  cancelCalibration: async () => undefined,
+  windowAction: async () => undefined,
+}
+
+export let api: HexBridgeApi = window.hexbridge ?? unavailableApi
+let unsubscribe: (() => void) | null = null
+
+export async function initializeState(): Promise<void> {
+  try {
+    if (import.meta.env.DEV) {
+      if (demoEnabled && !window.hexbridge) {
+        const { createDemoApi } = await import('./demo-state')
+        api = createDemoApi()
+      }
+    }
+    state.value = await api.getState()
+    unsubscribe?.()
+    unsubscribe = api.onStateChanged((next) => { state.value = next })
+  } finally {
+    ready.value = true
+  }
+}
+
+export function useRuntime() {
+  return {
+    state: computed(() => state.value),
+    ready: computed(() => ready.value),
+    isPreview: demoEnabled && !window.hexbridge,
+    bridgeError: bridgeUnavailable,
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "name": "hexbridge",
+  "version": "0.1.0",
+  "description": "A read-only ARAM Mayhem companion for League of Legends.",
+  "author": "HexBridge contributors",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "vue-tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "test": "vitest run",
+    "test:ocr": "node scripts/ocr-smoke.mjs",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "ocr:models": "node scripts/download-ocr-models.mjs",
+    "icons": "node scripts/generate-icon.mjs",
+    "checksums": "node scripts/checksums.mjs",
+    "pack:win": "npm run build && electron-builder --win nsis zip --x64",
+    "pack:dir": "npm run build && electron-builder --dir"
+  },
+  "dependencies": {
+    "electron-store": "11.0.2",
+    "onnxruntime-node": "1.27.0",
+    "paddleocr": "1.2.0",
+    "sharp": "0.35.3",
+    "vue": "3.5.41",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "3.0.2",
+    "@eslint/js": "10.0.1",
+    "@stylistic/eslint-plugin": "5.8.0",
+    "@types/node": "24.10.1",
+    "@types/ws": "8.18.1",
+    "@vitejs/plugin-vue": "6.0.8",
+    "electron": "43.3.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "esbuild": "0.28.1",
+    "eslint": "10.8.1",
+    "eslint-plugin-vue": "10.10.0",
+    "globals": "17.9.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.67.0",
+    "vite": "7.3.6",
+    "vitest": "4.1.10",
+    "vue-eslint-parser": "10.3.0",
+    "vue-tsc": "3.3.9"
+  },
+  "overrides": {
+    "onnxruntime-node": {
+      "adm-zip": "0.6.0"
+    }
+  },
+  "build": {
+    "appId": "dev.hexbridge.app",
+    "productName": "HexBridge",
+    "artifactName": "HexBridge-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/onnxruntime-node/**/*"
+    ],
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json",
+      "LICENSE.md",
+      "NOTICE.md"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/paddleocr",
+        "to": "paddleocr",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "HexBridge"
+    }
+  }
+}

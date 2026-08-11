@@ -1,0 +1,186 @@
+export type GameflowPhase =
+  | 'None'
+  | 'Lobby'
+  | 'Matchmaking'
+  | 'ReadyCheck'
+  | 'ChampSelect'
+  | 'GameStart'
+  | 'InProgress'
+  | 'Reconnect'
+  | 'WaitingForStats'
+  | 'PreEndOfGame'
+  | 'EndOfGame'
+  | string
+
+export type VisualMode = 'cinematic' | 'balanced' | 'eco'
+export type VisualModePreference = VisualMode | 'auto'
+
+export interface NormalizedRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface CalibrationRects {
+  left: NormalizedRect
+  center: NormalizedRect
+  right: NormalizedRect
+}
+
+export interface AppSettings {
+  visualMode: VisualModePreference
+  autoOcr: boolean
+  showChampionPanel: boolean
+  showAugmentOverlay: boolean
+  hotkey: string
+  gameDirectory: string
+  displayId: string
+  calibration: CalibrationRects | null
+  diagnosticsScreenshots: boolean
+}
+
+export interface DisplayOption {
+  id: string
+  label: string
+  width: number
+  height: number
+  scaleFactor: number
+  primary: boolean
+}
+
+export interface LcuConnectionState {
+  connected: boolean
+  source: 'process' | 'lockfile' | 'log' | 'manual' | null
+  lastError: string | null
+  lastConnectedAt: number | null
+}
+
+export interface ChampSelectSnapshot {
+  phase: GameflowPhase
+  locale: string
+  queueId: number | null
+  modeActive: boolean
+  currentChampionId: number | null
+  benchChampionIds: number[]
+  benchEnabled: boolean
+  updatedAt: number
+}
+
+export interface ChampionSummary {
+  id: number
+  alias: string
+  name: string
+  title: string
+  roles: string[]
+  iconUrl: string
+  splashUrl: string
+  tier: number | null
+  winRate: number | null
+  patch: string
+  date: string
+  source: string
+}
+
+export interface ChampionCandidate extends ChampionSummary {
+  sourceType: 'current' | 'bench'
+  isCurrent: boolean
+  isBest: boolean
+  winRateDelta: number | null
+}
+
+export interface AugmentMeta {
+  id: number
+  name: string
+  iconUrl: string
+  rarity: number | null
+  rarityName: string
+  description: string
+  globalTier: number | null
+}
+
+export interface ChampionAugmentRank {
+  augmentId: number
+  rank: number | null
+  total: number | null
+  tier: number | null
+}
+
+export interface ChampionAugmentData {
+  championId: number
+  dataVersion: string
+  ranks: ChampionAugmentRank[]
+}
+
+export type AugmentSlot = 'left' | 'center' | 'right'
+
+export interface OcrSlotResult {
+  slot: AugmentSlot
+  rawText: string
+  augmentId: number | null
+  name: string
+  confidence: number
+}
+
+export interface RankedAugmentSlot extends OcrSlotResult {
+  position: number | null
+  tied: boolean
+  reason: string
+  iconUrl: string
+  rarityName: string
+}
+
+export interface AugmentOverlayState {
+  visible: boolean
+  championId: number | null
+  slots: RankedAugmentSlot[]
+  detectedAt: number | null
+  message: string
+}
+
+export interface ApiConnectionState {
+  configured: boolean
+  status: 'missing' | 'ready' | 'stale' | 'unauthorized' | 'limited' | 'offline' | 'error'
+  gamePatch: string
+  dataVersion: string
+  publishedAt: string
+  lastError: string | null
+}
+
+export interface RuntimeDiagnostics {
+  ocrReady: boolean
+  ocrBusy: boolean
+  ocrLastDurationMs: number | null
+  ocrLastError: string | null
+  polling: boolean
+  activeVisualMode: VisualMode
+  gpuAcceleration: boolean
+  logLines: string[]
+}
+
+export interface RuntimeState {
+  lcu: LcuConnectionState
+  snapshot: ChampSelectSnapshot
+  api: ApiConnectionState
+  champions: ChampionSummary[]
+  candidates: ChampionCandidate[]
+  overlay: AugmentOverlayState
+  settings: AppSettings
+  displays: DisplayOption[]
+  diagnostics: RuntimeDiagnostics
+}
+
+export interface HexBridgeApi {
+  getState(): Promise<RuntimeState>
+  onStateChanged(callback: (state: RuntimeState) => void): () => void
+  updateSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+  validateAndSaveApiKey(apiKey: string): Promise<{ ok: boolean; message: string }>
+  clearApiKey(): Promise<void>
+  refreshData(): Promise<{ ok: boolean; message: string }>
+  triggerOcr(): Promise<{ ok: boolean; message: string }>
+  clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
+  startCalibration(): Promise<void>
+  completeCalibration(rects: CalibrationRects): Promise<void>
+  cancelCalibration(): Promise<void>
+  windowAction(action: 'minimize' | 'maximize' | 'close' | 'quit'): Promise<void>
+}
