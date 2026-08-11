@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-12
-> 当前基线：`v0.1.0` 首次代码审查修复后，本地 root commit 已创建、远端 push 待授权，尚未完成 Windows / WeGame 实机验收。
+> 当前基线：`v0.1.0` 首次代码审查修复后，源码已推送到公开 GitHub 仓库；尚未创建 release tag，尚未完成 Windows / WeGame 实机验收。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -273,16 +273,16 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git：分支 `main`；本地 root commit `Initial HexBridge v0.1.0` 已创建。该提交会因纳入本文件的后续记忆更新而 amend，因此不在提交自身内容中记录其可变哈希。
-- GitHub CLI 已登录用户 `RocXOvO`，但当前 OAuth 授权缺少创建 / 更新 GitHub Actions workflow 所需的 `workflow` scope。不得在本文件记录任何认证 token。
-- GitHub 私有仓库已创建：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PRIVATE`；本地 `origin` 已配置为该仓库的 HTTPS 地址。`main` push 因上述 scope 缺失被 GitHub 拒绝，远端尚无源码。
-- 当前发布阻塞：等待用户运行 `gh auth refresh -h github.com -s workflow` 完成授权，然后原样保留 `.github/workflows/release.yml` 并重试推送。不得通过删除、移走或绕过 workflow 文件解决授权问题。
-- `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`。首次源码 push 不会包含本地二进制或模型。
+- 当前 Git：分支 `main`；root commit `Initial HexBridge v0.1.0` 已成功推送，`main` 正在跟踪 `origin/main`。
+- GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
+- GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
+- `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
 - 预定发布方式：推送 `v*` tag，`.github/workflows/release.yml` 在 Windows runner 上执行 `npm ci`、audit、下载 / 校验模型、OCR 烟测、测试、lint、typecheck、Windows 打包、校验和，并创建 GitHub Release。所有第三方 GitHub Actions 已固定到完整 commit SHA。
+- 当前尚未创建 `v0.1.0` 或其他 release tag，也尚未创建 GitHub Release；推送 `main` 不触发仅监听 `v*` tag / 手动 dispatch 的发布作业。
 - 本地已有但被忽略的审查修复后 `v0.1.0` 产物：
   - `HexBridge-0.1.0-x64.exe`，198,154,924 bytes，SHA-256 `a59f330bec8b0ca9acd2efcc486a9e6e943270bb93889703fa327a2e107cbd9b`。
   - `HexBridge-0.1.0-x64.zip`，273,612,228 bytes，SHA-256 `6bfd26d70f2e9583d31d6438bc993a309b081d990b91fdf060f207feba438bf4`。
-- 最终 `pack:win` 与 `checksums` 均 exit 0。上述文件证明 Windows x64 目标可以打包，不证明其已在 Windows / WeGame 实机运行；首次远端 GitHub Actions 也尚未执行。
+- 最终 `pack:win` 与 `checksums` 均 exit 0。上述文件证明 Windows x64 目标可以打包，不证明其已在 Windows / WeGame 实机运行；发布 workflow 尚未因 release tag 运行。
 - 当前无商业 Windows 代码签名证书，发布物会显示“未知发布者”并可能触发 SmartScreen。
 
 ## 十、后续变更记录
@@ -297,3 +297,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-12 | HB-001～HB-010 | OPEN→修复后状态 | 修复比赛上下文、详情竞态 / 非阻塞同步、断线 OCR、生产 demo、模型供应链、缺版本 / 目录 / 详情刷新结果、广播、截图保留、依赖审计和 lint；附带收紧导航、请求去重与 Key 先验后存 | 全新 npm ci；7 files / 31 tests；audit 0；lint / typecheck / build；模型 checksum；OCR smoke；Windows x64 目标 pack / checksums exit 0 | Windows / WeGame 真实运行仍待验证，未代码签名 | 尚无 commit / remote
 - 2026-08-12 | GitHub 远端 | 已创建私有仓库 | 创建 `RocXOvO/HexBridge`（PRIVATE）并配置本地 `origin` | 远端 URL 与本地 remote 已复核 | 不涉及 | 等待首个源码 commit / push
 - 2026-08-12 | 初始提交 / push | 本地已提交、远端阻塞 | 创建 root commit `Initial HexBridge v0.1.0`；向 `origin/main` 推送时因 OAuth 缺少 `workflow` scope 被 GitHub 拒绝 | 本地 commit 与 remote 已复核；提交将 amend 纳入后续记忆更新，不在提交自身记录可变哈希 | 不涉及 | 等待用户执行 `gh auth refresh -h github.com -s workflow` 后重试；远端仍无源码
+- 2026-08-12 | GitHub 公开 / push | 阻塞已解除、源码已上线 | 用户补充 workflow scope，并按明确要求将 `RocXOvO/HexBridge` 从 PRIVATE 改为 PUBLIC；保留 workflow 后成功推送 root commit 到 `origin/main` | `main...origin/main`、PUBLIC visibility、远端默认分支和 workflow 文件已复核 | Windows / WeGame 真实运行仍待验证，未代码签名 | 源码已推送；尚无 release tag / GitHub Release
