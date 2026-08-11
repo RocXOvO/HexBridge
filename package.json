@@ -19,7 +19,7 @@
     "ocr:models": "node scripts/download-ocr-models.mjs",
     "icons": "node scripts/generate-icon.mjs",
     "checksums": "node scripts/checksums.mjs",
-    "pack:win": "npm run build && electron-builder --win nsis zip --x64",
+    "pack:win": "npm run build && electron-builder --win nsis zip --x64 --publish never",
     "pack:dir": "npm run build && electron-builder --dir"
   },
   "dependencies": {
