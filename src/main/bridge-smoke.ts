@@ -75,9 +75,18 @@ class SmokeFailure extends Error {
 }
 
 export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
-  const discovery = await discoverLcuCredentials('')
+  let discovery = await discoverLcuCredentials('')
   if (!discovery.summary || !Array.isArray(discovery.candidates)) {
     throw new SmokeFailure('HB_SMOKE_LCU_DISCOVERY_FAILED')
+  }
+  if (
+    process.platform === 'win32' &&
+    !['ok', 'empty'].includes(discovery.processStrategies['get-process'])
+  ) {
+    // A cold Windows PowerShell startup can exceed the product discovery
+    // budget on hosted runners. Retry once, but keep the executable/parse
+    // assertion strict so an invalid Get-Process script still fails CI.
+    discovery = await discoverLcuCredentials('')
   }
   if (
     process.platform === 'win32' &&
