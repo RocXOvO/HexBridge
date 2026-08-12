@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-12
-> 当前基线：公开 `v0.1.0` 含已知 preload 安全桥接故障；本地 `v0.1.1` 修复代码与 source Electron 烟测已通过，但 packaged Windows 烟测和新 Release 尚未完成，仍没有 Windows / WeGame 真实运行验收或商业代码签名。
+> 当前基线：公开 `v0.1.0` 含已知 preload 安全桥接故障；`v0.1.1` 修复代码已提交并推送，source 与 Windows packaged Electron bridge smoke 均通过，但尚未创建 `v0.1.1` tag / Release，仍没有真实 WeGame / LCU 对局验收或商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -289,7 +289,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-012 sandboxed preload 以 ESM 输出导致安全桥接失效
 
 - 严重度：阻断性（已发布应用的 Renderer 业务功能不可用）
-- 状态：`FIXED / UNVERIFIED`（source Electron smoke 已通过，Windows packaged EXE smoke 待 Actions 验证）
+- 状态：`VERIFIED`（preload / bridge / IPC / 安全偏好已由 source 与 Windows packaged EXE smoke 验证；不涵盖真实 WeGame / LCU 对局）
 - 用户症状：安装 `v0.1.0` 后 Renderer 显示“安全桥接初始化失败”；界面壳仍能显示，但 `window.hexbridge` 不存在，所有依赖 IPC 的 LCU、数据、设置和 OCR 展示功能均不可用。
 - 根因证据：`electron.vite.config.ts` 将 preload 强制输出为 `dist-electron/preload/index.mjs`；`window-manager.ts` 在 `sandbox=true` 的 BrowserWindow 中加载该 `.mjs`。构建产物首行为 ESM `import`。Electron 官方 ESM 文档明确 sandboxed preload 作为普通 JavaScript 运行，不支持 ESM imports，因此该组合必然在 preload 求值前失败。
 - 复现：本机运行 `ELECTRON_ENABLE_LOGGING=1 npm run dev` 可 100% 复现 `Unable to load preload script ... index.mjs` 与 `SyntaxError: Cannot use import statement outside a module`；主窗口和两个伴随窗口均报错。与此同时主进程 OCR 模型仍正常加载，恰好解释“UI 能显示、Main 仍运行，但 bridge 缺失”的现象。
@@ -299,7 +299,8 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 诊断修复：`window-manager.ts` 新增受控 `preload-error` 监听，记录稳定错误代码、窗口名和错误类型；不把 preload 路径、错误正文或任何凭据直接写入应用日志。
 - 回归门禁：新增 bundle verifier，要求 preload 目录只有 `index.cjs`、不含顶层 ESM import 且包含 Electron CommonJS require；新增真实 Electron source smoke，创建隐藏 BrowserWindow 后断言 `window.hexbridge`、`getState()` IPC 和四项安全偏好。Release workflow 增加 tag / package 版本一致性检查，并在 `pack:win` 后启动 `release/win-unpacked/HexBridge.exe` 执行同一 packaged smoke，再允许 checksums / 上传 / 发布。
 - 本地验证：版本已升至 `0.1.1`。干净 `npm ci` 后，npm audit 0、31 tests、lint、typecheck、`git diff --check`、`verify:preload`、真实 source Electron bridge smoke 全部通过；macOS 主机交叉执行 `pack:win + checksums` exit 0。代码审查 subagent 未发现 P0 / P1；提出的 P2 smoke cleanup 已修复并重新运行通过。
-- 剩余验证：Windows Actions 尚未实际执行 packaged EXE smoke，因此当前不能标为 VERIFIED；`v0.1.0` 仍是已知损坏 Release，也尚无 `v0.1.1` Release。需在 Windows runner 通过版本门禁、packaged bridge smoke、checksums 与发布后再更新状态；即使通过，仍不等同于 Windows + WeGame 对局实机验收。
+- Windows 验证：workflow_dispatch run [31562903957](https://github.com/RocXOvO/HexBridge/actions/runs/31562903957) 基于 commit `2e6a726c9baae590c14d58cf4291a227ec05f3da` 成功；Windows x64 job [94008801457](https://github.com/RocXOvO/HexBridge/actions/runs/31562903957/job/94008801457) 用时约 4m40s。`npm run test:bridge:packaged` 实际启动 `release/win-unpacked/HexBridge.exe`，验证 CommonJS preload、`window.hexbridge`、`getState()` IPC 与四项安全偏好通过；同一 job 的 npm ci、audit、OCR、31 tests、lint、typecheck、pack:win、checksums、artifact upload 也全部通过。
+- 状态边界：HB-012 的技术修复已验证，但公开 `v0.1.0` 仍是已知损坏 Release，`v0.1.1` 尚未 tag / Release。packaged bridge smoke 是 Windows runner 上的最小启动验证，不包含安装器交互、真实 WeGame / 国服 LCU 连接、选人状态链或对局 OCR，因此不能宣称完成产品实机验收。
 
 ### 附带安全与性能加固
 
@@ -309,7 +310,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 七、当前自动化验证基线
 
-2026-08-12 `v0.1.1` 本地修复候选基线：
+2026-08-12 `v0.1.1` 已推送修复基线：
 
 - 删除依赖后全新 `npm ci` 成功。
 - 7 个测试文件、31 项 Vitest 测试通过。
@@ -319,7 +320,8 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 生产 renderer bundle 已检查不含 demo payload。
 - macOS 主机上的 electron-builder Windows x64 NSIS + ZIP 交叉打包通过；这不等于 Windows 实机运行验证。
 - Windows Actions run `31519147662` 已在 Windows runner 完成 audit、OCR、31 tests、lint、typecheck、NSIS / ZIP 构建、checksums、artifact upload 和公开 Release；该结果只验证自动化构建 / 发布链，不验证游戏客户端实机行为。
-- `v0.1.1` 已新增并通过真实 source Electron bridge smoke：验证 `window.hexbridge`、`getState()` IPC、sandbox、contextIsolation、nodeIntegration 和 webSecurity；preload bundle verifier 也已通过。Windows packaged EXE smoke 已加入 workflow 但尚未实际运行。
+- `v0.1.1` 已通过真实 source Electron bridge smoke 及 preload bundle verifier；Windows Actions run `31562903957` 又实际启动 unpacked `HexBridge.exe`，验证 `window.hexbridge`、`getState()` IPC、sandbox、contextIsolation、nodeIntegration 和 webSecurity。
+- Windows workflow_dispatch 的 npm ci、audit、OCR models / smoke、31 tests、lint、typecheck、pack:win、packaged bridge smoke、checksums、artifact upload 全通过；该 run 不发布 Release，tag 版本门禁和 softprops 步骤按条件跳过。
 - `git diff --check` 通过；代码审查 subagent 无 P0 / P1，P2 cleanup 已修复并完成同组回归。
 - 审查前已对主界面、设置、英雄榜、选人浮窗和三卡浮窗做过浏览器视觉检查，未见控制台错误。
 
@@ -328,7 +330,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ## 八、Windows / 游戏实机待验证
 
 - Windows 10 与 Windows 11 x64 的安装、卸载、便携版启动、托盘、开机后首次 `safeStorage` 行为。
-- HB-012 已在 source Electron 中验证 CommonJS preload、`window.hexbridge`、`getState()` IPC 和安全偏好；仍需 Windows Actions packaged EXE smoke，并需安装版实际启动确认 `preload-error` 可进入受控日志。便携 / unpacked 自动烟测不能代替安装版人工验收。
+- HB-012 已在 source Electron 和 Windows unpacked packaged EXE 中验证 CommonJS preload、`window.hexbridge`、`getState()` IPC 和安全偏好；仍需安装版实际启动 / 卸载，并人工确认故障时 `preload-error` 可进入受控日志。自动烟测不能代替真实 WeGame / LCU 对局验收。
 - WeGame / 国服客户端启动后 5 秒内发现 LCU；进程命令行、lockfile、日志、手动目录四种来源。
 - 客户端重启、第二局、token / 端口轮换、ChampSelect→GameStart→InProgress→EndOfGame 全状态链。
 - 抓取网络请求确认运行全程只出现白名单 LCU GET，没有写请求。
@@ -341,7 +343,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git：本地 `main` 基于并跟踪 `origin/main` 的 Release 收尾提交 `7f281b1`；工作区含尚未提交 / 推送的 `v0.1.1` 与 HB-012 修复。`v0.1.0` tag 仍指向 HB-011 修复 commit `212a8f62`。
+- 当前 Git：`main` 与 `origin/main` 均位于 HB-012 修复 commit `2e6a726c9baae590c14d58cf4291a227ec05f3da`；版本为 `0.1.1`。`v0.1.0` tag 仍指向 HB-011 修复 commit `212a8f62`，当前没有 `v0.1.1` tag。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -352,8 +354,13 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
   - `HexBridge-0.1.0-x64.zip`，273,725,909 bytes，SHA-256 / GitHub asset digest `ae21508a3bd39e603e2cd0bf1425280e0db4204aeed312409cae765719a5dc9f`。
   - `SHA256SUMS.txt`，180 bytes，GitHub asset digest `d4418da855a0d11bdd52661ee03ab8fcdd8e216dbc747f75ff795fb8b4e13c75`；文件内容列出的 EXE / ZIP SHA-256 与对应 GitHub asset digest 一致。
 - 上述成功结果证明 Windows runner 的构建与发布链可用，不证明安装包已在真实 Windows + WeGame 对局中运行。
-- 已发布 `v0.1.0` 含 HB-012，安装后 preload 无法加载，不能作为功能可用的发布基线。本地 `v0.1.1` 已有代码修复并通过 source Electron smoke，但尚无 commit / tag / Windows packaged smoke / 替换 Release；完成这些门禁前仍应引导用户等待修正版。
+- 已发布 `v0.1.0` 含 HB-012，安装后 preload 无法加载，不能作为功能可用的发布基线。`v0.1.1` 修复已 commit / push，并通过 source 与 Windows packaged bridge smoke，但尚无 `v0.1.1` tag / Release；正式用户仍应等待修正版 Release。
 - 当前无商业 Windows 代码签名证书，发布物会显示“未知发布者”并可能触发 SmartScreen。
+
+### 非阻断发布维护项
+
+- GitHub Actions run `31562903957` 出现 Node 20 deprecated annotation。当前 workflow 中第三方 actions 仍固定到完整 commit SHA，runner 已临时强制它们使用 Node 24，且本次 job 成功，因此不是 `v0.1.1` 发布阻断项。
+- 后续维护应在不放弃 commit SHA 固定的前提下，升级到官方声明原生支持 Node 24 的 actions commit，并重新跑 workflow_dispatch；不要仅依赖 runner 的临时强制兼容行为。
 
 ## 十、后续变更记录
 
@@ -373,3 +380,5 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-12 | HB-011 / v0.1.0 Release | FIXED / UNVERIFIED→VERIFIED | commit `212a8f62` 的 Windows Actions run 31519147662 以 builder-only / softprops-only 职责完成发布 | audit、OCR models / smoke、31 tests、lint、typecheck、pack:win、checksums、artifact upload、Release 全通过；约 5m39s；asset digest 与 SHA256SUMS 一致 | 构建发布链已验证；Windows + WeGame 真实运行仍待验，未商业签名 | 公开 Release `v0.1.0`，非 draft / prerelease
 - 2026-08-12 | HB-012 / preload bridge | DIAGNOSED / UNFIXED | 确认 sandboxed BrowserWindow 加载 ESM `index.mjs` 时发生 import 语法错误，导致 `window.hexbridge` 缺失；ASAR 文件与路径均正确 | 本机 logging dev 100% 复现；现有 31 tests 与 Release workflow 均不启动应用，故未覆盖 | 与用户环境 / WeGame / Key / 重装无关；修复后仍需 Windows 安装版启动与 IPC 烟测 | 仅完成诊断；无代码修复、无新 Release
 - 2026-08-12 | HB-012 / v0.1.1 本地修复 | DIAGNOSED / UNFIXED→FIXED / UNVERIFIED | preload 改为单文件 CommonJS `index.cjs`；保留四项安全偏好；增加受控 preload-error、bundle verifier、真实 source / packaged bridge smoke、tag / package 版本门禁 | clean npm ci；audit 0；31 tests；lint / typecheck / diff-check / verify-preload / source Electron smoke；macOS cross pack + checksums；review 无 P0/P1，P2 cleanup 回归通过 | Windows Actions packaged EXE smoke 与 Windows + WeGame 实机仍待验证 | 版本已升 0.1.1；尚未提交 / 推送 / 发布
+- 2026-08-12 | HB-012 / Windows packaged smoke | FIXED / UNVERIFIED→VERIFIED | commit `2e6a726c9baae590c14d58cf4291a227ec05f3da` 的 workflow_dispatch run 31562903957 / job 94008801457 启动实际 unpacked `HexBridge.exe` | npm ci、audit、OCR、31 tests、lint、typecheck、pack、packaged bridge / IPC / 安全偏好 smoke、checksums、artifact upload 全通过；约 4m40s | bridge 修复已验证；安装器与真实 WeGame / LCU 对局仍待验，未商业签名 | 0.1.1 已 commit / push main；尚无 tag / Release
+- 2026-08-12 | Actions Node runtime | 非阻断维护 | runner 标注固定 actions 使用 Node 20 已 deprecated，并在当前运行中强制 Node 24 | run 31562903957 成功 | 不涉及游戏实机 | 后续升级到原生 Node 24 actions commit 并保留 SHA pin
