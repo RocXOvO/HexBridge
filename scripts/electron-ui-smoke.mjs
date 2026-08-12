@@ -289,7 +289,7 @@ try {
     }
 
     let calibration = null
-    if (process.platform === 'win32') {
+    if (process.platform === 'win32' || process.env.HEXBRIDGE_SMOKE_CALIBRATION === 'true') {
       await mainCdp.evaluate(`(async () => {
         const settings = [...document.querySelectorAll('.sidebar nav button')]
           .find((item) => item.textContent.includes('设置'))

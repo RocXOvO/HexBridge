@@ -52,7 +52,8 @@ function cancelDrag(): void {
   draft.value = null
 }
 
-function style(rect: NormalizedRect): Record<string, string> {
+function style(rect?: NormalizedRect): Record<string, string> {
+  if (!rect) return {}
   return {
     left: `${rect.x * 100}%`,
     top: `${rect.y * 100}%`,
@@ -125,7 +126,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keydown))
       v-show="rects[slot]"
       :key="slot"
       class="calibration-rect complete"
-      :style="style(rects[slot]!)"
+      :style="style(rects[slot])"
     >
       <span>{{ labels[slot] }}</span>
     </div>
