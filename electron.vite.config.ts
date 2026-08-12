@@ -11,12 +11,15 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
       outDir: 'dist-electron/preload',
       rollupOptions: {
         input: resolve('src/preload/index.ts'),
-        output: { entryFileNames: 'index.mjs' },
+        output: {
+          format: 'cjs',
+          entryFileNames: 'index.cjs',
+          inlineDynamicImports: true,
+        },
       },
     },
   },

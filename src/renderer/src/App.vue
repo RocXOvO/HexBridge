@@ -77,7 +77,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 <template>
   <div class="app-shell" :data-performance="state.diagnostics.activeVisualMode">
     <header class="titlebar">
-      <div class="title-brand"><LogoMark /><span>HexBridge</span><small>0.1.0</small></div>
+      <div class="title-brand"><LogoMark /><span>HexBridge</span><small>0.1.1</small></div>
       <div class="drag-region" />
       <div class="title-actions">
         <button aria-label="最小化" @click="api.windowAction('minimize')">—</button>

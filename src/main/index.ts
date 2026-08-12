@@ -1,4 +1,6 @@
 import { app, globalShortcut, Menu, nativeImage, Tray } from 'electron'
+import { writeFile } from 'node:fs/promises'
+import { runBridgeSmokeTest } from './bridge-smoke.js'
 import { registerIpc } from './ipc.js'
 import { logger } from './logger.js'
 import { HexBridgeRuntime } from './runtime.js'
@@ -7,8 +9,20 @@ let runtime: HexBridgeRuntime | null = null
 let tray: Tray | null = null
 
 const TRAY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path fill="#11161c" stroke="#79b8ad" stroke-width="2" d="M16 2 28 9v14l-12 7-12-7V9Z"/><path fill="none" stroke="#d4b66f" stroke-width="2" stroke-linecap="round" d="M9 20c2-6 5-9 7-9s5 3 7 9M8 22h16"/></svg>`
+const bridgeSmokeMode = process.argv.includes('--hexbridge-smoke-test')
 
-if (!app.requestSingleInstanceLock()) app.quit()
+if (!bridgeSmokeMode && !app.requestSingleInstanceLock()) app.quit()
+
+async function finishBridgeSmoke(result: object, exitCode: number): Promise<void> {
+  const resultPath = process.env.HEXBRIDGE_SMOKE_RESULT
+  if (resultPath) await writeFile(resultPath, JSON.stringify(result), 'utf8')
+  if (exitCode === 0) console.log('HEXBRIDGE_BRIDGE_SMOKE_OK')
+  else {
+    const code = 'code' in result && typeof result.code === 'string' ? result.code : 'HB_SMOKE_UNKNOWN'
+    console.error('HEXBRIDGE_BRIDGE_SMOKE_FAILED', code)
+  }
+  app.exit(exitCode)
+}
 
 function registerHotkey(accelerator: string): void {
   globalShortcut.unregisterAll()
@@ -21,6 +35,16 @@ function registerHotkey(accelerator: string): void {
 }
 
 async function start(): Promise<void> {
+  if (bridgeSmokeMode) {
+    try {
+      await finishBridgeSmoke(await runBridgeSmokeTest(), 0)
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'HB_SMOKE_UNKNOWN'
+      await finishBridgeSmoke({ ok: false, code }, 1)
+    }
+    return
+  }
+
   runtime = new HexBridgeRuntime()
   registerIpc(runtime)
   await runtime.initialize()
@@ -52,5 +76,5 @@ app.on('before-quit', () => {
 
 void app.whenReady().then(start).catch((error) => {
   logger.error('HexBridge failed to start', error instanceof Error ? error.stack : error)
-  app.quit()
+  app.exit(1)
 })

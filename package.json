@@ -1,6 +1,6 @@
 {
   "name": "hexbridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A read-only ARAM Mayhem companion for League of Legends.",
   "author": "HexBridge contributors",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -14,12 +14,15 @@
     "typecheck": "vue-tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "vitest run",
     "test:ocr": "node scripts/ocr-smoke.mjs",
+    "test:bridge": "npm run build && npm run verify:preload && node scripts/electron-bridge-smoke.mjs",
+    "test:bridge:packaged": "node scripts/electron-bridge-smoke.mjs release/win-unpacked/HexBridge.exe",
     "test:watch": "vitest",
     "lint": "eslint .",
     "ocr:models": "node scripts/download-ocr-models.mjs",
     "icons": "node scripts/generate-icon.mjs",
     "checksums": "node scripts/checksums.mjs",
-    "pack:win": "npm run build && electron-builder --win nsis zip --x64 --publish never",
+    "verify:preload": "node scripts/verify-preload-bundle.mjs",
+    "pack:win": "npm run build && npm run verify:preload && electron-builder --win nsis zip --x64 --publish never",
     "pack:dir": "npm run build && electron-builder --dir"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-12
-> 当前基线：`v0.1.0` 已由 Windows Actions 完成构建并发布到公开 GitHub Release；尚未完成 Windows / WeGame 真实运行验收，也没有商业代码签名。
+> 当前基线：公开 `v0.1.0` 含已知 preload 安全桥接故障；本地 `v0.1.1` 修复代码与 source Electron 烟测已通过，但 packaged Windows 烟测和新 Release 尚未完成，仍没有 Windows / WeGame 真实运行验收或商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -286,6 +286,21 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 代码修复：`package.json` 的 `pack:win` 已增加 `--publish never`，显式禁止 electron-builder 发布；workflow 继续由 softprops 步骤上传 EXE、ZIP 和 `SHA256SUMS.txt`。
 - 验证：macOS 本地完整执行 `npm run pack:win && npm run checksums` exit 0；随后 Windows Actions run [31519147662](https://github.com/RocXOvO/HexBridge/actions/runs/31519147662) 基于 commit `212a8f62` 成功，audit、OCR models / smoke、31 tests、lint、typecheck、pack:win、checksums、artifact upload、softprops Release 全部通过，耗时约 5m39s。GitHub Release 已实际创建，因此该 CI 缺陷完成验证；这仍不是 Windows / WeGame 应用运行验收。
 
+### HB-012 sandboxed preload 以 ESM 输出导致安全桥接失效
+
+- 严重度：阻断性（已发布应用的 Renderer 业务功能不可用）
+- 状态：`FIXED / UNVERIFIED`（source Electron smoke 已通过，Windows packaged EXE smoke 待 Actions 验证）
+- 用户症状：安装 `v0.1.0` 后 Renderer 显示“安全桥接初始化失败”；界面壳仍能显示，但 `window.hexbridge` 不存在，所有依赖 IPC 的 LCU、数据、设置和 OCR 展示功能均不可用。
+- 根因证据：`electron.vite.config.ts` 将 preload 强制输出为 `dist-electron/preload/index.mjs`；`window-manager.ts` 在 `sandbox=true` 的 BrowserWindow 中加载该 `.mjs`。构建产物首行为 ESM `import`。Electron 官方 ESM 文档明确 sandboxed preload 作为普通 JavaScript 运行，不支持 ESM imports，因此该组合必然在 preload 求值前失败。
+- 复现：本机运行 `ELECTRON_ENABLE_LOGGING=1 npm run dev` 可 100% 复现 `Unable to load preload script ... index.mjs` 与 `SyntaxError: Cannot use import statement outside a module`；主窗口和两个伴随窗口均报错。与此同时主进程 OCR 模型仍正常加载，恰好解释“UI 能显示、Main 仍运行，但 bridge 缺失”的现象。
+- 已排除：安装包 ASAR 内 preload 文件存在，解析后的路径也正确，因此不是文件漏打包或路径错误；问题与用户环境、WeGame、API Key 或重装无关。
+- 原测试缺口：此前 7 个文件 / 31 项 unit tests 没有实际 preload / BrowserWindow 测试，Release workflow 只 build / package，不启动 Electron 应用，因此 HB-012 未被 CI 捕获。
+- 代码修复：preload 改为单文件 CommonJS `dist-electron/preload/index.cjs`，Rollup 使用 `format: 'cjs' + inlineDynamicImports: true` 并移除 preload 的 dependency externalize，确保 sandbox 环境不含 ESM import；BrowserWindow 同步加载 `.cjs`。生产安全偏好继续保持 `sandbox=true`、`contextIsolation=true`、`webSecurity=true`、`nodeIntegration=false`，没有通过降低安全配置绕过问题。
+- 诊断修复：`window-manager.ts` 新增受控 `preload-error` 监听，记录稳定错误代码、窗口名和错误类型；不把 preload 路径、错误正文或任何凭据直接写入应用日志。
+- 回归门禁：新增 bundle verifier，要求 preload 目录只有 `index.cjs`、不含顶层 ESM import 且包含 Electron CommonJS require；新增真实 Electron source smoke，创建隐藏 BrowserWindow 后断言 `window.hexbridge`、`getState()` IPC 和四项安全偏好。Release workflow 增加 tag / package 版本一致性检查，并在 `pack:win` 后启动 `release/win-unpacked/HexBridge.exe` 执行同一 packaged smoke，再允许 checksums / 上传 / 发布。
+- 本地验证：版本已升至 `0.1.1`。干净 `npm ci` 后，npm audit 0、31 tests、lint、typecheck、`git diff --check`、`verify:preload`、真实 source Electron bridge smoke 全部通过；macOS 主机交叉执行 `pack:win + checksums` exit 0。代码审查 subagent 未发现 P0 / P1；提出的 P2 smoke cleanup 已修复并重新运行通过。
+- 剩余验证：Windows Actions 尚未实际执行 packaged EXE smoke，因此当前不能标为 VERIFIED；`v0.1.0` 仍是已知损坏 Release，也尚无 `v0.1.1` Release。需在 Windows runner 通过版本门禁、packaged bridge smoke、checksums 与发布后再更新状态；即使通过，仍不等同于 Windows + WeGame 对局实机验收。
+
 ### 附带安全与性能加固
 
 - 导航：由前缀字符串判断改为开发环境精确 origin / pathname / search allowlist，以及生产环境精确 `file:` entry allowlist；同时守卫 navigate 与 redirect。
@@ -294,7 +309,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 七、当前自动化验证基线
 
-2026-08-12 审查修复后基线：
+2026-08-12 `v0.1.1` 本地修复候选基线：
 
 - 删除依赖后全新 `npm ci` 成功。
 - 7 个测试文件、31 项 Vitest 测试通过。
@@ -304,6 +319,8 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 生产 renderer bundle 已检查不含 demo payload。
 - macOS 主机上的 electron-builder Windows x64 NSIS + ZIP 交叉打包通过；这不等于 Windows 实机运行验证。
 - Windows Actions run `31519147662` 已在 Windows runner 完成 audit、OCR、31 tests、lint、typecheck、NSIS / ZIP 构建、checksums、artifact upload 和公开 Release；该结果只验证自动化构建 / 发布链，不验证游戏客户端实机行为。
+- `v0.1.1` 已新增并通过真实 source Electron bridge smoke：验证 `window.hexbridge`、`getState()` IPC、sandbox、contextIsolation、nodeIntegration 和 webSecurity；preload bundle verifier 也已通过。Windows packaged EXE smoke 已加入 workflow 但尚未实际运行。
+- `git diff --check` 通过；代码审查 subagent 无 P0 / P1，P2 cleanup 已修复并完成同组回归。
 - 审查前已对主界面、设置、英雄榜、选人浮窗和三卡浮窗做过浏览器视觉检查，未见控制台错误。
 
 现有测试覆盖：上游字段清洗、401 / 429 / 离线缓存、Key 验证前不落盘、初始化去重、缓存 dataVersion 恢复、LCU 凭据解析与 snapshot 归一化、GameStart 携带 / EndOfGame 清理、只读 allowlist、1080p / 2K / 4K 裁切几何、OCR 文本匹配、英雄 / 海克斯排序、sequence / 详情版本 / OCR 启停 / snapshot 去重守卫。HB-002 的完整乱序请求、HB-003 的在途扫描断线、HB-006 的 Runtime toast、HB-007 的窗口 IPC 和 HB-008 的文件保留边界仍缺直接集成测试。
@@ -311,6 +328,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ## 八、Windows / 游戏实机待验证
 
 - Windows 10 与 Windows 11 x64 的安装、卸载、便携版启动、托盘、开机后首次 `safeStorage` 行为。
+- HB-012 已在 source Electron 中验证 CommonJS preload、`window.hexbridge`、`getState()` IPC 和安全偏好；仍需 Windows Actions packaged EXE smoke，并需安装版实际启动确认 `preload-error` 可进入受控日志。便携 / unpacked 自动烟测不能代替安装版人工验收。
 - WeGame / 国服客户端启动后 5 秒内发现 LCU；进程命令行、lockfile、日志、手动目录四种来源。
 - 客户端重启、第二局、token / 端口轮换、ChampSelect→GameStart→InProgress→EndOfGame 全状态链。
 - 抓取网络请求确认运行全程只出现白名单 LCU GET，没有写请求。
@@ -323,17 +341,18 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git：分支 `main` 正在跟踪 `origin/main`；HB-011 修复 commit `212a8f62` 与 `v0.1.0` tag 已在远端，Windows Release workflow 已成功完成。
+- 当前 Git：本地 `main` 基于并跟踪 `origin/main` 的 Release 收尾提交 `7f281b1`；工作区含尚未提交 / 推送的 `v0.1.1` 与 HB-012 修复。`v0.1.0` tag 仍指向 HB-011 修复 commit `212a8f62`。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
-- 发布职责契约：`pack:win` 必须带 `--publish never`，electron-builder 只构建；`.github/workflows/release.yml` 在 Windows runner 上执行 `npm ci`、audit、下载 / 校验模型、OCR 烟测、测试、lint、typecheck、Windows 打包、校验和，最后仅由 `softprops/action-gh-release` 创建 / 上传 GitHub Release。所有第三方 GitHub Actions 固定到完整 commit SHA。
+- 发布职责契约：`pack:win` 必须带 `--publish never`，electron-builder 只构建；tag 必须与 `package.json` 版本完全一致。`.github/workflows/release.yml` 在 Windows runner 上执行 `npm ci`、版本门禁、audit、模型下载 / 校验、OCR smoke、31 tests、lint、typecheck、Windows 打包、packaged EXE bridge smoke、checksums，最后仅由 `softprops/action-gh-release` 创建 / 上传 GitHub Release。所有第三方 GitHub Actions 固定到完整 commit SHA。
 - `v0.1.0` 首次 run `31517806148` 的 HB-011 失败已由成功 run [31519147662](https://github.com/RocXOvO/HexBridge/actions/runs/31519147662) 关闭。成功 run 基于 commit `212a8f62`，所有步骤通过，耗时约 5m39s。
 - GitHub Release [v0.1.0](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.0) 已公开，`draft=false`、`prerelease=false`。正式发布物以 Windows Actions assets 为准：
   - `HexBridge-0.1.0-x64.exe`，198,647,921 bytes，SHA-256 / GitHub asset digest `a6a1eded05232dec9921689706215da2275d344abde90ad4dac30ced1bc9bf4e`。
   - `HexBridge-0.1.0-x64.zip`，273,725,909 bytes，SHA-256 / GitHub asset digest `ae21508a3bd39e603e2cd0bf1425280e0db4204aeed312409cae765719a5dc9f`。
   - `SHA256SUMS.txt`，180 bytes，GitHub asset digest `d4418da855a0d11bdd52661ee03ab8fcdd8e216dbc747f75ff795fb8b4e13c75`；文件内容列出的 EXE / ZIP SHA-256 与对应 GitHub asset digest 一致。
 - 上述成功结果证明 Windows runner 的构建与发布链可用，不证明安装包已在真实 Windows + WeGame 对局中运行。
+- 已发布 `v0.1.0` 含 HB-012，安装后 preload 无法加载，不能作为功能可用的发布基线。本地 `v0.1.1` 已有代码修复并通过 source Electron smoke，但尚无 commit / tag / Windows packaged smoke / 替换 Release；完成这些门禁前仍应引导用户等待修正版。
 - 当前无商业 Windows 代码签名证书，发布物会显示“未知发布者”并可能触发 SmartScreen。
 
 ## 十、后续变更记录
@@ -352,3 +371,5 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-12 | 可整合数据源审计 | 方案记录、未实现 | 明确 data.dtodo 主统计源；CommunityDragon / Data Dragon / Meraki 静态职责；本地 LCU Match History / Live Client 可选边界；Wiki CC BY-SA 隔离；Match-V5 queue 2400 / 国服不可用；拒绝私有网页抓取 | 基于公开接口与可用性审计，未新增代码或测试 | 新来源均待单独实现与验收 | 仅更新项目记忆
 - 2026-08-12 | HB-011 / Release CI | 失败已定位，修复待 Windows 复验 | `v0.1.0` tag run 31517806148 的 Windows pack 末尾触发 electron-builder 隐式 publish；为 `pack:win` 增加 `--publish never`，保持 softprops 为唯一发布者 | 远端前置 audit / OCR / 31 tests / lint / typecheck 通过；macOS 本地 `pack:win && checksums` exit 0 | 不构成 Windows / WeGame 实机验收；仍需 Windows Actions 重新构建并创建 Release | fix 待提交 / 推送；GitHub Release 尚未创建
 - 2026-08-12 | HB-011 / v0.1.0 Release | FIXED / UNVERIFIED→VERIFIED | commit `212a8f62` 的 Windows Actions run 31519147662 以 builder-only / softprops-only 职责完成发布 | audit、OCR models / smoke、31 tests、lint、typecheck、pack:win、checksums、artifact upload、Release 全通过；约 5m39s；asset digest 与 SHA256SUMS 一致 | 构建发布链已验证；Windows + WeGame 真实运行仍待验，未商业签名 | 公开 Release `v0.1.0`，非 draft / prerelease
+- 2026-08-12 | HB-012 / preload bridge | DIAGNOSED / UNFIXED | 确认 sandboxed BrowserWindow 加载 ESM `index.mjs` 时发生 import 语法错误，导致 `window.hexbridge` 缺失；ASAR 文件与路径均正确 | 本机 logging dev 100% 复现；现有 31 tests 与 Release workflow 均不启动应用，故未覆盖 | 与用户环境 / WeGame / Key / 重装无关；修复后仍需 Windows 安装版启动与 IPC 烟测 | 仅完成诊断；无代码修复、无新 Release
+- 2026-08-12 | HB-012 / v0.1.1 本地修复 | DIAGNOSED / UNFIXED→FIXED / UNVERIFIED | preload 改为单文件 CommonJS `index.cjs`；保留四项安全偏好；增加受控 preload-error、bundle verifier、真实 source / packaged bridge smoke、tag / package 版本门禁 | clean npm ci；audit 0；31 tests；lint / typecheck / diff-check / verify-preload / source Electron smoke；macOS cross pack + checksums；review 无 P0/P1，P2 cleanup 回归通过 | Windows Actions packaged EXE smoke 与 Windows + WeGame 实机仍待验证 | 版本已升 0.1.1；尚未提交 / 推送 / 发布

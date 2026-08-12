@@ -9,6 +9,22 @@ const moduleDirectory = path.dirname(fileURLToPath(import.meta.url))
 
 type ManagedWindow = 'main' | 'champion' | 'augment' | 'calibration'
 
+export function resolvePreloadPath(): string {
+  return path.resolve(moduleDirectory, '../preload/index.cjs')
+}
+
+export function secureWebPreferences(): Electron.WebPreferences {
+  return {
+    preload: resolvePreloadPath(),
+    contextIsolation: true,
+    sandbox: true,
+    nodeIntegration: false,
+    webSecurity: true,
+    allowRunningInsecureContent: false,
+    backgroundThrottling: true,
+  }
+}
+
 export class WindowManager {
   private windows = new Map<ManagedWindow, BrowserWindow>()
   private quitting = false
@@ -173,21 +189,18 @@ export class WindowManager {
   }
 
   private createWindow(name: ManagedWindow, options: Electron.BrowserWindowConstructorOptions): BrowserWindow {
-    const preload = path.resolve(moduleDirectory, '../preload/index.mjs')
     const window = new BrowserWindow({
       ...options,
-      webPreferences: {
-        preload,
-        contextIsolation: true,
-        sandbox: true,
-        nodeIntegration: false,
-        webSecurity: true,
-        allowRunningInsecureContent: false,
-        backgroundThrottling: true,
-      },
+      webPreferences: secureWebPreferences(),
     })
     this.windows.set(name, window)
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    window.webContents.on('preload-error', (_event, _preloadPath, error) => {
+      logger.error('HB_PRELOAD_LOAD_FAILED', {
+        window: name,
+        errorName: error?.name || 'Error',
+      })
+    })
     const guardNavigation = (event: Electron.Event, url: string): void => {
       if (!this.isAllowedNavigation(url)) event.preventDefault()
     }
