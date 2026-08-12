@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-13
-> 当前基线：公开、非 draft / prerelease 的最新正式 Release 为 `v0.1.6`，产品源码 / tag 固定指向 commit `e47a172f266328acd68cf4f366e8f04423a36df3`；预发布与正式 tag Windows workflows 均以 72 tests 和完整门禁成功。HB-018 / HB-020 均保持 `FIXED / UNVERIFIED`：Windows 构建与受控测试通过，但真实 WeGame 交接、国服游戏进程名和整局 OCR 尚未实机验收。HB-019 的 Windows packaged synthetic `0.1.7` check / download / SHA-512 / 隔离 cache 窄范围 `VERIFIED`；GitHub stable channel 已存在可供 `v0.1.5` 发现的正式 `v0.1.6` Release，但真实客户端 check / download、`quitAndInstall`、UAC 与实际替换仍 `UNVERIFIED`。`v0.1.4` 失败 tag 历史保持不变，项目仍无商业代码签名。
+> 当前基线：公开、非 draft / prerelease 的最新正式 Release 为 `v0.1.6`，产品源码 / tag 固定指向 commit `e47a172f266328acd68cf4f366e8f04423a36df3`。tag 后 `main` 已包含 Windows 真实进程检测集成测试 `4d03f948` 与 packaged UI smoke 竞态修复 `d5656b16`；post-release workflow_dispatch run `31617314812` 以 12 test files / 73 tests 和完整门禁成功。HB-020 总体保持 `FIXED / UNVERIFIED`，仅“名为 `League of Legends.exe` 的真实 Windows 进程 → tasklist → production 检测函数”窄范围 `VERIFIED`；真实 WeGame Ux 退出、客户端启动、LCU 端口失效、本局英雄 / 详情 / OCR 连续、终局与第二局仍无实机证据。HB-019 的 synthetic `0.1.7` check / download / SHA-512 / 隔离 cache 窄范围 `VERIFIED`，真实客户端更新安装链仍 `UNVERIFIED`。无新 tag / Release，项目仍无商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -400,6 +400,8 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - OCR / active 确认守卫：OCR 资格只依赖受控 match context、自动 OCR 开关和当前英雄，不依赖 `lcu.connected`。扫描开始时捕获 generation + champion；旧 generation / 英雄的迟到结果只丢弃并让新局扫描继续，不能清空新局浮窗或停止新局循环。`League of Legends.exe` 进程证据和首次可靠三卡 `matched` 调用 active 确认时，都必须同时原子校验当前 `matchStage=launching`、generation 和 champion，拒绝旧局异步结果。
 - Renderer 状态：LCU transport 已断开但本局 context 仍在时，界面明确显示“LCU 已交接”和“游戏客户端接管中 · 本局信息已保留”，不再把该状态呈现成普通“等待客户端”。
 - 与 HB-018 / 自动化边界的关系：HB-018 保持 `FIXED / UNVERIFIED`。`v0.1.6` 的 12 test files / 72 tests 覆盖 tracker 租约 / generation、phase-before-aux、游戏进程解析、OCR context 守卫和 Renderer 交接状态，且两次 Windows workflows 完成完整静态与 packaged 门禁。它们仍是模拟 phase / endpoint 与受控路径，packaged smokes 也不启动真实 WeGame / LeagueClientUx / 游戏客户端，不能作为交接期实机通过证据。
+- Windows 真实进程检测窄范围证据：tag 后 commit `4d03f948cd611b1ea60121506367cd0e4083e7da` 新增 Windows-only 集成测试，将实际 Node executable 复制为 `League of Legends.exe`，启动这一真实 Windows 进程，再由 production `isLeagueGameProcessRunning()` 经 `tasklist` 检测。post-release run [31617314812](https://github.com/RocXOvO/HexBridge/actions/runs/31617314812) / job [94183257885](https://github.com/RocXOvO/HexBridge/actions/runs/31617314812/job/94183257885) 中 `tests/game-process` 两项均通过，集成检测用时约 928ms。因此仅“预期映像名的真实 Windows 进程 → tasklist → production 检测函数”可标窄范围 `VERIFIED`。
+- 窄范围限制：上述测试使用重命名后的 Node，不是国服 WeGame 实际启动的游戏进程；它不证明国服进程名确为 `League of Legends.exe`，也不触发 LeagueClientUx 退出、LCU 凭据 / 端口消失、match context 保留、英雄详情、OCR、终局或第二局。HB-020 总体状态不得升级，继续为 `FIXED / UNVERIFIED`。
 - 交接期契约：从 `ChampSelect` 最后有效快照开始，即使出现 LeagueClientUx 进程退出、LCU 凭据失效、端口消失、`GameStart` 前 phase / endpoint 空窗或游戏客户端尚未完全启动，也不得仅因这些暂态事件清除本局已确认的 `queueId=2400`、当前英雄、匹配的英雄详情 / `dataVersion`、推荐上下文和 OCR 启用前提。游戏客户端启动并进入 `GameStart` / `InProgress` 后应继续同一局上下文，且不得短暂回显上一局或其他队列数据。
 - 必须采集的脱敏证据：按时间顺序记录 phase、LCU 连接状态、发现来源类别、凭据 / 端口是否可用、LeagueClientUx 与游戏客户端是否存在、match-context generation、是否携带英雄 / 详情以及每次保留或清理的原因码。不得记录 token、API Key、PUUID、完整 session、带凭据 URL 或未裁切截图。
 - 必须验证的验收标准：真实 Windows + 国服 WeGame 无边框对局中，覆盖“选人最后等待 → LeagueClientUx 退出或凭据 / 端口失效 → `GameStart` 前空窗 → 游戏客户端启动 → `GameStart` / `InProgress`”完整序列，核实国服实际游戏进程名是否确为 `League of Legends.exe`，并断言当前英雄、详情、数据版本、推荐与 OCR 扫描资格连续保留；三卡稳定出现后自动推荐和 F8 重试仍可用。随后覆盖完整一局、`EndOfGame` / 明确终局清理和同 queue 第二局英雄替换，断言不提前清空、不串局，也不永久保留已结束比赛。真实交接、进程名和整局 OCR 完成前不得标为 `VERIFIED`。
@@ -428,6 +430,14 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 干净本地依赖验证为 `npm ci → hydrate Electron → audit 0 → OCR models checksum / smoke → 72 tests → lint → typecheck → source bridge / UI smoke → diff-check` 全通过。logger 只在真实 Electron 路径动态 import Electron，`runtime-actions` 使用 mock `ConfigStore`；CI 先串行 hydrate 并断言 executable 存在，再运行并行门禁，避免 Electron 43 首次下载的解压竞态。
 - SHA-256 / SHA-512 只提供内容完整性证据，不是 Authenticode 发布者身份签名；无商业签名和 SmartScreen 边界不变。
 
+`v0.1.6` tag 后 `main` Windows 门禁基线：
+
+- commit `4d03f948cd611b1ea60121506367cd0e4083e7da` 新增 Windows-only 真实进程检测集成测试；commit `d5656b16c14e8248112c4d1f143fe42c7c2974e1` 修复 packaged UI smoke 在校准窗口正常自销毁时的 Esc / CDP 竞态。两项均已 push 到 `origin/main`，不改变 `v0.1.6` tag / Release 产品源码。
+- workflow_dispatch run [31617314812](https://github.com/RocXOvO/HexBridge/actions/runs/31617314812) / job [94183257885](https://github.com/RocXOvO/HexBridge/actions/runs/31617314812/job/94183257885) 基于 `d5656b16` 成功，用时约 5m5s。Windows 12 test files / 73 tests、lint、typecheck、pack、update metadata、packaged UI / bridge / updater、checksums 和 artifact 全通过。
+- `tests/game-process` 两项通过：测试复制实际 Node 为 `League of Legends.exe`、启动真实 Windows 进程，并由 production `isLeagueGameProcessRunning()` / `tasklist` 检出，集成项约 928ms。该证据只验证预期映像名到 production 检测函数的链路，不是 WeGame 实机。
+- packaged UI smoke 通过 1024×768 截图校准、Esc 后 calibration target 销毁和主窗口恢复；updater synthetic `0.1.7` 为 `downloaded=true`、metadata / installer 各 1 次、`isolatedCache=true`。
+- 首次 run [31616475936](https://github.com/RocXOvO/HexBridge/actions/runs/31616475936) attempt 1 中 73 tests 已通过，最终因既有 packaged UI smoke 的 Escape CDP race 发生门禁假失败：校准目标正常自销毁早于 CDP 命令返回。attempt 2 因新的修复提交出现而取消。审查确认该问题与产品交接改动无关；`d5656b16` 只对目标已正常关闭的 CDP 竞态作窄容错，之后仍严格断言 calibration target 消失、main target 存活和主窗口恢复。
+
 `v0.1.6` 发布前本地 / 交叉构建历史基线：
 
 - clean `npm ci`、Electron hydrate、`npm audit` 0、OCR models checksum / OCR smoke、12 test files / 72 tests、lint、typecheck、`git diff --check`、source bridge / UI smokes 全部通过。
@@ -450,7 +460,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - HB-017：未连接空状态在电影 / 均衡 / 省电、reduced-motion、InProgress 和窗口不可见条件下的视觉与渲染暂停行为。
 - HB-018：自动化已覆盖 tracker 序列；仍需真实 `ChampSelect → GameStart → InProgress → Reconnect → EndOfGame` 中英雄 / 详情 / 推荐上下文、OCR、推荐浮窗、第二局替换与离局清理。
 - HB-019：Windows packaged `v0.1.6→synthetic 0.1.7` local-feed check / download、SHA-512、隔离 cache 已验证，真实 GitHub `v0.1.6` 更新目标也已发布；仍需 packaged `v0.1.5` 对真实 GitHub 执行 check / download、显式确认安装、`quitAndInstall`、UAC / SmartScreen、实际替换 / 重启后版本和取消 / 错误全链路。`v0.1.3` 不含更新器，必须先手动安装 `v0.1.5` 或更新正式版一次。
-- HB-020：根因修复已随 `v0.1.6` 正式发布；仍需在 `v0.1.5` 用户所述真实交接链中验证选人最后等待、LeagueClientUx / LCU 凭据与端口消失、`GameStart` 前空窗、国服实际游戏进程名和游戏客户端启动之间的英雄 / 详情 / OCR 连续性，以及整局 OCR、终局清理和同 queue 第二局替换。72 tests 和 Windows packaged smokes 不构成真实 WeGame 实机证据。
+- HB-020：根因修复已随 `v0.1.6` 正式发布；tag 后 73 tests 中的 Windows-only 集成项仅窄范围验证重命名 Node 真实进程可经 `tasklist` 被 production 函数检出。仍需在用户所述真实交接链中验证 LeagueClientUx 退出、国服实际游戏进程名 / 启动、LCU 凭据与端口失效、`GameStart` 前空窗、本局英雄 / 详情 / OCR 连续性、整局 OCR、终局清理和同 queue 第二局替换；受控进程测试和 packaged smokes 不构成真实 WeGame 实机证据。
 - 无边框游戏下真实三卡：稳定出现后约 1 秒展示，刷新动画期间不误识别，连续丢失正确隐藏，F8 重试。
 - 1080p / 2K / 4K、100% / 125% / 150% DPI、多显示器、非主显示器、显示器热插拔和手动拖框校准。
 - 单卡 / 双卡、长中文名、OCR 错字、缺图、相同组合、并列、无详情 / 旧详情。
@@ -459,7 +469,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git / 版本：公开最新 Release 为 `v0.1.6`，产品源码 / tag 固定指向 `e47a172f266328acd68cf4f366e8f04423a36df3`。`main` 与 `origin/main` 已包含该产品提交；本次发布记忆更新尚待另行 commit / push，因此不在文件内预写其未知提交哈希。远端 `v0.1.4` tag 仍固定指向 `39758c1`，对应 Release 未创建，标签保持原位、不移动、不删除。
+- 当前 Git / 版本：公开最新 Release 仍为 `v0.1.6`，产品源码 / tag 固定指向 `e47a172f266328acd68cf4f366e8f04423a36df3`，没有新 tag / Release。tag 后 `main` / `origin/main` 已包含 Windows 进程集成测试 `4d03f948cd611b1ea60121506367cd0e4083e7da` 和 UI smoke 竞态修复 `d5656b16c14e8248112c4d1f143fe42c7c2974e1`；本次记忆更新提交后 main 可继续前移，因此不预写该提交自身的未知哈希。远端 `v0.1.4` tag 仍固定指向 `39758c1`，对应 Release 未创建，标签保持原位、不移动、不删除。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -512,7 +522,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ### 非阻断发布维护项
 
-- GitHub Actions 仍有 Node 20 deprecated annotation。当前 workflow 中第三方 actions 固定到完整 commit SHA，runner 已临时强制它们使用 Node 24，且 `v0.1.6` 正式 run `31615319004` 成功，因此不是当前发布阻断项。
+- GitHub Actions 仍有 Node 20 deprecated annotation。当前 workflow 中第三方 actions 固定到完整 commit SHA，runner 已临时强制它们使用 Node 24，且 tag 后 run `31617314812` 成功，因此不是当前发布阻断项。
 - 后续维护应在不放弃 commit SHA 固定的前提下，升级到官方声明原生支持 Node 24 的 actions commit，并重新跑 workflow_dispatch；不要仅依赖 runner 的临时强制兼容行为。
 
 ## 十、后续变更记录
@@ -561,3 +571,5 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-12 | v0.1.6 / 本地候选与交叉打包 | 候选验证通过、未发布 | 本地版本升至 0.1.6，包含 HB-020 修复；updater metadata、latest.yml 与当前 blockmap 对齐候选 EXE | clean npm ci、Electron hydrate、audit 0、OCR checksum / smoke、12 test files / 72 tests、lint / typecheck / diff、source bridge / UI 全通过；macOS pack:win + checksums exit 0，metadata verifier 通过；候选 EXE / ZIP SHA-256 已记录 | 仅 macOS 交叉构建；Windows Actions、Windows packaged、真实 WeGame 交接与整局 OCR 均未验证 | 尚未 commit / push / tag / Release；公开最新仍为 v0.1.5，不预写未来 CI
 - 2026-08-13 | v0.1.6 / Windows 预发布验证 | Windows packaged 全门禁通过 | 产品源码 `e47a172f266328acd68cf4f366e8f04423a36df3` 在 Windows runner 构建并执行 UI / bridge / updater synthetic 0.1.7 smokes | workflow_dispatch run 31614808777 / job 94174846929 成功，约 4m59s；hydrate、版本、audit、OCR、72 tests、lint、typecheck、pack、metadata、smokes、checksums、artifact 全通过 | 不等于真实 WeGame 交接、整局 OCR 或实际更新安装 | 产品提交已在 main；正式 tag run 结果另记
 - 2026-08-13 | v0.1.6 / Release | 已发布；HB-020 保持 FIXED / UNVERIFIED，HB-019 仅窄范围 VERIFIED | tag / 产品源码 `e47a172f266328acd68cf4f366e8f04423a36df3` 完成 Windows 构建、五项 updater / 发布资产与公开正式 Release | tag run 31615319004 / job 94176558591 成功，约 5m14s；72 tests 与完整门禁、synthetic 0.1.7 updater、checksums、artifact、softprops Release 全通过；正式资产摘要与清单一致 | 真实 WeGame、国服进程名、整局 OCR、真实 GitHub 客户端 check / download / quitAndInstall / UAC / 替换仍未验证；无商业签名 | 公开 Release `v0.1.6`，非 draft / prerelease；记忆更新待另 commit / push，不预写其 hash
+- 2026-08-13 | post-v0.1.6 / packaged UI smoke race | 门禁假失败→FIXED | run 31616475936 attempt 1 在 73 tests 通过后，Esc 使校准 target 正常自销毁早于 CDP 返回；attempt 2 因新提交出现取消；`d5656b16` 对目标已关闭竞态作窄容错，同时严格断言 calibration target 消失、main target 存活与主窗恢复 | 审查确认与产品交接改动无关；后续 run 31617314812 的 1024×768 校准 / Esc / 恢复 smoke 通过 | 不提供真实游戏校准或 WeGame 证据 | `d5656b16` 已 push origin/main；无新 tag / Release
+- 2026-08-13 | HB-020 / Windows 真实进程检测 | 总体 FIXED / UNVERIFIED；进程检测链窄范围 VERIFIED | `4d03f948` 在 Windows 复制实际 Node 为 `League of Legends.exe` 并启动真实进程，由 production `isLeagueGameProcessRunning()` / tasklist 检测 | run 31617314812 / job 94183257885 基于 `d5656b16` 成功约 5m5s；12 test files / 73 tests，game-process 两项通过且集成项约 928ms；lint/typecheck/pack/metadata/UI/bridge/updater/checksums/artifact 全通过；synthetic 0.1.7 downloaded、请求各1、cache隔离 | 只验证预期进程名→tasklist→生产函数；真实 WeGame Ux退出、实际进程名/启动、LCU端口失效、英雄/详情/OCR连续、终局/第二局均未验，HB-020不得整体VERIFIED | `4d03f948`、`d5656b16` 已 push main；v0.1.6 tag/Release仍为 e47a172，无新发布
