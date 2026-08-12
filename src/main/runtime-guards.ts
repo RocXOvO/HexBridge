@@ -1,9 +1,20 @@
 import type {
+  AppSettings,
   ChampionAugmentData,
   ChampionAugmentRank,
   ChampSelectSnapshot,
   LcuConnectionState,
 } from '../shared/contracts.js'
+
+export function shouldShowChampionCompanion(
+  settings: Pick<AppSettings, 'showChampionPanel'>,
+  snapshot: ChampSelectSnapshot,
+): boolean {
+  return settings.showChampionPanel &&
+    snapshot.modeActive &&
+    snapshot.currentChampionId != null &&
+    (snapshot.matchStage === 'selecting' || snapshot.matchStage === 'launching')
+}
 
 export function sameSnapshot(left: ChampSelectSnapshot, right: ChampSelectSnapshot): boolean {
   return (

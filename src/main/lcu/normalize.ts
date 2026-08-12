@@ -86,7 +86,36 @@ interface ConfirmedMatchContext {
   enteredGame: boolean
   stage: Exclude<MatchContextStage, 'none'>
   generation: number
+  matchIdentity: string | null
 }
+
+export type LcuEndpointObservationStatus = 'ok' | 'empty' | 'error' | 'skipped'
+
+export interface MatchContextEvidence {
+  destructive: boolean
+  champSelectSession: LcuEndpointObservationStatus
+  matchIdentity: string | null
+}
+
+const DEFAULT_EVIDENCE: MatchContextEvidence = {
+  destructive: true,
+  champSelectSession: 'ok',
+  matchIdentity: null,
+}
+
+export type MatchContextDecision =
+  | 'none'
+  | 'confirmed'
+  | 'retained-match-phase'
+  | 'retained-outgoing-champ-select'
+  | 'retained-partial-observation'
+  | 'retained-unknown-phase'
+  | 'retained-transport-handoff'
+  | 'confirmed-game-active'
+  | 'cleared-terminal-phase'
+  | 'cleared-queue-change'
+  | 'cleared-new-champ-select'
+  | 'expired'
 
 /**
  * LCU gameflow and champ-select endpoints do not transition atomically. Keep
@@ -96,26 +125,92 @@ interface ConfirmedMatchContext {
 export class MatchContextTracker {
   private confirmed: ConfirmedMatchContext | null = null
   private generation = 0
+  private lastDecision: MatchContextDecision = 'none'
 
-  apply(next: ChampSelectSnapshot, now = next.updatedAt): ChampSelectSnapshot {
-    if (CLEAR_CONTEXT_PHASES.has(next.phase)) {
+  apply(
+    next: ChampSelectSnapshot,
+    now = next.updatedAt,
+    evidence: MatchContextEvidence = DEFAULT_EVIDENCE,
+  ): ChampSelectSnapshot {
+    if (!evidence.destructive) {
+      if (this.confirmed) return this.retainPartialObservation(next, now)
+      this.lastDecision = 'retained-partial-observation'
+      return this.withoutContext({
+        ...next,
+        queueId: null,
+        modeActive: false,
+        currentChampionId: null,
+        benchChampionIds: [],
+        benchEnabled: false,
+      })
+    }
+
+    if (evidence.destructive && CLEAR_CONTEXT_PHASES.has(next.phase)) {
       this.confirmed = null
+      this.lastDecision = 'cleared-terminal-phase'
       return this.withoutContext(next)
     }
 
-    // A return to champ select after GameStart/InProgress/Reconnect always
-    // opens a new match generation, even when a disconnect hid all terminal
-    // phases and the queue id remains 2400.
+    if (
+      evidence.destructive &&
+      next.queueId != null &&
+      this.confirmed &&
+      next.queueId !== this.confirmed.queueId
+    ) {
+      this.confirmed = null
+      this.lastDecision = 'cleared-queue-change'
+    }
+
+    // LCU endpoints do not transition atomically during the game-client
+    // hand-off. A late `ChampSelect` phase can arrive after transport detached
+    // while both outgoing champ-select endpoints already return 404. Treat
+    // that empty observation as part of the current hand-off. Only a complete
+    // queue + champion observation can prove that a new champ select started.
     if (
       next.phase === 'ChampSelect' &&
       this.confirmed &&
       (this.confirmed.enteredGame || this.confirmed.stage !== 'selecting')
     ) {
+      const sameIdentity = Boolean(
+        evidence.matchIdentity &&
+        this.confirmed.matchIdentity &&
+        evidence.matchIdentity === this.confirmed.matchIdentity,
+      )
+      const sessionMissing = evidence.champSelectSession !== 'ok'
+      const sameHeroWithoutIdentity =
+        !evidence.matchIdentity &&
+        this.confirmed.stage === 'launching' &&
+        next.currentChampionId === this.confirmed.currentChampionId
+      const conflictingHero =
+        next.currentChampionId != null &&
+        next.currentChampionId !== this.confirmed.currentChampionId
+      if (!conflictingHero && (sameIdentity || sessionMissing || sameHeroWithoutIdentity)) {
+        const elapsed = now - this.confirmed.lastMatchPhaseAt
+        const leaseMs = this.confirmed.enteredGame
+          ? MATCH_CONTEXT_MAX_STALE_MS
+          : MATCH_CONTEXT_NONE_GRACE_MS
+        if (elapsed > leaseMs) {
+          this.confirmed = null
+          this.lastDecision = 'expired'
+          return this.withoutContext({
+            ...next,
+            queueId: null,
+            modeActive: false,
+            currentChampionId: null,
+            benchChampionIds: [],
+            benchEnabled: false,
+          })
+        }
+        this.lastDecision = 'retained-outgoing-champ-select'
+        return this.withContext({
+          ...next,
+          currentChampionId: null,
+          benchChampionIds: [],
+          benchEnabled: false,
+        })
+      }
       this.confirmed = null
-    }
-
-    if (next.queueId != null && this.confirmed && next.queueId !== this.confirmed.queueId) {
-      this.confirmed = null
+      this.lastDecision = 'cleared-new-champ-select'
     }
 
     if (next.queueId === 2400 && next.currentChampionId != null) {
@@ -129,11 +224,18 @@ export class MatchContextTracker {
         enteredGame,
         stage,
         generation: existing?.generation ?? ++this.generation,
+        matchIdentity: evidence.matchIdentity ?? existing?.matchIdentity ?? null,
       }
+      this.lastDecision = 'confirmed'
       return this.withContext(next)
     }
 
-    if (!this.confirmed) return this.withoutContext(next)
+    if (!this.confirmed) {
+      if (this.lastDecision !== 'cleared-new-champ-select' && this.lastDecision !== 'cleared-queue-change') {
+        this.lastDecision = 'none'
+      }
+      return this.withoutContext(next)
+    }
 
     const canCarryMatchPhase = MATCH_CONTEXT_PHASES.has(next.phase)
     const isTransientNone = next.phase === 'None'
@@ -146,11 +248,13 @@ export class MatchContextTracker {
     const canCarryUnknownTransition = isUnknownTransition && elapsed <= leaseMs
     if (!canCarryMatchPhase && !canCarryTransientNone && !canCarryUnknownTransition) {
       this.confirmed = null
+      this.lastDecision = 'expired'
       return this.withoutContext(next)
     }
 
     if (next.queueId != null && next.queueId !== this.confirmed.queueId) {
       this.confirmed = null
+      this.lastDecision = 'cleared-queue-change'
       return this.withoutContext(next)
     }
     if (isTransientNone && this.confirmed.stage === 'selecting') {
@@ -163,10 +267,14 @@ export class MatchContextTracker {
       if (isEnteredGamePhase(next.phase)) {
         this.confirmed.enteredGame = true
       }
+      this.lastDecision = 'retained-match-phase'
     } else if (isUnknownTransition) {
       // Unknown regional hand-off phases must not erase a confirmed match. A
       // named terminal phase or a new queue still clears it above.
       this.confirmed.stage = this.confirmed.stage === 'selecting' ? 'launching' : this.confirmed.stage
+      this.lastDecision = 'retained-unknown-phase'
+    } else {
+      this.lastDecision = 'retained-match-phase'
     }
     return this.withContext(next)
   }
@@ -178,9 +286,11 @@ export class MatchContextTracker {
       : MATCH_CONTEXT_NONE_GRACE_MS
     if (now - this.confirmed.lastMatchPhaseAt > leaseMs) {
       this.confirmed = null
+      this.lastDecision = 'expired'
       return this.discardTransportContext(previous, now)
     }
     if (this.confirmed.stage === 'selecting') this.confirmed.stage = 'launching'
+    this.lastDecision = 'retained-transport-handoff'
     return this.withContext({
       ...previous,
       benchChampionIds: [],
@@ -206,6 +316,7 @@ export class MatchContextTracker {
     this.confirmed.enteredGame = true
     this.confirmed.stage = 'active'
     this.confirmed.lastMatchPhaseAt = now
+    this.lastDecision = 'confirmed-game-active'
     return this.withContext({
       ...previous,
       benchChampionIds: [],
@@ -251,6 +362,41 @@ export class MatchContextTracker {
 
   reset(): void {
     this.confirmed = null
+    this.lastDecision = 'none'
+  }
+
+  getLastDecision(): MatchContextDecision {
+    return this.lastDecision
+  }
+
+  private retainPartialObservation(next: ChampSelectSnapshot, now: number): ChampSelectSnapshot {
+    if (!this.confirmed) return this.withoutContext(next)
+    const elapsed = now - this.confirmed.lastMatchPhaseAt
+    const leaseMs = this.confirmed.enteredGame
+      ? MATCH_CONTEXT_MAX_STALE_MS
+      : MATCH_CONTEXT_NONE_GRACE_MS
+    if (elapsed > leaseMs) {
+      this.confirmed = null
+      this.lastDecision = 'expired'
+      return this.withoutContext(next)
+    }
+
+    if (next.phase === 'GameStart' || next.phase === 'InProgress' || next.phase === 'Reconnect') {
+      this.confirmed.lastMatchPhaseAt = now
+      this.confirmed.stage = stageForPhase(next.phase, this.confirmed.stage)
+      this.confirmed.enteredGame = true
+    } else if (this.confirmed.stage === 'selecting') {
+      this.confirmed.stage = 'launching'
+    }
+    this.lastDecision = 'retained-partial-observation'
+    return this.withContext({
+      ...next,
+      queueId: null,
+      currentChampionId: null,
+      benchChampionIds: [],
+      benchEnabled: false,
+      updatedAt: now,
+    })
   }
 }
 

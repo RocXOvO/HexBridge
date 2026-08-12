@@ -7,6 +7,7 @@ import {
   isCurrentChampionRequest,
   sameSnapshot,
   shouldRunOcr,
+  shouldShowChampionCompanion,
 } from '../src/main/runtime-guards.js'
 
 const snapshot = (patch: Partial<ChampSelectSnapshot> = {}): ChampSelectSnapshot => ({
@@ -34,6 +35,21 @@ describe('runtime state guards', () => {
     expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }))).toBe(true)
     expect(shouldRunOcr(true, snapshot({ matchStage: 'selecting' }))).toBe(false)
     expect(shouldRunOcr(false, snapshot())).toBe(false)
+  })
+
+  it('keeps the champion companion visible throughout the launching handoff', () => {
+    expect(shouldShowChampionCompanion(
+      { showChampionPanel: true },
+      snapshot({ matchStage: 'launching', phase: 'None', currentChampionId: 103 }),
+    )).toBe(true)
+    expect(shouldShowChampionCompanion(
+      { showChampionPanel: true },
+      snapshot({ matchStage: 'active', currentChampionId: 103 }),
+    )).toBe(false)
+    expect(shouldShowChampionCompanion(
+      { showChampionPanel: true },
+      snapshot({ matchStage: 'launching', currentChampionId: null }),
+    )).toBe(false)
   })
 
   it('rejects an OCR result after the match generation or champion changes', () => {

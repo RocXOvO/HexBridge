@@ -4,7 +4,11 @@ import WebSocket from 'ws'
 import type { ChampSelectSnapshot, GameflowPhase, LcuConnectionState } from '../../shared/contracts.js'
 import { logger } from '../logger.js'
 import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
-import { MatchContextTracker, normalizeChampSelectSnapshot } from './normalize.js'
+import {
+  MatchContextTracker,
+  normalizeChampSelectSnapshot,
+  type LcuEndpointObservationStatus,
+} from './normalize.js'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -67,7 +71,53 @@ export function resolveLcuAuxiliaryResults(
     champSelectSession: valueAt(1),
     currentChampionId: valueAt(2),
     regionLocale: valueAt(3),
-    failure: results.find((result) => result.status === 'rejected')?.reason ?? null,
+    // Locale is optional and must not invalidate an otherwise complete match
+    // observation. The first three endpoints carry phase-adjacent match data.
+    failure: results.slice(0, 3).find((result) => result.status === 'rejected')?.reason ?? null,
+  }
+}
+
+type LcuObservationSummary = {
+  gameflowSession: LcuEndpointObservationStatus
+  champSelectSession: LcuEndpointObservationStatus
+  currentChampion: LcuEndpointObservationStatus
+  locale: LcuEndpointObservationStatus
+}
+
+const identityValue = (value: unknown): string | null => {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return String(value)
+  if (typeof value === 'string' && value.trim() && value !== '0') return value.trim()
+  return null
+}
+
+export function extractLcuMatchIdentity(
+  gameflowSession: any,
+  champSelectSession: any,
+): string | null {
+  const championSelectId = identityValue(champSelectSession?.gameId)
+  if (championSelectId) return `game:${championSelectId}`
+  const gameflowId = identityValue(
+    gameflowSession?.gameData?.gameId ??
+    gameflowSession?.gameClient?.gameId ??
+    gameflowSession?.gameId,
+  )
+  return gameflowId ? `game:${gameflowId}` : null
+}
+
+export function summarizeLcuAuxiliaryResults(
+  phase: GameflowPhase,
+  results: PromiseSettledResult<unknown>[],
+): LcuObservationSummary {
+  const statusAt = (index: number): LcuEndpointObservationStatus => {
+    const result = results[index]
+    if (!result || result.status === 'rejected') return 'error'
+    return result.value == null ? 'empty' : 'ok'
+  }
+  return {
+    gameflowSession: statusAt(0),
+    champSelectSession: phase === 'ChampSelect' ? statusAt(1) : 'skipped',
+    currentChampion: phase === 'ChampSelect' ? statusAt(2) : 'skipped',
+    locale: statusAt(3),
   }
 }
 
@@ -90,9 +140,20 @@ export function applyLcuPollResults(
     champSelectSession: resolved.champSelectSession,
     currentChampionId: resolved.currentChampionId,
   })
-  const observed = tracker.apply(normalized, now)
+  // A rejected phase-adjacent request makes this a partial observation. Do
+  // not let a terminal phase, queue change, or empty champ select destructively
+  // mutate the retained match before transport hand-off protection runs.
+  const endpointStatus = summarizeLcuAuxiliaryResults(phase, results)
+  const observed = tracker.apply(normalized, now, {
+    destructive: resolved.failure == null,
+    champSelectSession: endpointStatus.champSelectSession,
+    matchIdentity: extractLcuMatchIdentity(
+      resolved.gameflowSession,
+      resolved.champSelectSession,
+    ),
+  })
   return {
-    snapshot: resolved.failure ? tracker.transportDisconnected(observed, now) : observed,
+    snapshot: observed,
     failure: resolved.failure,
   }
 }
@@ -112,6 +173,7 @@ export class LcuClient extends EventEmitter {
   private tickInFlight: Promise<void> | null = null
   private readonly matchContext = new MatchContextTracker()
   private lastContextSignature = ''
+  private lastObservation: LcuObservationSummary | null = null
 
   constructor(private readonly getManualDirectory: () => string) {
     super()
@@ -160,11 +222,16 @@ export class LcuClient extends EventEmitter {
     this.socket = null
   }
 
-  private invalidate(reason: string, immediate = false): void {
+  private invalidate(
+    reason: string,
+    immediate = false,
+    observation: LcuObservationSummary | null = null,
+  ): void {
     this.credentials = null
     this.socket?.close()
     this.socket = null
     this.snapshot = this.matchContext.transportDisconnected(this.snapshot)
+    this.lastObservation = observation
     this.state = { ...this.state, connected: false, lastError: reason }
     this.nextDiscoveryAt = immediate ? 0 : Date.now() + 3000
   }
@@ -192,6 +259,7 @@ export class LcuClient extends EventEmitter {
     if (selection.credentials) {
       const credentials = selection.credentials
       this.credentials = credentials
+      this.lastObservation = null
       this.state = {
         connected: true,
         source: credentials.source,
@@ -278,6 +346,7 @@ export class LcuClient extends EventEmitter {
   private async tickInternal(): Promise<void> {
     try {
       if (!(await this.ensureCredentials())) {
+        this.lastObservation = null
         this.snapshot = this.matchContext.transportDisconnected(this.snapshot)
         this.publishUpdate('transport-unavailable')
         return
@@ -291,13 +360,14 @@ export class LcuClient extends EventEmitter {
           : Promise.resolve(null),
         this.request<any>('/riotclient/region-locale'),
       ])
+      this.lastObservation = summarizeLcuAuxiliaryResults(phase, auxiliary)
       const reduced = applyLcuPollResults(this.matchContext, this.snapshot, phase, auxiliary)
       this.snapshot = reduced.snapshot
       if (reduced.failure) {
         const message = reduced.failure instanceof Error
           ? reduced.failure.message
           : 'LCU auxiliary request failed'
-        this.invalidate(message)
+        this.invalidate(message, false, this.lastObservation)
         this.publishUpdate('auxiliary-request-failed')
         return
       }
@@ -340,6 +410,7 @@ export class LcuClient extends EventEmitter {
   }
 
   private publishUpdate(reason: string): void {
+    const contextDecision = this.matchContext.getLastDecision()
     const signature = [
       this.state.connected ? 'connected' : 'detached',
       this.snapshot.phase,
@@ -347,6 +418,7 @@ export class LcuClient extends EventEmitter {
       this.snapshot.matchGeneration,
       this.snapshot.queueId ?? 0,
       this.snapshot.currentChampionId ?? 0,
+      contextDecision,
     ].join(':')
     if (signature !== this.lastContextSignature) {
       this.lastContextSignature = signature
@@ -358,6 +430,8 @@ export class LcuClient extends EventEmitter {
         matchGeneration: this.snapshot.matchGeneration,
         queueId: this.snapshot.queueId,
         championId: this.snapshot.currentChampionId,
+        contextDecision,
+        endpointStatus: this.lastObservation,
       })
     }
     this.emit('update', this.getSnapshot(), this.getState())

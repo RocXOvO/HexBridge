@@ -1,9 +1,12 @@
 import { spawn } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import electron from 'electron'
+
+const packageMetadata = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+const expectedVersion = String(packageMetadata.version)
 
 const packagedExecutable = process.argv[2] ? path.resolve(process.argv[2]) : null
 const executable = packagedExecutable ?? electron
@@ -258,7 +261,7 @@ try {
       return {
         bridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate', 'openReleasePage']
           .every((name) => typeof window.hexbridge[name] === 'function'),
-        currentVersion: card.textContent.includes('v0.1.7'),
+        currentVersion: card.textContent.includes(${JSON.stringify(`v${expectedVersion}`)}),
         explicitConsent: card.textContent.includes('不会静默更新'),
         checkButton: buttons.some((text) => text.includes('检查更新')),
       }

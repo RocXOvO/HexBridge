@@ -1,5 +1,10 @@
 import { appendFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import {
+  compareVersions,
+  higherStableReleaseTags,
+  versionParts,
+} from './stable-release-policy.mjs'
 
 const repository = process.env.GITHUB_REPOSITORY
 const token = process.env.GITHUB_TOKEN
@@ -17,17 +22,6 @@ const headers = {
   Authorization: `Bearer ${token}`,
   'User-Agent': 'HexBridge-release-workflow',
   'X-GitHub-Api-Version': '2022-11-28',
-}
-const versionParts = (value) => {
-  const parsed = value.match(/^(\d+)\.(\d+)\.(\d+)$/)
-  if (!parsed) throw new Error('Stable channel version is invalid')
-  return parsed.slice(1).map(Number)
-}
-const compareVersions = (left, right) => {
-  for (let index = 0; index < 3; index += 1) {
-    if (left[index] !== right[index]) return left[index] - right[index]
-  }
-  return 0
 }
 const field = (source, pattern, label) => {
   const match = source.match(pattern)
@@ -55,6 +49,28 @@ const comparison = currentMetadata
   ? compareVersions(versionParts(version), versionParts(currentMetadata.version))
   : 1
 if (comparison < 0) throw new Error('Refusing to publish a release older than the stable channel')
+
+const publishedReleases = []
+let releasePageComplete = false
+for (let page = 1; page <= 10; page += 1) {
+  const response = await fetch(
+    `https://api.github.com/repos/${repository}/releases?per_page=100&page=${page}`,
+    { headers },
+  )
+  if (!response.ok) throw new Error(`Unable to inspect published releases: HTTP ${response.status}`)
+  const batch = await response.json()
+  if (!Array.isArray(batch)) throw new Error('Published release list is invalid')
+  publishedReleases.push(...batch)
+  if (batch.length < 100) {
+    releasePageComplete = true
+    break
+  }
+}
+if (!releasePageComplete) throw new Error('Published release list exceeds the bounded preflight')
+const higherStable = higherStableReleaseTags(publishedReleases, version)
+if (higherStable.length) {
+  throw new Error('Refusing to publish because a higher stable Release exists')
+}
 
 const releaseResponse = await fetch(
   `https://api.github.com/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`,

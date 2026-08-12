@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import type { CalibrationContext, RuntimeState } from '../shared/contracts.js'
 import { ConfigStore } from './config-store.js'
 import { logger } from './logger.js'
+import { shouldShowChampionCompanion } from './runtime-guards.js'
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url))
 
@@ -106,11 +107,7 @@ export class WindowManager {
   sync(state: RuntimeState): void {
     this.latestState = state
     const champion = this.windows.get('champion')
-    const shouldShowChampion =
-      state.settings.showChampionPanel &&
-      state.lcu.connected &&
-      state.snapshot.matchStage === 'selecting' &&
-      state.snapshot.modeActive
+    const shouldShowChampion = shouldShowChampionCompanion(state.settings, state.snapshot)
     if (shouldShowChampion) champion?.showInactive()
     else champion?.hide()
 
