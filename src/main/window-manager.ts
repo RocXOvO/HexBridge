@@ -308,16 +308,28 @@ export class WindowManager {
 
   private async waitForCalibrationContent(window: BrowserWindow): Promise<void> {
     const deadline = Date.now() + 6_000
+    let lastStatus: Record<string, unknown> | null = null
     while (Date.now() < deadline && !window.isDestroyed()) {
-      const ready = await window.webContents.executeJavaScript(`(() => {
+      const status: Record<string, unknown> = await window.webContents.executeJavaScript(`(() => {
         const image = document.querySelector('.calibration-screenshot')
         const toolbar = document.querySelector('.calibration-toolbar')
-        return Boolean(image && toolbar && image.complete && image.naturalWidth > 0)
+        return {
+          route: document.documentElement.dataset.route || location.hash,
+          readyState: document.readyState,
+          bridge: Boolean(window.hexbridge),
+          appChildren: document.querySelector('#app')?.childElementCount ?? -1,
+          toolbar: Boolean(toolbar),
+          image: Boolean(image),
+          imageComplete: Boolean(image?.complete),
+          imageWidth: image?.naturalWidth ?? 0,
+          error: document.querySelector('.calibration-error')?.textContent?.slice(0, 120) || '',
+        }
       })()`)
-      if (ready) return
+      lastStatus = status
+      if (status.toolbar && status.imageComplete && Number(status.imageWidth) > 0) return
       await new Promise((resolve) => setTimeout(resolve, 60))
     }
-    throw new Error('校准截图未能显示，请检查屏幕捕获权限后重试')
+    throw new Error(`校准截图未能显示，请检查屏幕捕获权限后重试 (${JSON.stringify(lastStatus)})`)
   }
 
   private finishCalibration(): void {

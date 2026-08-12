@@ -14,7 +14,15 @@ const component =
     : route === 'augment'
       ? AugmentOverlay
       : route === 'calibration'
-        ? CalibrationOverlay
-        : App
+      ? CalibrationOverlay
+      : App
 
-void initializeState().then(() => createApp(component).mount('#app'))
+if (route === 'calibration') {
+  // Calibration owns its own context IPC and must render while the parent
+  // start-calibration request is still pending.
+  createApp(component).mount('#app')
+} else {
+  void initializeState()
+    .catch(() => undefined)
+    .then(() => createApp(component).mount('#app'))
+}
