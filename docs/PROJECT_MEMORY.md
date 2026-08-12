@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-12
-> 当前基线：公开最新版本仍为 `v0.1.1`；本地 `v0.1.2` 候选已针对 Key 保存、OCR 拖框校准、国服 LCU 连接、字体可读性和未连接空状态完成代码修复，HB-013～HB-017 均为 `FIXED / UNVERIFIED`。当前为 8 个测试文件 / 45 项测试，并已通过 clean dependency、audit 0、OCR models / checksum / smoke、lint、typecheck、source bridge smoke 和 diff-check；最近一次 macOS `pack:win + checksums` 早于最后三项增量，只能作为历史非正式参考。Windows Actions packaged smoke 与真实 WeGame / LCU / 对局 OCR 尚未运行，`v0.1.2` 也尚未 commit / push / tag / Release，且项目仍无商业代码签名。
+> 当前基线：`v0.1.2` 已作为公开、非 draft / prerelease 的最新 Release 发布；源码、`main` 与 tag 均位于 commit `02ec4e586cce5f84f7072ebcb21ebf6edb4d3461`。预发布 workflow_dispatch 与 tagged Windows workflow 的版本门禁、audit、OCR、45 tests、lint、typecheck、pack:win、packaged smoke、checksums、artifact 和发布步骤均通过。HB-013～HB-017 仍为 `FIXED / UNVERIFIED`：烟测不覆盖真实 Key UI、完整校准、国服 WeGame / 中文路径、DPI 或动效性能；项目仍无商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -322,7 +322,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 用户症状：“拖框校准三张标题”的含义不清；点击后除任务栏外的屏幕区域全部变黑，用户未看到可理解的后续操作。
 - 代码修复：进入校准时先隐藏主窗口，从目标显示器捕获一次内存截图并作为可辨识底图；捕获设置 5 秒 deadline，校准 Renderer 报 ready 后才显示覆盖窗口。`Esc`、取消、捕获 / 加载异常均恢复主窗口；显示器布局变化时清除旧框，避免沿用失效坐标。
 - 多屏边界：已删除不安全的多屏 fallback；无法可靠确定目标显示器或捕获画面时必须失败退出并恢复，而不是展示可能来自错误屏幕的覆盖层。
-- 自动化证据：当前 8 个测试文件 / 45 项 unit tests 没有覆盖 `WindowManager` / `desktopCapturer`、5 秒 capture deadline 或窗口恢复链；source bridge smoke 只覆盖截图 payload 能进入 Renderer 并完成解码，不等于完整校准交互。Windows packaged、多显示器、不同 DPI 与真实无边框游戏仍无证据，因此不能标记 `VERIFIED`。
+- 自动化证据：当前 8 个测试文件 / 45 项 unit tests 没有覆盖 `WindowManager` / `desktopCapturer`、5 秒 capture deadline 或窗口恢复链；source 与 Windows packaged smoke 只覆盖截图 payload 能进入 Renderer 并完成解码，不等于完整校准交互。多显示器、不同 DPI 与真实无边框游戏仍无证据，因此不能标记 `VERIFIED`。
 - 必须验证的验收标准：进入前清楚说明需要在无边框游戏的海克斯界面依次框选左 / 中 / 右标题；进入后必须看到可辨识的捕获画面或明确设计的半透明遮罩、三个卡位标识、当前步骤、操作说明、确认与取消入口，不能只留下无说明的纯黑覆盖；`Esc` / 取消在任何阶段均能安全退出并恢复原窗口；捕获不可用时应直接退出并显示原因，不得把用户困在覆盖层；确认后保存基于目标显示器、分辨率和 DPI 的归一化区域，重新进入可正确回显；需在 1080p / 2K / 4K、100%～150% DPI、多显示器和无边框游戏 packaged 实机中验证三框裁切与 OCR 输入一致。
 
 ### HB-015 国服 / WeGame 已启动但 LCU 始终等待连接
@@ -332,7 +332,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 用户症状：国服 / WeGame 客户端已经打开，`v0.1.1` 仍显示等待客户端，无法连接 LCU。
 - 代码修复：Windows 进程发现改为 CIM 与 `Get-Process` 两种 UTF-8 PowerShell 策略并行；候选来源覆盖 command、相邻 lockfile、客户端日志、用户手动目录和常见安装目录。日志目录和日志文件分别全局去重；对去重后的多候选并行执行只读 probe，只有真实 LCU GET 成功后才进入 connected，不能仅凭解析到端口 / token 报已连接。CIM / 进程阶段约 2.6 秒、目录扫描约 600ms、probe 约 1.0 秒，完整发现有界约 4.2 秒。
 - 状态与诊断：连接状态在发现 / 探测阶段提前 emit，降低 UI 长时间停留在无信息等待状态；逐来源、逐策略诊断保持脱敏，不记录 token、PUUID 或完整 session。30 秒是重复 debug 诊断日志的节流间隔，不代表每 30 秒生成一份新的发现报告。Windows packaged smoke 将断言 `Get-Process` strategy 返回 `ok` 或 `empty`，并覆盖 capture payload 的 Renderer 解码；这不等于真实中文安装路径、完整 LCU 发现或校准流程验收。
-- 自动化证据：凭据发现 / snapshot 相关测试已扩充并纳入当前 8 个测试文件 / 45 项测试通过基线；Windows Actions packaged smoke 尚未运行，真实国服 WeGame / LCU 仍无证据，因此不能标记 `VERIFIED`。
+- 自动化证据：凭据发现 / snapshot 相关测试已扩充并纳入当前 8 个测试文件 / 45 项测试通过基线；Windows packaged smoke 已确认 `Get-Process` strategy 在 runner 上返回 `ok` 或 `empty`，但未使用真实中文安装路径或国服 WeGame / LCU，因此不能标记 `VERIFIED`。
 - 必须验证的验收标准：在 Windows 10 / 11 x64 的真实国服 WeGame 环境中，客户端可用后 5 秒内经进程命令行、相邻 lockfile、用户指定目录或最新客户端日志中的至少一个受支持来源发现并验证当前 LCU 凭据；UI 从等待状态进入已连接并能只读获得 gameflow、queue、champ-select snapshot 和 locale；发现失败时诊断页显示脱敏的逐来源结果与可操作的下一步，但不记录 token、PUUID 或完整 session；客户端重启、第二局和 token / 端口轮换后能自动重连，结束或切换其他队列时正确清理上下文；网络抓包 / 请求审计确认只使用白名单 LCU GET 与事件订阅，不产生写请求。验收必须使用 packaged 应用和真实 WeGame / 国服 LCU，模拟 fixture 或 Windows 启动烟测不能替代。
 
 ### HB-016 客户端整体字体过小，中文可读性不足
@@ -353,6 +353,11 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 自动化证据：实现已通过 lint、typecheck 和 source bridge smoke；尚无三档视觉快照、reduced-motion 自动断言、窗口不可见重绘测量或 Windows packaged GPU / CPU 证据，因此不能标记 `VERIFIED`。
 - 必须验证的验收标准：未连接状态应保留 HexBridge 独立的近黑蓝灰、雾青、暖金视觉语言，用克制的非粒子动态表达“正在发现客户端”，例如低频环境渐变、单次边框 / 状态脉冲或轻微层次呼吸；不得加入持续粒子、扫描线、3D 舞台、摄像机运动、高强度发光、动态噪点或 Mineradio 代码 / 素材。电影档和均衡档中动态应清楚可见但不干扰文字，普通状态切换遵守 160～240ms 微交互范围且不能暗示已经连接；省电档、`InProgress`、主窗口隐藏 / 最小化 / 不可见时必须停止持续动画并使用静态或仅必要显隐效果；`prefers-reduced-motion: reduce` 下完全静态且信息含义不丢失。需用三档性能模式、reduced-motion、连接 / 断开切换和窗口可见性做视觉快照，并在 packaged Windows 上确认后台无持续重绘和明显 GPU / CPU 峰值。
 
+### HB-013～HB-017 的 v0.1.2 packaged smoke 边界
+
+- workflow_dispatch 与 tag workflow 均在 Windows runner 启动实际 unpacked EXE，验证 CommonJS preload、bridge / IPC、安全偏好、`Get-Process` strategy 返回 `ok` 或 `empty`，以及 capture payload 可由 Renderer 解码。
+- 该结果只验证最小 packaged 启动与桥接路径，不执行真实 API Key 设置页交互，不完成左 / 中 / 右三框校准，不连接真实国服 WeGame / LCU，不覆盖中文安装路径、100%～150% DPI / 多显示器，也不测量未连接动效的 GPU / CPU 行为。因此 HB-013～HB-017 不得因 Release workflow 成功而升级为 `VERIFIED`。
+
 ### 附带安全与性能加固
 
 - 导航：由前缀字符串判断改为开发环境精确 origin / pathname / search allowlist，以及生产环境精确 `file:` entry allowlist；同时守卫 navigate 与 redirect。
@@ -361,20 +366,14 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 七、当前自动化验证基线
 
-2026-08-12 `v0.1.2` 当前本地候选验证基线（公开最新仍为 `v0.1.1`）：
+2026-08-12 `v0.1.2` Release 自动化基线：
 
-- 当前 `v0.1.2` 工作树已完成 clean dependency 安装；npm audit 为 0 vulnerabilities。
-- 三个 PaddleOCR models 的固定字节数和 SHA-256 校验通过，合成 OCR smoke 通过。
-- 8 个测试文件、45 项 Vitest 测试通过；新增 Key 格式错误时保留旧 Key 的回归测试。`npm run lint`、Vue / TypeScript typecheck、真实 source Electron bridge smoke 和 `git diff --check` 全部通过。
-- 最近一次 macOS `pack:win + checksums` exit 0，但执行时间早于日志目录 / 文件全局去重、发现预算收紧和 Key 格式错误保留旧值这三项最终增量，因此不能视为当前工作树产物验证，更不能替代 Windows Actions packaged smoke 或真实 Windows / WeGame 运行验收。
-- 以下本地交叉产物仅是上述较早构建的历史非正式参考，不是当前候选或正式 Release assets；后续正式摘要必须以 Windows Actions 产物为准：
-  - `HexBridge-0.1.2-x64.exe`，198,162,927 bytes，SHA-256 `cd31b5e9301bd9160ee89143bf66407ee261a0e5601196227189fc656172a44d`。
-  - `HexBridge-0.1.2-x64.zip`，273,621,827 bytes，SHA-256 `37f78df42188930ec97c58c76237cddf1eb91a0ed3b54f233d70beb0fc36e2f9`。
-  - `SHA256SUMS.txt`，180 bytes，只包含上述当前 `0.1.2` EXE / ZIP 两项。
-- `v0.1.0` / `v0.1.1` 的 Windows 构建、bridge smoke 和 Release 结果属于历史发布证据，详见第九节；不得将其当作当前 `v0.1.2` 工作树的 Windows 验证。
-- 最后一次快速复审未发现新的 P0 / P1，仍批准进入 Windows CI；“批准进入 CI”不等于 Windows packaged 或真实游戏验收通过。
-- `v0.1.2` 最新改动尚未运行 Windows Actions packaged EXE bridge smoke；当前完整本地验证和 macOS 交叉打包不能替代该门禁。
-- 审查前已对主界面、设置、英雄榜、选人浮窗和三卡浮窗做过浏览器视觉检查，未见控制台错误。
+- 源码 / tag commit：`02ec4e586cce5f84f7072ebcb21ebf6edb4d3461`。
+- 本地 clean dependency、audit 0、三个 PaddleOCR models 字节 / SHA-256、OCR smoke、8 个测试文件 / 45 项 Vitest、lint、Vue / TypeScript typecheck、source Electron bridge smoke 和 `git diff --check` 通过。
+- 预发布 workflow_dispatch run [31570202898](https://github.com/RocXOvO/HexBridge/actions/runs/31570202898) / job [94030356212](https://github.com/RocXOvO/HexBridge/actions/runs/31570202898/job/94030356212) 成功，用时约 5m16s；audit、OCR、45 tests、lint、typecheck、pack:win、packaged smoke、checksums 和 artifact upload 全通过。
+- `v0.1.2` tag run [31570576285](https://github.com/RocXOvO/HexBridge/actions/runs/31570576285) / job [94031484476](https://github.com/RocXOvO/HexBridge/actions/runs/31570576285/job/94031484476) 成功，用时约 4m53s；版本门禁、audit、OCR、45 tests、lint、typecheck、pack:win、packaged smoke、checksums、artifact upload 和 softprops Release 全通过。
+- Windows packaged smoke 覆盖 bridge / IPC / 安全偏好、`Get-Process` strategy 与 capture payload / Renderer 解码；不覆盖 HB-013～HB-017 的真实用户验收，具体边界见对应缺陷条目。
+- 较早的 macOS 交叉产物仅是非正式历史参考，`v0.1.2` 正式摘要必须使用 tagged Windows Actions assets（见第九节）。
 
 现有 45 项 unit tests 覆盖：上游字段清洗、Key 格式错误 / 401 / 429 / 离线缓存与旧 Key 保留、初始化去重、缓存 dataVersion 恢复、LCU 多策略凭据发现与 snapshot 归一化、GameStart 携带 / EndOfGame 清理、只读 allowlist、1080p / 2K / 4K 裁切几何、OCR 文本匹配、英雄 / 海克斯排序、sequence / 详情版本 / OCR 启停 / snapshot 去重守卫。它们不覆盖 `WindowManager` / `desktopCapturer` 校准 deadline 与窗口恢复；HB-002 的完整乱序请求、HB-003 的在途扫描断线、HB-006 的 Runtime toast、HB-007 的窗口 IPC、HB-008 的文件保留边界，以及 HB-013～HB-017 真实 packaged UI / WeGame / 视觉性能链路仍缺直接集成或实机证据。
 
@@ -399,7 +398,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git / 版本：公开远端 `main` 与 `v0.1.1` tag 仍位于 commit `e91926cad2ed8da40d9d03f1d33ffacc7a423c31`；本地工作树版本已升至 `0.1.2`，HB-013～HB-017 修复尚未 commit / push。`v0.1.0` tag 仍指向 HB-011 修复 commit `212a8f62`。
+- 当前 Git / 版本：`main`、`origin/main` 与 `v0.1.2` tag 均位于 commit `02ec4e586cce5f84f7072ebcb21ebf6edb4d3461`；公开最新版本为 `v0.1.2`。`v0.1.1` 与 `v0.1.0` tags 保留为历史发布点。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -414,14 +413,20 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
   - `HexBridge-0.1.1-x64.exe`，198,648,807 bytes，SHA-256 / GitHub asset digest `eddf89e985d6e5e51bcf5019dc3b3997671f40b1a80bef543cc8d2d8340c3ef9`。
   - `HexBridge-0.1.1-x64.zip`，273,726,890 bytes，SHA-256 / GitHub asset digest `6a114772ca01dfcf312a3c498d9e29aebb7193021fe79b69705484407011ee76`。
   - `SHA256SUMS.txt`，180 bytes，GitHub asset digest `25bdac6625646fb119aa088d8fe3d693feb9899ef3633bd52cf8034190329dc4`。
+- `v0.1.2` 预发布 workflow_dispatch run [31570202898](https://github.com/RocXOvO/HexBridge/actions/runs/31570202898) / job [94030356212](https://github.com/RocXOvO/HexBridge/actions/runs/31570202898/job/94030356212) 基于 commit `02ec4e586cce5f84f7072ebcb21ebf6edb4d3461` 成功，用时约 5m16s；Windows 构建、packaged smoke、checksums 和 artifact upload 全通过。
+- `v0.1.2` tag run [31570576285](https://github.com/RocXOvO/HexBridge/actions/runs/31570576285) / job [94031484476](https://github.com/RocXOvO/HexBridge/actions/runs/31570576285/job/94031484476) 基于同一 commit 成功，用时约 4m53s；版本门禁、audit、OCR、45 tests、lint、typecheck、pack:win、packaged smoke、checksums、artifact upload 和 softprops publish 全通过。
+- GitHub Release [v0.1.2](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.2) 已公开，`draft=false`、`prerelease=false`。正式发布物以 tagged Windows Actions assets 为准：
+  - `HexBridge-0.1.2-x64.exe`，198,655,710 bytes，SHA-256 / GitHub asset digest `b52d62be60ec4f5ea82e4c3263351cd4e0791a7ccc7e77b7a43dfbff97cbd88d`。
+  - `HexBridge-0.1.2-x64.zip`，273,735,618 bytes，SHA-256 / GitHub asset digest `bed7674f206124adab25f2cb66dbda4681bcdffc8ed31781e3eb0b197ca73a8d`。
+  - `SHA256SUMS.txt`，180 bytes，GitHub asset digest `f33f137d1bbd860aec58fa9988a0b85cc40a5a3c5306f06b74d16c13e3dd2921`；文件内容列出的 EXE / ZIP SHA-256 与对应 GitHub asset digest 一致。
 - 上述成功结果证明 Windows runner 的构建与发布链可用，不证明安装包已在真实 Windows + WeGame 对局中运行。
-- 已发布 `v0.1.0` 含 HB-012，安装后 preload 无法加载，不能作为功能可用的发布基线；其 Release 标题 / 说明已明确标记“已知损坏，请勿下载”并指向 `v0.1.1`。正式用户应使用已发布且通过 tagged packaged bridge smoke 的 `v0.1.1`，但该结论仍不代表真实 WeGame / LCU / 对局 OCR 实机验收。
-- `v0.1.2` 目前只是本地修复候选：HB-013～HB-017 均为 `FIXED / UNVERIFIED`，尚未 commit、push、创建 tag 或 Release；Windows Actions packaged smoke 和真实 WeGame / LCU / OCR 验收均未运行。当前公开最新版本仍是 `v0.1.1`。
+- 已发布 `v0.1.0` 含 HB-012，安装后 preload 无法加载，不能作为功能可用的发布基线；其 Release 标题 / 说明已明确标记“已知损坏，请勿下载”。当前正式用户应使用 `v0.1.2`，但 tagged packaged smoke 通过仍不代表真实 WeGame / LCU / 对局 OCR 实机验收。
+- `v0.1.2` 是当前公开推荐版本，但 HB-013～HB-017 仍为 `FIXED / UNVERIFIED`；Windows packaged smoke 不等于真实 Key UI、完整三框校准、国服 WeGame / LCU、中文路径、DPI 或动效性能验收。
 - 当前无商业 Windows 代码签名证书，发布物会显示“未知发布者”并可能触发 SmartScreen。
 
 ### 非阻断发布维护项
 
-- GitHub Actions run `31562903957` 出现 Node 20 deprecated annotation。当前 workflow 中第三方 actions 仍固定到完整 commit SHA，runner 已临时强制它们使用 Node 24，且本次 job 成功，因此不是 `v0.1.1` 发布阻断项。
+- GitHub Actions 仍有 Node 20 deprecated annotation。当前 workflow 中第三方 actions 固定到完整 commit SHA，runner 已临时强制它们使用 Node 24，且 `v0.1.2` 预发布与 tag jobs 均成功，因此不是当前发布阻断项。
 - 后续维护应在不放弃 commit SHA 固定的前提下，升级到官方声明原生支持 Node 24 的 actions commit，并重新跑 workflow_dispatch；不要仅依赖 runner 的临时强制兼容行为。
 
 ## 十、后续变更记录
@@ -452,3 +457,5 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-12 | HB-017 / 未连接空状态 | REPORTED / UNDIAGNOSED | 用户希望在独立 HexBridge 视觉语言内增加参考 Mineradio 层次感的轻量动态；禁止复制 GPL 代码素材 | 需覆盖电影 / 均衡可见、省电 / InProgress / 隐藏暂停、reduced-motion 静态和连接切换视觉快照 | Windows packaged 后台重绘与 GPU / CPU 行为待验 | 仅登记体验目标与验收标准，无设计稿或实现
 - 2026-08-12 | HB-013～HB-017 / v0.1.2 本地修复 | REPORTED / UNDIAGNOSED→FIXED / UNVERIFIED | Key 即时反馈与分类错误 / 格式错误保留旧 Key；截图底图校准与超时恢复；CIM + Get-Process UTF-8、多来源并行 LCU probe、日志目录 / 文件全局去重与约 4.2s 有界发现；关键文字 14px；独立轻量空状态动效及性能守卫 | clean dependency、audit 0、OCR models / checksum / smoke、8 files / 45 unit tests、lint、typecheck、diff-check、source Electron bridge smoke 通过。unit tests 不覆盖 WindowManager / desktopCapturer 完整校准 | Windows Actions packaged smoke、真实 WeGame / 国服 LCU、OCR 校准、字体 / 动效性能均待验，不得标 VERIFIED | 本地版本 0.1.2；尚未 commit / push / tag / Release，公开最新仍为 v0.1.1
 - 2026-08-12 | v0.1.2 / 第三轮与快速复审 | 可进入 Windows CI | 纠正证据边界：30s 仅为 debug 日志节流；45 tests 不覆盖 WindowManager / desktopCapturer；packaged smoke 仅检查 Get-Process strategy 与 capture payload / Renderer 解码 | 最后快速复审无新 P0 / P1，仍批准进入 Windows CI；较早 macOS cross pack 早于最终三项增量，仅作历史参考 | Windows packaged、中文路径、完整校准和真实 WeGame 仍待验 | 无状态升级；HB-013～HB-017 保持 FIXED / UNVERIFIED
+- 2026-08-12 | v0.1.2 / Windows 预发布验证 | Windows packaged 门禁通过 | commit `02ec4e586cce5f84f7072ebcb21ebf6edb4d3461` 的 workflow_dispatch run 31570202898 / job 94030356212 构建实际 Windows x64 产物并运行 packaged smoke | audit、OCR、45 tests、lint、typecheck、pack:win、bridge / IPC / security / GetProcess / capture decode smoke、checksums、artifact upload 全通过；约 5m16s | 不覆盖真实 Key UI、完整校准、中文路径、WeGame / LCU、DPI 或动效性能 | HB-013～HB-017 保持 FIXED / UNVERIFIED
+- 2026-08-12 | v0.1.2 / Release | 已发布；缺陷状态不升级 | 同一 commit 的 tag run 31570576285 / job 94031484476 完成版本门禁、Windows 构建、packaged smoke 与 softprops 发布 | audit、OCR、45 tests、lint、typecheck、pack:win、checksums、artifact、Release 全通过；约 4m53s；正式 EXE / ZIP / SHA256SUMS 摘要已记录且清单一致 | packaged smoke 通过但真实 WeGame / LCU / OCR / 中文路径 / DPI / 动效性能仍待验，无商业签名 | 公开 Release `v0.1.2`，非 draft / prerelease；main / tag / Release 均为 `02ec4e586cce5f84f7072ebcb21ebf6edb4d3461`
