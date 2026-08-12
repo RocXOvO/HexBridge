@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-13
-> 当前基线：公开最新正式 Release 仍为 `v0.1.6`，产品源码 / tag 固定指向 `e47a172f266328acd68cf4f366e8f04423a36df3`；tag 后 main 的 Windows 进程检测链已窄范围验证，HB-020 总体仍为 `FIXED / UNVERIFIED`。本地 `v0.1.7` / HB-021 仍为 `IN PROGRESS`：fixed raw stable channel + GitHub fallback、官方资产 allowlist、错误分类、provider 结果绑定、check 并发互斥、通道单调版本、发布 preflight / 禁止覆盖和 Actions 排队已实现，public channel 当前仍指向 `v0.1.6`。第三轮只读审查无 P0 / P1并批准进入 Windows workflow；本地 clean 门禁为 12 test files / 80 tests（79 pass + 1 Windows-only skip），真实 GitHub 只读 preflight 对 `v0.1.7` 返回 `should_publish=true`。较早 cross pack 早于最后互斥 / preflight 增量，Windows workflow 尚未运行，`v0.1.7` 尚未 commit / push / tag / Release，不能标 `FIXED` / `VERIFIED`。旧客户端仍需未来手动升级一次，项目无商业代码签名。
+> 当前基线：公开最新正式 Release 仍为 `v0.1.6`，产品源码 / tag 固定指向 `e47a172f266328acd68cf4f366e8f04423a36df3`；HB-020 总体仍为 `FIXED / UNVERIFIED`。`v0.1.7` 候选 commit `5d2f0321afe7f79981211b2615eaab493c07e3ed` 已 push `main`，Windows workflow_dispatch run `31621795206` 以 12 test files / 80 tests 和完整预发布门禁成功；tag-only 发布 / channel 步骤按预期跳过，public channel 仍指向 `v0.1.6`，没有新 tag / Release。HB-021 保持 `IN PROGRESS`：local synthetic `0.1.8` download 已验证，但正式 `v0.1.7` public channel / packaged check 尚未运行，旧 `v0.1.5` / `v0.1.6` 仍需未来手动升级一次。项目无商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -414,7 +414,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 已确认的发现链证据：正式 `v0.1.6` Release 及 `latest.yml` / blockmap / EXE 资产完整，但 `v0.1.5` 使用的 GitHub provider 发现链在当前环境实际遇到 GitHub API `403 rate-limit`，Releases `latest` 与 Atom 端点还出现连接 reset。该证据说明真实远端发现链存在可复现外部失败模式，但尚不能外推为所有用户网络环境的唯一根因。既有 `v0.1.5` 二进制无法远程替换其 updater 实现，用户需手动安装未来 `v0.1.7` 一次。
 - `v0.1.7` 候选实现：更新发现改为 Main-only 固定 raw stable channel，并保留 GitHub provider fallback；只信任 provider-aware 的官方 NSIS 资产 allowlist，提供细分稳定错误码和固定官方下载页。`UpdateManager` 使用 `checkInFlight` 保证并发互斥，只消费对应 `checkForUpdates()` 返回值所绑定 provider 的结果；早到 updater event 不得改写检查状态或把另一 provider 的结果串入当前请求。
 - 通道 / 发布安全实现：通道发布 / 读取遵守单调版本。发布前 preflight 拒绝低于 public channel 的候选；远端 Release 若已是同版本，则要求五项资产及 metadata 全部一致后才 no-op；候选版本的 Release 已存在但不满足同版本一致性时拒绝覆盖。softprops 配置 `overwrite_files:false`；GitHub Actions concurrency 使用 `queue` 且 `max` 有界，让同一发布通道按队列串行而不是取消 / 覆盖。新增 public packaged smoke，`update-channel` 当前仍公开指向 `v0.1.6`，不是未来版本已发布的证据。
-- 当前验证：clean `npm ci`、audit 0、12 test files / 80 tests（79 passed、1 个 Windows-only skipped）、lint、typecheck、`git diff --check`、source bridge / UI smoke、public `v0.1.6` channel verify、发布脚本 Node syntax check 全部通过；真实 GitHub 只读 preflight 对 `v0.1.7` 返回 `should_publish=true`。第三轮只读审查无 P0 / P1，批准进入 Windows workflow。此前 macOS 交叉包通过，但发生在最后互斥 / preflight 增量之前，必须重新产出后才能作为当前候选交叉打包证据；Windows workflow、public packaged smoke 和真实 installed upgrade 尚未运行。`v0.1.7` 尚未 commit / push / tag / Release，因此 HB-021 不得写为 `FIXED` 或 `VERIFIED`。
+- 当前验证：clean 本地 `npm ci`、audit 0、12 test files / 80 tests（79 passed、1 个 Windows-only skipped）、lint、typecheck、`git diff --check`、source bridge / UI smoke、public `v0.1.6` channel verify、发布脚本 Node syntax check 全部通过；真实 GitHub 只读 preflight 对 `v0.1.7` 返回 `should_publish=true`。第三轮只读审查无 P0 / P1。候选 commit `5d2f0321afe7f79981211b2615eaab493c07e3ed` 已 push main，Windows workflow_dispatch run [31621795206](https://github.com/RocXOvO/HexBridge/actions/runs/31621795206) / job [94198181530](https://github.com/RocXOvO/HexBridge/actions/runs/31621795206/job/94198181530) 成功，用时约 5m；Windows 80 tests 与预发布完整门禁通过。tag-only channel publish / public packaged smoke / Release 按预期跳过；`v0.1.7` 尚未 tag / Release，真实 public packaged check 和 installed upgrade 尚未运行，因此 HB-021 不得写为 `FIXED` 或 `VERIFIED`。
 - 诊断与隐私契约：诊断应区分 DNS / 无网络、超时、系统或企业代理、GitHub 限流、HTTP 404 / 其他状态、TLS / 证书、元数据格式 / 版本 / 资产缺失、校验和应用状态错误，并提供稳定错误码和可操作提示。日志与 UI 必须脱敏；不得记录或展示 API Key、GitHub / LCU token、URL query 参数、Authorization / Cookie、用户本地路径、用户名或完整下载缓存路径。
 - 必须验证的验收标准：在真实 Windows installed packaged `v0.1.5` 上，连接公开 GitHub stable provider，能够发现非 draft / prerelease 的正式 `v0.1.6` 或后续更高版本，并正确填充 `availableVersion`、Release 信息和等待用户确认状态；分别覆盖正常直连、系统代理 / 无代理、断网 / DNS / 超时、404 / 资产缺失、TLS / 证书失败与恢复重试，断言错误分类准确、诊断脱敏且失败始终保留当前版本。发现更新后必须由用户显式确认才下载，下载完成后再次确认才安装；不得静默下载、静默安装、自动退出或绕过 UAC / SmartScreen。完成定位、修复和真实 installed packaged 回归前不得标为 `FIXED` 或 `VERIFIED`。
 
@@ -450,12 +450,14 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - packaged UI smoke 通过 1024×768 截图校准、Esc 后 calibration target 销毁和主窗口恢复；updater synthetic `0.1.7` 为 `downloaded=true`、metadata / installer 各 1 次、`isolatedCache=true`。
 - 首次 run [31616475936](https://github.com/RocXOvO/HexBridge/actions/runs/31616475936) attempt 1 中 73 tests 已通过，最终因既有 packaged UI smoke 的 Escape CDP race 发生门禁假失败：校准目标正常自销毁早于 CDP 命令返回。attempt 2 因新的修复提交出现而取消。审查确认该问题与产品交接改动无关；`d5656b16` 只对目标已正常关闭的 CDP 竞态作窄容错，之后仍严格断言 calibration target 消失、main target 存活和主窗口恢复。
 
-本地 `v0.1.7` HB-021 候选基线（尚未 commit / push / tag / Release）：
+`v0.1.7` HB-021 候选 / Windows 预发布基线（已 push main，尚未 tag / Release）：
 
 - clean npm ci、audit 0、12 test files / 80 tests：79 passed，1 个 Windows-only test skipped；lint、typecheck、`git diff --check`、source bridge / UI smoke、public `v0.1.6` channel verify、发布脚本 Node syntax check 全部通过。真实 GitHub 只读 preflight 对 `v0.1.7` 返回 `should_publish=true`。
 - Main-only fixed raw stable channel + GitHub fallback、provider-aware 官方 NSIS allowlist、细分稳定错误码、固定官方下载页、`checkInFlight` + provider-bound 返回值、早到 event 隔离、通道单调版本 / 并发保护和 public packaged smoke 已实现；public `update-channel` 当前仍指向 `v0.1.6`。
 - 发布 preflight 拒绝低版本；同版本远端 Release 只有五项资产与 metadata 全一致才 no-op；候选 Release 已存在且不满足安全 no-op 时拒绝覆盖。softprops `overwrite_files:false`，GitHub Actions 使用有界 queue / max 并发。
-- 第三轮只读审查无 P0 / P1并批准 Windows workflow。较早 macOS 交叉打包发生在最后互斥 / preflight 增量之前，不能当作当前候选最终产物；需重新 pack 后再记录。Windows workflow 尚未运行，真实 installed `v0.1.5→v0.1.7` check / download / install 亦未验证。
+- 第三轮只读审查无 P0 / P1并批准 Windows workflow。较早 macOS 交叉打包发生在最后互斥 / preflight 增量之前，不能当作当前候选最终产物；正式候选以随后 Windows workflow_dispatch 产物 / 门禁为预发布证据。真实 installed `v0.1.5→v0.1.7` check / download / install 仍未验证。
+- Windows workflow_dispatch run [31621795206](https://github.com/RocXOvO/HexBridge/actions/runs/31621795206) / job [94198181530](https://github.com/RocXOvO/HexBridge/actions/runs/31621795206/job/94198181530) 基于完整 commit `5d2f0321afe7f79981211b2615eaab493c07e3ed` 成功，用时约 5m。`npm ci`、audit 0、public `v0.1.6` channel verify、OCR models / checksum / smoke、Windows 12 test files / 80 tests、lint、typecheck、pack、update metadata、packaged UI / bridge、local updater、checksums 和 artifact 全通过；候选 EXE size 199,023,316 bytes。
+- packaged UI 覆盖 1024×768 校准；local updater synthetic `0.1.8` 结果为 `downloaded=true`、`metadataRequests=1`、`installerRequests=1`、`isolatedCache=true`。workflow_dispatch 中 tag-only preflight / channel publish / public packaged smoke / Release 步骤按预期 skip，未修改 public channel，也未创建 Release；因此不能外推为真实 public `v0.1.7` check。
 
 `v0.1.6` 发布前本地 / 交叉构建历史基线：
 
@@ -480,7 +482,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - HB-018：自动化已覆盖 tracker 序列；仍需真实 `ChampSelect → GameStart → InProgress → Reconnect → EndOfGame` 中英雄 / 详情 / 推荐上下文、OCR、推荐浮窗、第二局替换与离局清理。
 - HB-019：Windows packaged `v0.1.6→synthetic 0.1.7` local-feed check / download、SHA-512、隔离 cache 已验证，真实 GitHub `v0.1.6` 更新目标也已发布；仍需 packaged `v0.1.5` 对真实 GitHub 执行 check / download、显式确认安装、`quitAndInstall`、UAC / SmartScreen、实际替换 / 重启后版本和取消 / 错误全链路。`v0.1.3` 不含更新器，必须先手动安装 `v0.1.5` 或更新正式版一次。
 - HB-020：根因修复已随 `v0.1.6` 正式发布；tag 后 73 tests 中的 Windows-only 集成项仅窄范围验证重命名 Node 真实进程可经 `tasklist` 被 production 函数检出。仍需在用户所述真实交接链中验证 LeagueClientUx 退出、国服实际游戏进程名 / 启动、LCU 凭据与端口失效、`GameStart` 前空窗、本局英雄 / 详情 / OCR 连续性、整局 OCR、终局清理和同 queue 第二局替换；受控进程测试和 packaged smokes 不构成真实 WeGame 实机证据。
-- HB-021：当前 `IN PROGRESS`。已观察到 `v0.1.5` GitHub provider 发现链的 API 403 rate-limit 与 latest / Atom reset，并在本地 `v0.1.7` 候选实现 fixed raw stable channel + GitHub fallback、官方资产 allowlist、细分错误、provider 结果绑定 / 早到 event 隔离、单调 / 并发保护、发布 preflight / 禁覆盖和 public smoke；仍需最终 pack、Windows workflow、public packaged 与真实 installed check / download / install。旧 `v0.1.5` 无法远程修复，需手动安装 `v0.1.7` 一次。
+- HB-021：当前 `IN PROGRESS`。已观察到 `v0.1.5` GitHub provider 发现链的 API 403 rate-limit 与 latest / Atom reset；`v0.1.7` 候选已实现 fixed raw stable channel + GitHub fallback、官方资产 allowlist、细分错误、provider 结果绑定 / 早到 event 隔离、单调 / 并发保护、发布 preflight / 禁覆盖和 public smoke，并通过 Windows workflow_dispatch 预发布门禁。仍需 tag 后 channel publish、真实 public packaged check 与 installed check / download / install。旧 `v0.1.5` / `v0.1.6` 无法远程修复，需未来手动安装 `v0.1.7` 一次。
 - 无边框游戏下真实三卡：稳定出现后约 1 秒展示，刷新动画期间不误识别，连续丢失正确隐藏，F8 重试。
 - 1080p / 2K / 4K、100% / 125% / 150% DPI、多显示器、非主显示器、显示器热插拔和手动拖框校准。
 - 单卡 / 双卡、长中文名、OCR 错字、缺图、相同组合、并列、无详情 / 旧详情。
@@ -489,7 +491,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git / 版本：公开最新 Release 仍为 `v0.1.6`，产品源码 / tag 固定指向 `e47a172f266328acd68cf4f366e8f04423a36df3`，没有新 tag / Release。tag 后 `origin/main` 已含 Windows 进程集成测试 `4d03f948cd611b1ea60121506367cd0e4083e7da` 和 UI smoke 竞态修复 `d5656b16c14e8248112c4d1f143fe42c7c2974e1`；本地已升 `v0.1.7` 并包含未提交 / 未 push 的 HB-021 候选实现。不得预写未来 commit、Windows CI、tag 或 Release。远端 `v0.1.4` tag 仍固定指向 `39758c1`，对应 Release 未创建，标签保持原位、不移动、不删除。
+- 当前 Git / 版本：公开最新 Release 仍为 `v0.1.6`，产品源码 / tag 固定指向 `e47a172f266328acd68cf4f366e8f04423a36df3`，没有新 tag / Release。`v0.1.7` HB-021 候选 commit `5d2f0321afe7f79981211b2615eaab493c07e3ed` 已 push `main` / `origin/main` 并通过 Windows workflow_dispatch；tag-only channel / Release 步骤按预期 skip。不得预写未来 tag、正式 public smoke 或 Release。远端 `v0.1.4` tag 仍固定指向 `39758c1`，对应 Release 未创建，标签保持原位、不移动、不删除。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -518,7 +520,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 上述成功结果证明 Windows runner 的构建与发布链可用，不证明安装包已在真实 Windows + WeGame 对局中运行。
 - 已发布 `v0.1.0` 含 HB-012，安装后 preload 无法加载，不能作为功能可用的发布基线；其 Release 标题 / 说明已明确标记“已知损坏，请勿下载”。当前正式用户应使用 `v0.1.6`，但 tagged packaged smoke 通过仍不代表真实 WeGame / LCU / 对局 OCR 实机验收。
 - `v0.1.6` 是当前公开推荐版本；HB-014 仅在首帧黑屏 / packaged Windows 受控截图与 Esc 恢复窄范围 `VERIFIED`，HB-013、HB-015～HB-018、HB-020 及 HB-014 的实机剩余范围仍为 `FIXED / UNVERIFIED`。HB-019 仅 local-feed check / download / SHA-512 / cache 窄范围 `VERIFIED`，真实 GitHub 客户端更新链仍未验证。
-- HB-021 当前为 `IN PROGRESS`：`v0.1.5` 用户不能依赖应用内更新发现 `v0.1.6`，且旧二进制无法远程修复。`v0.1.7` 尚未发布前，用户只能通过公开 Release 页面手动获取可用正式版；未来 `v0.1.7` 发布后仍需手动安装一次。不得把本地实现、服务端通道或静态验证等同于客户端更新链已修复。
+- HB-021 当前为 `IN PROGRESS`：`v0.1.5` 用户不能依赖应用内更新发现 `v0.1.6`，且 `v0.1.5` / `v0.1.6` 二进制无法远程获得候选修复。`v0.1.7` 尚未 tag / Release，用户目前只能通过公开 Release 页面手动获取可用正式版；未来 `v0.1.7` 发布后仍需手动安装一次。不得把 workflow_dispatch 预发布门禁或 synthetic updater 等同于真实 public channel 已修复。
 - 当前无商业 Windows 代码签名证书，发布物会显示“未知发布者”并可能触发 SmartScreen。
 - `v0.1.4` tag run [31606925983](https://github.com/RocXOvO/HexBridge/actions/runs/31606925983) / job [94148158581](https://github.com/RocXOvO/HexBridge/actions/runs/31606925983/job/94148158581) 失败，未创建 Release。根因是 Electron 43 在首次导入时惰性下载，Vitest 多 worker 并发解压同一 `cs.pak` 发生竞态；不是产品逻辑或 updater smoke 失败。tag `v0.1.4` 已存在并指向 `39758c1`，为保持发布历史不可变不得重写或删除。
 - `v0.1.5` 修复了 `v0.1.4` 的 Electron hydrate 竞态：普通 unit tests 不依赖 Electron executable；logger 只在真实 Electron 环境动态 import，`runtime-actions` mock `ConfigStore`。CI 在测试前串行 hydrate Electron 并断言 exe 存在，随后才运行并行门禁；预发布与正式 tag Windows workflows 均通过。
@@ -543,7 +545,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ### 非阻断发布维护项
 
-- GitHub Actions 仍有 Node 20 deprecated annotation。当前 workflow 中第三方 actions 固定到完整 commit SHA，runner 已临时强制它们使用 Node 24，且 tag 后 run `31617314812` 成功，因此不是当前发布阻断项。
+- GitHub Actions 仍有 Node 20 deprecated annotation。当前 workflow 中第三方 actions 固定到完整 commit SHA，runner 已临时强制它们使用 Node 24，且 `v0.1.7` 预发布 run `31621795206` 成功，因此不是当前发布阻断项。
 - 后续维护应在不放弃 commit SHA 固定的前提下，升级到官方声明原生支持 Node 24 的 actions commit，并重新跑 workflow_dispatch；不要仅依赖 runner 的临时强制兼容行为。
 
 ## 十、后续变更记录
@@ -596,3 +598,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-13 | HB-020 / Windows 真实进程检测 | 总体 FIXED / UNVERIFIED；进程检测链窄范围 VERIFIED | `4d03f948` 在 Windows 复制实际 Node 为 `League of Legends.exe` 并启动真实进程，由 production `isLeagueGameProcessRunning()` / tasklist 检测 | run 31617314812 / job 94183257885 基于 `d5656b16` 成功约 5m5s；12 test files / 73 tests，game-process 两项通过且集成项约 928ms；lint/typecheck/pack/metadata/UI/bridge/updater/checksums/artifact 全通过；synthetic 0.1.7 downloaded、请求各1、cache隔离 | 只验证预期进程名→tasklist→生产函数；真实 WeGame Ux退出、实际进程名/启动、LCU端口失效、英雄/详情/OCR连续、终局/第二局均未验，HB-020不得整体VERIFIED | `4d03f948`、`d5656b16` 已 push main；v0.1.6 tag/Release仍为 e47a172，无新发布
 - 2026-08-13 | HB-021 / v0.1.5 真实 GitHub 更新检查 | REPORTED / UNDIAGNOSED | 用户实机 packaged v0.1.5 在设置页检查更新后显示 error /“更新操作失败，已保留当前版本”，availableVersion 为空，未发现公开 v0.1.6；仅登记症状、错误分类与隐私契约 | 服务端 v0.1.6 正式资产存在，loopback synthetic smoke 通过，但均不是 v0.1.5→真实 GitHub 请求证据 | 待覆盖 installed packaged 直连/代理/断网/404/TLS、脱敏诊断、正式版本发现、显式下载与非静默安装；不得记录 Key/token/query/local path | 无根因或修复结论；无代码、commit、tag 或 Release 变更
 - 2026-08-13 | HB-021 / v0.1.7 更新通道候选 | REPORTED / UNDIAGNOSED→IN PROGRESS | 观察到 v0.1.5 GitHub provider 链 API 403 rate-limit、latest / Atom reset；本地实现 fixed raw stable+GitHub fallback、provider-bound checkInFlight/早到event隔离、官方NSIS allowlist、错误码/下载页、单调/并发保护、发布preflight、禁覆盖和public smoke，channel仍指v0.1.6 | clean npm ci/audit0、12 files/80 tests（79+1 Windows skip）、lint/typecheck/diff、source bridge/UI、public verify、脚本node-check和真实GitHub只读preflight should_publish=true通过；第三轮审查无P0/P1 | 较早cross pack早于最后互斥/preflight增量；Windows workflow、public packaged、真实installed check/download/install均未验；旧客户端需未来手动升级一次 | 本地v0.1.7未commit/push/tag/release，不预写未来结果
+- 2026-08-13 | HB-021 / v0.1.7 Windows 预发布 | IN PROGRESS（状态不升级） | 候选 commit `5d2f0321afe7f79981211b2615eaab493c07e3ed` 已 push main；workflow_dispatch 只执行预发布门禁，tag-only channel / Release步骤按预期skip | run31621795206/job94198181530 success约5m；npm ci/audit0/public v0.1.6/OCR/Windows 80 tests/lint/typecheck/pack（EXE 199,023,316 bytes）/metadata/UI packaged 1024×768/bridge/local synthetic0.1.8/checksums/artifact全过；updater downloaded=true、metadata1、installer1、isolatedCache=true | 未改public channel、未执行真实public v0.1.7 packaged check；installed旧版check/download/install未验，HB-021不得FIXED/VERIFIED | v0.1.7未tag/release；旧v0.1.5/0.1.6未来仍需手动升级
