@@ -54,6 +54,70 @@ describe('DataService failures and fallback', () => {
     expect(config.key).toBe('hx_live_12345678')
   })
 
+  it('returns an immediate, user-facing network error and does not persist the candidate', async () => {
+    const config = new MemoryConfig()
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed') }))
+    const service = new DataService(await cacheDirectory(), config as any)
+    const result = await service.validateKey('hx_live_12345678')
+    expect(result).toEqual({ ok: false, message: '无法连接数据服务，请检查网络或代理设置' })
+    expect(config.key).toBe('')
+  })
+
+  it('reports secure-storage failure after a successful HEAD without pretending the Key was saved', async () => {
+    const config = new MemoryConfig()
+    config.saveApiKey = () => { throw new Error('当前系统无法提供安全的密钥存储') }
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })))
+    const service = new DataService(await cacheDirectory(), config as any)
+    const result = await service.validateKey('hx_live_12345678')
+    expect(result).toEqual({ ok: false, message: '当前系统无法提供安全的密钥存储' })
+    expect(config.key).toBe('')
+  })
+
+  it('tells the user that the previous Key remains active when replacement validation fails', async () => {
+    const config = new MemoryConfig()
+    config.key = 'hx_live_previous1'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 401 })))
+    const service = new DataService(await cacheDirectory(), config as any)
+    const result = await service.validateKey('hx_live_candidate1')
+    expect(result.message).toBe('新 Key 验证失败，已保留原 Key：API Key 无效或已失效，请重新复制后再试')
+    expect(config.key).toBe('hx_live_previous1')
+  })
+
+  it('also confirms that the previous Key is preserved when the replacement format is invalid', async () => {
+    const config = new MemoryConfig()
+    config.key = 'hx_live_previous1'
+    const service = new DataService(await cacheDirectory(), config as any)
+    expect(await service.validateKey('not-a-key')).toEqual({
+      ok: false,
+      message: '新 Key 格式无效，原 Key 仍保留；格式应以 hx_live_ 或 hx_test_ 开头',
+    })
+    expect(config.key).toBe('hx_live_previous1')
+  })
+
+  it('classifies Key rate limits and aborted validation without persisting the candidate', async () => {
+    const limitedConfig = new MemoryConfig()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 429 })))
+    const limited = new DataService(await cacheDirectory(), limitedConfig as any)
+    expect(await limited.validateKey('hx_live_candidate1')).toEqual({
+      ok: false,
+      message: '请求过于频繁，请稍后再验证',
+    })
+    expect(limitedConfig.key).toBe('')
+
+    const abortedConfig = new MemoryConfig()
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      const error = new Error('aborted')
+      error.name = 'AbortError'
+      throw error
+    }))
+    const aborted = new DataService(await cacheDirectory(), abortedConfig as any)
+    expect(await aborted.validateKey('hx_live_candidate1')).toEqual({
+      ok: false,
+      message: '验证超时，请检查网络后重试',
+    })
+    expect(abortedConfig.key).toBe('')
+  })
+
   it('maps catalog rate limiting to limited', async () => {
     const config = new MemoryConfig()
     config.key = 'hx_live_12345678'

@@ -14,7 +14,9 @@ const api: HexBridgeApi = {
   refreshData: () => ipcRenderer.invoke('hexbridge:refresh-data'),
   triggerOcr: () => ipcRenderer.invoke('hexbridge:trigger-ocr'),
   clearDiagnosticScreenshots: () => ipcRenderer.invoke('hexbridge:clear-diagnostics'),
+  retryLcuConnection: () => ipcRenderer.invoke('hexbridge:retry-lcu'),
   startCalibration: () => ipcRenderer.invoke('hexbridge:start-calibration'),
+  getCalibrationContext: () => ipcRenderer.invoke('hexbridge:get-calibration-context'),
   completeCalibration: (rects: CalibrationRects) =>
     ipcRenderer.invoke('hexbridge:complete-calibration', rects),
   cancelCalibration: () => ipcRenderer.invoke('hexbridge:cancel-calibration'),

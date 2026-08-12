@@ -7,6 +7,7 @@ import { initializeState } from './state'
 import './styles.css'
 
 const route = window.location.hash.slice(1) || 'main'
+document.documentElement.dataset.route = route
 const component =
   route === 'champion'
     ? ChampionPanel

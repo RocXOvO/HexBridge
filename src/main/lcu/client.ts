@@ -25,6 +25,28 @@ const READ_ONLY_ENDPOINTS = new Set([
   '/riotclient/region-locale',
 ])
 
+export async function selectReachableLcuCredentials(
+  candidates: LcuCredentials[],
+  probe: (candidate: LcuCredentials) => Promise<void>,
+): Promise<{ credentials: LcuCredentials | null; failures: string[] }> {
+  const attempts = await Promise.all(candidates.map(async (candidate) => {
+    try {
+      await probe(candidate)
+      return { candidate, failure: null }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      if (/authorization|401/i.test(message)) return { candidate: null, failure: '凭据已过期' }
+      if (/timeout/i.test(message)) return { candidate: null, failure: '只读连接超时' }
+      if (/ECONNREFUSED|not listening/i.test(message)) return { candidate: null, failure: '候选端口未监听' }
+      if (/HTTP|endpoint unavailable/i.test(message)) return { candidate: null, failure: 'LCU 端点不可用' }
+      return { candidate: null, failure: '只读连接失败' }
+    }
+  }))
+  const reachable = attempts.find((attempt) => attempt.candidate)?.candidate ?? null
+  const failures = attempts.flatMap((attempt) => attempt.failure ? [attempt.failure] : [])
+  return { credentials: reachable, failures }
+}
+
 export class LcuClient extends EventEmitter {
   private credentials: LcuCredentials | null = null
   private snapshot: ChampSelectSnapshot = { ...EMPTY_SNAPSHOT }
@@ -37,7 +59,7 @@ export class LcuClient extends EventEmitter {
   private pollTimer: NodeJS.Timeout | null = null
   private socket: WebSocket | null = null
   private nextDiscoveryAt = 0
-  private polling = false
+  private tickInFlight: Promise<void> | null = null
 
   constructor(private readonly getManualDirectory: () => string) {
     super()
@@ -57,6 +79,13 @@ export class LcuClient extends EventEmitter {
     void this.tick()
   }
 
+  async rediscoverNow(): Promise<LcuConnectionState> {
+    if (this.tickInFlight) await this.tickInFlight
+    this.invalidate('正在重新检测英雄联盟客户端', true)
+    await this.tick()
+    return this.getState()
+  }
+
   stop(): void {
     if (this.pollTimer) clearInterval(this.pollTimer)
     this.pollTimer = null
@@ -64,33 +93,56 @@ export class LcuClient extends EventEmitter {
     this.socket = null
   }
 
-  private invalidate(reason: string): void {
+  private invalidate(reason: string, immediate = false): void {
     this.credentials = null
     this.socket?.close()
     this.socket = null
     this.state = { ...this.state, connected: false, lastError: reason }
-    this.nextDiscoveryAt = Date.now() + 3000
+    this.nextDiscoveryAt = immediate ? 0 : Date.now() + 3000
   }
 
   private async ensureCredentials(): Promise<boolean> {
     if (this.credentials) return true
     if (Date.now() < this.nextDiscoveryAt) return false
     this.nextDiscoveryAt = Date.now() + 5000
-    const credentials = await discoverLcuCredentials(this.getManualDirectory())
-    if (!credentials) {
-      this.state = { ...this.state, connected: false, lastError: '未发现正在运行的英雄联盟客户端' }
+    const discovery = await discoverLcuCredentials(this.getManualDirectory())
+    if (!discovery.candidates.length) {
+      this.state = { ...this.state, connected: false, source: null, lastError: discovery.summary }
       return false
     }
-    this.credentials = credentials
-    this.state = {
-      connected: true,
-      source: credentials.source,
-      lastError: null,
-      lastConnectedAt: Date.now(),
+    const selection = await selectReachableLcuCredentials(
+      discovery.candidates,
+      async (candidate) => {
+        const phase = await this.requestWithCredentials<GameflowPhase>(
+          '/lol-gameflow/v1/gameflow-phase',
+          candidate,
+          1_000,
+        )
+        if (phase == null) throw new Error('LCU gameflow endpoint unavailable')
+      },
+    )
+    if (selection.credentials) {
+      const credentials = selection.credentials
+      this.credentials = credentials
+      this.state = {
+        connected: true,
+        source: credentials.source,
+        lastError: null,
+        lastConnectedAt: Date.now(),
+      }
+      logger.info('LCU credentials verified', { source: credentials.source, port: credentials.port })
+      this.connectSocket(credentials)
+      this.emit('update', this.getSnapshot(), this.getState())
+      return true
     }
-    logger.info('LCU credentials discovered', { source: credentials.source, port: credentials.port })
-    this.connectSocket(credentials)
-    return true
+    const reason = [...new Set(selection.failures)].slice(0, 2).join('；') || '只读探测失败'
+    this.state = {
+      ...this.state,
+      connected: false,
+      source: null,
+      lastError: `检测到 ${discovery.candidates.length} 个候选，但无法连接：${reason}`,
+    }
+    return false
   }
 
   private request<T>(endpoint: string): Promise<T | null> {
@@ -98,7 +150,17 @@ export class LcuClient extends EventEmitter {
       return Promise.reject(new Error(`Blocked non-whitelisted LCU endpoint: ${endpoint}`))
     }
     if (!this.credentials) return Promise.resolve(null)
-    const credentials = this.credentials
+    return this.requestWithCredentials<T>(endpoint, this.credentials, 1_500)
+  }
+
+  private requestWithCredentials<T>(
+    endpoint: string,
+    credentials: LcuCredentials,
+    timeoutMs: number,
+  ): Promise<T | null> {
+    if (!READ_ONLY_ENDPOINTS.has(endpoint)) {
+      return Promise.reject(new Error(`Blocked non-whitelisted LCU endpoint: ${endpoint}`))
+    }
     const authorization = Buffer.from(`riot:${credentials.token}`).toString('base64')
 
     return new Promise((resolve, reject) => {
@@ -110,7 +172,7 @@ export class LcuClient extends EventEmitter {
           method: 'GET',
           rejectUnauthorized: false,
           headers: { Authorization: `Basic ${authorization}`, Accept: 'application/json' },
-          timeout: 1800,
+          timeout: timeoutMs,
         },
         (response) => {
           const chunks: Buffer[] = []
@@ -136,9 +198,16 @@ export class LcuClient extends EventEmitter {
     })
   }
 
-  private async tick(): Promise<void> {
-    if (this.polling) return
-    this.polling = true
+  private tick(): Promise<void> {
+    if (this.tickInFlight) return this.tickInFlight
+    const operation = this.tickInternal().finally(() => {
+      if (this.tickInFlight === operation) this.tickInFlight = null
+    })
+    this.tickInFlight = operation
+    return operation
+  }
+
+  private async tickInternal(): Promise<void> {
     try {
       if (!(await this.ensureCredentials())) {
         this.emit('update', this.getSnapshot(), this.getState())
@@ -167,8 +236,6 @@ export class LcuClient extends EventEmitter {
       const message = error instanceof Error ? error.message : String(error)
       this.invalidate(message)
       this.emit('update', this.getSnapshot(), this.getState())
-    } finally {
-      this.polling = false
     }
   }
 

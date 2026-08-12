@@ -37,7 +37,7 @@ export class ConfigStore {
   }
 
   hasApiKey(): boolean {
-    return Boolean(this.store.get('encryptedApiKey'))
+    return this.getApiKey() !== null
   }
 
   getApiKey(): string | null {

@@ -139,18 +139,35 @@ export class HexBridgeRuntime {
 
   updateSettings(patch: Partial<AppSettings>): AppSettings {
     const previous = this.config.getSettings()
-    const next = this.config.updateSettings(patch)
+    const normalizedPatch =
+      patch.displayId !== undefined && patch.displayId !== previous.displayId
+        ? { ...patch, calibration: null }
+        : patch
+    const next = this.config.updateSettings(normalizedPatch)
     if (next.hotkey !== previous.hotkey) this.onHotkeyChanged?.(next.hotkey)
     if (!next.autoOcr) this.stopScanLoop()
     else this.updateScanLoop()
+    if (next.gameDirectory !== previous.gameDirectory) {
+      void this.retryLcuConnection().catch((error) => {
+        logger.warn('LCU manual directory retry failed', {
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+        this.sync()
+      })
+    }
     this.sync()
     return next
   }
 
   async validateAndSaveApiKey(apiKey: string): Promise<{ ok: boolean; message: string }> {
     const result = await this.data.validateKey(apiKey)
-    if (result.ok) await this.data.initialize(true)
     this.sync()
+    if (result.ok) {
+      void this.data.initialize(true).then(() => this.sync()).catch((error) => {
+        logger.warn('Data catalog background refresh failed', error instanceof Error ? error.message : error)
+        this.sync()
+      })
+    }
     return result
   }
 
@@ -193,8 +210,22 @@ export class HexBridgeRuntime {
     return { ok: true, message: removed ? `已清除 ${removed} 张诊断截图` : '没有诊断截图需要清除' }
   }
 
-  startCalibration(): void {
-    this.windows.startCalibration()
+  async retryLcuConnection(): Promise<{ ok: boolean; message: string }> {
+    const state = await this.lcu.rediscoverNow()
+    this.lcuState = state
+    this.sync()
+    return {
+      ok: state.connected,
+      message: state.connected ? '已连接英雄联盟客户端' : (state.lastError ?? '仍未发现客户端'),
+    }
+  }
+
+  startCalibration(): Promise<void> {
+    return this.windows.startCalibration()
+  }
+
+  getCalibrationContext() {
+    return this.windows.getCalibrationContext()
   }
 
   completeCalibration(rects: AppSettings['calibration']): void {

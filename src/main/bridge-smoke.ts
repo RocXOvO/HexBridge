@@ -1,5 +1,6 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, desktopCapturer, ipcMain, screen } from 'electron'
 import type { RuntimeState } from '../shared/contracts.js'
+import { discoverLcuCredentials } from './lcu/discovery.js'
 import { secureWebPreferences } from './window-manager.js'
 
 const CHANNEL = 'hexbridge:get-state'
@@ -56,6 +57,8 @@ export interface BridgeSmokeResult {
   ok: true
   bridge: true
   ipc: true
+  lcuDiscovery: true
+  windowsDisplayCapture: true | null
   security: {
     sandbox: true
     contextIsolation: true
@@ -72,6 +75,16 @@ class SmokeFailure extends Error {
 }
 
 export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
+  const discovery = await discoverLcuCredentials('')
+  if (!discovery.summary || !Array.isArray(discovery.candidates)) {
+    throw new SmokeFailure('HB_SMOKE_LCU_DISCOVERY_FAILED')
+  }
+  if (
+    process.platform === 'win32' &&
+    !['ok', 'empty'].includes(discovery.processStrategies['get-process'])
+  ) {
+    throw new SmokeFailure('HB_SMOKE_GET_PROCESS_STRATEGY_FAILED')
+  }
   ipcMain.removeHandler(CHANNEL)
   ipcMain.handle(CHANNEL, () => smokeState)
 
@@ -120,10 +133,35 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
     if (!rendererResult?.bridge) throw new SmokeFailure('HB_SMOKE_BRIDGE_MISSING')
     if (!rendererResult?.ipc) throw new SmokeFailure('HB_SMOKE_IPC_FAILED')
 
+    let windowsDisplayCapture: true | null = null
+    if (process.platform === 'win32') {
+      const display = screen.getPrimaryDisplay()
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 480, height: 270 },
+        fetchWindowIcons: false,
+      })
+      const source =
+        sources.find((candidate) => candidate.display_id === String(display.id)) ?? sources[0]
+      if (!source || source.thumbnail.isEmpty()) {
+        throw new SmokeFailure('HB_SMOKE_DISPLAY_CAPTURE_FAILED')
+      }
+      const rendered = await window.webContents.executeJavaScript(`(() => new Promise((resolve) => {
+        const image = new Image()
+        image.onload = () => resolve(image.naturalWidth > 0 && image.naturalHeight > 0)
+        image.onerror = () => resolve(false)
+        image.src = ${JSON.stringify(source.thumbnail.toDataURL())}
+      }))()`)
+      if (!rendered) throw new SmokeFailure('HB_SMOKE_CAPTURE_RENDER_FAILED')
+      windowsDisplayCapture = true
+    }
+
     return {
       ok: true,
       bridge: true,
       ipc: true,
+      lcuDiscovery: true,
+      windowsDisplayCapture,
       security: {
         sandbox: true,
         contextIsolation: true,

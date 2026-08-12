@@ -35,6 +35,14 @@ class ProviderError extends Error {
   }
 }
 
+function keyValidationMessage(error: unknown): string {
+  if (error instanceof ProviderError && error.status === 401) return 'API Key 无效或已失效，请重新复制后再试'
+  if (error instanceof ProviderError && error.status === 429) return '请求过于频繁，请稍后再验证'
+  if (error instanceof Error && error.name === 'AbortError') return '验证超时，请检查网络后重试'
+  if (error instanceof TypeError) return '无法连接数据服务，请检查网络或代理设置'
+  return error instanceof Error ? error.message : 'API Key 验证失败'
+}
+
 export class DataService {
   private apiState: ApiConnectionState = { ...DEFAULT_API_STATE }
   private champions: ChampionSummary[] = []
@@ -79,7 +87,7 @@ export class DataService {
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10_000)
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'User-Agent': 'HexBridge/0.1.1',
+      'User-Agent': 'HexBridge/0.1.2',
     }
     if (options.authenticated !== false) {
       const key = options.apiKey ?? this.configStore.getApiKey()
@@ -114,11 +122,16 @@ export class DataService {
 
   async validateKey(apiKey: string): Promise<{ ok: boolean; message: string }> {
     const candidate = apiKey.trim()
+    const previous = this.configStore.getApiKey()
     if (!/^hx_(?:live|test)_[A-Za-z0-9_-]{8,}$/.test(candidate)) {
-      return { ok: false, message: 'Key 格式应以 hx_live_ 或 hx_test_ 开头' }
+      return {
+        ok: false,
+        message: previous
+          ? '新 Key 格式无效，原 Key 仍保留；格式应以 hx_live_ 或 hx_test_ 开头'
+          : 'Key 格式应以 hx_live_ 或 hx_test_ 开头',
+      }
     }
 
-    const previous = this.configStore.getApiKey()
     const previousState = this.getState()
     try {
       await this.request('champions.json', {
@@ -132,15 +145,17 @@ export class DataService {
       return { ok: true, message: 'API Key 验证成功' }
     } catch (error) {
       this.setError(error)
+      const message = keyValidationMessage(error)
       if (previous) {
-        const message = error instanceof Error ? error.message : '验证失败'
+        const preservedMessage = `新 Key 验证失败，已保留原 Key：${message}`
         this.apiState = {
           ...previousState,
           configured: true,
-          lastError: `新 Key 验证失败，已保留原 Key：${message}`,
+          lastError: preservedMessage,
         }
+        return { ok: false, message: preservedMessage }
       }
-      return { ok: false, message: error instanceof Error ? error.message : '验证失败' }
+      return { ok: false, message }
     }
   }
 

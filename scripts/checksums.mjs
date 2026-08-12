@@ -1,12 +1,21 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { readdir, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const releaseDirectory = path.resolve('release')
+const { version } = JSON.parse(await readFile(path.resolve('package.json'), 'utf8'))
+const artifactPrefix = `HexBridge-${version}-`
 const files = (await readdir(releaseDirectory))
-  .filter((name) => /\.(?:exe|zip)$/.test(name))
+  .filter((name) => name.startsWith(artifactPrefix) && /\.(?:exe|zip)$/.test(name))
   .sort()
+if (
+  files.length !== 2 ||
+  !files.some((name) => name.endsWith('.exe')) ||
+  !files.some((name) => name.endsWith('.zip'))
+) {
+  throw new Error(`Expected exactly one ${version} EXE and ZIP artifact, found: ${files.join(', ') || 'none'}`)
+}
 
 const lines = []
 for (const name of files) {

@@ -35,8 +35,17 @@ try {
     }, 30_000)
   })
   const result = JSON.parse(await readFile(resultPath, 'utf8'))
-  if (exitCode !== 0 || result.ok !== true || result.bridge !== true || result.ipc !== true) {
+  if (
+    exitCode !== 0 ||
+    result.ok !== true ||
+    result.bridge !== true ||
+    result.ipc !== true ||
+    result.lcuDiscovery !== true
+  ) {
     throw new Error(`Electron bridge smoke test failed: ${JSON.stringify({ exitCode, result, stdout, stderr })}`)
+  }
+  if (process.platform === 'win32' && result.windowsDisplayCapture !== true) {
+    throw new Error(`Electron display capture smoke test failed: ${JSON.stringify(result)}`)
   }
   const security = result.security ?? {}
   if (

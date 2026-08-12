@@ -1,7 +1,7 @@
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, desktopCapturer, screen } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { RuntimeState } from '../shared/contracts.js'
+import type { CalibrationContext, RuntimeState } from '../shared/contracts.js'
 import { ConfigStore } from './config-store.js'
 import { logger } from './logger.js'
 
@@ -29,6 +29,8 @@ export class WindowManager {
   private windows = new Map<ManagedWindow, BrowserWindow>()
   private quitting = false
   private latestState: RuntimeState | null = null
+  private calibrationContext: CalibrationContext | null = null
+  private restoreMainAfterCalibration = false
 
   constructor(private readonly config: ConfigStore) {}
 
@@ -137,7 +139,7 @@ export class WindowManager {
     }
   }
 
-  startCalibration(): void {
+  async startCalibration(): Promise<void> {
     const existing = this.windows.get('calibration')
     if (existing && !existing.isDestroyed()) {
       existing.show()
@@ -149,23 +151,83 @@ export class WindowManager {
         .getAllDisplays()
         .find((candidate) => String(candidate.id) === this.config.getSettings().displayId) ??
       screen.getPrimaryDisplay()
-    const window = this.createWindow('calibration', {
-      ...display.bounds,
-      frame: false,
-      transparent: true,
-      show: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      movable: false,
-      fullscreenable: false,
-    })
-    window.setAlwaysOnTop(true, 'screen-saver')
-    window.on('closed', () => this.windows.delete('calibration'))
+    const main = this.windows.get('main')
+    this.restoreMainAfterCalibration = Boolean(main?.isVisible())
+    if (this.restoreMainAfterCalibration) main?.hide()
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 220))
+      const physicalWidth = Math.max(1, Math.round(display.bounds.width * display.scaleFactor))
+      const physicalHeight = Math.max(1, Math.round(display.bounds.height * display.scaleFactor))
+      const captureWidth = Math.min(physicalWidth, 2_560)
+      const captureHeight = Math.max(1, Math.round(captureWidth * physicalHeight / physicalWidth))
+      let captureTimeout: NodeJS.Timeout | null = null
+      const sources = await Promise.race([
+        desktopCapturer.getSources({
+          types: ['screen'],
+          thumbnailSize: { width: captureWidth, height: captureHeight },
+          fetchWindowIcons: false,
+        }),
+        new Promise<never>((_resolve, reject) => {
+          captureTimeout = setTimeout(
+            () => reject(new Error('屏幕截图超时，主窗口已恢复，请检查屏幕捕获权限')),
+            5_000,
+          )
+        }),
+      ]).finally(() => {
+        if (captureTimeout) clearTimeout(captureTimeout)
+      })
+      const source =
+        sources.find((candidate) => candidate.display_id === String(display.id)) ??
+        (sources.length === 1 ? sources[0] : undefined)
+      if (!source || source.thumbnail.isEmpty()) throw new Error('无法捕获目标显示器，请检查系统屏幕捕获权限')
+      const displayIndex = screen.getAllDisplays().findIndex((candidate) => candidate.id === display.id)
+      this.calibrationContext = {
+        backgroundDataUrl: source.thumbnail.toDataURL(),
+        displayLabel: `显示器 ${displayIndex + 1}${display.id === screen.getPrimaryDisplay().id ? '（主）' : ''}`,
+        physicalWidth,
+        physicalHeight,
+        existing: this.config.getSettings().calibration,
+      }
+
+      const window = this.createWindow('calibration', {
+        ...display.bounds,
+        frame: false,
+        transparent: false,
+        backgroundColor: '#0B0E12',
+        show: false,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        resizable: false,
+        movable: false,
+        fullscreenable: false,
+      })
+      window.setAlwaysOnTop(true, 'screen-saver')
+      window.on('closed', () => this.finishCalibration())
+      await this.waitForRenderer(window)
+      await this.waitForCalibrationContent(window)
+      if (window.isDestroyed()) throw new Error('校准窗口意外关闭')
+      window.show()
+      window.focus()
+    } catch (error) {
+      this.windows.get('calibration')?.destroy()
+      this.finishCalibration()
+      throw error
+    }
   }
 
   closeCalibration(): void {
     this.windows.get('calibration')?.destroy()
+  }
+
+  getCalibrationContext(): CalibrationContext | null {
+    if (!this.calibrationContext) return null
+    return {
+      ...this.calibrationContext,
+      existing: this.calibrationContext.existing
+        ? structuredClone(this.calibrationContext.existing)
+        : null,
+    }
   }
 
   handleAction(sender: Electron.WebContents, action: 'minimize' | 'maximize' | 'close' | 'quit'): void {
@@ -210,6 +272,51 @@ export class WindowManager {
       logger.error('HexBridge renderer failed to load', error instanceof Error ? error.message : error)
     })
     return window
+  }
+
+  private waitForRenderer(window: BrowserWindow): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => finish(new Error('校准界面加载超时')), 10_000)
+      const finish = (error?: Error): void => {
+        clearTimeout(timeout)
+        window.webContents.removeListener('did-finish-load', loaded)
+        window.webContents.removeListener('did-fail-load', failed)
+        window.webContents.removeListener('render-process-gone', gone)
+        if (error) reject(error)
+        else resolve()
+      }
+      const loaded = (): void => finish()
+      const failed = (): void => finish(new Error('校准界面加载失败'))
+      const gone = (): void => finish(new Error('校准界面渲染进程异常退出'))
+      window.webContents.once('did-finish-load', loaded)
+      window.webContents.once('did-fail-load', failed)
+      window.webContents.once('render-process-gone', gone)
+      const currentUrl = window.webContents.getURL()
+      if (currentUrl && currentUrl !== 'about:blank' && !window.webContents.isLoadingMainFrame()) {
+        queueMicrotask(loaded)
+      }
+    })
+  }
+
+  private async waitForCalibrationContent(window: BrowserWindow): Promise<void> {
+    const deadline = Date.now() + 6_000
+    while (Date.now() < deadline && !window.isDestroyed()) {
+      const ready = await window.webContents.executeJavaScript(`(() => {
+        const image = document.querySelector('.calibration-screenshot')
+        const toolbar = document.querySelector('.calibration-toolbar')
+        return Boolean(image && toolbar && image.complete && image.naturalWidth > 0)
+      })()`)
+      if (ready) return
+      await new Promise((resolve) => setTimeout(resolve, 60))
+    }
+    throw new Error('校准截图未能显示，请检查屏幕捕获权限后重试')
+  }
+
+  private finishCalibration(): void {
+    this.windows.delete('calibration')
+    this.calibrationContext = null
+    if (this.restoreMainAfterCalibration && !this.quitting) this.showMain()
+    this.restoreMainAfterCalibration = false
   }
 
   private isAllowedNavigation(url: string): boolean {

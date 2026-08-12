@@ -28,6 +28,14 @@ export interface CalibrationRects {
   right: NormalizedRect
 }
 
+export interface CalibrationContext {
+  backgroundDataUrl: string
+  displayLabel: string
+  physicalWidth: number
+  physicalHeight: number
+  existing: CalibrationRects | null
+}
+
 export interface AppSettings {
   visualMode: VisualModePreference
   autoOcr: boolean
@@ -179,7 +187,9 @@ export interface HexBridgeApi {
   refreshData(): Promise<{ ok: boolean; message: string }>
   triggerOcr(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
+  retryLcuConnection(): Promise<{ ok: boolean; message: string }>
   startCalibration(): Promise<void>
+  getCalibrationContext(): Promise<CalibrationContext | null>
   completeCalibration(rects: CalibrationRects): Promise<void>
   cancelCalibration(): Promise<void>
   windowAction(action: 'minimize' | 'maximize' | 'close' | 'quit'): Promise<void>

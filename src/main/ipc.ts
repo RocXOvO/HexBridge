@@ -60,7 +60,9 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
   ipcMain.handle('hexbridge:refresh-data', () => runtime.refreshData())
   ipcMain.handle('hexbridge:trigger-ocr', () => runtime.triggerOcr())
   ipcMain.handle('hexbridge:clear-diagnostics', () => runtime.clearDiagnosticScreenshots())
+  ipcMain.handle('hexbridge:retry-lcu', () => runtime.retryLcuConnection())
   ipcMain.handle('hexbridge:start-calibration', () => runtime.startCalibration())
+  ipcMain.handle('hexbridge:get-calibration-context', () => runtime.getCalibrationContext())
   ipcMain.handle('hexbridge:complete-calibration', (_event, rects) => {
     if (!validCalibration(rects)) throw new Error('校准区域无效')
     runtime.completeCalibration(rects)
