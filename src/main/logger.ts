@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import { appendFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -20,10 +19,13 @@ export function redact(value: unknown): string {
 }
 
 async function writeToDisk(line: string): Promise<void> {
-  // Electron's `app` export is absent when pure Node unit tests import Main
-  // helpers. Logging must remain best-effort in both environments.
-  if (!app?.isReady?.()) return
+  // Keep pure Node helpers independent from the Electron runtime. Electron 43
+  // downloads its binary on first import, so parallel test workers must never
+  // import it just because they share this logger.
+  if (!process.versions.electron) return
   try {
+    const { app } = await import('electron')
+    if (!app?.isReady?.()) return
     const directory = path.join(app.getPath('userData'), 'logs')
     await mkdir(directory, { recursive: true })
     const date = new Date().toISOString().slice(0, 10)

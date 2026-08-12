@@ -87,7 +87,7 @@ export class DataService {
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10_000)
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'User-Agent': 'HexBridge/0.1.4',
+      'User-Agent': 'HexBridge/0.1.5',
     }
     if (options.authenticated !== false) {
       const key = options.apiKey ?? this.configStore.getApiKey()

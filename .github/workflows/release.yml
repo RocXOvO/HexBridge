@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Hydrate Electron runtime once
+        run: node -e "const fs=require('node:fs'); const executable=require('electron'); if (!fs.existsSync(executable)) throw new Error('Electron runtime is unavailable'); console.log('Electron runtime ready')"
       - name: Verify release version
         if: startsWith(github.ref, 'refs/tags/v')
         run: node scripts/verify-release-version.mjs

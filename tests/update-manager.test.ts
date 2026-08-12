@@ -34,7 +34,7 @@ const setup = (inGame = false) => {
   const adapter = new FakeUpdater()
   const changed = vi.fn()
   const manager = new UpdateManager({
-    currentVersion: '0.1.4',
+    currentVersion: '0.1.5',
     supported: true,
     isGameInProgress: () => inGame,
     onStateChanged: changed,
@@ -129,7 +129,7 @@ describe('client update manager', () => {
 
   it('reports unsupported platforms without touching an updater', async () => {
     const manager = new UpdateManager({
-      currentVersion: '0.1.4',
+      currentVersion: '0.1.5',
       supported: false,
       isGameInProgress: () => false,
       onStateChanged: () => undefined,

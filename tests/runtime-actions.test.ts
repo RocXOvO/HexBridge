@@ -12,6 +12,10 @@ vi.mock('../src/main/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), recent: () => [] },
 }))
 
+vi.mock('../src/main/config-store.js', () => ({
+  ConfigStore: class {},
+}))
+
 import { HexBridgeRuntime } from '../src/main/runtime.js'
 
 describe('runtime user actions', () => {

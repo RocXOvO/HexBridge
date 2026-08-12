@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-12
-> 当前基线：公开最新 Release 仍为 `v0.1.3`，tag / Release source 固定指向 commit `f23a8f716923851ee786094ca8a846b19f23a079`。`v0.1.4` 实现已 commit / push 到 `main`，尚未 tag / Release。Windows workflow_dispatch 的 55 tests、打包、metadata、UI / bridge 和本地 generic-feed updater check / download 全通过；HB-019 的 Windows packaged 检查 / 下载 / SHA-512 / 隔离 cache 窄范围已 `VERIFIED`，真实 GitHub stable channel 与 `quitAndInstall` 安装仍 `UNVERIFIED`。HB-018 继续 `FIXED / UNVERIFIED`，真实 LCU / OCR / 浮窗未验；项目仍无商业代码签名。
+> 当前基线：公开最新 Release 仍为 `v0.1.3`。远端 `v0.1.4` tag 已存在并固定指向 commit `39758c1`，但 tag workflow 因 Electron 43 首次惰性下载的并发解压竞态失败，未创建 `v0.1.4` Release；标签不得移动或删除。本地 `v0.1.5` 候选修复测试依赖水合竞态，当前 10 files / 56 tests 及完整本地静态 / source 门禁通过，但尚未 commit / push，Windows Actions 尚未运行。HB-018 仍 `FIXED / UNVERIFIED`；HB-019 的历史 `v0.1.4` local-feed check / download 窄范围证据保留，`v0.1.5` Windows smoke 将合成 `0.1.6`，尚未执行。项目仍无商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -365,7 +365,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 跨阶段上下文契约：在已确认 `queueId=2400` 的 `ChampSelect` 中，最后有效的 `currentChampionId`、英雄详情及其 `dataVersion`、可派生的英雄专属海克斯推荐上下文，必须跨 `ChampSelect → GameStart → InProgress → Reconnect` 保留。阶段切换时即使 champ-select session / current-champion 端点暂时为空，也不得以空 snapshot 覆盖已确认的本局上下文；详情异步返回仍必须遵守 `championId + requestSequence + dataVersion` 一致性守卫，不能把上一局或错误英雄详情带入本局。
 - 清理边界：只有进入明确结束阶段（如 `EndOfGame`）、确认切换到其他队列 / 新比赛上下文、或 LCU 证据表明当前局已失效时，才清理携带的英雄、详情、推荐和 OCR 组合状态。普通 `GameStart` / `InProgress` 短暂空 session、WebSocket 重连或 token / 端口轮换不得提前清空；第二局开始时必须替换而非复用上一局上下文。
 - OCR / 浮窗验收：真实国服 WeGame 无边框对局中，进入 `InProgress + queueId=2400` 后应继续显示本局英雄 / 数据版本，自动 OCR 守卫为启用状态；三卡稳定出现后约 1 秒内识别并基于本局英雄详情生成推荐浮窗，F8 可手动重试。选人→游戏过程中不得出现上下文闪空导致扫描停表或浮窗永久缺失；断线时应安全停用，在同局重连后恢复；离局后应隐藏浮窗并清除本局组合。
-- 自动化证据：单测覆盖 30 秒 `None` grace、进入游戏 generation、terminal / 新队列清理、非 ChampSelect bench 清理，以及断线后直达同 queue 第二局替换；当前总计 55 tests 通过。真实国服 LCU phase / endpoint 时序、OCR 和浮窗仍未实机验证，因此不能标记 `VERIFIED`。
+- 自动化证据：单测覆盖 30 秒 `None` grace、进入游戏 generation、terminal / 新队列清理、非 ChampSelect bench 清理，以及断线后直达同 queue 第二局替换；当前 `v0.1.5` 总计 56 tests 通过。真实国服 LCU phase / endpoint 时序、OCR 和浮窗仍未实机验证，因此不能标记 `VERIFIED`。
 - 必须验证的验收标准：用可控 phase / snapshot 序列覆盖 `ChampSelect(英雄A, queue 2400) → GameStart(空 session) → InProgress(空 session) → Reconnect → EndOfGame`，断言 A 的英雄 / 详情 / 推荐上下文在比赛阶段保留并只在结束时清理；覆盖第二局英雄 B、其他队列和过期详情返回，断言不串局。Windows packaged 实机还需验证对局信息、自动 / F8 OCR 和推荐浮窗全链路。
 - 隐私与日志：诊断只允许记录脱敏 phase、queueId、是否携带上下文、英雄数字 ID、状态转换原因和稳定错误代码；不得记录 LCU token、API Key、PUUID、完整 champ-select / gameflow session、带凭据 URL或未裁切截图。
 
@@ -408,9 +408,11 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 版本门禁、audit、OCR models / smoke、45 tests、lint、typecheck、pack:win、packaged bridge smoke、packaged UI smoke、checksums、artifact upload 和 softprops Release 全通过。
 - packaged UI smoke 覆盖 invalid-Key 反馈 / busy 恢复、关键 14px 字体、三个 reduced-motion 选择器、校准截图 1024×768 / data URL / 中文说明 14px，以及真实 CDP `Esc` 和主窗恢复；证据边界见 HB-014 与 packaged smoke 小节。
 
-当前 `v0.1.4` 本地候选为 55 项 unit tests；除原有数据、LCU、OCR、推荐与守卫覆盖外，新增 `MatchContextTracker` 的 30 秒 grace / generation / terminal / 新队列 / 第二局序列，以及 updater 状态机、通道 / 版本过滤、受限 IPC、安装守卫和脱敏测试。它们仍不覆盖真实国服 LCU 非原子时序、对局 OCR / 浮窗，也未执行从 `0.1.4` 到 `0.1.5` 的 packaged 实际升级。
+当前 `v0.1.5` 本地候选为 10 个测试文件 / 56 项 unit tests；除原有数据、LCU、OCR、推荐、`MatchContextTracker` 与 updater 状态机覆盖外，新增 Electron 测试依赖水合和运行时 mock 边界回归。它们仍不覆盖真实国服 LCU 非原子时序、对局 OCR / 浮窗，也未执行真实 GitHub stable 或 `quitAndInstall` 升级。
 
 Windows workflow 的 `test:update:packaged` 已在 run `31606119110` 实际通过：隔离 loopback generic feed 返回 patch `0.1.5`，packaged 应用完成 check / download，metadata 和 installer 各命中 1 次，下载位于隔离 cache；不执行安装，不能外推到 GitHub stable 或 `quitAndInstall`。
+
+该 `0.1.4 → synthetic 0.1.5` smoke 仅是历史证据。`v0.1.5` 的 packaged updater smoke 会按 patch +1 合成 `0.1.6`；当前 Windows Actions 尚未运行，不得把历史结果外推到新候选。
 
 `v0.1.4` 本地交叉打包基线：macOS `pack:win + checksums` exit 0，updater metadata verifier 通过。交叉产物只供本轮候选校验，正式发布应以 Windows Actions 为准：
 
@@ -420,6 +422,10 @@ Windows workflow 的 `test:update:packaged` 已在 run `31606119110` 实际通�
 - 上述 SHA-512 / SHA-256 仅是完整性证据，不是 Authenticode 身份签名；未签名 / SmartScreen 边界不变。
 
 `v0.1.4` Windows workflow_dispatch 基线：run `31606119110` / job `94145387680` 基于 main commit `3f3d457` 成功，用时约 5m11s；npm ci、audit、OCR、55 tests、lint、typecheck、pack、update metadata、packaged UI / bridge / updater download smokes、checksums 和 artifact upload 全通过。候选 EXE 199,019,533 bytes，仅供预发布参考；正式摘要仍以未来 tag run 为准。
+
+`v0.1.5` 当前本地验证：logger 只在真实 Electron 路径动态 import Electron；`runtime-actions` 使用 mock `ConfigStore`，纯 Vitest 不再触发 Electron binary 下载。干净 `npm ci` 后，测试前后 Electron executable 均不存在且 56 tests 通过。Actions workflow 在 `npm ci` 后先串行 hydrate Electron 并断言 exe 存在，再运行其余门禁，避免多 worker 同时解压。
+
+本地按 clean `npm ci → hydrate Electron → audit 0 → OCR models / smoke → 56 tests → lint → typecheck → source bridge / UI smoke → diff-check` 全部通过。`v0.1.5` Windows Actions 尚未运行，不能写成 packaged 验证。
 
 ## 八、Windows / 游戏实机待验证
 
@@ -444,7 +450,7 @@ Windows workflow 的 `test:update:packaged` 已在 run `31606119110` 实际通�
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git / 版本：公开最新版本为 `v0.1.3`，其 tag / Release 产品源码固定指向 commit `f23a8f716923851ee786094ca8a846b19f23a079`。`v0.1.4` 实现已 commit / push 到 `main`（Windows workflow 使用 commit `3f3d457`）；尚未创建 `v0.1.4` tag / Release。本文件不预写未来 tag 结果或发布提交哈希。旧 tags 保留为历史发布点。
+- 当前 Git / 版本：公开最新 Release 为 `v0.1.3`。远端 `v0.1.4` tag 已存在并固定指向 `39758c1`；对应 Release 未创建，标签保持原位，不移动、不删除。当前本地候选版本为 `0.1.5`，依赖水合修复尚未 commit / push；Windows Actions 未运行。本文件不预写未来提交、tag 或 Release 结果。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -474,7 +480,9 @@ Windows workflow 的 `test:update:packaged` 已在 run `31606119110` 实际通�
 - 已发布 `v0.1.0` 含 HB-012，安装后 preload 无法加载，不能作为功能可用的发布基线；其 Release 标题 / 说明已明确标记“已知损坏，请勿下载”。当前正式用户应使用 `v0.1.3`，但 tagged packaged smoke 通过仍不代表真实 WeGame / LCU / 对局 OCR 实机验收。
 - `v0.1.3` 是当前公开推荐版本；HB-014 仅在首帧黑屏 / packaged Windows 受控截图与 Esc 恢复窄范围 `VERIFIED`，HB-013、HB-015～HB-017 及 HB-014 的实机剩余范围仍为 `FIXED / UNVERIFIED`。
 - 当前无商业 Windows 代码签名证书，发布物会显示“未知发布者”并可能触发 SmartScreen。
-- `v0.1.4` 更新发布契约要求 tag workflow 同时上传 NSIS EXE、ZIP、`latest.yml`、blockmap 和校验清单，并在 Windows runner 执行 `test:update:packaged`。workflow_dispatch 已验证本地 generic-feed 下载；正式 tag assets、真实 GitHub stable 和实际 `quitAndInstall` 升级尚未验证。`latest.yml` 的 SHA-512 是完整性校验，不是发布者身份签名。
+- `v0.1.4` tag run [31606925983](https://github.com/RocXOvO/HexBridge/actions/runs/31606925983) / job [94148158581](https://github.com/RocXOvO/HexBridge/actions/runs/31606925983/job/94148158581) 失败，未创建 Release。根因是 Electron 43 在首次导入时惰性下载，Vitest 多 worker 并发解压同一 `cs.pak` 发生竞态；不是产品逻辑或 updater smoke 失败。tag `v0.1.4` 已存在并指向 `39758c1`，为保持发布历史不可变不得重写或删除。
+- `v0.1.5` 修复策略：普通 unit tests 不依赖 Electron executable；logger 只在真实 Electron 环境动态 import，`runtime-actions` mock `ConfigStore`。CI 在测试前串行 hydrate Electron 并断言 exe 存在，随后才运行并行门禁。当前只完成本地验证，尚无 Windows 结果。
+- 后续 `v0.1.5` 更新发布契约仍要求 tag workflow 同时上传 NSIS EXE、ZIP、`latest.yml`、blockmap 和校验清单，并执行合成 `0.1.6` 的 `test:update:packaged`。历史 workflow_dispatch 只验证 `0.1.4→synthetic 0.1.5` 本地 generic-feed 下载；新候选、真实 GitHub stable 和实际 `quitAndInstall` 升级尚未验证。`latest.yml` 的 SHA-512 是完整性校验，不是发布者身份签名。
 - workflow_dispatch Windows 候选 EXE 为 199,019,533 bytes；该值不是正式 Release 摘要，正式资产仍必须以未来 tag run 为准。
 
 ### 非阻断发布维护项
@@ -519,3 +527,5 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-12 | HB-018 / MatchContextTracker | REPORTED / UNDIAGNOSED→FIXED / UNVERIFIED | 确认非原子 LCU phase / champ-select 404 或 None 清空相邻 snapshot；新增独立 tracker、30s grace、enteredGame generation、terminal / 新队列清理、非选人 bench 清理及同 queue 第二局替换 | 55 tests 与 Windows workflow_dispatch 静态 / packaged 门禁通过；审查无 P0 / P1 | 真实 LCU、OCR / 海克斯浮窗仍待验；CI 无真实游戏数据，不升级状态 | 0.1.4 已 commit / push main，未 tag / Release
 - 2026-08-12 | HB-019 / electron-updater | REPORTED / UNIMPLEMENTED→FIXED / UNVERIFIED | 集成 electron-updater 6.8.9、GitHub stable packaged-Windows provider、禁自动下载 / 退出安装 / prerelease / downgrade，Main 状态机、无参 IPC、双确认、modeActive / None 安装守卫、脱敏 notes / errors 及 latest.yml / blockmap / SHA512 workflow assets | 55 tests、lint、typecheck、diff-check、source bridge / UI smoke 通过；审查无 P0 / P1；macOS `pack:win + checksums` 与 metadata verifier 通过，latest / app-update / 唯一非空 blockmap 一致 | Windows Actions 和真实 `0.1.4→0.1.5` 更新未验；交叉打包与 SHA512 不等于 Windows 实机或身份签名 | 本地 0.1.4，未 commit / push / tag / Release
 - 2026-08-12 | HB-019 / packaged updater download smoke | 窄范围 VERIFIED | 新增严格 loopback generic feed、patch +1 metadata / installer SHA512、实际 check / download 不 install；隔离 userData / LOCALAPPDATA / APPDATA 与 cache，断言请求 / 目标路径，有界 taskkill / 清理；UpdateManager dynamic adapter 避免 unit tests 导入 Electron 可执行模块 | Windows run 31606119110 / job 94145387680 通过：availableVersion 0.1.5、downloaded true、metadataRequests 1、installerRequests 1、isolatedCache true；全 job 55 tests / metadata / UI / bridge / checksums / artifact 均通过 | 真实 GitHub stable、quitAndInstall、UAC / SmartScreen、实际版本替换仍 UNVERIFIED | HB-019 仅 check/download/SHA512/cache 窄范围 VERIFIED；0.1.4 已 push main，未 tag / Release
+- 2026-08-12 | v0.1.4 / tag CI | FAILED / 无 Release | 远端 tag 固定指向 `39758c1`；run 31606925983 / job 94148158581 在测试阶段失败 | Electron 43 首次 import 惰性下载，Vitest 多 worker 并发解压 `cs.pak` 竞态；未进入发布，未创建 Release | 不涉及真实 LCU / updater 安装验证 | tag 保持不移动 / 不删除；公开最新 Release 仍为 v0.1.3
+- 2026-08-12 | v0.1.5 / Electron hydrate 修复候选 | FIXED / UNVERIFIED | logger 仅真实 Electron 动态 import；runtime-actions mock ConfigStore；Actions 在 npm ci 后串行 hydrate 并断言 exe，避免 worker 并发解压 | clean npm ci 前后验证：测试前 / 后 Electron binary 均不存在且 10 files / 56 tests 通过；随后 clean npm ci→hydrate→audit0→OCR→56 tests→lint/typecheck→source bridge/UI→diff 全过 | Windows Actions 尚未运行；0.1.5 smoke 将合成0.1.6，历史0.1.4结果不可外推 | 本地0.1.5尚未 commit/push/tag/release，不预写未来结果
