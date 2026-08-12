@@ -20,7 +20,9 @@ export function redact(value: unknown): string {
 }
 
 async function writeToDisk(line: string): Promise<void> {
-  if (!app.isReady()) return
+  // Electron's `app` export is absent when pure Node unit tests import Main
+  // helpers. Logging must remain best-effort in both environments.
+  if (!app?.isReady?.()) return
   try {
     const directory = path.join(app.getPath('userData'), 'logs')
     await mkdir(directory, { recursive: true })

@@ -16,8 +16,15 @@ const keyBusy = ref(false)
 const keyFeedback = ref<{ kind: 'idle' | 'progress' | 'success' | 'error'; message: string }>({ kind: 'idle', message: '' })
 const calibrationBusy = ref(false)
 const lcuBusy = ref(false)
+const updateBusy = ref(false)
+const installArmed = ref(false)
 const gameDirectory = ref(state.value.settings.gameDirectory)
 const pageVisible = ref(!document.hidden)
+const updateInstallBlocked = computed(() =>
+  state.value.snapshot.modeActive &&
+  ['ChampSelect', 'GameStart', 'InProgress', 'Reconnect', 'None'].includes(state.value.snapshot.phase),
+)
+const updatePercent = computed(() => Math.max(0, Math.min(100, state.value.update.percent ?? 0)))
 
 const current = computed(() => state.value.candidates.find((item) => item.isCurrent) ?? null)
 const bench = computed(() => state.value.candidates.filter((item) => !item.isCurrent))
@@ -46,6 +53,12 @@ function winRate(value: number | null): string {
 
 function tier(value: number | null): string {
   return value == null ? '—' : `T${value}`
+}
+
+function bytes(value: number | null): string {
+  if (value == null) return '—'
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
 async function updateSettings(patch: Parameters<typeof api.updateSettings>[0]): Promise<void> {
@@ -89,6 +102,47 @@ async function refresh(): Promise<void> {
     toast.value = error instanceof Error ? error.message : '数据刷新失败'
   } finally {
     busy.value = false
+  }
+}
+
+async function checkUpdate(): Promise<void> {
+  if (updateBusy.value) return
+  updateBusy.value = true
+  installArmed.value = false
+  try {
+    const result = await api.checkForUpdates()
+    toast.value = result.message
+  } catch (error) {
+    toast.value = error instanceof Error ? error.message : '检查更新失败'
+  } finally {
+    updateBusy.value = false
+  }
+}
+
+async function downloadUpdate(): Promise<void> {
+  if (updateBusy.value) return
+  updateBusy.value = true
+  try {
+    const result = await api.downloadUpdate()
+    toast.value = result.message
+  } catch (error) {
+    toast.value = error instanceof Error ? error.message : '下载更新失败'
+  } finally {
+    updateBusy.value = false
+  }
+}
+
+async function installUpdate(): Promise<void> {
+  if (!installArmed.value) {
+    installArmed.value = true
+    return
+  }
+  installArmed.value = false
+  try {
+    const result = await api.installUpdate()
+    toast.value = result.message
+  } catch (error) {
+    toast.value = error instanceof Error ? error.message : '安装更新失败'
   }
 }
 
@@ -150,6 +204,9 @@ async function saveGameDirectory(): Promise<void> {
 }
 
 watch(() => state.value.settings.gameDirectory, (value) => { gameDirectory.value = value })
+watch(() => state.value.update.status, (value) => {
+  if (value !== 'downloaded') installArmed.value = false
+})
 const visibilityChanged = (): void => { pageVisible.value = !document.hidden }
 onMounted(() => document.addEventListener('visibilitychange', visibilityChanged))
 onBeforeUnmount(() => document.removeEventListener('visibilitychange', visibilityChanged))
@@ -160,7 +217,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 <template>
   <div class="app-shell" :class="{ 'animations-paused': !pageVisible }" :data-performance="state.diagnostics.activeVisualMode">
     <header class="titlebar">
-      <div class="title-brand"><LogoMark /><span>HexBridge</span><small>0.1.3</small></div>
+      <div class="title-brand"><LogoMark /><span>HexBridge</span><small>0.1.4</small></div>
       <div class="drag-region" />
       <div class="title-actions">
         <button aria-label="最小化" @click="api.windowAction('minimize')">—</button>
@@ -187,6 +244,14 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       <div v-if="bridgeError" class="bridge-error" role="alert">
         安全桥接初始化失败，实时数据与操作已停用。请重新安装 HexBridge 或检查本地启动日志。
       </div>
+      <button
+        v-if="['available', 'downloading', 'downloaded', 'error'].includes(state.update.status) && state.update.availableVersion"
+        class="update-banner"
+        @click="page = 'settings'"
+      >
+        <span>{{ state.update.status === 'downloaded' ? '更新已下载' : `HexBridge v${state.update.availableVersion} 可用` }}</span>
+        <small>{{ state.update.status === 'downloading' ? `${updatePercent.toFixed(0)}%` : '前往设置查看 →' }}</small>
+      </button>
       <section v-if="page === 'live'" class="live-page">
         <div class="hero-backdrop" :style="heroStyle" />
         <div class="hero-scrim" />
@@ -251,6 +316,33 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
         <div class="page-heading"><div><small>PREFERENCES</small><h1>设置</h1><p>本地、安全、按你的游戏环境运行</p></div></div>
         <div class="settings-grid">
           <article class="settings-card wide"><header><div><h3>数据服务</h3><p>Key 使用 Windows safeStorage 加密，仅由主进程访问。HEAD 验证不消耗 data credits。</p></div><span :class="['connection-pill', state.api.status]">{{ state.api.configured ? state.api.status : '未配置' }}</span></header><div class="key-row"><input v-model="apiKey" type="password" autocomplete="off" placeholder="hx_live_••••••••" @keyup.enter="validateKey" /><button class="primary" :disabled="keyBusy || !apiKey.trim()" :aria-busy="keyBusy" @click="validateKey">{{ keyBusy ? '正在验证…' : '验证并保存' }}</button><button class="ghost" :disabled="keyBusy" @click="clearKey">清除</button></div><p v-if="keyFeedback.message" :class="['inline-feedback', keyFeedback.kind]" aria-live="polite">{{ keyFeedback.message }}</p><small>申请地址：data.dtodo.cn/developer.html</small></article>
+          <article class="settings-card wide update-card">
+            <header>
+              <div><h3>客户端更新</h3><p>仅检查 GitHub Releases 正式版。发现更新后由你确认下载，下载完成后再确认重启安装，不会静默更新。</p></div>
+              <span :class="['connection-pill', state.update.status]">{{ state.update.status }}</span>
+            </header>
+            <div class="update-summary">
+              <div><small>当前版本</small><b>v{{ state.update.currentVersion }}</b></div>
+              <div><small>可用版本</small><b>{{ state.update.availableVersion ? `v${state.update.availableVersion}` : '—' }}</b></div>
+              <p aria-live="polite">{{ state.update.message }}</p>
+            </div>
+            <div v-if="state.update.status === 'downloading' || state.update.status === 'downloaded'" class="update-progress">
+              <div><i :style="{ width: `${updatePercent}%` }" /></div>
+              <small>{{ updatePercent.toFixed(0) }}% · {{ bytes(state.update.transferred) }} / {{ bytes(state.update.total) }}<template v-if="state.update.bytesPerSecond"> · {{ bytes(state.update.bytesPerSecond) }}/s</template></small>
+            </div>
+            <p v-if="state.update.releaseNotes" class="update-notes">{{ state.update.releaseNotes }}</p>
+            <div class="update-actions">
+              <button class="ghost" :disabled="updateBusy || ['checking','downloading','installing'].includes(state.update.status)" @click="checkUpdate">{{ state.update.status === 'checking' ? '检查中…' : '检查更新' }}</button>
+              <button v-if="state.update.status === 'available' || (state.update.status === 'error' && state.update.availableVersion)" class="primary" :disabled="updateBusy" @click="downloadUpdate">确认下载</button>
+              <button v-if="state.update.status === 'downloaded' && !installArmed" class="primary" :disabled="updateInstallBlocked" @click="installUpdate">{{ updateInstallBlocked ? '当前流程结束后安装' : '重启并安装' }}</button>
+              <template v-if="state.update.status === 'downloaded' && installArmed">
+                <span class="install-warning">应用将立即退出。确定安装？</span>
+                <button class="primary" :disabled="updateInstallBlocked" @click="installUpdate">确认重启安装</button>
+                <button class="ghost" @click="installArmed = false">取消</button>
+              </template>
+            </div>
+            <small>当前 Windows 发布物未进行商业代码签名，更新包会校验发布元数据中的 SHA-512，但不等同于发布者身份签名。</small>
+          </article>
           <article class="settings-card"><h3>视觉性能</h3><p>对局中始终使用省电浮窗样式。</p><select :value="state.settings.visualMode" @change="updateSettings({ visualMode: ($event.target as HTMLSelectElement).value as any })"><option value="auto">自动（推荐）</option><option value="cinematic">电影档</option><option value="balanced">均衡档</option><option value="eco">省电档</option></select><div class="setting-hint">当前：{{ state.diagnostics.activeVisualMode }}</div></article>
           <article class="settings-card"><h3>目标显示器</h3><p>OCR 会截取这个显示器。默认坐标通常可用；只有三张海克斯名称识别位置不准时才需要校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '校准三张海克斯名称区域' }}</button><small class="calibration-entry-hint">“三张标题”指游戏内同时出现的左、中、右三张海克斯卡片顶部名称。请先让无边框游戏停在该界面；HexBridge 会隐藏自己并显示屏幕截图供框选。</small></article>
           <article class="settings-card wide switches"><label><div><b>自动 OCR</b><small>InProgress 阶段每 750ms 低成本检测</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>仅 queueId 2400 的 ChampSelect 显示</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>海克斯浮窗</b><small>三张全部可靠识别后自动出现</small></div><input type="checkbox" :checked="state.settings.showAugmentOverlay" @change="updateSettings({ showAugmentOverlay: ($event.target as HTMLInputElement).checked })" /></label></article>

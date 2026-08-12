@@ -155,6 +155,32 @@ export interface ApiConnectionState {
   lastError: string | null
 }
 
+export type AppUpdateStatus =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'installing'
+  | 'error'
+
+export interface AppUpdateState {
+  status: AppUpdateStatus
+  currentVersion: string
+  availableVersion: string | null
+  releaseName: string | null
+  releaseNotes: string
+  percent: number | null
+  transferred: number | null
+  total: number | null
+  bytesPerSecond: number | null
+  lastCheckedAt: number | null
+  errorCode: string | null
+  message: string
+}
+
 export interface RuntimeDiagnostics {
   ocrReady: boolean
   ocrBusy: boolean
@@ -170,6 +196,7 @@ export interface RuntimeState {
   lcu: LcuConnectionState
   snapshot: ChampSelectSnapshot
   api: ApiConnectionState
+  update: AppUpdateState
   champions: ChampionSummary[]
   candidates: ChampionCandidate[]
   overlay: AugmentOverlayState
@@ -185,6 +212,9 @@ export interface HexBridgeApi {
   validateAndSaveApiKey(apiKey: string): Promise<{ ok: boolean; message: string }>
   clearApiKey(): Promise<void>
   refreshData(): Promise<{ ok: boolean; message: string }>
+  checkForUpdates(): Promise<{ ok: boolean; message: string }>
+  downloadUpdate(): Promise<{ ok: boolean; message: string }>
+  installUpdate(): Promise<{ ok: boolean; message: string }>
   triggerOcr(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>

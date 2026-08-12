@@ -54,7 +54,96 @@ export function normalizeChampSelectSnapshot(input: {
   }
 }
 
-const MATCH_CONTEXT_PHASES = new Set<GameflowPhase>(['GameStart', 'InProgress', 'Reconnect'])
+const MATCH_CONTEXT_PHASES = new Set<GameflowPhase>([
+  'ChampSelect',
+  'GameStart',
+  'InProgress',
+  'Reconnect',
+])
+const CLEAR_CONTEXT_PHASES = new Set<GameflowPhase>([
+  'Lobby',
+  'Matchmaking',
+  'ReadyCheck',
+  'WaitingForStats',
+  'PreEndOfGame',
+  'EndOfGame',
+])
+export const MATCH_CONTEXT_NONE_GRACE_MS = 30_000
+
+interface ConfirmedMatchContext {
+  queueId: number
+  currentChampionId: number
+  lastMatchPhaseAt: number
+  enteredGame: boolean
+}
+
+/**
+ * LCU gameflow and champ-select endpoints do not transition atomically. Keep
+ * the last confirmed queue/champion independently from the emitted snapshot so
+ * an outgoing 404 or a brief `None` cannot erase the active match.
+ */
+export class MatchContextTracker {
+  private confirmed: ConfirmedMatchContext | null = null
+
+  apply(next: ChampSelectSnapshot, now = next.updatedAt): ChampSelectSnapshot {
+    if (CLEAR_CONTEXT_PHASES.has(next.phase)) {
+      this.confirmed = null
+      return next
+    }
+
+    // A return to champ select after GameStart/InProgress/Reconnect always
+    // opens a new match generation, even when a disconnect hid all terminal
+    // phases and the queue id remains 2400.
+    if (next.phase === 'ChampSelect' && this.confirmed?.enteredGame) {
+      this.confirmed = null
+    }
+
+    if (next.queueId != null && this.confirmed && next.queueId !== this.confirmed.queueId) {
+      this.confirmed = null
+    }
+
+    if (next.queueId === 2400 && next.currentChampionId != null) {
+      this.confirmed = {
+        queueId: next.queueId,
+        currentChampionId: next.currentChampionId,
+        lastMatchPhaseAt: now,
+        enteredGame: ['GameStart', 'InProgress', 'Reconnect'].includes(next.phase),
+      }
+      return next
+    }
+
+    if (!this.confirmed) return next
+
+    const canCarryMatchPhase = MATCH_CONTEXT_PHASES.has(next.phase)
+    const canCarryTransientNone =
+      next.phase === 'None' && now - this.confirmed.lastMatchPhaseAt <= MATCH_CONTEXT_NONE_GRACE_MS
+    if (!canCarryMatchPhase && !canCarryTransientNone) {
+      if (next.phase === 'None') this.confirmed = null
+      return next
+    }
+
+    if (next.queueId != null && next.queueId !== this.confirmed.queueId) return next
+    if (canCarryMatchPhase) {
+      this.confirmed.lastMatchPhaseAt = now
+      if (['GameStart', 'InProgress', 'Reconnect'].includes(next.phase)) {
+        this.confirmed.enteredGame = true
+      }
+    }
+    return {
+      ...next,
+      queueId: next.queueId ?? this.confirmed.queueId,
+      modeActive: (next.queueId ?? this.confirmed.queueId) === 2400,
+      currentChampionId: next.currentChampionId ?? this.confirmed.currentChampionId,
+      // Bench data is champ-select-only and must never leak into game.
+      benchChampionIds: next.phase === 'ChampSelect' ? next.benchChampionIds : [],
+      benchEnabled: next.phase === 'ChampSelect' ? next.benchEnabled : false,
+    }
+  }
+
+  reset(): void {
+    this.confirmed = null
+  }
+}
 
 /**
  * Champ-select endpoints disappear before the game reaches InProgress. Carry the
@@ -65,14 +154,7 @@ export function carryForwardMatchContext(
   previous: ChampSelectSnapshot,
   next: ChampSelectSnapshot,
 ): ChampSelectSnapshot {
-  if (!MATCH_CONTEXT_PHASES.has(next.phase)) return next
-
-  const queueId = next.queueId ?? previous.queueId
-  return {
-    ...next,
-    queueId,
-    modeActive: queueId === 2400,
-    currentChampionId:
-      queueId === 2400 ? next.currentChampionId ?? previous.currentChampionId : next.currentChampionId,
-  }
+  const tracker = new MatchContextTracker()
+  tracker.apply(previous, previous.updatedAt)
+  return tracker.apply(next, next.updatedAt)
 }

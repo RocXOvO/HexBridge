@@ -23,6 +23,7 @@ import {
   shouldRunOcr,
 } from './runtime-guards.js'
 import { WindowManager } from './window-manager.js'
+import { UpdateManager, type UpdateAdapter } from './update-manager.js'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -56,6 +57,7 @@ export class HexBridgeRuntime {
   private readonly lcu: LcuClient
   private readonly scanner: AugmentScanner
   private readonly windows: WindowManager
+  private readonly updates: UpdateManager
   private snapshot: ChampSelectSnapshot = { ...EMPTY_SNAPSHOT }
   private lcuState: LcuConnectionState = { ...EMPTY_LCU }
   private overlay: AugmentOverlayState = { ...EMPTY_OVERLAY }
@@ -77,6 +79,18 @@ export class HexBridgeRuntime {
       path.join(userData, 'ocr-diagnostics'),
     )
     this.windows = new WindowManager(this.config)
+    this.updates = new UpdateManager({
+      currentVersion: app.getVersion(),
+      supported: app.isPackaged && process.platform === 'win32',
+      adapterLoader: async () => {
+        const updaterModule = await import('electron-updater')
+        return updaterModule.default.autoUpdater as unknown as UpdateAdapter
+      },
+      isGameInProgress: () =>
+        this.snapshot.modeActive &&
+        ['ChampSelect', 'GameStart', 'InProgress', 'Reconnect', 'None'].includes(this.snapshot.phase),
+      onStateChanged: () => this.sync(),
+    })
   }
 
   async initialize(): Promise<void> {
@@ -87,6 +101,7 @@ export class HexBridgeRuntime {
       this.handleLcuUpdate(snapshot, state)
     })
     this.lcu.start()
+    this.updates.initialize()
     await this.data.initialize()
     this.dataReady = true
     if (this.snapshot.currentChampionId) {
@@ -112,6 +127,7 @@ export class HexBridgeRuntime {
       lcu: { ...this.lcuState },
       snapshot: { ...this.snapshot, benchChampionIds: [...this.snapshot.benchChampionIds] },
       api: this.data.getState(),
+      update: this.updates.getState(),
       champions: this.data.getChampions(),
       candidates: buildChampionCandidates(this.snapshot, this.data.getChampions()),
       overlay: { ...this.overlay, slots: [...this.overlay.slots] },
@@ -198,6 +214,18 @@ export class HexBridgeRuntime {
     return { ok: true, message: '数据已刷新' }
   }
 
+  checkForUpdates(): Promise<{ ok: boolean; message: string }> {
+    return this.updates.check(true)
+  }
+
+  downloadUpdate(): Promise<{ ok: boolean; message: string }> {
+    return this.updates.download()
+  }
+
+  installUpdate(): { ok: boolean; message: string } {
+    return this.updates.install()
+  }
+
   async triggerOcr(): Promise<{ ok: boolean; message: string }> {
     if (!this.lcuState.connected || this.snapshot.phase !== 'InProgress' || !this.snapshot.modeActive) {
       return { ok: false, message: '仅在海克斯大乱斗对局中识别' }
@@ -243,6 +271,7 @@ export class HexBridgeRuntime {
 
   stop(): void {
     this.stopScanLoop()
+    this.updates.stop()
     this.lcu.stop()
   }
 

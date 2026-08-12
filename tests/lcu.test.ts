@@ -10,6 +10,8 @@ import {
 } from '../src/main/lcu/discovery.js'
 import {
   carryForwardMatchContext,
+  MatchContextTracker,
+  MATCH_CONTEXT_NONE_GRACE_MS,
   normalizeChampSelectSnapshot,
 } from '../src/main/lcu/normalize.js'
 
@@ -146,6 +148,96 @@ describe('LCU snapshot normalization', () => {
       }),
     )
     expect(ended).toMatchObject({ currentChampionId: null, queueId: null, modeActive: false })
+  })
+
+  it('keeps a confirmed match through outgoing champ-select 404s and a transient None phase', () => {
+    const tracker = new MatchContextTracker()
+    const full = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect',
+      gameflowSession: { queueId: 2400 },
+      champSelectSession: { benchChampionIds: [81, 63] },
+      currentChampionId: 103,
+    }), 1_000)
+    const outgoing404 = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect',
+      gameflowSession: null,
+      champSelectSession: null,
+      currentChampionId: null,
+    }), 2_000)
+    const transientNone = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'None',
+      gameflowSession: null,
+      champSelectSession: null,
+      currentChampionId: null,
+    }), 3_000)
+    const inProgress = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'InProgress',
+      gameflowSession: null,
+      champSelectSession: null,
+      currentChampionId: null,
+    }), 4_000)
+
+    expect(full.benchChampionIds).toEqual([81, 63])
+    expect(outgoing404).toMatchObject({ queueId: 2400, currentChampionId: 103, modeActive: true })
+    expect(transientNone).toMatchObject({ queueId: 2400, currentChampionId: 103, modeActive: true })
+    expect(inProgress).toMatchObject({ queueId: 2400, currentChampionId: 103, modeActive: true })
+    expect(inProgress.benchChampionIds).toEqual([])
+  })
+
+  it('expires a transient None context and never carries it into another queue', () => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    const expired = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 1_000 + MATCH_CONTEXT_NONE_GRACE_MS + 1)
+    const otherQueue = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'InProgress', gameflowSession: { queueId: 450 }, champSelectSession: null, currentChampionId: null,
+    }), 50_000)
+    expect(expired).toMatchObject({ queueId: null, currentChampionId: null, modeActive: false })
+    expect(otherQueue).toMatchObject({ queueId: 450, currentChampionId: null, modeActive: false })
+  })
+
+  it('clears the previous match before a second game', () => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    const ended = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'EndOfGame', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 2_000)
+    const ready = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ReadyCheck', gameflowSession: { queueId: 2400 }, champSelectSession: null, currentChampionId: null,
+    }), 3_000)
+    const second = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 81,
+    }), 4_000)
+    expect(ended.currentChampionId).toBeNull()
+    expect(ready.currentChampionId).toBeNull()
+    expect(second.currentChampionId).toBe(81)
+  })
+
+  it('starts a new generation when reconnecting directly from a game into another champ select', () => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'InProgress', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 2_000)
+    const newSelectWithoutChampion = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: null, currentChampionId: null,
+    }), 10_000)
+    const newChampion = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 81,
+    }), 11_000)
+    expect(newSelectWithoutChampion).toMatchObject({
+      queueId: 2400,
+      modeActive: true,
+      currentChampionId: null,
+    })
+    expect(newChampion.currentChampionId).toBe(81)
   })
 })
 

@@ -1,6 +1,6 @@
 {
   "name": "hexbridge",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A read-only ARAM Mayhem companion for League of Legends.",
   "author": "HexBridge contributors",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -18,17 +18,20 @@
     "test:bridge:packaged": "node scripts/electron-bridge-smoke.mjs release/win-unpacked/HexBridge.exe",
     "test:ui": "npm run build && node scripts/electron-ui-smoke.mjs",
     "test:ui:packaged": "node scripts/electron-ui-smoke.mjs release/win-unpacked/HexBridge.exe",
+    "test:update:packaged": "node scripts/electron-update-smoke.mjs release/win-unpacked/HexBridge.exe",
     "test:watch": "vitest",
     "lint": "eslint .",
     "ocr:models": "node scripts/download-ocr-models.mjs",
     "icons": "node scripts/generate-icon.mjs",
     "checksums": "node scripts/checksums.mjs",
+    "verify:update-metadata": "node scripts/verify-update-metadata.mjs",
     "verify:preload": "node scripts/verify-preload-bundle.mjs",
-    "pack:win": "npm run build && npm run verify:preload && electron-builder --win nsis zip --x64 --publish never",
+    "pack:win": "npm run build && npm run verify:preload && electron-builder --win nsis zip --x64 --publish never && npm run verify:update-metadata",
     "pack:dir": "npm run build && electron-builder --dir"
   },
   "dependencies": {
     "electron-store": "11.0.2",
+    "electron-updater": "6.8.9",
     "onnxruntime-node": "1.27.0",
     "paddleocr": "1.2.0",
     "sharp": "0.35.3",
@@ -69,6 +72,15 @@
       "output": "release"
     },
     "asar": true,
+    "electronUpdaterCompatibility": ">=2.16",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "RocXOvO",
+        "repo": "HexBridge",
+        "releaseType": "release"
+      }
+    ],
     "asarUnpack": [
       "node_modules/sharp/**/*",
       "node_modules/onnxruntime-node/**/*"

@@ -2,7 +2,7 @@
 
 HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大乱斗个人实验助手。它以只读方式连接本机 League Client Update（LCU），在选人阶段整理当前英雄和备战席的 Tier / 胜率，并在对局中通过屏幕裁切与本地 OCR 比较实际出现的三张海克斯。
 
-> 当前版本：`v0.1.3`。这是个人实验工具，不受 Riot Games、腾讯游戏或 ARAMGG 认可、赞助或支持。强化胜率展示和代替玩家决策的产品可能不符合 Riot 当前产品政策；扩大分发前必须重新评估合规性与数据授权。
+> 当前版本：`v0.1.4`。这是个人实验工具，不受 Riot Games、腾讯游戏或 ARAMGG 认可、赞助或支持。强化胜率展示和代替玩家决策的产品可能不符合 Riot 当前产品政策；扩大分发前必须重新评估合规性与数据授权。
 
 ## 能力
 
@@ -73,7 +73,7 @@ desktopCapturer/OCR ─┘       │
 - Renderer：`contextIsolation: true`、`sandbox: true`、`nodeIntegration: false`、CSP、`webSecurity: true`。
 - Preload：只暴露类型化业务命令，不暴露文件系统、网络客户端或密钥。
 - LCU：代码内显式 GET allowlist；日志过滤 token、Key、PUUID 风格标识及含凭据 URL。
-- 无账号系统、云后端、遥测、战绩上传、客户端注入或静默更新。
+- 无账号系统、云后端、遥测、战绩上传、客户端注入或静默更新。客户端内更新仅在用户分别确认下载和重启安装后执行。
 
 主要目录：
 
@@ -96,7 +96,14 @@ npm run pack:win
 
 产物位于 `release/`，包括 NSIS 安装包和 ZIP 便携版。`.github/workflows/release.yml` 在 `v*` 标签上构建、测试并为 GitHub Release 生成 `SHA256SUMS.txt`；不执行静默安装。
 
-当前仓库未配置商业 Windows 代码签名证书，手工构建的 `v0.1.3` 会显示“未知发布者”，也可能触发 SmartScreen；发布给其他人前应在 GitHub Actions 中配置签名证书。不要通过关闭系统安全机制来绕过提示。
+当前仓库未配置商业 Windows 代码签名证书，`v0.1.4` 会显示“未知发布者”，也可能触发 SmartScreen；发布给其他人前应在 GitHub Actions 中配置签名证书。客户端内更新会使用 `latest.yml` 的 SHA-512 校验下载文件，但这不等同于发布者身份签名。不要通过关闭系统安全机制来绕过提示。
+
+## 客户端内更新
+
+- 打包版在启动约 60 秒后自动检查 GitHub Releases 的最新正式版，也可在“设置 → 客户端更新”手动检查。
+- 只有点击“确认下载”才会下载；下载完成后还需要再次确认重启安装。
+- 海克斯大乱斗选人、启动、对局和重连流程中均禁止安装，关闭 HexBridge 也不会自动安装已下载更新。
+- 公开更新通道不会在客户端中打包 GitHub token；只使用正式、非预发布 Release。
 
 ## 数据、政策与许可
 

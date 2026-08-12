@@ -26,6 +26,20 @@ const smokeState: RuntimeState = {
     publishedAt: '',
     lastError: null,
   },
+  update: {
+    status: 'unsupported',
+    currentVersion: '0.1.4',
+    availableVersion: null,
+    releaseName: null,
+    releaseNotes: '',
+    percent: null,
+    transferred: null,
+    total: null,
+    bytesPerSecond: null,
+    lastCheckedAt: null,
+    errorCode: null,
+    message: 'smoke',
+  },
   champions: [],
   candidates: [],
   overlay: { visible: false, championId: null, slots: [], detectedAt: null, message: 'smoke' },
@@ -57,6 +71,7 @@ export interface BridgeSmokeResult {
   ok: true
   bridge: true
   ipc: true
+  updaterBridge: true
   lcuDiscovery: true
   windowsDisplayCapture: true | null
   security: {
@@ -136,11 +151,14 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
       const state = await window.hexbridge.getState()
       return {
         bridge: true,
-        ipc: Boolean(state && state.snapshot && state.snapshot.phase === 'None' && state.api),
+        ipc: Boolean(state && state.snapshot && state.snapshot.phase === 'None' && state.api && state.update),
+        updaterBridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate']
+          .every((name) => typeof window.hexbridge[name] === 'function'),
       }
     })()`)
     if (!rendererResult?.bridge) throw new SmokeFailure('HB_SMOKE_BRIDGE_MISSING')
     if (!rendererResult?.ipc) throw new SmokeFailure('HB_SMOKE_IPC_FAILED')
+    if (!rendererResult?.updaterBridge) throw new SmokeFailure('HB_SMOKE_UPDATER_BRIDGE_MISSING')
 
     let windowsDisplayCapture: true | null = null
     if (process.platform === 'win32') {
@@ -169,6 +187,7 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
       ok: true,
       bridge: true,
       ipc: true,
+      updaterBridge: true,
       lcuDiscovery: true,
       windowsDisplayCapture,
       security: {

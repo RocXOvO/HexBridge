@@ -76,6 +76,20 @@ export function createDemoApi(): HexBridgeApi {
       publishedAt: '2026-08-10',
       lastError: null,
     },
+    update: {
+      status: 'available',
+      currentVersion: '0.1.4',
+      availableVersion: '0.1.5',
+      releaseName: 'HexBridge v0.1.5',
+      releaseNotes: '预览模式的更新提示。',
+      percent: null,
+      transferred: null,
+      total: 198_000_000,
+      bytesPerSecond: null,
+      lastCheckedAt: Date.now(),
+      errorCode: null,
+      message: '发现新版本 0.1.5',
+    },
     champions,
     candidates: [current, ...bench],
     overlay: {
@@ -113,6 +127,12 @@ export function createDemoApi(): HexBridgeApi {
     validateAndSaveApiKey: async () => ({ ok: true, message: '预览模式：验证成功' }),
     clearApiKey: async () => undefined,
     refreshData: async () => ({ ok: true, message: '预览模式：数据已刷新' }),
+    checkForUpdates: async () => ({ ok: true, message: demoState.update.message }),
+    downloadUpdate: async () => {
+      demoState.update = { ...demoState.update, status: 'downloaded', percent: 100, message: '更新已下载' }
+      return { ok: true, message: demoState.update.message }
+    },
+    installUpdate: async () => ({ ok: true, message: '预览模式：将重启安装' }),
     triggerOcr: async () => ({ ok: true, message: '预览模式：识别完成' }),
     clearDiagnosticScreenshots: async () => ({ ok: true, message: '预览模式：没有诊断截图' }),
     retryLcuConnection: async () => ({ ok: false, message: '预览模式：未连接客户端' }),

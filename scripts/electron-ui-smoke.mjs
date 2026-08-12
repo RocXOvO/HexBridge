@@ -250,6 +250,23 @@ try {
       'the API Key submit button to recover after validation',
     )
 
+    const updaterUi = await mainCdp.evaluate(`(() => {
+      const card = [...document.querySelectorAll('.settings-card')]
+        .find((item) => item.textContent.includes('客户端更新'))
+      if (!card) return null
+      const buttons = [...card.querySelectorAll('button')].map((item) => item.textContent.trim())
+      return {
+        bridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate']
+          .every((name) => typeof window.hexbridge[name] === 'function'),
+        currentVersion: card.textContent.includes('v0.1.4'),
+        explicitConsent: card.textContent.includes('不会静默更新'),
+        checkButton: buttons.some((text) => text.includes('检查更新')),
+      }
+    })()`)
+    if (!updaterUi?.bridge || !updaterUi.currentVersion || !updaterUi.explicitConsent || !updaterUi.checkButton) {
+      throw new Error(`Updater UI/bridge smoke failed: ${JSON.stringify(updaterUi)}`)
+    }
+
     const typography = await mainCdp.evaluate(`(async () => {
       const clickByText = (selector, text) => [...document.querySelectorAll(selector)]
         .find((item) => item.textContent.includes(text))?.click()
@@ -354,7 +371,7 @@ try {
       )
     }
 
-    return { keyFeedback, keyIdle, typography, reducedMotion, calibration }
+    return { keyFeedback, keyIdle, updaterUi, typography, reducedMotion, calibration }
   }
 
   const hardStop = new Promise((_, reject) => {

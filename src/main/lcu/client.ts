@@ -4,7 +4,7 @@ import WebSocket from 'ws'
 import type { ChampSelectSnapshot, GameflowPhase, LcuConnectionState } from '../../shared/contracts.js'
 import { logger } from '../logger.js'
 import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
-import { carryForwardMatchContext, normalizeChampSelectSnapshot } from './normalize.js'
+import { MatchContextTracker, normalizeChampSelectSnapshot } from './normalize.js'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -60,6 +60,7 @@ export class LcuClient extends EventEmitter {
   private socket: WebSocket | null = null
   private nextDiscoveryAt = 0
   private tickInFlight: Promise<void> | null = null
+  private readonly matchContext = new MatchContextTracker()
 
   constructor(private readonly getManualDirectory: () => string) {
     super()
@@ -229,7 +230,7 @@ export class LcuClient extends EventEmitter {
         champSelectSession,
         currentChampionId,
       })
-      this.snapshot = carryForwardMatchContext(this.snapshot, normalized)
+      this.snapshot = this.matchContext.apply(normalized)
       this.state = { ...this.state, connected: true, lastError: null }
       this.emit('update', this.getSnapshot(), this.getState())
     } catch (error) {
