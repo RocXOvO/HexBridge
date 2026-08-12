@@ -16,6 +16,8 @@
     "test:ocr": "node scripts/ocr-smoke.mjs",
     "test:bridge": "npm run build && npm run verify:preload && node scripts/electron-bridge-smoke.mjs",
     "test:bridge:packaged": "node scripts/electron-bridge-smoke.mjs release/win-unpacked/HexBridge.exe",
+    "test:ui": "npm run build && node scripts/electron-ui-smoke.mjs",
+    "test:ui:packaged": "node scripts/electron-ui-smoke.mjs release/win-unpacked/HexBridge.exe",
     "test:watch": "vitest",
     "lint": "eslint .",
     "ocr:models": "node scripts/download-ocr-models.mjs",

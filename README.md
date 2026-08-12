@@ -27,6 +27,7 @@ npm test
 npm run lint
 npm run typecheck
 npm run test:bridge
+npm run test:ui
 npm run dev
 ```
 

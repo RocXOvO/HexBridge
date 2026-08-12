@@ -30,6 +30,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run pack:win
       - run: npm run test:bridge:packaged
+      - run: npm run test:ui:packaged
       - run: npm run checksums
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
