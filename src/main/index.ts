@@ -5,6 +5,7 @@ import { registerIpc } from './ipc.js'
 import { logger } from './logger.js'
 import { HexBridgeRuntime } from './runtime.js'
 import { runPackagedUpdateSmokeTest } from './update-smoke.js'
+import { runPublicUpdateSmokeTest } from './public-update-smoke.js'
 
 let runtime: HexBridgeRuntime | null = null
 let tray: Tray | null = null
@@ -12,8 +13,9 @@ let tray: Tray | null = null
 const TRAY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path fill="#11161c" stroke="#79b8ad" stroke-width="2" d="M16 2 28 9v14l-12 7-12-7V9Z"/><path fill="none" stroke="#d4b66f" stroke-width="2" stroke-linecap="round" d="M9 20c2-6 5-9 7-9s5 3 7 9M8 22h16"/></svg>`
 const bridgeSmokeMode = process.argv.includes('--hexbridge-smoke-test')
 const updateSmokeMode = process.argv.includes('--hexbridge-update-smoke-test')
+const publicUpdateSmokeMode = process.argv.includes('--hexbridge-public-update-smoke-test')
 
-if (!bridgeSmokeMode && !updateSmokeMode && !app.requestSingleInstanceLock()) app.quit()
+if (!bridgeSmokeMode && !updateSmokeMode && !publicUpdateSmokeMode && !app.requestSingleInstanceLock()) app.quit()
 
 async function finishBridgeSmoke(result: object, exitCode: number): Promise<void> {
   const resultPath = process.env.HEXBRIDGE_SMOKE_RESULT
@@ -37,6 +39,15 @@ function registerHotkey(accelerator: string): void {
 }
 
 async function start(): Promise<void> {
+  if (publicUpdateSmokeMode) {
+    try {
+      await finishPublicUpdateSmoke(await runPublicUpdateSmokeTest(), 0)
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'HB_PUBLIC_UPDATE_SMOKE_UNKNOWN'
+      await finishPublicUpdateSmoke({ ok: false, code }, 1)
+    }
+    return
+  }
   if (updateSmokeMode) {
     try {
       await finishUpdateSmoke(await runPackagedUpdateSmokeTest(), 0)
@@ -75,6 +86,19 @@ async function start(): Promise<void> {
     ]),
   )
   tray.on('double-click', () => runtime?.getWindowManager().showMain())
+}
+
+async function finishPublicUpdateSmoke(result: object, exitCode: number): Promise<void> {
+  const resultPath = process.env.HEXBRIDGE_PUBLIC_UPDATE_SMOKE_RESULT
+  if (resultPath) await writeFile(resultPath, JSON.stringify(result), 'utf8')
+  if (exitCode === 0) console.log('HEXBRIDGE_PUBLIC_UPDATE_SMOKE_OK')
+  else {
+    const code = 'code' in result && typeof result.code === 'string'
+      ? result.code
+      : 'HB_PUBLIC_UPDATE_SMOKE_UNKNOWN'
+    console.error('HEXBRIDGE_PUBLIC_UPDATE_SMOKE_FAILED', code)
+  }
+  app.exit(exitCode)
 }
 
 async function finishUpdateSmoke(result: object, exitCode: number): Promise<void> {

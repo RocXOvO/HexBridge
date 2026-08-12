@@ -15,6 +15,7 @@ const api: HexBridgeApi = {
   checkForUpdates: () => ipcRenderer.invoke('hexbridge:check-update'),
   downloadUpdate: () => ipcRenderer.invoke('hexbridge:download-update'),
   installUpdate: () => ipcRenderer.invoke('hexbridge:install-update'),
+  openReleasePage: () => ipcRenderer.invoke('hexbridge:open-release-page'),
   triggerOcr: () => ipcRenderer.invoke('hexbridge:trigger-ocr'),
   clearDiagnosticScreenshots: () => ipcRenderer.invoke('hexbridge:clear-diagnostics'),
   retryLcuConnection: () => ipcRenderer.invoke('hexbridge:retry-lcu'),

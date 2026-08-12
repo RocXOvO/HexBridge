@@ -218,6 +218,7 @@ export interface HexBridgeApi {
   checkForUpdates(): Promise<{ ok: boolean; message: string }>
   downloadUpdate(): Promise<{ ok: boolean; message: string }>
   installUpdate(): Promise<{ ok: boolean; message: string }>
+  openReleasePage(): Promise<{ ok: boolean; message: string }>
   triggerOcr(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>

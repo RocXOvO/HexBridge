@@ -144,6 +144,15 @@ async function installUpdate(): Promise<void> {
   }
 }
 
+async function openReleasePage(): Promise<void> {
+  try {
+    const result = await api.openReleasePage()
+    toast.value = result.message
+  } catch (error) {
+    toast.value = error instanceof Error ? error.message : '打开官方下载页失败'
+  }
+}
+
 async function triggerOcr(): Promise<void> {
   try {
     const result = await api.triggerOcr()
@@ -215,7 +224,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 <template>
   <div class="app-shell" :class="{ 'animations-paused': !pageVisible }" :data-performance="state.diagnostics.activeVisualMode">
     <header class="titlebar">
-      <div class="title-brand"><LogoMark /><span>HexBridge</span><small>0.1.6</small></div>
+      <div class="title-brand"><LogoMark /><span>HexBridge</span><small>0.1.7</small></div>
       <div class="drag-region" />
       <div class="title-actions">
         <button aria-label="最小化" @click="api.windowAction('minimize')">—</button>
@@ -322,7 +331,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <div class="update-summary">
               <div><small>当前版本</small><b>v{{ state.update.currentVersion }}</b></div>
               <div><small>可用版本</small><b>{{ state.update.availableVersion ? `v${state.update.availableVersion}` : '—' }}</b></div>
-              <p aria-live="polite">{{ state.update.message }}</p>
+              <p aria-live="polite">{{ state.update.message }}<small v-if="state.update.errorCode" class="update-code">诊断码：{{ state.update.errorCode }}</small></p>
             </div>
             <div v-if="state.update.status === 'downloading' || state.update.status === 'downloaded'" class="update-progress">
               <div><i :style="{ width: `${updatePercent}%` }" /></div>
@@ -331,6 +340,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <p v-if="state.update.releaseNotes" class="update-notes">{{ state.update.releaseNotes }}</p>
             <div class="update-actions">
               <button class="ghost" :disabled="updateBusy || ['checking','downloading','installing'].includes(state.update.status)" @click="checkUpdate">{{ state.update.status === 'checking' ? '检查中…' : '检查更新' }}</button>
+              <button v-if="state.update.status === 'error'" class="ghost" @click="openReleasePage">打开官方下载页</button>
               <button v-if="state.update.status === 'available' || (state.update.status === 'error' && state.update.availableVersion)" class="primary" :disabled="updateBusy" @click="downloadUpdate">确认下载</button>
               <button v-if="state.update.status === 'downloaded' && !installArmed" class="primary" :disabled="updateInstallBlocked" @click="installUpdate">{{ updateInstallBlocked ? '当前流程结束后安装' : '重启并安装' }}</button>
               <template v-if="state.update.status === 'downloaded' && installArmed">

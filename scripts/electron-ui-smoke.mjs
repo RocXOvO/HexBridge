@@ -256,9 +256,9 @@ try {
       if (!card) return null
       const buttons = [...card.querySelectorAll('button')].map((item) => item.textContent.trim())
       return {
-        bridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate']
+        bridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate', 'openReleasePage']
           .every((name) => typeof window.hexbridge[name] === 'function'),
-        currentVersion: card.textContent.includes('v0.1.6'),
+        currentVersion: card.textContent.includes('v0.1.7'),
         explicitConsent: card.textContent.includes('不会静默更新'),
         checkButton: buttons.some((text) => text.includes('检查更新')),
       }

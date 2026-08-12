@@ -1,4 +1,4 @@
-import { app, screen } from 'electron'
+import { app, screen, shell } from 'electron'
 import path from 'node:path'
 import type {
   AppSettings,
@@ -27,6 +27,7 @@ import {
 } from './runtime-guards.js'
 import { WindowManager } from './window-manager.js'
 import { UpdateManager, type UpdateAdapter } from './update-manager.js'
+import { OFFICIAL_RELEASE_PAGE_URL, STABLE_UPDATE_FEEDS } from './update-channel.js'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -93,6 +94,7 @@ export class HexBridgeRuntime {
         const updaterModule = await import('electron-updater')
         return updaterModule.default.autoUpdater as unknown as UpdateAdapter
       },
+      feeds: STABLE_UPDATE_FEEDS,
       isGameInProgress: () =>
         this.snapshot.matchStage !== 'none',
       onStateChanged: () => this.sync(),
@@ -230,6 +232,18 @@ export class HexBridgeRuntime {
 
   installUpdate(): { ok: boolean; message: string } {
     return this.updates.install()
+  }
+
+  async openReleasePage(): Promise<{ ok: boolean; message: string }> {
+    try {
+      await shell.openExternal(OFFICIAL_RELEASE_PAGE_URL, { activate: true })
+      return { ok: true, message: '已打开 GitHub 官方下载页' }
+    } catch (error) {
+      logger.warn('Unable to open official release page', {
+        errorName: error instanceof Error ? error.name : 'Error',
+      })
+      return { ok: false, message: '无法打开浏览器，请手动访问 GitHub Releases' }
+    }
   }
 
   async triggerOcr(): Promise<{ ok: boolean; message: string }> {

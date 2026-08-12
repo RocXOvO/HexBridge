@@ -52,9 +52,9 @@ const currentBlockmaps = releaseFiles.filter((name) =>
 if (currentBlockmaps.length !== 1 || currentBlockmaps[0] !== blockmapName) {
   throw new Error('Expected exactly one current-version NSIS blockmap')
 }
-if (!/^provider:\s*github$/m.test(appUpdate)) throw new Error('Packaged app-update.yml provider is not GitHub')
-if (!/^owner:\s*RocXOvO$/m.test(appUpdate) || !/^repo:\s*HexBridge$/m.test(appUpdate)) {
-  throw new Error('Packaged app-update.yml repository mismatch')
+if (!/^provider:\s*generic$/m.test(appUpdate)) throw new Error('Packaged app-update.yml provider is not generic')
+if (!/^url:\s*https:\/\/raw\.githubusercontent\.com\/RocXOvO\/HexBridge\/update-channel\/?$/m.test(appUpdate)) {
+  throw new Error('Packaged app-update.yml stable channel mismatch')
 }
 
 console.log(`Verified updater metadata for ${installerName} (${installerSize} bytes)`)

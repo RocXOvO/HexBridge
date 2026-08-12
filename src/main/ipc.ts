@@ -61,6 +61,7 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
   ipcMain.handle('hexbridge:check-update', () => runtime.checkForUpdates())
   ipcMain.handle('hexbridge:download-update', () => runtime.downloadUpdate())
   ipcMain.handle('hexbridge:install-update', () => runtime.installUpdate())
+  ipcMain.handle('hexbridge:open-release-page', () => runtime.openReleasePage())
   ipcMain.handle('hexbridge:trigger-ocr', () => runtime.triggerOcr())
   ipcMain.handle('hexbridge:clear-diagnostics', () => runtime.clearDiagnosticScreenshots())
   ipcMain.handle('hexbridge:retry-lcu', () => runtime.retryLcuConnection())

@@ -48,7 +48,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.6',
+    currentVersion: '0.1.7',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -90,6 +90,7 @@ const unavailableApi: HexBridgeApi = {
   checkForUpdates: async () => ({ ok: false, message: '安全桥接未加载' }),
   downloadUpdate: async () => ({ ok: false, message: '安全桥接未加载' }),
   installUpdate: async () => ({ ok: false, message: '安全桥接未加载' }),
+  openReleasePage: async () => ({ ok: false, message: '安全桥接未加载' }),
   triggerOcr: async () => ({ ok: false, message: '安全桥接未加载' }),
   clearDiagnosticScreenshots: async () => ({ ok: false, message: '安全桥接未加载' }),
   retryLcuConnection: async () => ({ ok: false, message: '安全桥接未加载' }),
