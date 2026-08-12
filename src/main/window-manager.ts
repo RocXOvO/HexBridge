@@ -203,10 +203,18 @@ export class WindowManager {
         fullscreenable: false,
       })
       window.setAlwaysOnTop(true, 'screen-saver')
+      // A fully hidden BrowserWindow may defer image decode on Windows. Let it
+      // participate in rendering at zero opacity so the screenshot is ready
+      // before the user can see the calibration surface.
+      window.setOpacity(0)
+      window.setIgnoreMouseEvents(true)
       window.on('closed', () => this.finishCalibration())
       await this.waitForRenderer(window)
+      window.showInactive()
       await this.waitForCalibrationContent(window)
       if (window.isDestroyed()) throw new Error('校准窗口意外关闭')
+      window.setOpacity(1)
+      window.setIgnoreMouseEvents(false)
       window.show()
       window.focus()
     } catch (error) {
