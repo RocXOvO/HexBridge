@@ -12,11 +12,14 @@ import type {
 import { buildChampionCandidates, rankAugmentSlots } from '../shared/recommendations.js'
 import { ConfigStore } from './config-store.js'
 import { DataService } from './data-service.js'
+import { isLeagueGameProcessRunning } from './game-process.js'
 import { LcuClient } from './lcu/client.js'
 import { logger } from './logger.js'
 import { AugmentScanner } from './ocr/scanner.js'
 import {
+  classifyScanContext,
   detailRanksForCurrentChampion,
+  isMatchContextOcrEligible,
   isCurrentChampionRequest,
   sameLcuState,
   sameSnapshot,
@@ -30,6 +33,8 @@ const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   locale: 'zh_CN',
   queueId: null,
   modeActive: false,
+  matchStage: 'none',
+  matchGeneration: 0,
   currentChampionId: null,
   benchChampionIds: [],
   benchEnabled: false,
@@ -63,6 +68,8 @@ export class HexBridgeRuntime {
   private overlay: AugmentOverlayState = { ...EMPTY_OVERLAY }
   private detail: ChampionAugmentData | null = null
   private scanTimer: NodeJS.Timeout | null = null
+  private gameProcessTimer: NodeJS.Timeout | null = null
+  private gameProcessCheckInFlight = false
   private scanMisses = 0
   private lastCombination = ''
   private championRequestSequence = 0
@@ -87,8 +94,7 @@ export class HexBridgeRuntime {
         return updaterModule.default.autoUpdater as unknown as UpdateAdapter
       },
       isGameInProgress: () =>
-        this.snapshot.modeActive &&
-        ['ChampSelect', 'GameStart', 'InProgress', 'Reconnect', 'None'].includes(this.snapshot.phase),
+        this.snapshot.matchStage !== 'none',
       onStateChanged: () => this.sync(),
     })
   }
@@ -227,7 +233,7 @@ export class HexBridgeRuntime {
   }
 
   async triggerOcr(): Promise<{ ok: boolean; message: string }> {
-    if (!this.lcuState.connected || this.snapshot.phase !== 'InProgress' || !this.snapshot.modeActive) {
+    if (!isMatchContextOcrEligible(this.snapshot)) {
       return { ok: false, message: '仅在海克斯大乱斗对局中识别' }
     }
     return this.runScan(true)
@@ -271,6 +277,7 @@ export class HexBridgeRuntime {
 
   stop(): void {
     this.stopScanLoop()
+    this.stopGameProcessLoop()
     this.updates.stop()
     this.lcu.stop()
   }
@@ -291,12 +298,13 @@ export class HexBridgeRuntime {
         })
       }
     }
-    if (!state.connected || snapshot.phase !== 'InProgress') {
+    if (!isMatchContextOcrEligible(snapshot)) {
       this.overlay = { ...EMPTY_OVERLAY, championId: snapshot.currentChampionId }
       this.scanMisses = 0
       this.lastCombination = ''
     }
     this.updateScanLoop()
+    this.updateGameProcessLoop()
     if (!snapshotChanged && !stateChanged) return
     this.sync()
   }
@@ -323,7 +331,7 @@ export class HexBridgeRuntime {
 
   private updateScanLoop(): void {
     const settings = this.config.getSettings()
-    if (!shouldRunOcr(settings.autoOcr, this.lcuState.connected, this.snapshot)) {
+    if (!shouldRunOcr(settings.autoOcr, this.snapshot)) {
       this.stopScanLoop()
       return
     }
@@ -338,17 +346,33 @@ export class HexBridgeRuntime {
   }
 
   private async runScan(manual: boolean): Promise<{ ok: boolean; message: string }> {
+    if (!isMatchContextOcrEligible(this.snapshot)) {
+      return { ok: false, message: '当前没有可识别的海克斯大乱斗对局' }
+    }
+    const scanGeneration = this.snapshot.matchGeneration
+    const scanChampionId = this.snapshot.currentChampionId
+    if (scanChampionId == null) {
+      return { ok: false, message: '当前没有可识别的英雄' }
+    }
     const augments = this.data.getAugments()
     if (!augments.length) return { ok: false, message: '海克斯目录尚未就绪' }
     const result = await this.scanner.scan(augments, manual)
-    if (!this.lcuState.connected || this.snapshot.phase !== 'InProgress' || !this.snapshot.modeActive) {
+    const contextDisposition = classifyScanContext(this.snapshot, scanGeneration, scanChampionId)
+    if (contextDisposition === 'ended') {
       this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
       this.stopScanLoop()
       this.sync()
-      return { ok: false, message: '对局已结束或客户端已断开' }
+      return { ok: false, message: '对局上下文已结束' }
+    }
+    if (contextDisposition === 'switched') {
+      // A late result from the previous generation must never clear or stop
+      // the already-running scanner for the new match.
+      this.updateScanLoop()
+      return { ok: false, message: '识别结果已过期，新对局扫描继续运行' }
     }
     if (result.status === 'busy') return { ok: false, message: '识别任务正在运行' }
     if (result.status === 'matched') {
+      this.lcu.confirmGameActive('augment-interface', scanGeneration, scanChampionId)
       const detailRanks = detailRanksForCurrentChampion(
         this.detail,
         this.snapshot.currentChampionId,
@@ -395,11 +419,47 @@ export class HexBridgeRuntime {
   }
 
   private activeVisualMode(settings: AppSettings): VisualMode {
-    if (this.snapshot.phase === 'InProgress') return 'eco'
+    if (this.snapshot.matchStage === 'launching' || this.snapshot.matchStage === 'active') return 'eco'
     if (settings.visualMode !== 'auto') return settings.visualMode
     const lowMemory = process.getSystemMemoryInfo().total < 8 * 1024 * 1024
     if (!this.gpuAcceleration || lowMemory) return 'eco'
     return 'balanced'
+  }
+
+  private updateGameProcessLoop(): void {
+    if (this.snapshot.matchStage !== 'launching') {
+      this.stopGameProcessLoop()
+      return
+    }
+    if (this.gameProcessTimer) return
+    this.gameProcessTimer = setInterval(() => void this.checkGameProcess(), 2_000)
+    void this.checkGameProcess()
+  }
+
+  private stopGameProcessLoop(): void {
+    if (this.gameProcessTimer) clearInterval(this.gameProcessTimer)
+    this.gameProcessTimer = null
+  }
+
+  private async checkGameProcess(): Promise<void> {
+    if (this.gameProcessCheckInFlight || this.snapshot.matchStage !== 'launching') return
+    this.gameProcessCheckInFlight = true
+    const generation = this.snapshot.matchGeneration
+    const championId = this.snapshot.currentChampionId
+    try {
+      const running = await isLeagueGameProcessRunning()
+      if (
+        running &&
+        championId != null &&
+        this.snapshot.matchStage === 'launching' &&
+        this.snapshot.matchGeneration === generation &&
+        this.snapshot.currentChampionId === championId
+      ) {
+        this.lcu.confirmGameActive('game-process', generation, championId)
+      }
+    } finally {
+      this.gameProcessCheckInFlight = false
+    }
   }
 
   private sync(): void {

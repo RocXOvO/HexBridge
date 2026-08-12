@@ -9,6 +9,7 @@ const champion = (id: number, tier: number | null, winRate: number | null): Cham
 
 const snapshot: ChampSelectSnapshot = {
   phase: 'ChampSelect', locale: 'zh_CN', queueId: 2400, modeActive: true, currentChampionId: 1,
+  matchStage: 'selecting', matchGeneration: 1,
   benchChampionIds: [3, 2, 4], benchEnabled: true, updatedAt: 1,
 }
 

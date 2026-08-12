@@ -11,6 +11,8 @@ export function sameSnapshot(left: ChampSelectSnapshot, right: ChampSelectSnapsh
     left.locale === right.locale &&
     left.queueId === right.queueId &&
     left.modeActive === right.modeActive &&
+    left.matchStage === right.matchStage &&
+    left.matchGeneration === right.matchGeneration &&
     left.currentChampionId === right.currentChampionId &&
     left.benchEnabled === right.benchEnabled &&
     left.benchChampionIds.length === right.benchChampionIds.length &&
@@ -38,10 +40,38 @@ export function isCurrentChampionRequest(
 
 export function shouldRunOcr(
   autoOcr: boolean,
-  lcuConnected: boolean,
   snapshot: ChampSelectSnapshot,
 ): boolean {
-  return autoOcr && lcuConnected && snapshot.phase === 'InProgress' && snapshot.modeActive
+  return autoOcr && isMatchContextOcrEligible(snapshot)
+}
+
+export function isMatchContextOcrEligible(snapshot: ChampSelectSnapshot): boolean {
+  return (
+    snapshot.modeActive &&
+    snapshot.currentChampionId != null &&
+    (snapshot.matchStage === 'launching' || snapshot.matchStage === 'active')
+  )
+}
+
+export function isCurrentScanContext(
+  snapshot: ChampSelectSnapshot,
+  generation: number,
+  championId: number,
+): boolean {
+  return (
+    isMatchContextOcrEligible(snapshot) &&
+    snapshot.matchGeneration === generation &&
+    snapshot.currentChampionId === championId
+  )
+}
+
+export function classifyScanContext(
+  snapshot: ChampSelectSnapshot,
+  generation: number,
+  championId: number,
+): 'current' | 'switched' | 'ended' {
+  if (!isMatchContextOcrEligible(snapshot)) return 'ended'
+  return isCurrentScanContext(snapshot, generation, championId) ? 'current' : 'switched'
 }
 
 export function detailRanksForCurrentChampion(

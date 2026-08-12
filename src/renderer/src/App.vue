@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ChampionSummary } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
+import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
 
 type Page = 'live' | 'ranking' | 'settings' | 'diagnostics'
@@ -20,20 +21,17 @@ const updateBusy = ref(false)
 const installArmed = ref(false)
 const gameDirectory = ref(state.value.settings.gameDirectory)
 const pageVisible = ref(!document.hidden)
-const updateInstallBlocked = computed(() =>
-  state.value.snapshot.modeActive &&
-  ['ChampSelect', 'GameStart', 'InProgress', 'Reconnect', 'None'].includes(state.value.snapshot.phase),
-)
+const matchContextPresent = computed(() => state.value.snapshot.matchStage !== 'none')
+const matchStatus = computed(() => describeMatchStatus(state.value.snapshot, state.value.lcu.connected))
+const retainedMatch = computed(() => matchStatus.value.retained)
+const updateInstallBlocked = computed(() => matchContextPresent.value)
 const updatePercent = computed(() => Math.max(0, Math.min(100, state.value.update.percent ?? 0)))
 
 const current = computed(() => state.value.candidates.find((item) => item.isCurrent) ?? null)
 const bench = computed(() => state.value.candidates.filter((item) => !item.isCurrent))
 const heroStyle = computed(() => current.value?.splashUrl ? { backgroundImage: `url(${current.value.splashUrl})` } : {})
-const statusLabel = computed(() => {
-  if (!state.value.lcu.connected) return '等待客户端'
-  if (!state.value.snapshot.modeActive) return '等待海克斯大乱斗'
-  return state.value.snapshot.phase === 'ChampSelect' ? '选人同步中' : state.value.snapshot.phase
-})
+const statusLabel = computed(() => matchStatus.value.label)
+const lcuStatusTitle = computed(() => matchStatus.value.lcuTitle)
 
 const ranking = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -217,7 +215,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 <template>
   <div class="app-shell" :class="{ 'animations-paused': !pageVisible }" :data-performance="state.diagnostics.activeVisualMode">
     <header class="titlebar">
-      <div class="title-brand"><LogoMark /><span>HexBridge</span><small>0.1.5</small></div>
+      <div class="title-brand"><LogoMark /><span>HexBridge</span><small>0.1.6</small></div>
       <div class="drag-region" />
       <div class="title-actions">
         <button aria-label="最小化" @click="api.windowAction('minimize')">—</button>
@@ -235,8 +233,8 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
         <button :class="{ active: page === 'diagnostics' }" @click="page = 'diagnostics'"><span>···</span>诊断</button>
       </nav>
       <div class="side-foot">
-        <span :class="['status-dot', state.lcu.connected ? 'ok' : '']" />
-        <div><b>{{ state.lcu.connected ? 'LCU 已连接' : 'LCU 未连接' }}</b><small>{{ statusLabel }}</small></div>
+        <span :class="['status-dot', state.lcu.connected || retainedMatch ? 'ok' : '']" />
+        <div><b>{{ lcuStatusTitle }}</b><small>{{ statusLabel }}</small></div>
       </div>
     </aside>
 
@@ -345,14 +343,14 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           </article>
           <article class="settings-card"><h3>视觉性能</h3><p>对局中始终使用省电浮窗样式。</p><select :value="state.settings.visualMode" @change="updateSettings({ visualMode: ($event.target as HTMLSelectElement).value as any })"><option value="auto">自动（推荐）</option><option value="cinematic">电影档</option><option value="balanced">均衡档</option><option value="eco">省电档</option></select><div class="setting-hint">当前：{{ state.diagnostics.activeVisualMode }}</div></article>
           <article class="settings-card"><h3>目标显示器</h3><p>OCR 会截取这个显示器。默认坐标通常可用；只有三张海克斯名称识别位置不准时才需要校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '校准三张海克斯名称区域' }}</button><small class="calibration-entry-hint">“三张标题”指游戏内同时出现的左、中、右三张海克斯卡片顶部名称。请先让无边框游戏停在该界面；HexBridge 会隐藏自己并显示屏幕截图供框选。</small></article>
-          <article class="settings-card wide switches"><label><div><b>自动 OCR</b><small>InProgress 阶段每 750ms 低成本检测</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>仅 queueId 2400 的 ChampSelect 显示</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>海克斯浮窗</b><small>三张全部可靠识别后自动出现</small></div><input type="checkbox" :checked="state.settings.showAugmentOverlay" @change="updateSettings({ showAugmentOverlay: ($event.target as HTMLInputElement).checked })" /></label></article>
+          <article class="settings-card wide switches"><label><div><b>自动 OCR</b><small>游戏客户端接管后每 750ms 低成本检测</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>仅 queueId 2400 的 ChampSelect 显示</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>海克斯浮窗</b><small>三张全部可靠识别后自动出现</small></div><input type="checkbox" :checked="state.settings.showAugmentOverlay" @change="updateSettings({ showAugmentOverlay: ($event.target as HTMLInputElement).checked })" /></label></article>
           <article class="settings-card wide"><h3>游戏目录（自动发现失败时使用）</h3><p>填写包含 LeagueClient.exe 或 lockfile 的英雄联盟安装目录，不要填写 WeGame 启动器或 Game 子目录。保存后会立即重新检测。</p><div class="directory-row"><input v-model="gameDirectory" placeholder="例如 D:\英雄联盟 或 D:\WeGameApps\英雄联盟" @keyup.enter="saveGameDirectory" /><button class="primary" @click="saveGameDirectory">保存并检测</button><button class="ghost" :disabled="lcuBusy" @click="retryLcu">{{ lcuBusy ? '检测中…' : '重新检测' }}</button></div></article>
         </div>
       </section>
 
       <section v-else class="page-content standard-page diagnostics-page">
         <div class="page-heading"><div><small>SYSTEM HEALTH</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">F8 立即识别</button></div></div>
-        <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : '等待客户端' }}</b><p>{{ state.lcu.lastError || `发现来源：${state.lcu.source || '—'}` }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DATA API</small><b>{{ state.api.status }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms` }}</p></div></article></div>
+        <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DATA API</small><b>{{ state.api.status }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms` }}</p></div></article></div>
         <div class="log-panel"><header><b>本地日志</b><span>{{ state.diagnostics.logLines.length }} 行</span></header><pre>{{ state.diagnostics.logLines.join('\n') || '暂无日志' }}</pre></div>
         <p class="choice-note">诊断截图仅在手动识别时保存，最多保留 60 张裁切图。</p>
         <div v-if="isPreview" class="preview-banner">浏览器视觉预览模式 · Electron 中将显示实时数据</div>

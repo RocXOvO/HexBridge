@@ -11,6 +11,8 @@ const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   locale: 'zh_CN',
   queueId: null,
   modeActive: false,
+  matchStage: 'none',
+  matchGeneration: 0,
   currentChampionId: null,
   benchChampionIds: [],
   benchEnabled: false,
@@ -47,6 +49,54 @@ export async function selectReachableLcuCredentials(
   return { credentials: reachable, failures }
 }
 
+export function resolveLcuAuxiliaryResults(
+  results: PromiseSettledResult<unknown>[],
+): {
+  gameflowSession: unknown
+  champSelectSession: unknown
+  currentChampionId: unknown
+  regionLocale: unknown
+  failure: unknown | null
+} {
+  const valueAt = (index: number): unknown => {
+    const result = results[index]
+    return result?.status === 'fulfilled' ? result.value : null
+  }
+  return {
+    gameflowSession: valueAt(0),
+    champSelectSession: valueAt(1),
+    currentChampionId: valueAt(2),
+    regionLocale: valueAt(3),
+    failure: results.find((result) => result.status === 'rejected')?.reason ?? null,
+  }
+}
+
+export function applyLcuPollResults(
+  tracker: MatchContextTracker,
+  previous: ChampSelectSnapshot,
+  phase: GameflowPhase,
+  results: PromiseSettledResult<unknown>[],
+  now = Date.now(),
+): { snapshot: ChampSelectSnapshot; failure: unknown | null } {
+  const resolved = resolveLcuAuxiliaryResults(results)
+  const normalized = normalizeChampSelectSnapshot({
+    phase,
+    locale: String(
+      (resolved.regionLocale as { locale?: unknown } | null)?.locale ??
+      previous.locale ??
+      'zh_CN',
+    ),
+    gameflowSession: resolved.gameflowSession,
+    champSelectSession: resolved.champSelectSession,
+    currentChampionId: resolved.currentChampionId,
+  })
+  const observed = tracker.apply(normalized, now)
+  return {
+    snapshot: resolved.failure ? tracker.transportDisconnected(observed, now) : observed,
+    failure: resolved.failure,
+  }
+}
+
 export class LcuClient extends EventEmitter {
   private credentials: LcuCredentials | null = null
   private snapshot: ChampSelectSnapshot = { ...EMPTY_SNAPSHOT }
@@ -61,6 +111,7 @@ export class LcuClient extends EventEmitter {
   private nextDiscoveryAt = 0
   private tickInFlight: Promise<void> | null = null
   private readonly matchContext = new MatchContextTracker()
+  private lastContextSignature = ''
 
   constructor(private readonly getManualDirectory: () => string) {
     super()
@@ -72,6 +123,21 @@ export class LcuClient extends EventEmitter {
 
   getState(): LcuConnectionState {
     return { ...this.state }
+  }
+
+  confirmGameActive(
+    reason: 'game-process' | 'augment-interface',
+    expectedGeneration: number,
+    expectedChampionId: number,
+  ): boolean {
+    const previousStage = this.snapshot.matchStage
+    this.snapshot = this.matchContext.confirmGameActive(
+      this.snapshot,
+      expectedGeneration,
+      expectedChampionId,
+    )
+    if (this.snapshot.matchStage !== previousStage) this.publishUpdate(reason)
+    return this.snapshot.matchStage === 'active' && previousStage !== 'active'
   }
 
   start(): void {
@@ -98,6 +164,7 @@ export class LcuClient extends EventEmitter {
     this.credentials = null
     this.socket?.close()
     this.socket = null
+    this.snapshot = this.matchContext.transportDisconnected(this.snapshot)
     this.state = { ...this.state, connected: false, lastError: reason }
     this.nextDiscoveryAt = immediate ? 0 : Date.now() + 3000
   }
@@ -133,7 +200,7 @@ export class LcuClient extends EventEmitter {
       }
       logger.info('LCU credentials verified', { source: credentials.source, port: credentials.port })
       this.connectSocket(credentials)
-      this.emit('update', this.getSnapshot(), this.getState())
+      this.publishUpdate('transport-connected')
       return true
     }
     const reason = [...new Set(selection.failures)].slice(0, 2).join('；') || '只读探测失败'
@@ -211,11 +278,12 @@ export class LcuClient extends EventEmitter {
   private async tickInternal(): Promise<void> {
     try {
       if (!(await this.ensureCredentials())) {
-        this.emit('update', this.getSnapshot(), this.getState())
+        this.snapshot = this.matchContext.transportDisconnected(this.snapshot)
+        this.publishUpdate('transport-unavailable')
         return
       }
       const phase = (await this.request<GameflowPhase>('/lol-gameflow/v1/gameflow-phase')) ?? 'None'
-      const [gameflowSession, champSelectSession, currentChampionId, regionLocale] = await Promise.all([
+      const auxiliary = await Promise.allSettled([
         this.request<any>('/lol-gameflow/v1/session'),
         phase === 'ChampSelect' ? this.request<any>('/lol-champ-select/v1/session') : Promise.resolve(null),
         phase === 'ChampSelect'
@@ -223,20 +291,22 @@ export class LcuClient extends EventEmitter {
           : Promise.resolve(null),
         this.request<any>('/riotclient/region-locale'),
       ])
-      const normalized = normalizeChampSelectSnapshot({
-        phase,
-        locale: String(regionLocale?.locale ?? this.snapshot.locale ?? 'zh_CN'),
-        gameflowSession,
-        champSelectSession,
-        currentChampionId,
-      })
-      this.snapshot = this.matchContext.apply(normalized)
+      const reduced = applyLcuPollResults(this.matchContext, this.snapshot, phase, auxiliary)
+      this.snapshot = reduced.snapshot
+      if (reduced.failure) {
+        const message = reduced.failure instanceof Error
+          ? reduced.failure.message
+          : 'LCU auxiliary request failed'
+        this.invalidate(message)
+        this.publishUpdate('auxiliary-request-failed')
+        return
+      }
       this.state = { ...this.state, connected: true, lastError: null }
-      this.emit('update', this.getSnapshot(), this.getState())
+      this.publishUpdate('poll')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       this.invalidate(message)
-      this.emit('update', this.getSnapshot(), this.getState())
+      this.publishUpdate('poll-failed')
     }
   }
 
@@ -267,6 +337,30 @@ export class LcuClient extends EventEmitter {
     } catch (error) {
       logger.debug('LCU websocket setup failed', error instanceof Error ? error.message : error)
     }
+  }
+
+  private publishUpdate(reason: string): void {
+    const signature = [
+      this.state.connected ? 'connected' : 'detached',
+      this.snapshot.phase,
+      this.snapshot.matchStage,
+      this.snapshot.matchGeneration,
+      this.snapshot.queueId ?? 0,
+      this.snapshot.currentChampionId ?? 0,
+    ].join(':')
+    if (signature !== this.lastContextSignature) {
+      this.lastContextSignature = signature
+      logger.info('LCU match context transitioned', {
+        reason,
+        transport: this.state.connected ? 'connected' : 'detached',
+        phase: this.snapshot.phase,
+        matchStage: this.snapshot.matchStage,
+        matchGeneration: this.snapshot.matchGeneration,
+        queueId: this.snapshot.queueId,
+        championId: this.snapshot.currentChampionId,
+      })
+    }
+    this.emit('update', this.getSnapshot(), this.getState())
   }
 }
 

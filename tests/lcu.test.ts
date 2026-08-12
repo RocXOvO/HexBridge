@@ -2,7 +2,11 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { lcuReadOnlyEndpoints, selectReachableLcuCredentials } from '../src/main/lcu/client.js'
+import {
+  applyLcuPollResults,
+  lcuReadOnlyEndpoints,
+  selectReachableLcuCredentials,
+} from '../src/main/lcu/client.js'
 import {
   collectDirectoryCredentials,
   lcuDiscoveryInternals,
@@ -11,6 +15,7 @@ import {
 import {
   carryForwardMatchContext,
   MatchContextTracker,
+  MATCH_CONTEXT_MAX_STALE_MS,
   MATCH_CONTEXT_NONE_GRACE_MS,
   normalizeChampSelectSnapshot,
 } from '../src/main/lcu/normalize.js'
@@ -184,6 +189,131 @@ describe('LCU snapshot normalization', () => {
     expect(inProgress.benchChampionIds).toEqual([])
   })
 
+  it('retains the selected champion when LeagueClientUx hands transport to the game client', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect',
+      gameflowSession: { queueId: 2400 },
+      champSelectSession: { benchChampionIds: [81, 63] },
+      currentChampionId: 103,
+    }), 1_000)
+    const detached = tracker.transportDisconnected(selected, 2_000)
+    const longLaunchGap = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 122_001)
+
+    expect(detached).toMatchObject({
+      queueId: 2400,
+      currentChampionId: 103,
+      matchStage: 'launching',
+      matchGeneration: 1,
+      benchChampionIds: [],
+      benchEnabled: false,
+    })
+    expect(longLaunchGap).toMatchObject({
+      queueId: 2400,
+      currentChampionId: 103,
+      matchStage: 'launching',
+      matchGeneration: 1,
+    })
+  })
+
+  it('uses the longer active-match lease after GameStart has been observed', () => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'GameStart', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 2_000)
+    const retained = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 2_000 + MATCH_CONTEXT_NONE_GRACE_MS + 1)
+    expect(retained).toMatchObject({
+      currentChampionId: 103,
+      matchStage: 'launching',
+      matchGeneration: 1,
+    })
+  })
+
+  it('upgrades a detached handoff to an active lease using independent game evidence', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    const detached = tracker.transportDisconnected(selected, 2_000)
+    const active = tracker.confirmGameActive(detached, 1, 103, 5_000)
+    const retainedPastLaunchLease = tracker.transportDisconnected(
+      active,
+      5_000 + MATCH_CONTEXT_NONE_GRACE_MS + 1,
+    )
+
+    expect(active).toMatchObject({ currentChampionId: 103, matchStage: 'active' })
+    expect(retainedPastLaunchLease).toMatchObject({
+      currentChampionId: 103,
+      matchStage: 'active',
+      matchGeneration: 1,
+    })
+  })
+
+  it('rejects delayed game-process evidence from a previous match generation', () => {
+    const tracker = new MatchContextTracker()
+    const first = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    tracker.transportDisconnected(first, 2_000)
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'EndOfGame', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 3_000)
+    const second = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 81,
+    }), 4_000)
+    const unchanged = tracker.confirmGameActive(second, 1, 103, 4_500)
+
+    expect(unchanged).toMatchObject({
+      currentChampionId: 81,
+      matchStage: 'selecting',
+      matchGeneration: 2,
+    })
+  })
+
+  it('does not let repeated unknown handoff phases renew a launch lease forever', () => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    const firstUnknown = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'LaunchingGameClient', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 2_000)
+    const expired = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'LaunchingGameClient', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 1_000 + MATCH_CONTEXT_NONE_GRACE_MS + 1)
+    expect(firstUnknown).toMatchObject({ currentChampionId: 103, matchStage: 'launching' })
+    expect(expired).toMatchObject({ currentChampionId: null, matchStage: 'none' })
+  })
+
+  it('commits an observed launch phase even when another LCU endpoint fails', async () => {
+    const auxiliary = await Promise.allSettled([
+      Promise.resolve(null),
+      Promise.reject(new Error('LCU request timeout')),
+      Promise.resolve(null),
+      Promise.resolve({ locale: 'zh_CN' }),
+    ])
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    const reduced = applyLcuPollResults(tracker, selected, 'GameStart', auxiliary, 2_000)
+
+    expect(reduced.failure).toBeInstanceOf(Error)
+    expect(reduced.snapshot).toMatchObject({
+      currentChampionId: 103,
+      queueId: 2400,
+      matchStage: 'launching',
+      matchGeneration: 1,
+    })
+  })
+
   it('expires a transient None context and never carries it into another queue', () => {
     const tracker = new MatchContextTracker()
     tracker.apply(normalizeChampSelectSnapshot({
@@ -238,6 +368,59 @@ describe('LCU snapshot normalization', () => {
       currentChampionId: null,
     })
     expect(newChampion.currentChampionId).toBe(81)
+  })
+
+  it('does not reuse a detached launch context in a later same-queue champ select', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    tracker.transportDisconnected(selected, 2_000)
+    const nextSelect = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: null, currentChampionId: null,
+    }), 30_000)
+    const nextChampion = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 81,
+    }), 31_000)
+
+    expect(nextSelect).toMatchObject({ currentChampionId: null, matchStage: 'none' })
+    expect(nextChampion).toMatchObject({
+      currentChampionId: 81,
+      matchStage: 'selecting',
+      matchGeneration: 2,
+    })
+  })
+
+  it('drops all retained payload after the maximum detached-context lifetime', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    const expired = tracker.transportDisconnected(selected, 1_000 + MATCH_CONTEXT_MAX_STALE_MS + 1)
+    expect(expired).toMatchObject({
+      queueId: null,
+      modeActive: false,
+      currentChampionId: null,
+      matchStage: 'none',
+      benchChampionIds: [],
+    })
+  })
+
+  it.each([
+    'WaitingForStats',
+    'PreEndOfGame',
+    'EndOfGame',
+    'FailedToLaunch',
+    'TerminatedInError',
+  ])('clears retained context on %s', (phase) => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
+    }), 1_000)
+    const terminal = tracker.apply(normalizeChampSelectSnapshot({
+      phase, gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 2_000)
+    expect(terminal).toMatchObject({ currentChampionId: null, matchStage: 'none' })
   })
 })
 

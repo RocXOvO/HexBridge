@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ChampSelectSnapshot } from '../src/shared/contracts.js'
 import {
+  classifyScanContext,
   detailRanksForCurrentChampion,
+  isCurrentScanContext,
   isCurrentChampionRequest,
   sameSnapshot,
   shouldRunOcr,
@@ -12,6 +14,8 @@ const snapshot = (patch: Partial<ChampSelectSnapshot> = {}): ChampSelectSnapshot
   locale: 'zh_CN',
   queueId: 2400,
   modeActive: true,
+  matchStage: 'active',
+  matchGeneration: 1,
   currentChampionId: 103,
   benchChampionIds: [],
   benchEnabled: false,
@@ -25,9 +29,20 @@ describe('runtime state guards', () => {
     expect(isCurrentChampionRequest(81, 2, 81, 2)).toBe(true)
   })
 
-  it('stops OCR immediately when LCU disconnects', () => {
-    expect(shouldRunOcr(true, true, snapshot())).toBe(true)
-    expect(shouldRunOcr(true, false, snapshot())).toBe(false)
+  it('keeps OCR eligible from game launch through active play without coupling to LCU transport', () => {
+    expect(shouldRunOcr(true, snapshot({ matchStage: 'launching', phase: 'None' }))).toBe(true)
+    expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }))).toBe(true)
+    expect(shouldRunOcr(true, snapshot({ matchStage: 'selecting' }))).toBe(false)
+    expect(shouldRunOcr(false, snapshot())).toBe(false)
+  })
+
+  it('rejects an OCR result after the match generation or champion changes', () => {
+    expect(isCurrentScanContext(snapshot(), 1, 103)).toBe(true)
+    expect(isCurrentScanContext(snapshot({ matchGeneration: 2 }), 1, 103)).toBe(false)
+    expect(isCurrentScanContext(snapshot({ currentChampionId: 81 }), 1, 103)).toBe(false)
+    expect(isCurrentScanContext(snapshot({ matchStage: 'none' }), 1, 103)).toBe(false)
+    expect(classifyScanContext(snapshot({ matchGeneration: 2 }), 1, 103)).toBe('switched')
+    expect(classifyScanContext(snapshot({ matchStage: 'none' }), 1, 103)).toBe('ended')
   })
 
   it('ignores timestamp-only polling updates', () => {

@@ -14,6 +14,7 @@ export type GameflowPhase =
 
 export type VisualMode = 'cinematic' | 'balanced' | 'eco'
 export type VisualModePreference = VisualMode | 'auto'
+export type MatchContextStage = 'none' | 'selecting' | 'launching' | 'active'
 
 export interface NormalizedRect {
   x: number
@@ -69,6 +70,8 @@ export interface ChampSelectSnapshot {
   locale: string
   queueId: number | null
   modeActive: boolean
+  matchStage: MatchContextStage
+  matchGeneration: number
   currentChampionId: number | null
   benchChampionIds: number[]
   benchEnabled: boolean

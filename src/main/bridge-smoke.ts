@@ -13,6 +13,8 @@ const smokeState: RuntimeState = {
     locale: 'zh_CN',
     queueId: null,
     modeActive: false,
+    matchStage: 'none',
+    matchGeneration: 0,
     currentChampionId: null,
     benchChampionIds: [],
     benchEnabled: false,
@@ -28,7 +30,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.5',
+    currentVersion: '0.1.6',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',

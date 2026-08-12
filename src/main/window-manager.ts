@@ -108,7 +108,8 @@ export class WindowManager {
     const champion = this.windows.get('champion')
     const shouldShowChampion =
       state.settings.showChampionPanel &&
-      state.snapshot.phase === 'ChampSelect' &&
+      state.lcu.connected &&
+      state.snapshot.matchStage === 'selecting' &&
       state.snapshot.modeActive
     if (shouldShowChampion) champion?.showInactive()
     else champion?.hide()

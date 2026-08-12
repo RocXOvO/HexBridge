@@ -258,7 +258,7 @@ try {
       return {
         bridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate']
           .every((name) => typeof window.hexbridge[name] === 'function'),
-        currentVersion: card.textContent.includes('v0.1.5'),
+        currentVersion: card.textContent.includes('v0.1.6'),
         explicitConsent: card.textContent.includes('不会静默更新'),
         checkButton: buttons.some((text) => text.includes('检查更新')),
       }

@@ -1,4 +1,8 @@
-import type { ChampSelectSnapshot, GameflowPhase } from '../../shared/contracts.js'
+import type {
+  ChampSelectSnapshot,
+  GameflowPhase,
+  MatchContextStage,
+} from '../../shared/contracts.js'
 
 const positiveInteger = (value: unknown): number | null => {
   const numberValue = Number(value)
@@ -47,6 +51,8 @@ export function normalizeChampSelectSnapshot(input: {
     locale: input.locale ?? 'zh_CN',
     queueId,
     modeActive: queueId === 2400,
+    matchStage: 'none',
+    matchGeneration: 0,
     currentChampionId,
     benchChampionIds,
     benchEnabled: session.benchEnabled === true || benchChampionIds.length > 0,
@@ -67,14 +73,19 @@ const CLEAR_CONTEXT_PHASES = new Set<GameflowPhase>([
   'WaitingForStats',
   'PreEndOfGame',
   'EndOfGame',
+  'FailedToLaunch',
+  'TerminatedInError',
 ])
-export const MATCH_CONTEXT_NONE_GRACE_MS = 30_000
+export const MATCH_CONTEXT_NONE_GRACE_MS = 10 * 60 * 1_000
+export const MATCH_CONTEXT_MAX_STALE_MS = 12 * 60 * 60 * 1_000
 
 interface ConfirmedMatchContext {
   queueId: number
   currentChampionId: number
   lastMatchPhaseAt: number
   enteredGame: boolean
+  stage: Exclude<MatchContextStage, 'none'>
+  generation: number
 }
 
 /**
@@ -84,17 +95,22 @@ interface ConfirmedMatchContext {
  */
 export class MatchContextTracker {
   private confirmed: ConfirmedMatchContext | null = null
+  private generation = 0
 
   apply(next: ChampSelectSnapshot, now = next.updatedAt): ChampSelectSnapshot {
     if (CLEAR_CONTEXT_PHASES.has(next.phase)) {
       this.confirmed = null
-      return next
+      return this.withoutContext(next)
     }
 
     // A return to champ select after GameStart/InProgress/Reconnect always
     // opens a new match generation, even when a disconnect hid all terminal
     // phases and the queue id remains 2400.
-    if (next.phase === 'ChampSelect' && this.confirmed?.enteredGame) {
+    if (
+      next.phase === 'ChampSelect' &&
+      this.confirmed &&
+      (this.confirmed.enteredGame || this.confirmed.stage !== 'selecting')
+    ) {
       this.confirmed = null
     }
 
@@ -103,36 +119,109 @@ export class MatchContextTracker {
     }
 
     if (next.queueId === 2400 && next.currentChampionId != null) {
+      const existing = this.confirmed
+      const enteredGame = existing?.enteredGame === true || isEnteredGamePhase(next.phase)
+      const stage = stageForPhase(next.phase, existing?.stage ?? 'selecting')
       this.confirmed = {
         queueId: next.queueId,
         currentChampionId: next.currentChampionId,
         lastMatchPhaseAt: now,
-        enteredGame: ['GameStart', 'InProgress', 'Reconnect'].includes(next.phase),
+        enteredGame,
+        stage,
+        generation: existing?.generation ?? ++this.generation,
       }
-      return next
+      return this.withContext(next)
     }
 
-    if (!this.confirmed) return next
+    if (!this.confirmed) return this.withoutContext(next)
 
     const canCarryMatchPhase = MATCH_CONTEXT_PHASES.has(next.phase)
-    const canCarryTransientNone =
-      next.phase === 'None' && now - this.confirmed.lastMatchPhaseAt <= MATCH_CONTEXT_NONE_GRACE_MS
-    if (!canCarryMatchPhase && !canCarryTransientNone) {
-      if (next.phase === 'None') this.confirmed = null
-      return next
+    const isTransientNone = next.phase === 'None'
+    const isUnknownTransition = !canCarryMatchPhase && !isTransientNone
+    const elapsed = now - this.confirmed.lastMatchPhaseAt
+    const leaseMs = this.confirmed.enteredGame
+      ? MATCH_CONTEXT_MAX_STALE_MS
+      : MATCH_CONTEXT_NONE_GRACE_MS
+    const canCarryTransientNone = isTransientNone && elapsed <= leaseMs
+    const canCarryUnknownTransition = isUnknownTransition && elapsed <= leaseMs
+    if (!canCarryMatchPhase && !canCarryTransientNone && !canCarryUnknownTransition) {
+      this.confirmed = null
+      return this.withoutContext(next)
     }
 
-    if (next.queueId != null && next.queueId !== this.confirmed.queueId) return next
-    if (canCarryMatchPhase) {
+    if (next.queueId != null && next.queueId !== this.confirmed.queueId) {
+      this.confirmed = null
+      return this.withoutContext(next)
+    }
+    if (isTransientNone && this.confirmed.stage === 'selecting') {
+      // The CN client can return an empty/404 phase while LeagueClientUx is
+      // still reachable but already handing control to the game process.
+      this.confirmed.stage = 'launching'
+    } else if (canCarryMatchPhase) {
       this.confirmed.lastMatchPhaseAt = now
-      if (['GameStart', 'InProgress', 'Reconnect'].includes(next.phase)) {
+      this.confirmed.stage = stageForPhase(next.phase, this.confirmed.stage)
+      if (isEnteredGamePhase(next.phase)) {
         this.confirmed.enteredGame = true
       }
+    } else if (isUnknownTransition) {
+      // Unknown regional hand-off phases must not erase a confirmed match. A
+      // named terminal phase or a new queue still clears it above.
+      this.confirmed.stage = this.confirmed.stage === 'selecting' ? 'launching' : this.confirmed.stage
     }
+    return this.withContext(next)
+  }
+
+  transportDisconnected(previous: ChampSelectSnapshot, now = Date.now()): ChampSelectSnapshot {
+    if (!this.confirmed) return this.discardTransportContext(previous, now)
+    const leaseMs = this.confirmed.enteredGame
+      ? MATCH_CONTEXT_MAX_STALE_MS
+      : MATCH_CONTEXT_NONE_GRACE_MS
+    if (now - this.confirmed.lastMatchPhaseAt > leaseMs) {
+      this.confirmed = null
+      return this.discardTransportContext(previous, now)
+    }
+    if (this.confirmed.stage === 'selecting') this.confirmed.stage = 'launching'
+    return this.withContext({
+      ...previous,
+      benchChampionIds: [],
+      benchEnabled: false,
+      updatedAt: now,
+    })
+  }
+
+  confirmGameActive(
+    previous: ChampSelectSnapshot,
+    expectedGeneration: number,
+    expectedChampionId: number,
+    now = Date.now(),
+  ): ChampSelectSnapshot {
+    if (
+      !this.confirmed ||
+      this.confirmed.stage !== 'launching' ||
+      this.confirmed.generation !== expectedGeneration ||
+      this.confirmed.currentChampionId !== expectedChampionId
+    ) {
+      return previous
+    }
+    this.confirmed.enteredGame = true
+    this.confirmed.stage = 'active'
+    this.confirmed.lastMatchPhaseAt = now
+    return this.withContext({
+      ...previous,
+      benchChampionIds: [],
+      benchEnabled: false,
+      updatedAt: now,
+    })
+  }
+
+  private withContext(next: ChampSelectSnapshot): ChampSelectSnapshot {
+    if (!this.confirmed) return this.withoutContext(next)
     return {
       ...next,
       queueId: next.queueId ?? this.confirmed.queueId,
       modeActive: (next.queueId ?? this.confirmed.queueId) === 2400,
+      matchStage: this.confirmed.stage,
+      matchGeneration: this.confirmed.generation,
       currentChampionId: next.currentChampionId ?? this.confirmed.currentChampionId,
       // Bench data is champ-select-only and must never leak into game.
       benchChampionIds: next.phase === 'ChampSelect' ? next.benchChampionIds : [],
@@ -140,9 +229,43 @@ export class MatchContextTracker {
     }
   }
 
+  private withoutContext(next: ChampSelectSnapshot): ChampSelectSnapshot {
+    return {
+      ...next,
+      matchStage: 'none',
+      matchGeneration: this.generation,
+    }
+  }
+
+  private discardTransportContext(previous: ChampSelectSnapshot, now: number): ChampSelectSnapshot {
+    return this.withoutContext({
+      ...previous,
+      queueId: null,
+      modeActive: false,
+      currentChampionId: null,
+      benchChampionIds: [],
+      benchEnabled: false,
+      updatedAt: now,
+    })
+  }
+
   reset(): void {
     this.confirmed = null
   }
+}
+
+function isEnteredGamePhase(phase: GameflowPhase): boolean {
+  return ['GameStart', 'InProgress', 'Reconnect'].includes(phase)
+}
+
+function stageForPhase(
+  phase: GameflowPhase,
+  fallback: Exclude<MatchContextStage, 'none'>,
+): Exclude<MatchContextStage, 'none'> {
+  if (phase === 'ChampSelect') return 'selecting'
+  if (phase === 'GameStart') return 'launching'
+  if (phase === 'InProgress' || phase === 'Reconnect') return 'active'
+  return fallback
 }
 
 /**
