@@ -360,10 +360,19 @@ try {
         throw new Error(`Hidden main window did not pause animations: ${JSON.stringify(hiddenPause)}`)
       }
       await calibrationCdp.call('Page.bringToFront')
-      await calibrationCdp.call('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape' })
+      try {
+        await calibrationCdp.call('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape' })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!/CDP WebSocket (?:closed unexpectedly|is not open)/.test(message)) throw error
+      }
       await waitUntil(
         async () => !(await targets(debuggingPort)).some((target) => /#calibration$/.test(target.url)),
         'Escape to close the calibration window',
+      )
+      await waitUntil(
+        async () => (await targets(debuggingPort)).some((target) => target.type === 'page' && /#main$/.test(target.url)),
+        'the main renderer to remain alive after calibration',
       )
       await waitUntil(
         () => mainCdp.evaluate(`!document.hidden && !document.querySelector('.app-shell')?.classList.contains('animations-paused')`),
