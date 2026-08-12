@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-13
-> 当前基线：公开最新且唯一保留的正式 Release 为 `v0.1.7`，产品源码 / tag 固定指向 `ea0c7e2`，公开 `update-channel/latest.yml` 同样指向 `0.1.7`。用户再次报告真实选人→游戏交接期英雄信息丢失，HB-020 已从 `FIXED / UNVERIFIED` 撤回为 `IN PROGRESS`；已确认一条 P1 根因为 transport 进入 `launching` 后迟到的空 `ChampSelect` 观察被误判为下一局，先清空 confirmed context，从而绕过交接租约。本地 `v0.1.8` 修复候选尚未 commit / push / tag / Release，真实 WeGame 同机复验前不得标记 FIXED。旧 `v0.1.0/1/2/3/5/6` GitHub Release 记录及资产已按用户要求删除，所有 Git tags 与源码历史均保留。项目无商业代码签名。
+> 当前基线：公开最新且唯一保留的正式 Release 仍为 `v0.1.7`，产品源码 / tag 固定指向 `ea0c7e2`，公开 `update-channel/latest.yml` 同样指向 `0.1.7`。用户再次报告真实选人→游戏交接期英雄信息丢失，HB-020 已从 `FIXED / UNVERIFIED` 撤回为 `IN PROGRESS`；已确认 P1 根因为 transport 进入 `launching` 后迟到的空 `ChampSelect` 观察被误判为下一局，先清空 confirmed context，从而绕过交接租约。`v0.1.8` 候选产品提交 `4866011a2cc982e22e414472a911a1574f515260` 已 push main，Windows workflow_dispatch run `31627564190` 全门禁成功；尚未 tag / Release，真实 WeGame 同机复验前不得把 HB-020 标记 FIXED。旧 `v0.1.0/1/2/3/5/6` GitHub Release 记录及资产已按用户要求删除，所有 Git tags 与源码历史均保留。项目无商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -499,7 +499,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git / 版本：公开最新且唯一保留的 Release 为 `v0.1.7`，tag / 当前产品基线为 `ea0c7e2`，public channel 为 `0.1.7`。本地工作树为未提交的 `v0.1.8` HB-020 候选；不得预写未来 commit / Windows Actions / tag / Release 结果。远端所有 `v0.1.0` 至 `v0.1.7` Git tags 均原位保留；`v0.1.4` 仍指向 `39758c1` 且没有 Release。
+- 当前 Git / 版本：公开最新且唯一保留的 Release 为 `v0.1.7`，tag / 当前产品基线为 `ea0c7e2`，public channel 为 `0.1.7`。`v0.1.8` 产品提交 `4866011a2cc982e22e414472a911a1574f515260` 已 push main 且 Windows 预发布全门禁通过；尚未 tag / Release，不得预写正式发布结果。远端所有 `v0.1.0` 至 `v0.1.7` Git tags 均原位保留；`v0.1.4` 仍指向 `39758c1` 且没有 Release。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -611,3 +611,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-13 | v0.1.7 / Release 与公开更新通道 | 已发布；当前唯一保留的正式 Release | tag / 产品源码 `ea0c7e2` 完成 Windows 正式发布，public stable channel 已指向 `0.1.7`，五项资产和 packaged public check 均完成 | GitHub Release 为 Latest、非 draft / prerelease；当前正式 EXE 199,023,315 bytes，SHA-256 `c9873c8799f8d3d71890cb798df793b54f192cee21265b9605e2b702ba46ad58` | installed 旧版真实 check / download / 安装替换仍未验证；无商业签名 | 当前公开推荐版本为 `v0.1.7`，不是候选状态
 - 2026-08-13 | HB-020 / 迟到空 ChampSelect 确定根因与 v0.1.8 候选 | IN PROGRESS（代码候选已修，等待用户同机复验） | 真实交接中 transport 先将 tracker 置为 `launching`，随后 phase 仍迟到报告 `ChampSelect` 而 session / current endpoints 已 404 / empty；旧 reducer 把这类 observation 当作下一局，在租约判断前清空 confirmed context，Runtime 随即清英雄详情 / OCR / 浮窗。候选引入 endpoint presence、可选 game identity、partial observation 和受控 decision，区分 outgoing 与真实新 session；保留分支不得续租，不同正英雄 / 异队列 / 新 identity 必须换代 | 回放测试覆盖 outgoing endpoint race、partial GameStart / InProgress、终局 / 异队列 / 同 queue 第二局、租约超时和新英雄换代；本地门禁结果以本轮最终复验为准 | 仍缺报告用户同机 WeGame 交接、一整局 OCR / 推荐 / 终局和第二局；不得写为 FIXED / VERIFIED | 本地 `v0.1.8` 未 commit / push / tag / Release
 - 2026-08-13 | GitHub Release 保留策略 | 旧 Release / assets 已删除，tags / 源码历史保留 | 手动删除 `v0.1.0/1/2/3/5/6` GitHub Release 记录与资产，当前只剩 `v0.1.7`；`v0.1.4` 本来无 Release。候选 workflow 仅在新 strict-semver stable 已公开、public packaged 检查通过且没有更高 stable 时，删除严格低版本 stable Release；draft / prerelease 不动，所有 Git tags 永不删除 / 移动 | 只读 `gh release list` 已确认当前仅 `v0.1.7` | 删除 Release assets 不可恢复；历史下载摘要只作为审计记录，不表示资产仍可下载 | 后续每次成功正式发布后自动执行相同保留策略
+- 2026-08-13 | v0.1.8 / Windows 预发布验证 | Windows packaged 全门禁通过；HB-020 状态不升级 | 产品提交 `4866011a2cc982e22e414472a911a1574f515260` 已 push main；workflow_dispatch 只执行候选门禁，tag-only Release / channel / cleanup 均按预期 skip | run [31627564190](https://github.com/RocXOvO/HexBridge/actions/runs/31627564190) / job `94217823684` 成功，约 5m19s；clean npm ci、audit 0、公开 `0.1.7` 通道、OCR、Windows 13 files / 100 tests、lint、typecheck、pack（EXE 199,024,335 bytes）、metadata、packaged UI / bridge、synthetic `0.1.9` updater、checksums和artifact全通过；updater `downloaded=true`、metadata / installer 请求各1、cache隔离 | 不等于真实 WeGame 交接、整局 OCR / 推荐、终局 / 第二局或实际更新安装；无商业签名 | 可进入正式 tag 门禁，尚未 tag / Release
