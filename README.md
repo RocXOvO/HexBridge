@@ -95,6 +95,8 @@ npm run lint
 npm run pack:win
 ```
 
+真实国服 WeGame 的选人→游戏客户端交接不能由 CI 代替。发布后请按 [WeGame 交接验收清单](docs/WEGAME_HANDOFF_RUNBOOK.md) 复测最后等待、游戏启动、三卡 OCR、终局和第二局；清单同时规定了脱敏状态链与问题关闭标准。
+
 产物位于 `release/`，包括 NSIS 安装包和 ZIP 便携版。`.github/workflows/release.yml` 在 `v*` 标签上构建、测试并为 GitHub Release 生成 `SHA256SUMS.txt`；不执行静默安装。新正式版完成公开通道验证后，发布页仅保留最新 Release 及其资产；旧 Git tag 和源码历史始终保留，便于审计与回溯。
 
 当前仓库未配置商业 Windows 代码签名证书，`v0.1.8` 会显示“未知发布者”，也可能触发 SmartScreen；发布给其他人前应在 GitHub Actions 中配置签名证书。客户端内更新会使用 `latest.yml` 的 SHA-512 校验下载文件，但这不等同于发布者身份签名。不要通过关闭系统安全机制来绕过提示。
