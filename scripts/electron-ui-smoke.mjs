@@ -109,14 +109,14 @@ async function connectCdp(webSocketDebuggerUrl) {
     if (message.error) waiter.reject(new Error(message.error.message))
     else waiter.resolve(message.result)
   })
-  const call = (method, params = {}) => {
+  const call = (method, params = {}, maximumMs = 5_000) => {
     if (socket.readyState !== WebSocket.OPEN) return Promise.reject(new Error('CDP WebSocket is not open'))
     const id = ++sequence
     const response = new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject })
       socket.send(JSON.stringify({ id, method, params }))
     })
-    return within(response, `CDP ${method}`).finally(() => pending.delete(id))
+    return within(response, `CDP ${method}`, maximumMs).finally(() => pending.delete(id))
   }
   const evaluate = async (expression) => {
     const response = await call('Runtime.evaluate', {
@@ -206,7 +206,11 @@ try {
       'the main HexBridge renderer',
     )
     mainCdp = await connectCdp(mainTarget.webSocketDebuggerUrl)
-    await mainCdp.call('Runtime.enable')
+    // A freshly unpacked Windows executable can expose its CDP target before
+    // the renderer runtime is ready to answer the first command. Keep the
+    // smoke's 45s hard stop, but do not mistake that bounded startup delay for
+    // a product failure.
+    await mainCdp.call('Runtime.enable', {}, 10_000)
 
     await waitUntil(
       () => mainCdp.evaluate(`Boolean(document.querySelector('.app-shell') && window.hexbridge)`),
@@ -342,7 +346,7 @@ try {
         'the calibration renderer',
       )
       calibrationCdp = await connectCdp(calibrationTarget.webSocketDebuggerUrl)
-      await calibrationCdp.call('Runtime.enable')
+      await calibrationCdp.call('Runtime.enable', {}, 10_000)
       calibration = await waitUntil(
         () => calibrationCdp.evaluate(`(() => {
           const image = document.querySelector('.calibration-screenshot')
