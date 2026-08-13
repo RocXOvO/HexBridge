@@ -13,8 +13,8 @@ export function cardRectToTitleRect(card: NormalizedRect): NormalizedRect {
   }
 }
 
-export function looksLikeWholeCard(rect: NormalizedRect): boolean {
-  return rect.height >= 0.18 || rect.height >= rect.width * 1.25
+export function looksLikeWholeCard(rect?: NormalizedRect | null): rect is NormalizedRect {
+  return Boolean(rect && (rect.height >= 0.18 || rect.height >= rect.width * 1.25))
 }
 
 export function titleRectForCalibration(rect: NormalizedRect): NormalizedRect {

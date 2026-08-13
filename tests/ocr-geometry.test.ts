@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cardRectToTitleRect,
   normalizedRectToPixels,
+  looksLikeWholeCard,
   titleRectForCalibration,
 } from '../src/shared/ocr-geometry.js'
 
@@ -35,5 +36,10 @@ describe('normalized OCR crop geometry', () => {
     expect(title.height).toBeCloseTo(.08398)
     expect(titleRectForCalibration(card)).toEqual(cardRectToTitleRect(card))
     expect(titleRectForCalibration(rect)).toBe(rect)
+  })
+
+  it('treats an unfinished calibration slot as absent instead of throwing during first render', () => {
+    expect(looksLikeWholeCard(undefined)).toBe(false)
+    expect(looksLikeWholeCard(null)).toBe(false)
   })
 })

@@ -146,16 +146,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keydown))
       draggable="false"
     />
     <div class="calibration-vignette" />
-    <div
-      v-for="slot in slots"
-      v-show="rects[slot]"
-      :key="slot"
-      class="calibration-rect complete"
-      :style="style(rects[slot])"
-    >
-      <span>{{ labels[slot] }}</span>
-      <i v-if="looksLikeWholeCard(rects[slot]!)" class="calibration-title-band">自动识别标题区域</i>
-    </div>
+    <template v-for="slot in slots" :key="slot">
+      <div
+        v-if="rects[slot]"
+        class="calibration-rect complete"
+        :style="style(rects[slot])"
+      >
+        <span>{{ labels[slot] }}</span>
+        <i v-if="looksLikeWholeCard(rects[slot])" class="calibration-title-band">自动识别标题区域</i>
+      </div>
+    </template>
     <div v-if="draft && active" class="calibration-rect" :style="style(draft)">
       <span>{{ labels[active] }}</span>
     </div>
