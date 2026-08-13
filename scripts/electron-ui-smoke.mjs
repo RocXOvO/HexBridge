@@ -393,10 +393,23 @@ try {
         async () => (await targets(debuggingPort)).some((target) => target.type === 'page' && /#main$/.test(target.url)),
         'the main renderer to remain alive after calibration',
       )
-      await waitUntil(
-        () => mainCdp.evaluate(`!document.hidden && !document.querySelector('.app-shell')?.classList.contains('animations-paused')`),
+      const restoredMain = await waitUntil(
+        () => mainCdp.evaluate(`(() => {
+          const hidden = document.hidden
+          const focused = document.hasFocus()
+          const paused = document.querySelector('.app-shell')?.classList.contains('animations-paused') === true
+          return hidden ? null : { hidden, focused, paused }
+        })()`),
         'the main window to restore after calibration',
       )
+      // Headless Windows runners are allowed to refuse foreground focus. A
+      // restored but unfocused window must remain paused; if focus is granted,
+      // its animations must resume. This verifies both visibility and the
+      // performance guard without conflating OS focus policy with restoration.
+      if (restoredMain.paused === restoredMain.focused) {
+        throw new Error(`Restored main animation state is inconsistent: ${JSON.stringify(restoredMain)}`)
+      }
+      calibration.restoredMain = restoredMain
     }
 
     return { keyFeedback, keyIdle, updaterUi, typography, reducedMotion, calibrationIsolation, calibration }
