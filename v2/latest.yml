@@ -1,8 +1,8 @@
-version: 0.1.17
+version: 0.1.18
 files:
-  - url: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.17/HexBridge-0.1.17-x64.exe
-    sha512: 9eRSXSZz0V1kjA6dswIiX8agNtWUyeX0bdoO2Aoye7kzEDTX4iq5Idm9O1rjGRb/bNVI5ikDAkTKqaFa9G3wOA==
-    size: 199236595
-path: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.17/HexBridge-0.1.17-x64.exe
-sha512: 9eRSXSZz0V1kjA6dswIiX8agNtWUyeX0bdoO2Aoye7kzEDTX4iq5Idm9O1rjGRb/bNVI5ikDAkTKqaFa9G3wOA==
-releaseDate: '2026-08-13T17:20:53.867Z'
+  - url: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.18/HexBridge-0.1.18-x64.exe
+    sha512: 6iaGNyGG+egafhoC06DZFZxM8gBrpiTe6WIL/rnI6rOYxPRy96g2XwdAUq7OwGwZYZwJWbq3xVQ52ADZuLDl0w==
+    size: 199236775
+path: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.18/HexBridge-0.1.18-x64.exe
+sha512: 6iaGNyGG+egafhoC06DZFZxM8gBrpiTe6WIL/rnI6rOYxPRy96g2XwdAUq7OwGwZYZwJWbq3xVQ52ADZuLDl0w==
+releaseDate: '2026-08-13T18:31:59.157Z'
