@@ -346,11 +346,18 @@ try {
 
     let calibration = null
     if (process.platform === 'win32' || process.env.HEXBRIDGE_SMOKE_CALIBRATION === 'true') {
-      await mainCdp.evaluate(`(async () => {
+      await mainCdp.evaluate(`(() => {
         const settings = [...document.querySelectorAll('.sidebar nav button')]
           .find((item) => item.textContent.includes('设置'))
         settings.click()
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        return true
+      })()`)
+      await waitUntil(
+        () => mainCdp.evaluate(`(() => [...document.querySelectorAll('.settings-card button')]
+          .some((item) => item.textContent.includes('框选三张完整海克斯卡片')))()`),
+        'the calibration entry after the settings page transition',
+      )
+      await mainCdp.evaluate(`(() => {
         const button = [...document.querySelectorAll('.settings-card button')]
           .find((item) => item.textContent.includes('框选三张完整海克斯卡片'))
         if (!button) throw new Error('Missing calibration entry')
