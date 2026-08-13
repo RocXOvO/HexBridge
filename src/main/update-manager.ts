@@ -175,7 +175,7 @@ export class UpdateManager {
         downloadModeMessage: downloadedFromCache ? '已使用本机缓存' : this.state.downloadModeMessage,
         errorCode: null,
         message: this.state.downloadMode === 'differential'
-          ? '差分更新已下载，可在退出对局后重启安装'
+          ? '差分更新已下载，可在退出对局后重启静默更新'
           : this.differentialFallback
             ? '差分不可用，完整安装包已下载，可在退出对局后重启安装'
           : downloadedFromCache
@@ -383,10 +383,19 @@ export class UpdateManager {
     if (this.options.isGameInProgress()) {
       return { ok: false, message: '对局进行中不会安装更新，请在对局结束后重试' }
     }
-    this.patch({ status: 'installing', message: '正在退出并安装更新…' })
+    const silentDifferentialInstall = this.state.downloadMode === 'differential'
+    this.patch({
+      status: 'installing',
+      message: silentDifferentialInstall
+        ? '正在退出并静默安装差分更新…'
+        : '正在退出并安装更新…',
+    })
     try {
       this.installShutdownToken = this.options.beginInstallShutdown?.() ?? null
-      this.adapter.quitAndInstall(false, true)
+      // Only a confirmed differential payload uses NSIS silent mode. A full
+      // installer fallback keeps the normal installer UI so a large fallback
+      // can never be mistaken for a hidden differential update.
+      this.adapter.quitAndInstall(silentDifferentialInstall, true)
       const postInstallState = this.getState()
       if (postInstallState.status === 'error') return { ok: false, message: postInstallState.message }
       return { ok: true, message: this.state.message }

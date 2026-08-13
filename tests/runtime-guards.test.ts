@@ -3,6 +3,7 @@ import type { ChampionAugmentData, ChampSelectSnapshot } from '../src/shared/con
 import {
   automaticOcrErrorDelay,
   classifyScanContext,
+  detailBuildForCurrentChampion,
   detailRanksForCurrentChampion,
   isCurrentScanContext,
   isCurrentChampionRequest,
@@ -77,9 +78,13 @@ describe('runtime state guards', () => {
       championId: 103,
       dataVersion: '16.15.6',
       ranks: [{ augmentId: 1, rank: 1, total: 100, tier: 1, pickRate: .2, statsSource: 'tencent', statsRegion: 'CN' }],
+      builds: [{ label: '爆发法师', patch: '16.15', source: 'iesdev', startingItems: [], coreItems: [], situationalItems: [] }],
     }
     expect(detailRanksForCurrentChampion(detail, 103, '16.15.6')).toHaveLength(1)
     expect(detailRanksForCurrentChampion(detail, 81, '16.15.6')).toEqual([])
     expect(detailRanksForCurrentChampion(detail, 103, '16.16.1')).toEqual([])
+    expect(detailBuildForCurrentChampion(detail, 103, '16.15.6')).toMatchObject({ label: '爆发法师' })
+    expect(detailBuildForCurrentChampion(detail, 81, '16.15.6')).toBeNull()
+    expect(detailBuildForCurrentChampion(detail, 103, '16.16.1')).toBeNull()
   })
 })

@@ -306,7 +306,7 @@ try {
       const diagnostics = font('.health-grid p')
       clickByText('.sidebar nav button', '实时助手')
       await settle()
-      const liveStatus = font('.empty-copy p')
+      const liveStatus = font('.empty-copy h2')
       const liveEyebrow = font('.eyebrow')
       return { diagnostics, liveStatus, liveEyebrow }
     })()`)

@@ -24,6 +24,7 @@ import { AugmentScanner } from './ocr/scanner.js'
 import {
   automaticOcrErrorDelay,
   classifyScanContext,
+  detailBuildForCurrentChampion,
   detailRanksForCurrentChampion,
   isMatchContextOcrEligible,
   isCurrentChampionRequest,
@@ -194,6 +195,11 @@ export class HexBridgeRuntime {
       lowMemory: process.getSystemMemoryInfo().total < 8 * 1024 * 1024,
     })
     const scanner = this.scanner.getDiagnostics()
+    const currentBuild = detailBuildForCurrentChampion(
+      this.detail,
+      this.snapshot.currentChampionId,
+      this.data.getState().dataVersion,
+    )
     return {
       lcu: { ...this.lcuState },
       snapshot: { ...this.snapshot, benchChampionIds: [...this.snapshot.benchChampionIds] },
@@ -201,6 +207,7 @@ export class HexBridgeRuntime {
       update: this.updates.getState(),
       champions: this.data.getChampions(),
       candidates: buildChampionCandidates(this.snapshot, this.data.getChampions()),
+      currentBuild,
       overlay: { ...this.overlay, slots: [...this.overlay.slots] },
       settings,
       displays: screen.getAllDisplays().map((display, index) => ({

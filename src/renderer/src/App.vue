@@ -20,7 +20,6 @@ const busy = ref(false)
 const keyBusy = ref(false)
 const keyFeedback = ref<{ kind: 'idle' | 'progress' | 'success' | 'error'; message: string }>({ kind: 'idle', message: '' })
 const calibrationBusy = ref(false)
-const lcuBusy = ref(false)
 const updateBusy = ref(false)
 const installArmed = ref(false)
 const pageVisible = ref(!document.hidden)
@@ -31,6 +30,9 @@ const matchContextPresent = computed(() => state.value.snapshot.matchStage !== '
 const matchStatus = computed(() => describeMatchStatus(state.value.snapshot, state.value.lcu.connected))
 const retainedMatch = computed(() => matchStatus.value.retained)
 const updateInstallBlocked = computed(() => matchContextPresent.value)
+const silentDifferentialInstall = computed(() =>
+  state.value.update.status === 'downloaded' && state.value.update.downloadMode === 'differential',
+)
 const updatePercent = computed(() => Math.max(0, Math.min(100, state.value.update.percent ?? 0)))
 
 const updateStatusText: Record<string, string> = {
@@ -296,20 +298,6 @@ async function startCalibration(): Promise<void> {
   }
 }
 
-async function retryLcu(): Promise<void> {
-  if (lcuBusy.value) return
-  lcuBusy.value = true
-  showToast('正在重新检测 LeagueClientUx、lockfile 和客户端日志…', false, 8_000)
-  try {
-    const result = await api.retryLcuConnection()
-    showToast(result.message, !result.ok)
-  } catch (error) {
-    showToast(error instanceof Error ? error.message : '重新检测客户端失败', true)
-  } finally {
-    lcuBusy.value = false
-  }
-}
-
 async function recordHotkey(event: KeyboardEvent): Promise<void> {
   if (!recordingHotkey.value || event.repeat) return
   event.preventDefault()
@@ -413,6 +401,18 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             </div>
             <span v-if="current.isBest" class="best-badge">首选</span>
           </div>
+          <section v-if="current" class="build-recommendation" aria-live="polite">
+            <header>
+              <div><small>当前英雄</small><h2>大乱斗出装参考</h2></div>
+              <span v-if="state.currentBuild">{{ state.currentBuild.label }} · iesdev · {{ state.currentBuild.patch || state.api.gamePatch || '补丁未标注' }}</span>
+            </header>
+            <div v-if="state.currentBuild" class="build-groups">
+              <div><small>出门装</small><div v-if="state.currentBuild.startingItems.length" class="build-items"><span v-for="item in state.currentBuild.startingItems" :key="`start-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+              <div><small>核心装</small><div v-if="state.currentBuild.coreItems.length" class="build-items"><span v-for="item in state.currentBuild.coreItems" :key="`core-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+              <div><small>情境装备</small><div v-if="state.currentBuild.situationalItems.length" class="build-items compact"><span v-for="item in state.currentBuild.situationalItems" :key="`situational-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+            </div>
+            <p v-else>暂无该英雄的出装数据；英雄详情就绪后会自动显示。</p>
+          </section>
           <div v-else class="empty-hero">
             <div class="connection-stage" aria-hidden="true">
               <div class="connection-ring ring-one" />
@@ -423,10 +423,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <div class="empty-copy">
               <small>{{ recognizedChampionMissingData ? '已识别英雄' : state.lcu.connected ? '客户端已连接' : '正在检测客户端' }}</small>
               <h2>{{ recognizedChampionMissingData ? `已识别英雄 #${recognizedChampionId}` : state.lcu.connected ? '等待选择英雄' : '英雄联盟客户端未启动或未发现' }}</h2>
-              <p>{{ recognizedChampionMissingData ? 'LCU 读取正常，但英雄数据目录尚未就绪或缺少该英雄；请刷新数据。' : state.lcu.connected ? '进入海克斯大乱斗选人阶段后会自动显示英雄。' : '启动 WeGame 与英雄联盟后，HexBridge 会在后台自动连接。' }}</p>
-              <button v-if="!state.lcu.connected" class="ghost reconnect-button" :disabled="lcuBusy" @click="retryLcu">
-                {{ lcuBusy ? '正在检测…' : '立即重新检测' }}
-              </button>
+              <p v-if="recognizedChampionMissingData || state.lcu.connected">{{ recognizedChampionMissingData ? 'LCU 读取正常，但英雄数据目录尚未就绪或缺少该英雄；请刷新数据。' : '进入海克斯大乱斗选人阶段后会自动显示英雄。' }}</p>
             </div>
           </div>
 
@@ -484,7 +481,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           <div class="update-summary"><div><small>可用版本</small><b>{{ state.update.availableVersion ? `v${state.update.availableVersion}` : '已是最新或尚未检查' }}</b></div><p aria-live="polite">{{ state.update.message }}<small v-if="state.update.errorCode" class="update-code" :title="state.update.errorCode">诊断：{{ updateErrorText[state.update.errorCode] || '更新服务返回异常' }}</small></p></div>
           <div v-if="state.update.status === 'downloading' || state.update.status === 'downloaded'" class="update-progress"><div><i :style="{ width: `${updatePercent}%` }" /></div><small><b v-if="state.update.downloadModeMessage">{{ state.update.downloadModeMessage }} · </b>{{ updatePercent.toFixed(0) }}% · {{ bytes(state.update.transferred) }} / {{ bytes(state.update.total) }}<template v-if="state.update.bytesPerSecond"> · {{ bytes(state.update.bytesPerSecond) }}/s</template></small></div>
           <p v-if="state.update.releaseNotes" class="update-notes">{{ state.update.releaseNotes }}</p>
-          <div class="update-actions"><button class="ghost" :disabled="updateBusy || ['checking','downloading','installing'].includes(state.update.status)" @click="checkUpdate">{{ state.update.status === 'checking' ? '检查中…' : '检查更新' }}</button><button v-if="state.update.status === 'error'" class="ghost" @click="openReleasePage">打开官方下载页</button><button v-if="state.update.status === 'available' || (state.update.status === 'error' && state.update.availableVersion)" class="primary" :disabled="updateBusy" @click="downloadUpdate">确认下载</button><button v-if="state.update.status === 'downloaded' && !installArmed" class="primary" :disabled="updateInstallBlocked" @click="installUpdate">{{ updateInstallBlocked ? '当前流程结束后安装' : '重启并安装' }}</button><template v-if="state.update.status === 'downloaded' && installArmed"><span class="install-warning">应用将立即退出。确定安装？</span><button class="primary" :disabled="updateInstallBlocked" @click="installUpdate">确认重启安装</button><button class="ghost" @click="installArmed = false">取消</button></template></div>
+          <div class="update-actions"><button class="ghost" :disabled="updateBusy || ['checking','downloading','installing'].includes(state.update.status)" @click="checkUpdate">{{ state.update.status === 'checking' ? '检查中…' : '检查更新' }}</button><button v-if="state.update.status === 'error'" class="ghost" @click="openReleasePage">打开官方下载页</button><button v-if="state.update.status === 'available' || (state.update.status === 'error' && state.update.availableVersion)" class="primary" :disabled="updateBusy" @click="downloadUpdate">确认下载</button><button v-if="state.update.status === 'downloaded' && !installArmed" class="primary" :disabled="updateInstallBlocked" @click="installUpdate">{{ updateInstallBlocked ? '当前流程结束后安装' : silentDifferentialInstall ? '重启并静默更新' : '重启并安装' }}</button><template v-if="state.update.status === 'downloaded' && installArmed"><span class="install-warning">{{ silentDifferentialInstall ? '应用将立即退出并在后台完成差分更新，不打开安装向导。确定继续？' : '应用将立即退出并打开完整安装程序。确定继续？' }}</span><button class="primary" :disabled="updateInstallBlocked" @click="installUpdate">{{ silentDifferentialInstall ? '确认静默更新' : '确认重启安装' }}</button><button class="ghost" @click="installArmed = false">取消</button></template></div>
         </article>
       </section>
 

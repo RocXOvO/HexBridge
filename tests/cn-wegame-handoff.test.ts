@@ -226,6 +226,7 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
       championId: 115,
       dataVersion: '16.15.6',
       ranks: [{ augmentId: 1, rank: 1, tier: 1, total: 100, pickRate: .2, statsSource: 'tencent', statsRegion: 'CN' }],
+      builds: [],
     }
     runtime.detail = detail
     runtime.overlay = {
@@ -427,6 +428,7 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
       championId: 115,
       dataVersion: '16.15.6',
       ranks: [{ augmentId: 1, rank: 1, tier: 1, total: 100, pickRate: .2, statsSource: 'tencent', statsRegion: 'CN' }],
+      builds: [],
     }
     runtime.detail = detail
     runtime.championRequestSequence = 7

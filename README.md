@@ -2,7 +2,7 @@
 
 HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大乱斗个人实验助手。它以只读方式连接本机 League Client Update（LCU），在选人阶段整理当前英雄和备战席的 Tier / 胜率，并在对局中通过屏幕裁切与本地 OCR 比较实际出现的三张海克斯。
 
-> 当前版本：`v0.1.16`。这是个人实验工具，不受 Riot Games、腾讯游戏或 ARAMGG 认可、赞助或支持。强化胜率展示和代替玩家决策的产品可能不符合 Riot 当前产品政策；扩大分发前必须重新评估合规性与数据授权。
+> 当前版本：`v0.1.17`。这是个人实验工具，不受 Riot Games、腾讯游戏或 ARAMGG 认可、赞助或支持。强化胜率展示和代替玩家决策的产品可能不符合 Riot 当前产品政策；扩大分发前必须重新评估合规性与数据授权。
 
 ## 能力
 
@@ -12,6 +12,7 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 - 使用用户自己的 `data.dtodo.cn` API Key；Key 通过 Electron `safeStorage` 加密，Renderer 永远拿不到明文。
 - 目录按 `dataVersion` 原子缓存；401、429、断网时保留旧缓存并标记状态。
 - 单英雄详情按需获取。海克斯保留名称、图标、稀有度、描述、官方 `rank/tier` 和英雄专属 `pickRate`；排序始终优先 `rank/tier`，`pickRate` 只作带来源范围的次级展示。不保存或显示海克斯胜率、胜局或场次。
+- 实时助手同时显示该英雄首套 iesdev 大乱斗出装参考；出门装、核心装和情境装备始终来自同一条 `builds` 流派，不混用旧 `build` 或伪造六件完整出装，也不增加额外 API 请求。
 - 自动 OCR 默认关闭；显式开启后每 2 秒只抓 960px 小图门控，命中后才抓最高 1920px 图像并串行运行 PP-OCRv6 small。三张均达到 90% 匹配后在实时助手中显示，全局快捷键可自定义。
 - LeagueClientUx 向游戏进程交接时保留本局英雄与详情；游戏进程或可靠三卡识别会确认已入局，LCU 短暂断开不会停止 OCR。
 - 主窗口、选人浮窗，以及 1080p / 2K / 4K / DPI 自适应拖框校准。识别结果只写入实时助手，不创建覆盖游戏的全屏窗口。
@@ -59,7 +60,7 @@ npm run dev
 
 OCR 模型不提交到 Git。`npm run ocr:models` 从固定的 Hugging Face commit 下载 PP-OCRv6 small ONNX 检测 / 识别模型和匹配字典，并在复用或下载时强制校验 SHA-256；打包工作流会把校验通过的文件作为外部只读资源带入应用。
 
-若已启动国服客户端但仍显示“等待客户端”，先在实时助手点击“立即重新检测”。HexBridge 会继续通过 CIM、Get-Process、lockfile、常见安装位置和客户端日志自动发现；候选细节只进入脱敏诊断，不在普通界面显示历史端口或路径。
+HexBridge 会在后台通过 CIM、Get-Process、lockfile、常见安装位置和客户端日志持续发现国服客户端；候选细节只进入脱敏诊断，不在普通界面显示历史端口或路径。
 
 ## 架构与安全
 
@@ -74,7 +75,7 @@ desktopCapturer/OCR ─┘       │
 - Renderer：`contextIsolation: true`、`sandbox: true`、`nodeIntegration: false`、CSP、`webSecurity: true`。
 - Preload：只暴露类型化业务命令，不暴露文件系统、网络客户端或密钥。
 - LCU：代码内显式 GET allowlist；日志过滤 token、Key、PUUID 风格标识及含凭据 URL。
-- 无账号系统、云后端、遥测、战绩上传、客户端注入或静默更新。客户端内更新仅在用户分别确认下载和重启安装后执行。
+- 无账号系统、云后端、遥测、战绩上传或客户端注入。客户端内更新仍需用户分别确认下载和重启；仅已验证的差分更新在重启后使用 NSIS 静默安装，完整包回退仍显示普通安装流程。
 
 主要目录：
 
@@ -97,16 +98,17 @@ npm run pack:win
 
 真实国服 WeGame 的选人→游戏客户端交接不能由 CI 代替。发布后请按 [WeGame 交接验收清单](docs/WEGAME_HANDOFF_RUNBOOK.md) 复测最后等待、游戏启动、三卡 OCR、终局和第二局；清单同时规定了脱敏状态链与问题关闭标准。
 
-产物位于本机 `release/`，包括 NSIS 安装包和 ZIP 便携版。每次本地打包前只清理该仓库的本地产物目录；不会删除 GitHub 上任何历史 Release、资产或 tag。`.github/workflows/release.yml` 在 `v*` 标签上构建、测试并生成 `SHA256SUMS.txt`；不执行静默安装。
+产物位于本机 `release/`，包括 NSIS 安装包和 ZIP 便携版。每次本地打包前只清理该仓库的本地产物目录；不会删除 GitHub 上任何历史 Release、资产或 tag。`.github/workflows/release.yml` 在 `v*` 标签上构建、测试并生成 `SHA256SUMS.txt`；构建流程不执行安装。
 
-当前仓库未配置商业 Windows 代码签名证书，`v0.1.16` 会显示“未知发布者”，也可能触发 SmartScreen；发布给其他人前应在 GitHub Actions 中配置签名证书。客户端内更新会使用 `latest.yml` 的 SHA-512 校验下载文件，但这不等同于发布者身份签名。不要通过关闭系统安全机制来绕过提示。
+当前仓库未配置商业 Windows 代码签名证书，`v0.1.17` 会显示“未知发布者”，也可能触发 SmartScreen；发布给其他人前应在 GitHub Actions 中配置签名证书。客户端内更新会使用 `latest.yml` 的 SHA-512 校验下载文件，但这不等同于发布者身份签名。不要通过关闭系统安全机制来绕过提示。
 
 ## 客户端内更新
 
 - 打包版在启动约 60 秒后通过固定的 GitHub Raw 稳定通道检查最新正式版，再下载对应 GitHub Release 中的版本化安装包；也可在独立的“更新”页面手动检查。
 - `v0.1.5` 和 `v0.1.6` 仍使用旧 GitHub Release 发现路径；该路径在部分网络下会被重置或限流。这两个版本需从发布页手动安装当前最新正式版一次，之后才使用新稳定通道。
-- 只有点击“确认下载”才会下载；下载完成后还需要再次确认重启安装。
+- 只有点击“确认下载”才会下载；下载完成后还需要再次确认重启。已验证的差分包会在重启后静默安装，不弹出 NSIS 安装向导；差分失败并回退完整包时仍明确显示普通安装流程。
 - 海克斯大乱斗选人、启动、对局和重连流程中均禁止安装，关闭 HexBridge 也不会自动安装已下载更新。
+- 静默安装不会绕过 Windows 的 UAC、SmartScreen 或签名校验；当前未签名版本仍可能出现系统安全提示。
 - 公开更新通道不会在客户端中打包 GitHub token；通道只允许 `RocXOvO/HexBridge` 正式、非预发布 Release 的 HTTPS 资产，并继续验证 SHA-512。
 
 ## 数据、政策与许可

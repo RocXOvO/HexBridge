@@ -47,7 +47,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.16',
+    currentVersion: '0.1.17',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -63,6 +63,7 @@ const unavailableState: RuntimeState = {
   },
   champions: [],
   candidates: [],
+  currentBuild: null,
   overlay: { visible: false, championId: null, slots: [], detectedAt: null, message: '不可用' },
   settings: { ...defaultViewSettings },
   displays: [],

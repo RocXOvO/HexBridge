@@ -127,10 +127,26 @@ export interface ChampionAugmentRank {
   statsRegion: 'WORLD' | 'CN' | null
 }
 
+export interface ChampionBuildItem {
+  id: number
+  name: string
+  iconUrl: string
+}
+
+export interface ChampionBuildRecommendation {
+  label: string
+  patch: string
+  source: 'iesdev'
+  startingItems: ChampionBuildItem[]
+  coreItems: ChampionBuildItem[]
+  situationalItems: ChampionBuildItem[]
+}
+
 export interface ChampionAugmentData {
   championId: number
   dataVersion: string
   ranks: ChampionAugmentRank[]
+  builds: ChampionBuildRecommendation[]
 }
 
 export type AugmentSlot = 'left' | 'center' | 'right'
@@ -237,6 +253,7 @@ export interface RuntimeState {
   update: AppUpdateState
   champions: ChampionSummary[]
   candidates: ChampionCandidate[]
+  currentBuild: ChampionBuildRecommendation | null
   overlay: AugmentOverlayState
   settings: AppSettings
   displays: DisplayOption[]

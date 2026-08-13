@@ -2,6 +2,7 @@ import type {
   AppSettings,
   ChampionAugmentData,
   ChampionAugmentRank,
+  ChampionBuildRecommendation,
   ChampSelectSnapshot,
   LcuConnectionState,
 } from '../shared/contracts.js'
@@ -109,4 +110,20 @@ export function detailRanksForCurrentChampion(
     return []
   }
   return detail.ranks
+}
+
+export function detailBuildForCurrentChampion(
+  detail: ChampionAugmentData | null,
+  currentChampionId: number | null,
+  dataVersion: string,
+): ChampionBuildRecommendation | null {
+  if (
+    !detail ||
+    detail.championId !== currentChampionId ||
+    !dataVersion ||
+    detail.dataVersion !== dataVersion
+  ) {
+    return null
+  }
+  return detail.builds[0] ?? null
 }

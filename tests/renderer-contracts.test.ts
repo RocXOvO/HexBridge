@@ -33,6 +33,22 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('选取率仅作参考')
   })
 
+  it('renders a coherent current-champion build and removes redundant reconnect controls', () => {
+    expect(appSource).toContain('大乱斗出装参考')
+    expect(appSource).toContain('state.currentBuild.startingItems')
+    expect(appSource).toContain('state.currentBuild.coreItems')
+    expect(appSource).toContain('state.currentBuild.situationalItems')
+    expect(appSource).toContain('class="build-empty">暂无数据</p>')
+    expect(appSource).not.toContain('立即重新检测')
+    expect(appSource).not.toContain('启动 WeGame 与英雄联盟后')
+  })
+
+  it('distinguishes silent differential installation from a full installer fallback', () => {
+    expect(appSource).toContain('重启并静默更新')
+    expect(appSource).toContain('后台完成差分更新')
+    expect(appSource).toContain('打开完整安装程序')
+  })
+
   it('renders user-facing update and diagnostic status in Chinese', () => {
     expect(appSource).toContain("MATCHED: '识别完成'")
     expect(appSource).toContain("ready: '已就绪'")

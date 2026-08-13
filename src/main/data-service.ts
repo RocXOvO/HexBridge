@@ -11,10 +11,10 @@ import { logger } from './logger.js'
 
 const API_ORIGIN = 'https://data.dtodo.cn'
 const API_PREFIX = '/api/v1/zh-CN'
-// Detail cache v1 intentionally omitted pickRate and its provenance. Keep the
-// local schema in the filename so an unchanged upstream dataVersion cannot pin
-// the old shape.
-const DETAIL_CACHE_SCHEMA = 2
+// Detail cache v1 omitted pickRate/provenance and v2 omitted documented build
+// recommendations. Keep the local schema in the filename so an unchanged
+// upstream dataVersion cannot pin an older shape.
+const DETAIL_CACHE_SCHEMA = 3
 const DEFAULT_API_STATE: ApiConnectionState = {
   configured: false,
   status: 'missing',
@@ -34,8 +34,8 @@ function isChampionDetailCache(value: unknown, version: string): value is Champi
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const detail = value as Partial<ChampionAugmentData>
   if (!Number.isInteger(detail.championId) || (detail.championId ?? 0) <= 0) return false
-  if (detail.dataVersion !== version || !Array.isArray(detail.ranks)) return false
-  return detail.ranks.every((entry) => {
+  if (detail.dataVersion !== version || !Array.isArray(detail.ranks) || !Array.isArray(detail.builds)) return false
+  const ranksValid = detail.ranks.every((entry) => {
     if (!entry || typeof entry !== 'object') return false
     const rank = entry as Partial<ChampionAugmentData['ranks'][number]>
     return (
@@ -49,6 +49,24 @@ function isChampionDetailCache(value: unknown, version: string): value is Champi
       (rank.statsRegion === null || rank.statsRegion === 'WORLD' || rank.statsRegion === 'CN')
     )
   })
+  const buildsValid = detail.builds.every((entry) => {
+    if (!entry || typeof entry !== 'object') return false
+    const build = entry as ChampionAugmentData['builds'][number]
+    const validItem = (item: unknown): boolean => {
+      if (!item || typeof item !== 'object') return false
+      const candidate = item as ChampionAugmentData['builds'][number]['coreItems'][number]
+      return Number.isInteger(candidate.id) && candidate.id > 0 && typeof candidate.name === 'string' && typeof candidate.iconUrl === 'string'
+    }
+    return (
+      typeof build.label === 'string' &&
+      typeof build.patch === 'string' &&
+      build.source === 'iesdev' &&
+      Array.isArray(build.startingItems) && build.startingItems.every(validItem) &&
+      Array.isArray(build.coreItems) && build.coreItems.every(validItem) &&
+      Array.isArray(build.situationalItems) && build.situationalItems.every(validItem)
+    )
+  })
+  return ranksValid && buildsValid
 }
 
 function migrateLegacyChampionDetail(value: unknown, version: string): ChampionAugmentData | null {
@@ -71,13 +89,17 @@ function migrateLegacyChampionDetail(value: unknown, version: string): ChampionA
       rank: nullableNumber(rank.rank),
       total: nullableNumber(rank.total),
       tier: nullableNumber(rank.tier),
-      pickRate: null,
-      statsSource: null,
-      statsRegion: null,
+      pickRate: rank.pickRate === null || (typeof rank.pickRate === 'number' && rank.pickRate >= 0 && rank.pickRate <= 1)
+        ? rank.pickRate
+        : null,
+      statsSource: rank.statsSource === 'iesdev' || rank.statsSource === 'tencent' || rank.statsSource === 'aramgg-client-upload'
+        ? rank.statsSource
+        : null,
+      statsRegion: rank.statsRegion === 'WORLD' || rank.statsRegion === 'CN' ? rank.statsRegion : null,
     }]
   })
   return ranks.length
-    ? { championId: detail.championId as number, dataVersion: version, ranks }
+    ? { championId: detail.championId as number, dataVersion: version, ranks, builds: [] }
     : null
 }
 
@@ -317,8 +339,11 @@ export class DataService {
       const names = await readdir(this.cacheDirectory)
       await Promise.all(names.filter((name) => name.endsWith('.json')).map(async (name) => {
         const currentPrefix = `champion-detail-v${DETAIL_CACHE_SCHEMA}-${version}-`
-        const legacyPrefix = `champion-detail-${version}-`
-        if (!name.startsWith(currentPrefix) && !name.startsWith(legacyPrefix)) return
+        const legacyPrefixes = [
+          `champion-detail-v2-${version}-`,
+          `champion-detail-${version}-`,
+        ]
+        if (!name.startsWith(currentPrefix) && !legacyPrefixes.some((prefix) => name.startsWith(prefix))) return
         const payload = JSON.parse(await readFile(this.cachePath(name), 'utf8')) as unknown
         if (name.startsWith(currentPrefix)) {
           if (isChampionDetailCache(payload, version)) this.details.set(payload.championId, payload)

@@ -29,7 +29,7 @@ describe('upstream data sanitation', () => {
     const detail = normalizeChampionAugmentDetail({ data: { augments: [{
       id: 7, stats: { rank: 3, total: 167, tier: 1, pickRate: .24, source: 'tencent', region: 'CN', winRate: .8, wins: 999, games: 1000 },
     }] } }, 103, '16.15.6')
-    expect(detail).toEqual({ championId: 103, dataVersion: '16.15.6', ranks: [{ augmentId: 7, rank: 3, total: 167, tier: 1, pickRate: .24, statsSource: 'tencent', statsRegion: 'CN' }] })
+    expect(detail).toEqual({ championId: 103, dataVersion: '16.15.6', ranks: [{ augmentId: 7, rank: 3, total: 167, tier: 1, pickRate: .24, statsSource: 'tencent', statsRegion: 'CN' }], builds: [] })
     expect(JSON.stringify(detail)).not.toMatch(/winRate|wins|games/)
   })
 
@@ -58,5 +58,74 @@ describe('upstream data sanitation', () => {
       ['aramgg-client-upload', 'WORLD'],
       [null, null],
     ])
+  })
+
+  it('keeps one recommendation coherent instead of mixing documented build routes', () => {
+    const detail = normalizeChampionAugmentDetail({ data: {
+      items: [
+        { id: 1056, name: '多兰之戒', iconUrl: 'https://cdn.example/items/1056.png' },
+        { id: 6655, name: '卢登的伙伴', iconUrl: 'https://cdn.example/items/6655.png' },
+        { id: 3020, name: '法师之靴', iconUrl: 'http://unsafe.example/3020.png' },
+        { id: 3089, name: '灭世者的死亡之帽', iconUrl: 'https://cdn.example/items/3089.png' },
+        { id: 6665, name: '冰脉护手', iconUrl: 'https://cdn.example/items/6665.png' },
+      ],
+      builds: [
+        {
+          patch: '16.15',
+          tags: { damage: '爆发法师' },
+          startingItems: [{ itemIds: [1056] }, { itemIds: [9999] }],
+          coreItems: [{ items: [{ id: 6655, name: '卢登的伙伴', iconUrl: 'https://cdn.example/items/6655.png' }, { id: 3020, name: '法师之靴', iconUrl: 'http://unsafe.example/3020.png' }] }, { itemIds: [3089] }],
+          situationalItems: [{ itemId: 3089 }, { itemId: 3089 }],
+          fullItems: [{ itemIds: [1, 2, 3, 4, 5, 6] }],
+          itemOrders: [6655, 3020, 3089],
+          stats: { games: 1000, wins: 600, winRate: .6 },
+        },
+        {
+          patch: '16.15',
+          tags: { defense: '坦克流' },
+          coreItems: [{ itemIds: [6665] }],
+        },
+      ],
+    } }, 103, '16.15.6')
+
+    expect(detail.builds).toHaveLength(2)
+    expect(detail.builds[0]).toEqual({
+      label: '爆发法师',
+      patch: '16.15',
+      source: 'iesdev',
+      startingItems: [{ id: 1056, name: '多兰之戒', iconUrl: 'https://cdn.example/items/1056.png' }],
+      coreItems: [
+        { id: 6655, name: '卢登的伙伴', iconUrl: 'https://cdn.example/items/6655.png' },
+      ],
+      situationalItems: [{ id: 3089, name: '灭世者的死亡之帽', iconUrl: 'https://cdn.example/items/3089.png' }],
+    })
+    expect(detail.builds[0]!.coreItems.map((item) => item.id)).not.toContain(6665)
+    expect(JSON.stringify(detail.builds[0])).not.toMatch(/fullItems|itemOrders|games|wins|winRate/)
+  })
+
+  it('does not infer missing build item names or icons', () => {
+    const detail = normalizeChampionAugmentDetail({ data: {
+      items: [
+        { id: 1, name: '完整装备', iconUrl: 'https://cdn.example/items/1.png' },
+        { id: 2, name: '缺少图标' },
+        { id: 3, iconUrl: 'https://cdn.example/items/3.png' },
+        { id: 4, name: '不安全图标', iconUrl: 'http://cdn.example/items/4.png' },
+      ],
+      builds: [{
+        startingItems: [{ itemIds: [1, 2, 3, 4, 9999] }],
+        coreItems: [{ itemIds: [2] }],
+        situationalItems: [{ itemIds: [3] }],
+      }],
+    } }, 103, '16.15.6')
+
+    expect(detail.builds).toEqual([{
+      label: '推荐流派 1',
+      patch: '',
+      source: 'iesdev',
+      startingItems: [{ id: 1, name: '完整装备', iconUrl: 'https://cdn.example/items/1.png' }],
+      coreItems: [],
+      situationalItems: [],
+    }])
+    expect(JSON.stringify(detail.builds)).not.toMatch(/装备 #|item-icons\/9999|缺少图标|不安全图标/)
   })
 })

@@ -32,7 +32,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.16',
+    currentVersion: '0.1.17',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -48,6 +48,7 @@ const smokeState: RuntimeState = {
   },
   champions: [],
   candidates: [],
+  currentBuild: null,
   overlay: { visible: false, championId: null, slots: [], detectedAt: null, message: 'smoke' },
   settings: {
     visualMode: 'eco',

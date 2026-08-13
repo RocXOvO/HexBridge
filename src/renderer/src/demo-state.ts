@@ -80,9 +80,9 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'available',
-      currentVersion: '0.1.16',
-      availableVersion: '0.1.16',
-      releaseName: 'HexBridge v0.1.16',
+      currentVersion: '0.1.17',
+      availableVersion: '0.1.17',
+      releaseName: 'HexBridge v0.1.17',
       releaseNotes: '预览模式的更新提示。',
       percent: null,
       transferred: null,
@@ -92,10 +92,28 @@ export function createDemoApi(): HexBridgeApi {
       downloadModeMessage: '',
       lastCheckedAt: Date.now(),
       errorCode: null,
-      message: '发现新版本 0.1.16',
+      message: '发现新版本 0.1.17',
     },
     champions,
     candidates: [current, ...bench],
+    currentBuild: {
+      label: '爆发法师',
+      patch: '16.15',
+      source: 'iesdev',
+      startingItems: [
+        { id: 1056, name: '多兰之戒', iconUrl: 'https://cdn.dtodo.cn/hextech/item-icons/1056.png' },
+        { id: 2003, name: '生命药水', iconUrl: 'https://cdn.dtodo.cn/hextech/item-icons/2003.png' },
+      ],
+      coreItems: [
+        { id: 6655, name: '卢登的伙伴', iconUrl: 'https://cdn.dtodo.cn/hextech/item-icons/6655.png' },
+        { id: 3020, name: '法师之靴', iconUrl: 'https://cdn.dtodo.cn/hextech/item-icons/3020.png' },
+        { id: 4645, name: '影焰', iconUrl: 'https://cdn.dtodo.cn/hextech/item-icons/4645.png' },
+      ],
+      situationalItems: [
+        { id: 3089, name: '灭世者的死亡之帽', iconUrl: 'https://cdn.dtodo.cn/hextech/item-icons/3089.png' },
+        { id: 3135, name: '虚空之杖', iconUrl: 'https://cdn.dtodo.cn/hextech/item-icons/3135.png' },
+      ],
+    },
     overlay: {
       visible: true,
       championId: current.id,

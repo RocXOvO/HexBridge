@@ -87,7 +87,7 @@ const setup = (inGame = false, lifecycle?: { begin: () => unknown; cancel: (toke
 }
 
 describe('client update manager', () => {
-  it('disables silent behavior and walks through check, download, and explicit install', async () => {
+  it('keeps download and restart explicit but silently installs a verified differential payload', async () => {
     const { adapter, manager } = setup()
     expect(adapter).toMatchObject({
       autoDownload: false,
@@ -136,7 +136,7 @@ describe('client update manager', () => {
       downloadModeMessage: '差分下载',
     })
     expect(manager.install()).toMatchObject({ ok: true })
-    expect(adapter.install).toHaveBeenCalledWith(false, true)
+    expect(adapter.install).toHaveBeenCalledWith(true, true)
   })
 
   it('shows a controlled full-package fallback without exposing updater internals', async () => {
@@ -179,6 +179,8 @@ describe('client update manager', () => {
       downloadModeMessage: '差分不可用，已改用完整安装包',
       message: '差分不可用，完整安装包已下载，可在退出对局后重启安装',
     })
+    expect(manager.install()).toMatchObject({ ok: true })
+    expect(adapter.install).toHaveBeenCalledWith(false, true)
   })
 
   it('labels an already cached installer without pretending it was a full download', async () => {
@@ -197,6 +199,8 @@ describe('client update manager', () => {
       downloadModeMessage: '已使用本机缓存',
       message: '已找到本机缓存的更新，可在退出对局后重启安装',
     })
+    expect(manager.install()).toMatchObject({ ok: true })
+    expect(adapter.install).toHaveBeenCalledWith(false, true)
   })
 
   it('blocks installation during a game and never invokes the installer', async () => {
