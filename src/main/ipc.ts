@@ -66,10 +66,18 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
   })
   ipcMain.handle('hexbridge:clear-key', () => runtime.clearApiKey())
   ipcMain.handle('hexbridge:refresh-data', () => runtime.refreshData())
-  ipcMain.handle('hexbridge:check-update', () => runtime.checkForUpdates())
-  ipcMain.handle('hexbridge:download-update', () => runtime.downloadUpdate())
-  ipcMain.handle('hexbridge:install-update', () => runtime.installUpdate())
-  ipcMain.handle('hexbridge:open-release-page', () => runtime.openReleasePage())
+  ipcMain.handle('hexbridge:apply-update', (event) => {
+    requireSender(event, 'main')
+    return runtime.applyUpdate()
+  })
+  ipcMain.handle('hexbridge:open-developer-page', (event) => {
+    requireSender(event, 'main')
+    return runtime.openDeveloperPage()
+  })
+  ipcMain.handle('hexbridge:dismiss-release-highlights', (event) => {
+    requireSender(event, 'main')
+    runtime.dismissReleaseHighlights()
+  })
   ipcMain.handle('hexbridge:trigger-ocr', (event) => {
     requireSender(event, 'main')
     return runtime.triggerOcr()

@@ -80,9 +80,9 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'available',
-      currentVersion: '0.1.17',
-      availableVersion: '0.1.17',
-      releaseName: 'HexBridge v0.1.17',
+      currentVersion: '0.1.18',
+      availableVersion: '0.1.18',
+      releaseName: 'HexBridge v0.1.18',
       releaseNotes: '预览模式的更新提示。',
       percent: null,
       transferred: null,
@@ -92,7 +92,12 @@ export function createDemoApi(): HexBridgeApi {
       downloadModeMessage: '',
       lastCheckedAt: Date.now(),
       errorCode: null,
-      message: '发现新版本 0.1.17',
+      message: '发现新版本 0.1.18',
+    },
+    releaseHighlights: {
+      version: '0.1.18',
+      previousVersion: '0.1.17',
+      items: ['页面切换更顺滑。', '更新入口更简洁。', '设置页信息更精简。'],
     },
     champions,
     candidates: [current, ...bench],
@@ -158,13 +163,12 @@ export function createDemoApi(): HexBridgeApi {
     validateAndSaveApiKey: async () => ({ ok: true, message: '预览模式：验证成功' }),
     clearApiKey: async () => undefined,
     refreshData: async () => ({ ok: true, message: '预览模式：数据已刷新' }),
-    checkForUpdates: async () => ({ ok: true, message: demoState.update.message }),
-    downloadUpdate: async () => {
+    applyUpdate: async () => {
       demoState.update = { ...demoState.update, status: 'downloaded', percent: 100, message: '更新已下载' }
       return { ok: true, message: demoState.update.message }
     },
-    installUpdate: async () => ({ ok: true, message: '预览模式：将重启安装' }),
-    openReleasePage: async () => ({ ok: true, message: '预览模式：打开官方下载页' }),
+    openDeveloperPage: async () => ({ ok: true, message: '预览模式：打开 API Key 申请页' }),
+    dismissReleaseHighlights: async () => { demoState.releaseHighlights = null },
     triggerOcr: async () => ({ ok: true, message: '预览模式：识别完成' }),
     clearDiagnosticScreenshots: async () => ({ ok: true, message: '预览模式：没有诊断截图' }),
     retryLcuConnection: async () => ({ ok: false, message: '预览模式：未连接客户端' }),

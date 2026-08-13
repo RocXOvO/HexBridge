@@ -235,14 +235,20 @@ try {
       throw new Error(`Calibration screenshot bridge isolation failed: ${JSON.stringify(calibrationIsolation)}`)
     }
 
-    const keyResult = await mainCdp.evaluate(`(async () => {
+    await mainCdp.evaluate(`(() => {
       const clickByText = (selector, text) => {
         const element = [...document.querySelectorAll(selector)].find((item) => item.textContent.includes(text))
         if (!element) throw new Error('Missing UI control: ' + text)
         element.click()
       }
       clickByText('.sidebar nav button', '设置')
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      return true
+    })()`)
+    await waitUntil(
+      () => mainCdp.evaluate(`Boolean(document.querySelector('.key-row input'))`),
+      'the transitioned settings page',
+    )
+    const keyResult = await mainCdp.evaluate(`(async () => {
       const input = document.querySelector('.key-row input')
       const button = [...document.querySelectorAll('.key-row button')]
         .find((item) => item.textContent.includes('验证并保存'))
@@ -275,41 +281,45 @@ try {
       'the API Key submit button to recover after validation',
     )
 
-    const updaterUi = await mainCdp.evaluate(`(async () => {
-      const updateNavigation = [...document.querySelectorAll('.sidebar nav button')]
-        .find((item) => item.textContent.includes('更新'))
-      updateNavigation?.click()
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-      const card = document.querySelector('.update-surface')
-      if (!card) return null
-      const buttons = [...card.querySelectorAll('button')].map((item) => item.textContent.trim())
-      return {
-        bridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate', 'openReleasePage']
-          .every((name) => typeof window.hexbridge[name] === 'function'),
-        currentVersion: card.textContent.includes(${JSON.stringify(`v${expectedVersion}`)}),
-        chineseStatus: card.textContent.includes('当前系统不支持') || card.textContent.includes('等待检查'),
-        redundantSecurityCopy: card.textContent.includes('商业代码签名') || card.textContent.includes('不会静默更新'),
-        checkButton: buttons.some((text) => text.includes('检查更新')),
-      }
-    })()`)
-    if (!updaterUi?.bridge || !updaterUi.currentVersion || !updaterUi.chineseStatus || updaterUi.redundantSecurityCopy || !updaterUi.checkButton) {
+    const updaterUi = await mainCdp.evaluate(`(() => ({
+      bridge: ['applyUpdate', 'openDeveloperPage', 'dismissReleaseHighlights']
+        .every((name) => typeof window.hexbridge[name] === 'function'),
+      titleHasVersion: document.querySelector('.title-brand')?.textContent.includes(${JSON.stringify(expectedVersion)}),
+      updateNavigation: [...document.querySelectorAll('.sidebar nav button')]
+        .some((item) => item.textContent.includes('更新')),
+      updateButton: Boolean(document.querySelector('.title-update-action')),
+      oldUpdatePage: Boolean(document.querySelector('.update-surface')),
+    }))()`)
+    const shouldHaveUpdateButton = process.platform === 'win32'
+    if (
+      !updaterUi?.bridge ||
+      updaterUi.titleHasVersion ||
+      updaterUi.updateNavigation ||
+      updaterUi.oldUpdatePage ||
+      (shouldHaveUpdateButton && !updaterUi.updateButton)
+    ) {
       throw new Error(`Updater UI/bridge smoke failed: ${JSON.stringify(updaterUi)}`)
     }
 
-    const typography = await mainCdp.evaluate(`(async () => {
-      const clickByText = (selector, text) => [...document.querySelectorAll(selector)]
-        .find((item) => item.textContent.includes(text))?.click()
-      const settle = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-      const font = (selector) => parseFloat(getComputedStyle(document.querySelector(selector)).fontSize)
-      clickByText('.sidebar nav button', '诊断')
-      await settle()
-      const diagnostics = font('.health-grid p')
-      clickByText('.sidebar nav button', '实时助手')
-      await settle()
-      const liveStatus = font('.empty-copy h2')
-      const liveEyebrow = font('.eyebrow')
-      return { diagnostics, liveStatus, liveEyebrow }
-    })()`)
+    await mainCdp.evaluate(`([...document.querySelectorAll('.sidebar nav button')]
+      .find((item) => item.textContent.includes('诊断'))?.click(), true)`)
+    await waitUntil(
+      () => mainCdp.evaluate(`Boolean(document.querySelector('.health-grid p'))`),
+      'the transitioned diagnostics page',
+    )
+    const diagnosticsFont = await mainCdp.evaluate(`parseFloat(getComputedStyle(document.querySelector('.health-grid p')).fontSize)`)
+    await mainCdp.evaluate(`([...document.querySelectorAll('.sidebar nav button')]
+      .find((item) => item.textContent.includes('实时助手'))?.click(), true)`)
+    await waitUntil(
+      () => mainCdp.evaluate(`Boolean(document.querySelector('.empty-copy h2'))`),
+      'the transitioned live page',
+    )
+    const typography = await mainCdp.evaluate(`({
+      diagnostics: ${JSON.stringify(0)},
+      liveStatus: parseFloat(getComputedStyle(document.querySelector('.empty-copy h2')).fontSize),
+      liveEyebrow: parseFloat(getComputedStyle(document.querySelector('.eyebrow')).fontSize),
+    })`)
+    typography.diagnostics = diagnosticsFont
     if (Object.values(typography).some((value) => value < 14)) {
       throw new Error(`Critical typography regressed: ${JSON.stringify(typography)}`)
     }

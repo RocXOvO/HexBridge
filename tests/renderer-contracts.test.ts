@@ -43,10 +43,12 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).not.toContain('启动 WeGame 与英雄联盟后')
   })
 
-  it('distinguishes silent differential installation from a full installer fallback', () => {
-    expect(appSource).toContain('重启并静默更新')
-    expect(appSource).toContain('后台完成差分更新')
-    expect(appSource).toContain('打开完整安装程序')
+  it('exposes one compact update intent without a separate update page or confirmation copy', () => {
+    expect(appSource).toContain('class="title-update-action"')
+    expect(appSource).toContain('api.applyUpdate()')
+    expect(appSource).not.toContain("page === 'updates'")
+    expect(appSource).not.toContain('确认下载')
+    expect(appSource).not.toContain('确认重启安装')
   })
 
   it('renders user-facing update and diagnostic status in Chinese', () => {

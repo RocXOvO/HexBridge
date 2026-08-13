@@ -217,6 +217,12 @@ export interface AppUpdateState {
   message: string
 }
 
+export interface ReleaseHighlights {
+  version: string
+  previousVersion: string
+  items: string[]
+}
+
 export interface RuntimeDiagnostics {
   ocrReady: boolean
   ocrBusy: boolean
@@ -251,6 +257,7 @@ export interface RuntimeState {
   snapshot: ChampSelectSnapshot
   api: ApiConnectionState
   update: AppUpdateState
+  releaseHighlights: ReleaseHighlights | null
   champions: ChampionSummary[]
   candidates: ChampionCandidate[]
   currentBuild: ChampionBuildRecommendation | null
@@ -268,10 +275,9 @@ export interface HexBridgeApi {
   validateAndSaveApiKey(apiKey: string): Promise<{ ok: boolean; message: string }>
   clearApiKey(): Promise<void>
   refreshData(): Promise<{ ok: boolean; message: string }>
-  checkForUpdates(): Promise<{ ok: boolean; message: string }>
-  downloadUpdate(): Promise<{ ok: boolean; message: string }>
-  installUpdate(): Promise<{ ok: boolean; message: string }>
-  openReleasePage(): Promise<{ ok: boolean; message: string }>
+  applyUpdate(): Promise<{ ok: boolean; message: string }>
+  openDeveloperPage(): Promise<{ ok: boolean; message: string }>
+  dismissReleaseHighlights(): Promise<void>
   triggerOcr(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>

@@ -1,12 +1,15 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
-import type { AppSettings } from '../shared/contracts.js'
+import type { AppSettings, ReleaseHighlights } from '../shared/contracts.js'
+import { resolveReleaseHighlights } from '../shared/release-highlights.js'
 
 interface PersistedConfig {
   settings: AppSettings
   encryptedApiKey: string
   windowBounds: Partial<Record<'main' | 'champion', Electron.Rectangle>>
   settingsRevision: number
+  lastLaunchedVersion: string
+  pendingReleaseHighlights: ReleaseHighlights | null
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -52,13 +55,21 @@ export function migrateSettingsForRevision(
 export class ConfigStore {
   private readonly store = new Store<PersistedConfig>({
     name: 'hexbridge',
-    defaults: { settings: DEFAULT_SETTINGS, encryptedApiKey: '', windowBounds: {}, settingsRevision: 0 },
+    defaults: {
+      settings: DEFAULT_SETTINGS,
+      encryptedApiKey: '',
+      windowBounds: {},
+      settingsRevision: 0,
+      lastLaunchedVersion: '',
+      pendingReleaseHighlights: null,
+    },
   })
 
-  constructor() {
+  constructor(currentVersion = '') {
+    const storedRevision = this.store.get('settingsRevision')
     const migration = migrateSettingsForRevision(
       { ...DEFAULT_SETTINGS, ...this.store.get('settings') },
-      this.store.get('settingsRevision'),
+      storedRevision,
     )
     if (migration.revision !== this.store.get('settingsRevision')) {
       // Apply one-time, revisioned safety migrations without altering the API
@@ -66,6 +77,27 @@ export class ConfigStore {
       this.store.set('settings', migration.settings)
       this.store.set('settingsRevision', migration.revision)
     }
+    if (currentVersion) {
+      const previousVersion = this.store.get('lastLaunchedVersion') || (
+        storedRevision > 0 && currentVersion === '0.1.18' ? '0.1.17' : ''
+      )
+      const pending = previousVersion
+        ? resolveReleaseHighlights(previousVersion, currentVersion)
+        : null
+      if (previousVersion && previousVersion !== currentVersion) {
+        this.store.set('pendingReleaseHighlights', pending)
+      }
+      this.store.set('lastLaunchedVersion', currentVersion)
+    }
+  }
+
+  getReleaseHighlights(): ReleaseHighlights | null {
+    const value = this.store.get('pendingReleaseHighlights')
+    return value ? { ...value, items: [...value.items] } : null
+  }
+
+  dismissReleaseHighlights(): void {
+    this.store.set('pendingReleaseHighlights', null)
   }
 
   getSettings(): AppSettings {

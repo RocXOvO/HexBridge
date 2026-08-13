@@ -2,6 +2,7 @@
 
 > 最后更新：2026-08-14
 > 当前基线：公开最新正式 Release 为 [v0.1.17](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.17)，于 2026-08-14T17:21:55Z 发布，为 Latest、non-draft、non-prerelease。annotated tag object `7b6b638af2a89e19f4bc7ac8623dd31ab0b40bd6` 指向产品 / 记忆 commit `d7edf9fc917d8e1645d109e88324589deb4f7140`；main 可包含 tag 后的本次记忆提交并领先 tag，但 Release 产品源码固定为该 tag 指向。正式 run `31724844667` / job `94530534700` success，约 5m54s；Windows 29 test files / 260 passed、真实 4K fixture 272ms，完整门禁、packaged UI / bridge、差分 updater、Release / public channel / packaged check 全通过。public v2 channel 为 `0.1.17 / 199,236,595 bytes`，public packaged check 为 `updateAvailable=false`。HB-039 / HB-040 与静默安装分流仍为 `FIXED / UNVERIFIED`；未签名 / SmartScreen、用户同机出装 / 空态和真实 installed 安装边界不变。
+> 当前本地候选：版本已升至 `v0.1.18`，尚未 commit / push、Windows workflow、tag 或 Release；公开 Latest 仍为 v0.1.17。候选移除独立更新页与旧分段 Renderer 更新 IPC，改为 Main 受限无参 `applyUpdate` 单次显式触发后完成 check→download→静默 NSIS install，并在调用前、检查后、下载后均阻止对局安装；新增跨版本 curated 改进列表、侧栏 / 页面轻量转场、固定 API Key 申请外链与精简设置文案。最终审查修复 P1 后无已知 P0 / P1；本地 30 test files / 264 passed + 1 Windows-only skipped，typecheck、lint、diff-check、source bridge / UI、build / preload 全通过。Windows 与用户视觉 / installed 更新仍未验证。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -20,7 +21,7 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 
 - LCU 只读。不得换英雄、交易、修改符文或装备集，不得调用任何 LCU 写接口。
 - 不注入游戏进程，不自动点击，不替玩家完成英雄或海克斯选择。
-- 不做账号系统、云后端、遥测或战绩上传。更新不得未经用户确认就下载、在启动 / 退出时自动安装或对局中安装；只有差分包下载完成且用户在应用内明确确认“重启更新”后，才允许 NSIS 静默执行。完整包 fallback 不得使用该静默路径。
+- 不做账号系统、云后端、遥测或战绩上传。更新必须由用户明确点击单一更新入口才可开始 check→download→install；不得在启动 / 普通退出时自动安装或在对局中安装。v0.1.18 候选由 Main 独占静默 NSIS 调用，Renderer 不得控制安装参数；UAC / SmartScreen 仍可能出现且不得绕过。
 - 每位用户自行提供 `data.dtodo.cn` API Key；Renderer 永远不能读取明文 Key。
 - 字段白名单继续禁止海克斯胜率、胜局和场次；英雄胜率与 Tier 可以展示。现已批准进入实施的唯一新增统计是 data.dtodo 单英雄详情 `augments[*].stats.pickRate`，仅表示当前英雄选择该海克斯的上游选取率，并且只能作次级展示；它不得参与排序、不得冒充全局数据、不得推导。批准实施不等于代码已完成或 Riot 政策已批准产品；详见 HB-030。
 - 默认不保存截图；诊断模式也只能保存三张海克斯标题裁切区，绝不能保存完整屏幕。
@@ -30,7 +31,7 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 ### 1.1 界面与视觉长期契约（目标与 v0.1.12 / v0.1.13 实现边界，尚未完整用户同机验证）
 
 - 英雄原画可辨识度：实时助手背景中的当前英雄原画应保留足够轮廓、面部 / 武器特征与色彩关系，降低现有模糊和深色遮罩强度，使用户无需读取文字也能辨认英雄；前景文字对比度仍须满足可读性，不能靠把整幅原画压成低对比色块解决层次冲突。电影 / 均衡 / 省电三档可以采用不同处理成本，但都不得让英雄主体不可辨。
-- 独立更新体验：更新入口从“设置”中移出，成为类似 Codex 的独立更新提示 / 页面或明确的全局入口。发现新版本时显示当前 / 目标版本、更新说明、差分 / 完整模式、实际下载量、进度、错误 / 重试和“稍后”；下载与安装仍须分别由用户确认。差分包下载完成后，用户在应用内明确确认“重启更新”才可使用静默 NSIS；完整包 fallback 必须明示“完整安装包”并保留普通安装流程。这里只借鉴独立、可回访的信息架构，不复制 Codex 或第三方具体视觉资产。
+- 更新体验当前契约：v0.1.18 候选移除独立更新页和标题栏版本号，由受控全局入口发起一次明确的“应用更新”操作；Main 自行完成 check→download→安装，不再让 Renderer 分段编排检查 / 下载 / 安装。差分成功后走静默 NSIS，系统 UAC / SmartScreen 仍可能出现且不得绕过；对局中在调用前、检查后和下载后都必须 fail closed。此设计取代 v0.1.12 的独立更新页和 v0.1.17 的分段确认 UI，但不允许启动 / 退出时无用户触发自动安装。
 - 游戏目录 UI：删除普通设置页中用户难以理解且非必要的“游戏目录”输入 / 选择 UI。底层手动目录发现 fallback 是否保留，必须由主线结合真实国服 LCU 发现证据、安全路径校验和支持成本单独审计；在结论前不得把底层 fallback 的存在当作继续暴露普通用户设置的理由，也不得贸然删除已证明必要的只读发现能力。
 - 等待英雄动效：等待当前英雄 / 尚未取得英雄图像时，可在占位图周围加入克制、低频的轨道球旋转，作为“仍在等待数据”的状态提示；不得持续高亮、粒子喷发或干扰正文。`eco`、`InProgress`、窗口 hidden / 最小化 / 不可见以及 `prefers-reduced-motion: reduce` 时必须停止旋转并显示静态等价状态，不能让纯视觉动画继续占用后台渲染预算。
 - 英雄榜信息减法：所有职业 / 定位名称必须使用简体中文；移除角色列和角色筛选中重复、用户价值低的展示，不在同一卡片 / 行内重复表达同一角色信息。Tier 不再作为额外拥挤列或浮动徽标，改为英雄卡背景条 / 边缘色带，同时保留准确的原始 Tier 文本或无障碍语义，不能只靠颜色区分，也不得把 Tier 改写成“强度顶尖”等主观宣传文案。
@@ -39,9 +40,11 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 - 应用图标：重做 HexBridge 自有应用 icon，保证小尺寸轮廓清楚、透明边缘正确、暗 / 亮任务栏都可辨。Windows packaged 必须分别验证 EXE 文件图标、运行中任务栏图标、托盘图标和安装器图标均使用预期资源且非空 / 非 Electron 默认图标；多尺寸 ICO / PNG 资源、electron-builder 配置和运行时 tray 路径须保持一致。
 - LCU 状态信息架构：移除侧栏左下角独立 LCU 状态块，把连接 / 等待状态合并到实时助手空态或页面标题状态，避免同一状态出现两份甚至互相矛盾。未启动 WeGame / LOL 或未发现可用 LCU 时，普通界面仅保留简洁的未连接状态；实时助手空态不再显示“启动 WeGame…”操作说明，也不再提供“立即重新检测”按钮；后台自动发现必须继续运行。候选数量、发现来源、端口不可达和 probe 原因只进入脱敏诊断，底层 retry IPC 可为诊断 / 恢复保留，但不得重新暴露为普通空态主操作。
 - 配色重做：整体配色可重新设计为更高质量、更清晰的暗色层次与状态色系统，不受当前雾青 / 暖金的机械套用限制；必须形成 HexBridge 自己的色板、对比度、边框、背景与交互状态规范。可以参考优秀产品的信息层级和克制微交互，但不得复制 Mineradio、Codex 或其他第三方的代码、素材、品牌、图标、布局细节或原创视觉表达。
+- 导航微交互：v0.1.18 候选为侧栏按钮增加克制的状态动效，并以 Vue `out-in` 模式执行页面进 / 退场；`prefers-reduced-motion` 与 `eco` 必须降级为静态或最小过渡，不能在隐藏 / 低资源路径持续动画。标题栏不再显示版本号；这些 source 级实现尚无 Windows packaged 与用户视觉验收。
 - 自动视觉性能状态机：普通用户界面不得继续暴露“自动 / 电影 / 均衡 / 省电”的手动档位入口，视觉成本应由 Main 主导的自动状态机根据游戏阶段、窗口可见 / 焦点状态、GPU 可用性、系统内存和 reduced-motion 等证据决定。状态可在诊断页只读显示，但 Renderer 不得把任意手动档位写回设置；旧版已持久化的手动 `visualMode` 需安全迁移回自动且不能重置 OCR、浮窗、快捷键等无关设置。该目标与 `autoOcr` 是否开启相互独立，隐藏视觉入口不得顺带开启周期截图。
 - 验收边界：上述目标虽已进入 v0.1.12，但不代表用户同机视觉 / 性能验收已经完成。验收仍需覆盖 1080p / 2K / 4K、100%～150% DPI、长中文英雄 / 职业名、自动性能状态迁移、reduced-motion、窗口可见性和 InProgress；通过逐页视觉快照、Windows packaged 人工可读性与后台 CPU / GPU / 重绘测量后才可写已完成。
 - v0.1.12 / v0.1.13 当前边界：v0.1.12 新增独立“更新”导航 / 页面和可用更新 banner，并从设置页移除主要更新卡；设置页删除游戏目录 UI，但 Main / IPC 的手动目录 fallback 暂时保留。英雄榜移除角色筛选 / 列，搜索接入显式可审计的常用别名表并覆盖 `name / title / alias`，Tier 通过行背景色带表达，但准确 Tier 文本不得改写成“强度顶尖”等主观文案；点击 / 键盘焦点采用轻微上浮和极光，eco / hidden / reduced-motion 有静态降级。实时助手降低原画遮罩 / 模糊、把未连接状态合并到空态并删除侧栏独立 LCU 块，等待图保留受性能模式 / 可见性守卫的轨道动效。新 SVG icon 生成 1024 PNG 与 16～256 多尺寸 ICO，builder、窗口与托盘路径已接入；verifier 只检查格式、多尺寸与非空大小，尚未在 Windows EXE / 任务栏 / 托盘 / 安装器四处实看。v0.1.13 已移除普通设置页四档 `visualMode` 下拉框与 Renderer handler，并从受限设置 IPC 白名单移除该字段；revision 2 将旧手动 override 迁移为 `auto`，Main 通过独立 policy 根据窗口 / 游戏 / 资源状态决定实际档位。正式 Windows 门禁已通过，用户同机性能仍未完成，见 HB-028。
+- v0.1.18 候选边界：独立更新页与其导航已移除，标题栏版本号也已移除；首次真实跨 `0.1.17→0.1.18` 更新后由 `ConfigStore` pending 状态弹出 curated 改进列表，关闭后持久化，新安装不得误弹。出装推荐继续保留，任何缺失分组仍明确显示“暂无数据”。该候选尚未进入 Windows / Release，不能把 source UI smoke 外推为真实升级或视觉完成。
 
 ## 二、技术栈与关键模块
 
@@ -157,7 +160,8 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - `clearDiagnosticScreenshots()`
 - `startCalibration()` / `completeCalibration(rects)` / `cancelCalibration()`
 - `windowAction(minimize|maximize|close|quit)`
-- 更新业务 IPC 只能暴露无任意 URL / 路径 / 命令参数的“检查、确认下载、取消、重启更新”意图。Main 必须依已验证的下载模式决定安装参数：仅差分模式且用户再次确认时可调用静默 NSIS；完整包 fallback 必须进入普通安装流程。Renderer 不能自行指定 silent 开关、installer 路径或命令行。
+- v0.1.18 更新业务 IPC 只暴露 sender 受限、无参数的 `applyUpdate()`；旧的 Renderer `check / download / install / openRelease` IPC 已移除。Main 独占版本检查、下载模式判定、下载与安装顺序，Renderer 不能传 URL、silent 开关、installer 路径或命令行；调用前、检查后、下载后三处都必须重新验证不在对局中。
+- API Key 申请入口只允许 Main 打开固定 `https://data.dtodo.cn/developer.html`，Renderer 只能发送 sender 受限的无参业务意图，不能传入或改写 URL。Key 明文、申请页地址选择和导航仍不得落到 Renderer 的任意网络能力。
 
 校准矩形必须含左 / 中 / 右三块，`x/y/width/height` 均为 `[0,1]` 内数值、宽高大于 0，且不得越过归一化屏幕边界。Renderer 输入仍需在主进程重新校验。
 
@@ -333,6 +337,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 用户症状：在 `v0.1.1` 设置页填写 API Key 后点击“验证并保存”，界面看起来没有任何反应。
 - 代码修复：点击后立即进入 busy 并显示 inline 状态，提交路径用 `try/finally` 保证成功或失败都能解除 busy。合法 Key 完成 HEAD 验证和 `safeStorage` 加密保存后立即向用户返回成功；英雄 / 海克斯目录刷新改为后台执行，不再阻塞保存反馈。
 - 错误与数据安全：Key 格式错误、401、429、Abort / 超时、offline、`safeStorage` 不可用均有区分文案；候选 Key 格式错误或验证失败时明确保留原有已验证 Key，不用失败候选覆盖旧值。界面和日志仍不得暴露 Key 明文。
+- v0.1.18 候选设置收口：申请 API Key 的按钮只通过 Main sender 校验后的无参 IPC 打开固定 `https://data.dtodo.cn/developer.html`，Renderer 不能提供 URL；设置说明已精简，但 Key 验证 / 保存、safeStorage 和失败保留旧 Key 的安全契约不变。该外链和文案尚未经过 Windows packaged / 用户验收。
 - 自动化证据：相关修复已纳入当前 8 个测试文件 / 45 项测试及 lint、typecheck、diff-check、source bridge smoke 通过的本地基线；新增格式错误时保留旧 Key 的回归测试。尚无 Windows packaged 设置页和真实 Key 端到端证据，因此不能标记 `VERIFIED`。
 - 必须验证的验收标准：点击后立即出现明确的进行中状态并防止重复提交；合法 Key 完成 HEAD 验证后仅以 `safeStorage` 加密形式持久化，界面明确显示成功且数据状态可继续进入初始化；401、429、断网、超时和本机加密不可用必须返回可区分、可操作的提示，失败 Key 不落盘；重启应用后可恢复已验证 Key 的可用状态；日志与 Renderer 状态不得暴露 Key 明文。需同时覆盖真实 packaged 应用、有效 / 无效 Key、首次保存与替换旧 Key。
 
@@ -395,24 +400,24 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 - 严重度：中高（不阻断当前版本功能，但每次升级都依赖用户手动下载 / 安装，易滞留在已知损坏版本）
 - 状态：Windows packaged local-feed 检查 / 下载 / SHA-512 / 隔离 cache 窄范围 `VERIFIED`；真实 GitHub stable Release 已发布但客户端 check / download 与 `quitAndInstall` 实际安装仍 `FIXED / UNVERIFIED`
-- 安装交互子项状态：`FIXED / UNVERIFIED`。v0.1.17 候选由 Main 按受控 `downloadMode` 决定安装参数：只有已确认的 `differential` 使用 `quitAndInstall(true, true)` 静默 NSIS；`full / cache / unknown` 一律使用 `quitAndInstall(false, true)` 保留普通安装器。Renderer 不能传入 silent 开关。该分流已通过本地门禁和 Windows candidate workflow，但尚无 installed 实机安装证据，HB-019 总体不得标为 `VERIFIED`。
+- 安装交互子项状态：`FIXED / UNVERIFIED`。v0.1.17 的 Main `downloadMode` 分流已发布但未做真实 installed 安装；v0.1.18 候选进一步改为无参 `applyUpdate` 单次显式触发，Main 完成 check→download→静默 NSIS install。当前只通过本地 source 门禁，尚无 Windows workflow 或 installed 实机证据，HB-019 总体不得标为 `VERIFIED`。
 - 用户目标：客户端能够在应用内发现并安装新版本，避免每次前往 GitHub 手动下载安装包。
-- 代码实现：集成 `electron-updater@6.8.9`，使用 GitHub stable provider，仅在 packaged Windows 启用；`autoDownload=false`、`autoInstallOnAppQuit=false`、禁用 prerelease 和 downgrade。Main 进程维护受控更新状态机，Renderer 只通过无参数、受限 preload / IPC 执行检查、确认下载和确认安装；设置页显示版本、进度、错误和重试。
-- v0.1.12 界面重构（最终审查与 packaged smoke 通过 / 尚未用户同机验证）：更新入口已从设置页移出，改为独立、可回访的更新提示 / 页面和全局状态入口，信息架构参考 Codex 的独立更新体验但采用 HexBridge 自有视觉实现。现有 Main 状态机、两次确认、错误分类和安全边界继续复用；不得制造两个互相不同步的更新入口，设置页只保留必要的更新偏好或链接，不再承载主要更新流程。
+- 代码实现：集成 `electron-updater@6.8.9`，使用 GitHub stable provider，仅在 packaged Windows 启用；禁用 prerelease 和 downgrade，且不得在启动 / 普通退出时自动安装。v0.1.18 候选移除独立更新页和旧 `check / download / install / openRelease` Renderer IPC，Main 只接受 sender 受限的无参 `applyUpdate`，自行编排检查、下载和安装。
+- 界面演进：v0.1.12 曾使用独立更新页；v0.1.18 候选已删除该页面 / 导航及标题栏版本号，以单一全局入口发起更新。首次真实跨 `0.1.17→0.1.18` 更新后通过 `ConfigStore` pending 状态展示 curated 改进列表，关闭即持久化；全新安装不弹出，不能把首次启动误判为跨版本升级。
 - 发布源契约：更新元数据和二进制只允许来自公开仓库 [RocXOvO/HexBridge Releases](https://github.com/RocXOvO/HexBridge/releases)；默认稳定通道只接受非 draft、非 prerelease、语义版本高于当前版本的正式 Release，不自动降级，不把 Actions artifact、分支构建或本地交叉产物当更新源。下载前后必须校验版本、资产名 / 架构及发布清单；无商业代码签名期间必须在 UI 明示“未知发布者 / 可能触发 SmartScreen”，不得宣称签名验证已完成。
-- 用户控制契约：允许启动后低频检查和页面手动检查，但发现新版本后必须显示当前 / 新版本、Release 链接和更新说明，并由用户明确确认下载；下载完成后再次由用户在应用内确认“重启更新”。只有已验证为差分下载的安装包可在这次确认后使用静默 NSIS；完整包 fallback 必须明确显示“完整安装包”并保留普通安装向导。不得强制重启或绕过 UAC / SmartScreen，用户可选择稍后处理并继续当前会话。
+- 用户控制契约：v0.1.18 候选只有用户点击单一更新入口才开始本次 check→download→install；不得在启动、普通退出或后台检查中自行安装。Main 在调用前、检查完成后和下载完成后都重新验证非对局状态，任一阶段进入对局即终止安装链。确认后的静默 NSIS 仍可能触发 UAC / SmartScreen，应用不得绕过或承诺消失。
 - 状态与错误契约：UI 必须区分检查中、已是最新版、发现更新、等待确认、下载中、已下载待安装、安装启动、失败与取消；下载显示可理解的字节 / 百分比进度。断网、GitHub 限流、元数据错误、资产缺失、校验失败、磁盘空间不足、用户取消和安装启动失败必须给出脱敏、可操作提示，并提供有界重试或回到手动 Release 页的入口；失败不得损坏当前安装或删除仍需恢复的下载文件。
-- 安全边界：所有网络检查、下载、校验和安装启动必须在 Main 进程；Renderer 只能通过 schema 校验的业务 preload / IPC 请求“检查、确认下载、取消、确认安装”并订阅有限状态，不能传入任意 URL、文件路径、命令行或 Release asset。导航仍受精确 allowlist 控制；日志 / 更新请求不得携带或泄露 GitHub OAuth token、LCU token、API Key、PUUID 或完整 session，公开 Release 下载不应依赖用户 GitHub 凭据。
+- 安全边界：所有网络检查、下载、校验和安装启动必须在 Main 进程；Renderer 只能通过 schema / sender 校验的无参 `applyUpdate` 发起一次业务意图，不能传入任意 URL、文件路径、命令行、Release asset 或安装参数。导航仍受精确 allowlist 控制；日志 / 更新请求不得携带或泄露 GitHub OAuth token、LCU token、API Key、PUUID 或完整 session，公开 Release 下载不应依赖用户 GitHub 凭据。
 - 生命周期契约：对局 `InProgress`、OCR 在途、校准窗口打开或安装退出可能影响游戏时，不自动弹出抢焦点窗口或启动安装；对局中即使差分包已下载也必须阻止“重启更新”。启动或正常退出时不得因已下载更新而未经确认自动安装。安装前安全停止 OCR / LCU 监听并保存允许持久化的设置，不上传游戏状态。
-- v0.1.17 本地实现边界：下载仍须一次显式确认，安装 / 重启仍须第二次显式确认；`modeActive` 对局守卫、`autoInstallOnAppQuit=false` 和启动时不自动安装保持不变。差分静默只改变确认后的 NSIS 界面模式，不能绕过 UAC / SmartScreen，也不等于应用已签名。
-- 已实现安全边界：下载前必须显式确认，安装前再次确认；`modeActive` 对局流程或 phase `None` 时阻止安装。更新错误与 release notes 先脱敏再进入状态 / 日志。发布 workflow 包含 `latest.yml`、blockmap 和安装资产；校验器检查 updater 元数据及 SHA-512。SHA-512 仅证明下载内容与更新元数据一致，不证明发布者身份，也不能替代 Authenticode 商业签名；未签名提示与 SmartScreen 边界继续保留。
+- v0.1.17 历史实现边界：当时下载与安装 / 重启分别确认，并按 `downloadMode` 决定静默或普通安装；该实现仍是发布历史，不再是 v0.1.18 当前 Renderer 交互契约。v0.1.18 的单击应用更新仍是一次明确用户操作，不能演变为未确认的启动 / 退出自动安装。
+- 已实现安全边界：v0.1.18 候选以一次明确 `applyUpdate` 作为整条链的用户授权，并在调用前 / 检查后 / 下载后重复执行 `modeActive` 对局守卫；更新错误与 release notes 先脱敏再进入状态 / 日志。发布 workflow 包含 `latest.yml`、blockmap 和安装资产；校验器检查 updater 元数据及 SHA-512。SHA-512 仅证明下载内容与更新元数据一致，不证明发布者身份，也不能替代 Authenticode 商业签名；未签名提示与 SmartScreen 边界继续保留。
 - Windows packaged 下载烟测实现：`test:update:packaged` 启动本地 generic feed，基于当前 patch 自动构造 `+1` 版本，生成对应 `latest.yml` 并复制安装包 / SHA-512；实际 packaged EXE 执行 check + download，但明确不调用 install。Updater adapter 改为 dynamic loader，使纯 unit tests 不导入 Electron 可执行模块。
 - 烟测隔离与安全：generic feed 仅允许显式测试 flag / env 下的严格 loopback URL；进程使用独立 `--user-data-dir`、`LOCALAPPDATA` 和 `APPDATA`。断言 metadata 与 installer 请求均命中、下载目标位于隔离 cache；任务有界等待，退出时有界 `taskkill` 并清理临时目录。审查已修正 `noCache` pathname 和 cache 隔离问题，之后无 P0 / P1。
 - 自动化与审查证据：`v0.1.6` 预发布 workflow_dispatch run [31614808777](https://github.com/RocXOvO/HexBridge/actions/runs/31614808777) / job [94174846929](https://github.com/RocXOvO/HexBridge/actions/runs/31614808777/job/94174846929) 用时约 4m59s；正式 tag run [31615319004](https://github.com/RocXOvO/HexBridge/actions/runs/31615319004) / job [94176558591](https://github.com/RocXOvO/HexBridge/actions/runs/31615319004/job/94176558591) 用时约 5m14s。两次均通过 Electron hydrate、版本门禁、audit、OCR、72 tests、lint、typecheck、pack、metadata verifier、packaged UI / bridge / updater download smokes、checksums 和 artifact；tag run 另完成公开 Release。
 - 精确 updater smoke 证据：正式 tag run 合成 patch `0.1.7`，结果为 `availableVersion=0.1.7`、`downloaded=true`、`metadataRequests=1`、`installerRequests=1`、`isolatedCache=true`。这验证了 Windows packaged `v0.1.6` EXE 对严格 loopback generic feed 的 check / download、SHA-512 和隔离 cache 路径，不执行安装。
 - 真实 channel 发布事实：公开、非 draft / prerelease 的 `v0.1.6` Release、`latest.yml`、blockmap 和 EXE 已实际发布，因此 GitHub stable channel 现在存在可供 `v0.1.5` 发现的更高正式版本。该事实只证明服务端发布源就绪，尚无用户 packaged `v0.1.5` 对 GitHub 发起 check、下载或安装的实机证据。
 - 剩余边界：generic feed smoke 不等于公开 GitHub provider 请求，也不调用 `quitAndInstall`，不验证 UAC / SmartScreen、替换已安装版本或升级后重启。因此只能窄范围 `VERIFIED`；真实 GitHub `v0.1.5→v0.1.6` 客户端 check / download 和完整安装链仍未验证。`v0.1.3` 用户必须先手动安装 `v0.1.5` 或更新正式版一次，后续版本才可使用客户端内更新。
-- 必须验证的验收标准：覆盖无更新、正式更新、忽略 prerelease / draft、版本相等 / 降级、元数据和资产篡改、下载取消 / 重试、断点失败、校验失败、磁盘不足及安装启动失败；断言 Renderer 不能注入 URL / 路径 / 命令 / silent 开关。Windows installed 应用需从旧正式版检查到测试 Release，展示进度并经两次明确确认；差分路径在第二次确认后静默执行 NSIS 并完成重启后版本回读，完整包 fallback 明示模式并保留普通安装向导。两条路径都要验证取消 / 稍后、对局阻止、启动 / 退出不自动安装，且 UAC / SmartScreen 行为与未签名提示准确。在真实 GitHub 客户端 check / download 和实际安装链验收前，不得把 HB-019 整体标为 `VERIFIED`。
+- 必须验证的验收标准：覆盖无更新、正式更新、忽略 prerelease / draft、版本相等 / 降级、元数据和资产篡改、下载失败 / 重试、断点失败、校验失败、磁盘不足及安装启动失败；断言 Renderer 不能注入 URL / 路径 / 命令 / silent 开关。Windows installed 应用需从 v0.1.17 检查到 v0.1.18 或后续测试 Release，单击后完整执行 check→download→静默 NSIS→重启版本回读；分别在调用前、检查后、下载后切入对局并断言 fail closed。另须验证启动 / 普通退出不自动安装、UAC / SmartScreen 与未签名提示准确，以及跨版本 curated 改进列表只弹一次、关闭持久化、全新安装不弹。在真实 GitHub 客户端和实际安装链验收前，不得把 HB-019 整体标为 `VERIFIED`。
 
 ### HB-020 WeGame 选人到游戏客户端交接期上下文丢失
 
@@ -709,6 +714,14 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 七、当前自动化验证基线
 
+2026-08-14 `v0.1.18` 本地候选基线（未 commit / push / Windows / tag / Release）：
+
+- 侧栏按钮加入受控微动效，Vue 页面使用 `out-in` 进 / 退场，`reduced-motion` / `eco` 有静态降级；标题栏移除版本。独立更新页和旧 Renderer `check / download / install / openRelease` IPC 已删除，Main 只接受 sender 受限无参 `applyUpdate`，并在调用前、检查后、下载后三处阻止对局安装。
+- 用户单击后由 Main 执行 check→download→silent NSIS install；启动 / 普通退出不自动安装，UAC / SmartScreen 仍可能出现。首次真实跨 `0.1.17→0.1.18` 使用 `ConfigStore` pending 展示 curated 改进列表，关闭后持久化；全新安装不弹。
+- 设置中的 API Key 申请只打开 Main 固定 `https://data.dtodo.cn/developer.html`，Renderer 无权传 URL；文案已精简。当前英雄出装推荐继续保留，同一 `builds[0]` 分组缺失时明确“暂无数据”。
+- 最终审查修复 P1 后无已知 P0 / P1；本地 30 test files / 264 passed + 1 Windows-only skipped，typecheck、lint、`git diff --check`、source Electron bridge / UI、build 与 preload 全通过。
+- 候选当前尚未 commit / push，未运行 Windows workflow，未创建 tag / Release；公开 Latest 仍为 v0.1.17。更新 installed 链、跨版本改进弹窗、Windows 视觉 / 动效和固定外链均不得据本地门禁写 `VERIFIED`。
+
 2026-08-14 `v0.1.17` Windows 候选基线（已 push，未 tag / Release）：
 
 - 实时助手已显示当前英雄 data.dtodo 单英雄详情中 documented `builds[0]` 的同一路线出门装、第一组核心装与情境装备，标注 `iesdev` 与补丁；没有新增 endpoint、请求或 credits，不跨 build，也不消费 `fullItems / itemOrders`。装备须同时具备正整数 ID、非空名称与合法 HTTPS 图标，否则相应分组明确显示“暂无数据”。
@@ -882,7 +895,7 @@ v0.1.16 Windows 候选与正式发布基线：
 - **数据与 Tier 产品决策（HB-030 / HB-031）**：dirty 候选已按 allowlist 接入 data.dtodo 单英雄详情 `stats.pickRate` 次级展示，只接受 number 0～1，rank 顺序不变，`winRate / wins / games` 继续剔除；详情缓存升为 v2，legacy 只以 stale rank / tier 回退。Tier 背景条也已显示肉眼可见原始 `Tn` 并移除“强度顶尖”。本地自动化不能替代最终复审、Windows 视觉和报告用户同机数据对应性，二者继续 `IN PROGRESS`。
 - **更新与差分（HB-019 / HB-021 / HB-023 / HB-033）**：v0.1.11～v0.1.15 远端 Releases 并存，正式 v0.1.15 Windows / public 门禁在人工 seed 旧 installer cache 时证明 v2 Range 差分算法有效；但用户由 v0.1.14 更新 v0.1.15 时仍看到 / 可能下载约 200 MB。v0.1.14 旧客户端不含 v0.1.15 单 Range 逻辑，且目前不能区分 UI 展示 metadata full size 与真实网络 full fallback。仍需由 installed v0.1.15 执行下一正式版本更新，取得 cache 状态、请求 / 字节、安装与重启后的同机证据。
 - **LCU / Key / 发现（HB-013 / HB-015 / HB-018 / HB-027）**：真实国服 Key 保存 / 重启、WeGame 多来源发现、端口 / token 轮换、残留日志 / lockfile 到 5 秒自动恢复，以及完整 ChampSelect→终局→第二局只读链仍需实机证据。
-- **视觉验收**：独立更新页、英雄榜减法 / 搜索 / Tier 色带、英雄原画、空态轨道动效、新配色和 icon 已进入 v0.1.12，自动视觉策略在 v0.1.13 继续收敛；仍无覆盖 Windows EXE / 任务栏 / 托盘 / 安装器四处图标、长中文、100%～150% DPI、4K、reduced-motion 与后台重绘的用户同机人工验收。发布与 source / packaged smoke 不能替代视觉验收。
+- **视觉验收**：v0.1.18 候选已移除独立更新页 / 标题栏版本，并加入侧栏微动效与 Vue `out-in` 页面转场；英雄榜减法 / 搜索 / Tier 色带、英雄原画、空态轨道动效、新配色和 icon 来自既有版本。仍无覆盖 Windows EXE / 任务栏 / 托盘 / 安装器四处图标、长中文、100%～150% DPI、4K、reduced-motion / eco 转场与后台重绘的用户同机人工验收。source UI smoke 不能替代视觉验收。
 - **本地与远端 Release 语义**：本地 `clean:release` 只在下一次 `pack:win` 前安全清空仓库根下精确 `release/`；它不删除 GitHub 资产，也不负责清理用户下载目录 / 已安装版本。v0.1.12 后审计时，工作区 `release/` 只含该版版本化 EXE / ZIP / blockmap 和当次 metadata / `win-unpacked`，未发现旧版本号产物；这是历史观察，不代表当前 CI 资产落在本机，也不等于未来每次失败 / 中断构建后都只保留完整当前版本。远端必须继续保留 v0.1.11 起所有正式 Releases / assets / tags，历史已删除资产不能伪称恢复。
 - **闭环判定**：GitHub Release、Windows runner、单元 / 回放 fixture、packaged smoke、ONNX fixture 或静态 verifier 只能作为对应窄范围证据。涉及真实 WeGame / LCU 交接、用户 4K / DPI / 多屏、游戏前台全局热键、性能、更新安装或差分传输的目标，必须取得报告用户同机或等价真实 Windows installed 环境的可复核结果才能升级。v0.1.13 新时间线足以通过 HB-020 / HB-022 的交接连续性子项，但不足以升级其总体状态；快捷键与黑屏顶部浮窗反而新增真实失败证据。当前没有证据支持把 HB-020、HB-022、HB-023～HB-031 整体标为 `FIXED` / `VERIFIED`。
 - **当前实机缺口冻结**：HB-020 / HB-022 的选人→独立游戏客户端交接子项已由报告用户通过，但终局清理和第二局换代仍未验；真实 4K 三卡 OCR / 英雄专属 pickRate / 原始 Tier、游戏性能、Windows EXE / 任务栏 / 托盘 / 安装器四处 icon、真实差分传输与安装、HB-032 系统托盘右键退出均保持各自当前状态，不得由 v0.1.14 发布成功外推关闭。
@@ -901,7 +914,7 @@ v0.1.16 Windows 候选与正式发布基线：
 - HB-016：所有主页面和浮窗在 Windows 100%～150% 缩放下的计算字号、中文清晰度、长文案布局和最小窗口可读性。
 - HB-017：未连接空状态在电影 / 均衡 / 省电、reduced-motion、InProgress 和窗口不可见条件下的视觉与渲染暂停行为。
 - HB-018：自动化已覆盖 tracker 序列，v0.1.13 用户同机已通过 ChampSelect→InProgress 英雄连续性；仍需真实 Reconnect→终局→第二局中的详情 / 推荐上下文、OCR、实时助手结果替换与离局清理。
-- HB-019：Windows packaged `v0.1.6→synthetic 0.1.7` local-feed check / download、SHA-512、隔离 cache 已验证；v0.1.17 本地候选又按 Main 的可信 `downloadMode` 实现差分静默 / 完整包普通安装器分流，并保留双确认、对局阻止与禁止自动安装。仍需 installed 客户端对真实 GitHub 执行 check / download、两种 `quitAndInstall` 模式、UAC / SmartScreen、实际替换 / 重启后版本和取消 / 错误全链路；本地 source 门禁不能替代该证据。
+- HB-019：v0.1.17 正式版的差分 / 安装分流已有 Windows 自动化窄证据；v0.1.18 本地候选改为无参 `applyUpdate` 单击后由 Main 完成 check→download→静默 NSIS，并在调用前 / 检查后 / 下载后阻止对局安装。仍需 installed v0.1.17→v0.1.18 或后续正式版验证真实 GitHub、UAC / SmartScreen、实际替换 / 重启、三处对局竞态和失败恢复；本地 source 门禁不能替代该证据。
 - HB-020：当前为 `IN PROGRESS`。v0.1.13 已增加 `queueSource`、tri-state tasklist、同 generation / champion 的 `GameProcessExitGuard` 与 `launching / active` 期间每 2 秒独立游戏心跳；P1 修正要求 fresh heartbeat 优先 terminal failure，并把退出清理拆为连续 4 秒 not-running + tracker 5 秒 heartbeat 过期。最终复审、本地 clean 全链、正式 Windows 200-test 门禁及报告用户同机交接连续性子项均通过；仍缺完整终局语义与第二局换代，故总体不得升级为 `FIXED` / `VERIFIED`。
 - HB-021：当前 `IN PROGRESS`。`v0.1.14` 延续 raw stable channel、GitHub fallback、官方资产 allowlist、错误分类、provider 结果绑定、单调 / 并发保护，public channel 和 packaged public smoke 已通过；仍缺 installed 旧版本真实 check / download / `quitAndInstall` / UAC / 实际替换链。旧版本用户可从当前 Release 页手动覆盖安装 v0.1.14。
 - HB-022：当前 `IN PROGRESS`。v0.1.13 用户同机已确认选人阶段显示和跨独立游戏客户端交接至 InProgress 连续；`queueSource` / tri-state process / exit guard / 心跳也通过最终复审与正式 Windows 门禁。正式匹配 queue ID、完整终局 UI / OCR 呈现和第二局仍缺失，故不得把该子项通过外推成整体 `FIXED` / `VERIFIED`。
@@ -924,6 +937,7 @@ v0.1.16 Windows 候选与正式发布基线：
 
 ## 九、发布与 GitHub 状态
 
+- v0.1.18 候选状态：本地版本已升至 v0.1.18；最终审查修复 P1 后无已知 P0 / P1，本地 30 files / 264 passed + 1 Windows skip、typecheck / lint / diff-check、source bridge / UI、build / preload 全通过。当前尚未 commit / push、Windows workflow、tag 或 Release，不得预写提交、Actions 或资产结果；公开 Latest 仍为 v0.1.17。
 - v0.1.17 发布状态：annotated tag object `7b6b638af2a89e19f4bc7ac8623dd31ab0b40bd6` 指向产品 / 记忆 commit `d7edf9fc917d8e1645d109e88324589deb4f7140`；正式 run `31724844667` / job `94530534700` success，约 5m54s。Release [v0.1.17](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.17) 于 2026-08-14T17:21:55Z 公开，为 Latest、non-draft、non-prerelease；public v2 channel 为 `0.1.17 / 199,236,595 bytes`，public packaged check 返回 `updateAvailable=false`。
 - 正式资产与差分：EXE / blockmap / ZIP / `latest.yml` / `SHA256SUMS.txt` 五项大小和 SHA-256 见第七节；previous 0.1.16→synthetic 0.1.18 差分为 Range 11、redirect 3、blockmap 各1、1,235,951 / 199,236,595 bytes、isolated cache。Actions artifact ID `9190979002`，473,416,475 bytes，digest 前缀 `6697dfc…`。
 - 当前 Git / 版本：main 在本次记忆更新提交后可领先 v0.1.17 tag，不在该提交内预写自身未知 hash；Release 产品源码固定为 tag 指向的 `d7edf9fc917d8e1645d109e88324589deb4f7140`。历史正式 Releases / assets / tags 保留契约不变；不得移动、改写或删除任何已发布产品 tag / 正式 Release assets。
@@ -1105,3 +1119,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-14 | HB-040 / 当前英雄出装推荐 | IN PROGRESS（数据 / UI / 缓存契约已确认，尚未实现 / 验证） | 只消费现有 data.dtodo 单英雄详情 documented builds，不新增 API 请求 / credits；默认只用 builds[0] 的出门装、第一组核心装和情境装，不跨流派、不把 fullItems / itemOrders 冒充六神装；装备名 / 图只用展开详情，标注 iesdev / 补丁，缺失明示暂无数据；详情 cache schema 升级且保留旧 rank stale fallback | 无新增代码、清洗 / 缓存 / 请求计数测试或 Renderer / Windows 证据 | 需验证多 build 不混合、第一组核心装、缺图 / 缺名 / stale、来源补丁与零新增 credits | 仅更新项目记忆；无 commit / tag / Release 结果
 - 2026-08-14 | v0.1.17 / Windows 候选 | workflow_dispatch SUCCESS；HB-039 / HB-040 与安装分流保持 FIXED / UNVERIFIED | commit `d8c9b2cd8456adee9ede304566404dc235b1f47f` 已 push main；出装 schema v3、未连接空态收口和按 downloadMode 安装分流进入候选 | run31724223555/job94528479256 success约5m16s；Windows29 files260 passed、4K fixture285ms、audit high0、lint/typecheck/retention/legacy/pack/metadata/UI/bridge/differential updater/checksums/artifact全过；previous0.1.16→synthetic0.1.18 传输1,181,506/199,236,658 bytes、Range10、redirect3、blockmap各1、isolated cache；artifact ID9190725113 / digest已记录 | Windows runner不等于真实 installed 静默NSIS / 完整包安装器、用户同机空态自动恢复或真实上游出装视觉验收 | tag-only发布/channel按预期skip；尚未tag/Release，公开Latest仍v0.1.16
 - 2026-08-14 | v0.1.17 / 正式 Release | Release SUCCESS；HB-039 / HB-040 与安装分流保持 FIXED / UNVERIFIED | annotated tag object `7b6b638af2a89e19f4bc7ac8623dd31ab0b40bd6` 指向产品 / 记忆 commit `d7edf9fc917d8e1645d109e88324589deb4f7140`；出装 schema v3、空态收口和安装分流正式发布 | run31724844667/job94530534700 success约5m54s；Windows29 files260 tests、4K fixture272ms、完整门禁、UI/bridge、差分、Release/channel/public packaged check全过；previous0.1.16→synthetic0.1.18 传输1,235,951/199,236,595 bytes、Range11、redirect3、blockmap各1、isolated cache；五资产与artifact ID9190979002摘要已记录 | 用户同机出装/空态、真实installed静默NSIS/完整包/UAC/替换仍未验；未签名且可能SmartScreen | Release v0.1.17于17:21:55Z公开Latest/non-draft/non-prerelease；main后续记忆提交可领先tag，不预写未知hash
+- 2026-08-14 | v0.1.18 / 本地候选 | 候选完成本地门禁；相关 HB 保持 FIXED / UNVERIFIED 或 IN PROGRESS | 侧栏微动效与 out-in 页面转场含 reduced-motion/eco 守卫；移除标题版本、独立更新页和旧分段 Renderer IPC；Main 无参 applyUpdate 单击完成 check→download→silent install并三处对局守卫；跨0.1.17升级 curated 改进列表一次性持久化；固定API Key申请外链；出装缺组仍暂无数据 | 最终审查修复P1后无已知P0/P1；本地30 files264 pass+1 Windows skip、typecheck/lint/diff、source bridge/UI、build/preload全过 | Windows workflow、真实installed更新、跨版本弹窗与用户视觉尚未验证；UAC/SmartScreen边界不变 | 本地0.1.18尚未commit/push/tag/Release；公开Latest仍v0.1.17

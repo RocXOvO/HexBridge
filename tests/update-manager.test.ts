@@ -87,7 +87,7 @@ const setup = (inGame = false, lifecycle?: { begin: () => unknown; cancel: (toke
 }
 
 describe('client update manager', () => {
-  it('keeps download and restart explicit but silently installs a verified differential payload', async () => {
+  it('supports the verified update phases and silently installs a differential payload', async () => {
     const { adapter, manager } = setup()
     expect(adapter).toMatchObject({
       autoDownload: false,
@@ -180,7 +180,7 @@ describe('client update manager', () => {
       message: '差分不可用，完整安装包已下载，可在退出对局后重启安装',
     })
     expect(manager.install()).toMatchObject({ ok: true })
-    expect(adapter.install).toHaveBeenCalledWith(false, true)
+    expect(adapter.install).toHaveBeenCalledWith(true, true)
   })
 
   it('labels an already cached installer without pretending it was a full download', async () => {
@@ -200,7 +200,7 @@ describe('client update manager', () => {
       message: '已找到本机缓存的更新，可在退出对局后重启安装',
     })
     expect(manager.install()).toMatchObject({ ok: true })
-    expect(adapter.install).toHaveBeenCalledWith(false, true)
+    expect(adapter.install).toHaveBeenCalledWith(true, true)
   })
 
   it('blocks installation during a game and never invokes the installer', async () => {
@@ -212,6 +212,60 @@ describe('client update manager', () => {
       ok: false,
       message: '对局进行中不会安装更新，请在对局结束后重试',
     })
+    expect(adapter.install).not.toHaveBeenCalled()
+  })
+
+  it('runs check, download and silent install from one explicit update intent', async () => {
+    const { adapter, manager } = setup()
+    adapter.check.mockResolvedValueOnce(availableResult())
+    adapter.download.mockImplementationOnce(async () => {
+      adapter.emit('download-progress', { percent: 100, transferred: 200, total: 200 })
+      adapter.emit('update-downloaded', { version: '0.1.5' })
+      return []
+    })
+
+    expect(await manager.applyUpdate()).toMatchObject({ ok: true })
+    expect(adapter.check).toHaveBeenCalledTimes(1)
+    expect(adapter.download).toHaveBeenCalledTimes(1)
+    expect(adapter.install).toHaveBeenCalledWith(true, true)
+  })
+
+  it('blocks the one-click update before any network or installer work during a game', async () => {
+    const { adapter, manager } = setup(true)
+    expect(await manager.applyUpdate()).toEqual({
+      ok: false,
+      message: '对局进行中，请在本局结束后更新',
+    })
+    expect(adapter.check).not.toHaveBeenCalled()
+    expect(adapter.download).not.toHaveBeenCalled()
+    expect(adapter.install).not.toHaveBeenCalled()
+  })
+
+  it('does not start downloading when a game begins while the update check is pending', async () => {
+    let inGame = false
+    const adapter = new FakeUpdater()
+    const manager = new UpdateManager({
+      currentVersion: '0.1.5',
+      supported: true,
+      isGameInProgress: () => inGame,
+      onStateChanged: () => undefined,
+      adapter,
+      scheduleAutomaticChecks: false,
+    })
+    manager.initialize()
+    let resolveCheck!: (value: unknown) => void
+    adapter.check.mockReturnValueOnce(new Promise((resolve) => { resolveCheck = resolve }))
+
+    const operation = manager.applyUpdate()
+    await Promise.resolve()
+    inGame = true
+    resolveCheck(availableResult())
+
+    await expect(operation).resolves.toEqual({
+      ok: false,
+      message: '对局已开始，本次更新已暂停；请在本局结束后重试',
+    })
+    expect(adapter.download).not.toHaveBeenCalled()
     expect(adapter.install).not.toHaveBeenCalled()
   })
 

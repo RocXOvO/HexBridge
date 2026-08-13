@@ -1,0 +1,26 @@
+import type { ReleaseHighlights } from './contracts.js'
+
+const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
+
+const HIGHLIGHTS: Readonly<Record<string, readonly string[]>> = {
+  '0.1.18': [
+    '侧栏与内容页切换更顺滑。',
+    '更新入口改为一键完成。',
+    '设置页更精简，API Key 申请可直接打开。',
+  ],
+}
+
+export function resolveReleaseHighlights(
+  previousVersion: string,
+  currentVersion: string,
+): ReleaseHighlights | null {
+  if (
+    previousVersion === currentVersion ||
+    !VERSION_PATTERN.test(previousVersion) ||
+    !VERSION_PATTERN.test(currentVersion)
+  ) return null
+  const items = HIGHLIGHTS[currentVersion]
+  return items
+    ? { version: currentVersion, previousVersion, items: [...items] }
+    : null
+}

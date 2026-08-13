@@ -34,7 +34,7 @@ import {
 } from './runtime-guards.js'
 import { WindowManager } from './window-manager.js'
 import { UpdateManager, type UpdateAdapter } from './update-manager.js'
-import { OFFICIAL_RELEASE_PAGE_URL, STABLE_UPDATE_FEEDS } from './update-channel.js'
+import { STABLE_UPDATE_FEEDS } from './update-channel.js'
 import { resolveAutomaticVisualMode } from './visual-policy.js'
 import { AugmentRoundTracker } from './augment-round.js'
 
@@ -74,7 +74,7 @@ interface ScanActionResult {
 }
 
 export class HexBridgeRuntime {
-  private readonly config = new ConfigStore()
+  private readonly config = new ConfigStore(app.getVersion())
   private readonly data: DataService
   private readonly lcu: LcuClient
   private readonly scanner: AugmentScanner
@@ -205,6 +205,7 @@ export class HexBridgeRuntime {
       snapshot: { ...this.snapshot, benchChampionIds: [...this.snapshot.benchChampionIds] },
       api: this.data.getState(),
       update: this.updates.getState(),
+      releaseHighlights: this.config.getReleaseHighlights(),
       champions: this.data.getChampions(),
       candidates: buildChampionCandidates(this.snapshot, this.data.getChampions()),
       currentBuild,
@@ -314,28 +315,25 @@ export class HexBridgeRuntime {
     return { ok: true, message: '数据已刷新' }
   }
 
-  checkForUpdates(): Promise<{ ok: boolean; message: string }> {
-    return this.updates.check(true)
+  applyUpdate(): Promise<{ ok: boolean; message: string }> {
+    return this.updates.applyUpdate()
   }
 
-  downloadUpdate(): Promise<{ ok: boolean; message: string }> {
-    return this.updates.download()
-  }
-
-  installUpdate(): { ok: boolean; message: string } {
-    return this.updates.install()
-  }
-
-  async openReleasePage(): Promise<{ ok: boolean; message: string }> {
+  async openDeveloperPage(): Promise<{ ok: boolean; message: string }> {
     try {
-      await shell.openExternal(OFFICIAL_RELEASE_PAGE_URL, { activate: true })
-      return { ok: true, message: '已打开 GitHub 官方下载页' }
+      await shell.openExternal('https://data.dtodo.cn/developer.html', { activate: true })
+      return { ok: true, message: '已打开 API Key 申请页' }
     } catch (error) {
-      logger.warn('Unable to open official release page', {
+      logger.warn('Unable to open API Key developer page', {
         errorName: error instanceof Error ? error.name : 'Error',
       })
-      return { ok: false, message: '无法打开浏览器，请手动访问 GitHub Releases' }
+      return { ok: false, message: '无法打开 API Key 申请页' }
     }
+  }
+
+  dismissReleaseHighlights(): void {
+    this.config.dismissReleaseHighlights()
+    this.sync()
   }
 
   async triggerOcr(

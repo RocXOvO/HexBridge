@@ -106,6 +106,7 @@ export class UpdateManager {
   private adapter: UpdateAdapter | null = null
   private activeFeedProvider: UpdateFeedConfiguration['provider'] = 'generic'
   private checkInFlight: Promise<{ ok: boolean; message: string }> | null = null
+  private applyInFlight: Promise<{ ok: boolean; message: string }> | null = null
   private installShutdownToken: unknown = null
   private differentialFallback = false
 
@@ -376,6 +377,42 @@ export class UpdateManager {
     }
   }
 
+  applyUpdate(): Promise<{ ok: boolean; message: string }> {
+    if (this.applyInFlight) return this.applyInFlight
+    if (this.options.isGameInProgress()) {
+      return Promise.resolve({ ok: false, message: '对局进行中，请在本局结束后更新' })
+    }
+    const operation = this.performApplyUpdate()
+    const tracked = operation.finally(() => {
+      if (this.applyInFlight === tracked) this.applyInFlight = null
+    })
+    this.applyInFlight = tracked
+    return tracked
+  }
+
+  private async performApplyUpdate(): Promise<{ ok: boolean; message: string }> {
+    if (this.state.status === 'downloaded') return this.install()
+    if (this.state.status !== 'available' && !(this.state.status === 'error' && this.state.availableVersion)) {
+      const checked = await this.check(true)
+      if (!checked.ok || this.state.status === 'up-to-date') return checked
+    }
+    if (this.options.isGameInProgress()) {
+      return { ok: false, message: '对局已开始，本次更新已暂停；请在本局结束后重试' }
+    }
+    if (this.state.status === 'available' || (this.state.status === 'error' && this.state.availableVersion)) {
+      const downloaded = await this.download()
+      if (!downloaded.ok) return downloaded
+    }
+    const readyToInstall = this.getState().status === 'downloaded'
+    if (!readyToInstall) {
+      return { ok: false, message: this.state.message || '更新尚未准备完成，请重试' }
+    }
+    if (this.options.isGameInProgress()) {
+      return { ok: false, message: '对局已开始，更新包已保留；请在本局结束后再次点击更新' }
+    }
+    return this.install()
+  }
+
   install(): { ok: boolean; message: string } {
     if (!this.adapter || this.state.status !== 'downloaded') {
       return { ok: false, message: '尚无已下载的更新' }
@@ -383,19 +420,16 @@ export class UpdateManager {
     if (this.options.isGameInProgress()) {
       return { ok: false, message: '对局进行中不会安装更新，请在对局结束后重试' }
     }
-    const silentDifferentialInstall = this.state.downloadMode === 'differential'
     this.patch({
       status: 'installing',
-      message: silentDifferentialInstall
-        ? '正在退出并静默安装差分更新…'
-        : '正在退出并安装更新…',
+      message: '正在退出并完成更新…',
     })
     try {
       this.installShutdownToken = this.options.beginInstallShutdown?.() ?? null
-      // Only a confirmed differential payload uses NSIS silent mode. A full
-      // installer fallback keeps the normal installer UI so a large fallback
-      // can never be mistaken for a hidden differential update.
-      this.adapter.quitAndInstall(silentDifferentialInstall, true)
+      // A click on the single update action authorizes this one update. NSIS
+      // stays silent for both differential and verified full-package fallback;
+      // Windows may still show its own UAC or SmartScreen UI.
+      this.adapter.quitAndInstall(true, true)
       const postInstallState = this.getState()
       if (postInstallState.status === 'error') return { ok: false, message: postInstallState.message }
       return { ok: true, message: this.state.message }
