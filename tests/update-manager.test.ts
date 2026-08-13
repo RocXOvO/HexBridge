@@ -63,7 +63,7 @@ class FakeUpdater extends EventEmitter implements UpdateAdapter {
   }
 }
 
-const setup = (inGame = false) => {
+const setup = (inGame = false, lifecycle?: { begin: () => unknown; cancel: (token: unknown) => void }) => {
   const adapter = new FakeUpdater()
   const changed = vi.fn()
   const manager = new UpdateManager({
@@ -77,6 +77,8 @@ const setup = (inGame = false) => {
       { provider: 'github', owner: 'RocXOvO', repo: 'HexBridge', releaseType: 'release' },
     ],
     scheduleAutomaticChecks: false,
+    beginInstallShutdown: lifecycle?.begin,
+    cancelInstallShutdown: lifecycle?.cancel,
   })
   manager.initialize()
   return { adapter, changed, manager }
@@ -139,13 +141,53 @@ describe('client update manager', () => {
   })
 
   it('recovers from a synchronous installer launch failure', async () => {
-    const { adapter, manager } = setup()
+    const order: string[] = []
+    const lifecycle = {
+      begin: vi.fn(() => { order.push('prepare'); return 7 }),
+      cancel: vi.fn((token: unknown) => order.push(`cancel:${token}`)),
+    }
+    const { adapter, manager } = setup(false, lifecycle)
     adapter.check.mockResolvedValueOnce(availableResult())
     await manager.check()
     adapter.emit('update-downloaded', { version: '0.1.5' })
-    adapter.install.mockImplementationOnce(() => { throw new Error('installer failed') })
+    adapter.install.mockImplementationOnce(() => {
+      order.push('install')
+      throw new Error('installer failed')
+    })
     expect(manager.install()).toMatchObject({ ok: false })
     expect(manager.getState()).toMatchObject({ status: 'error', errorCode: 'UPDATE_FAILED' })
+    expect(order).toEqual(['prepare', 'install', 'cancel:7'])
+  })
+
+  it('enters guarded shutdown before launching the installer', async () => {
+    const order: string[] = []
+    const { adapter, manager } = setup(false, {
+      begin: () => { order.push('prepare'); return 8 },
+      cancel: (token) => order.push(`cancel:${token}`),
+    })
+    adapter.check.mockResolvedValueOnce(availableResult())
+    await manager.check()
+    adapter.emit('update-downloaded', { version: '0.1.5' })
+    adapter.install.mockImplementationOnce(() => order.push('install'))
+
+    expect(manager.install()).toMatchObject({ ok: true })
+    expect(order).toEqual(['prepare', 'install'])
+  })
+
+  it('reports failure when quitAndInstall synchronously emits an updater error', async () => {
+    const order: string[] = []
+    const { adapter, manager } = setup(false, {
+      begin: () => { order.push('prepare'); return 9 },
+      cancel: (token) => order.push(`cancel:${token}`),
+    })
+    adapter.check.mockResolvedValueOnce(availableResult())
+    await manager.check()
+    adapter.emit('update-downloaded', { version: '0.1.5' })
+    adapter.install.mockImplementationOnce(() => adapter.emit('error', new Error('installer failed')))
+
+    expect(manager.install()).toMatchObject({ ok: false })
+    expect(manager.getState()).toMatchObject({ status: 'error', errorCode: 'UPDATE_FAILED' })
+    expect(order).toEqual(['prepare', 'cancel:9'])
   })
 
   it('falls back from the stable channel to the packaged GitHub provider', async () => {

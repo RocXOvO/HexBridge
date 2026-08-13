@@ -1,7 +1,8 @@
 import { BrowserWindow, desktopCapturer, ipcMain, screen } from 'electron'
 import type { RuntimeState } from '../shared/contracts.js'
+import { ConfigStore } from './config-store.js'
 import { discoverLcuCredentials } from './lcu/discovery.js'
-import { secureWebPreferences } from './window-manager.js'
+import { secureWebPreferences, WindowManager } from './window-manager.js'
 
 const CHANNEL = 'hexbridge:get-state'
 const TIMEOUT_MS = 15_000
@@ -80,6 +81,7 @@ export interface BridgeSmokeResult {
   updaterBridge: true
   lcuDiscovery: true
   windowsDisplayCapture: true | null
+  shutdownLifecycle: true
   security: {
     sandbox: true
     contextIsolation: true
@@ -189,6 +191,18 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
       windowsDisplayCapture = true
     }
 
+    // Reproduce the production tray-exit order with a real BrowserWindow. A
+    // late activity/sync callback must not touch the destroyed native object.
+    const shutdownWindows = new WindowManager(new ConfigStore())
+    const managedWindows = shutdownWindows as unknown as {
+      windows: Map<'main' | 'champion' | 'calibration', BrowserWindow>
+    }
+    managedWindows.windows.set('champion', window)
+    shutdownWindows.setActivityChangedHandler(() => shutdownWindows.sync(smokeState))
+    shutdownWindows.prepareToQuit()
+    window.destroy()
+    shutdownWindows.sync(smokeState)
+
     return {
       ok: true,
       bridge: true,
@@ -196,6 +210,7 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
       updaterBridge: true,
       lcuDiscovery: true,
       windowsDisplayCapture,
+      shutdownLifecycle: true,
       security: {
         sandbox: true,
         contextIsolation: true,

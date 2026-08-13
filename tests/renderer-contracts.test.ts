@@ -4,12 +4,19 @@ import { describe, expect, it } from 'vitest'
 const appSource = readFileSync(new URL('../src/renderer/src/App.vue', import.meta.url), 'utf8')
 const rendererEntry = readFileSync(new URL('../src/renderer/src/main.ts', import.meta.url), 'utf8')
 const windowManager = readFileSync(new URL('../src/main/window-manager.ts', import.meta.url), 'utf8')
+const mainProcess = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8')
 
 describe('main-window recommendation presentation', () => {
   it('does not create or route a full-screen augment renderer', () => {
     expect(rendererEntry).not.toContain("route === 'augment'")
     expect(windowManager).not.toContain("createWindow('augment'")
     expect(windowManager).not.toContain("windows.get('augment'")
+  })
+
+  it('starts the guarded shutdown path before the tray asks Electron to quit', () => {
+    expect(mainProcess).toContain("{ label: '退出', click: quitApplication }")
+    expect(mainProcess).toContain('runtime?.getWindowManager().prepareToQuit()')
+    expect(windowManager).toContain('this.activityChanged = null')
   })
 
   it('keeps the raw Tier label visibly rendered instead of replacing it with a strength adjective', () => {

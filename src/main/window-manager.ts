@@ -35,10 +35,15 @@ export function applicationIconPath(): string {
 export class WindowManager {
   private windows = new Map<ManagedWindow, BrowserWindow>()
   private quitting = false
+  private quitCommitted = false
+  private installPreparationSequence = 0
+  private preparedInstallToken: number | null = null
   private latestState: RuntimeState | null = null
   private calibrationContext: CalibrationContext | null = null
   private restoreMainAfterCalibration = false
   private activityChanged: (() => void) | null = null
+  private suspendedActivityChanged: (() => void) | null = null
+  private lifecycleEpoch = 0
 
   constructor(private readonly config: ConfigStore) {}
 
@@ -46,8 +51,20 @@ export class WindowManager {
     this.activityChanged = handler
   }
 
+  private notifyActivityChanged(): void {
+    if (!this.quitting) this.activityChanged?.()
+  }
+
+  private getLiveWindow(name: ManagedWindow): BrowserWindow | null {
+    const window = this.windows.get(name)
+    if (!window) return null
+    if (!window.isDestroyed()) return window
+    if (this.windows.get(name) === window) this.windows.delete(name)
+    return null
+  }
+
   getMainActivity(): { visible: boolean; focused: boolean; minimized: boolean } {
-    const main = this.windows.get('main')
+    const main = this.getLiveWindow('main')
     return {
       visible: Boolean(main && !main.isDestroyed() && main.isVisible()),
       focused: Boolean(main && !main.isDestroyed() && main.isFocused()),
@@ -71,14 +88,14 @@ export class WindowManager {
     window.once('ready-to-show', () => {
       window.show()
       this.sendLatest(window)
-      this.activityChanged?.()
+      this.notifyActivityChanged()
     })
-    window.on('show', () => this.activityChanged?.())
-    window.on('hide', () => this.activityChanged?.())
-    window.on('focus', () => this.activityChanged?.())
-    window.on('blur', () => this.activityChanged?.())
-    window.on('minimize', () => this.activityChanged?.())
-    window.on('restore', () => this.activityChanged?.())
+    window.on('show', () => this.notifyActivityChanged())
+    window.on('hide', () => this.notifyActivityChanged())
+    window.on('focus', () => this.notifyActivityChanged())
+    window.on('blur', () => this.notifyActivityChanged())
+    window.on('minimize', () => this.notifyActivityChanged())
+    window.on('restore', () => this.notifyActivityChanged())
     window.on('close', (event) => {
       if (!this.quitting) {
         event.preventDefault()
@@ -111,7 +128,8 @@ export class WindowManager {
   }
 
   showMain(): void {
-    const window = this.windows.get('main') ?? this.createMainWindow()
+    if (this.quitting) return
+    const window = this.getLiveWindow('main') ?? this.createMainWindow()
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
@@ -119,8 +137,9 @@ export class WindowManager {
   }
 
   sync(state: RuntimeState): void {
+    if (this.quitting) return
     this.latestState = state
-    const champion = this.windows.get('champion')
+    const champion = this.getLiveWindow('champion')
     const shouldShowChampion = shouldShowChampionCompanion(state.settings, state.snapshot)
     if (shouldShowChampion) champion?.showInactive()
     else champion?.hide()
@@ -129,20 +148,28 @@ export class WindowManager {
   }
 
   private broadcastVisible(state: RuntimeState): void {
-    for (const window of this.windows.values()) {
-      if (!window.isDestroyed() && window.isVisible()) window.webContents.send('hexbridge:state', state)
+    for (const [name, window] of this.windows) {
+      if (window.isDestroyed()) {
+        if (this.windows.get(name) === window) this.windows.delete(name)
+        continue
+      }
+      if (!window.webContents.isDestroyed() && window.isVisible()) {
+        window.webContents.send('hexbridge:state', state)
+      }
     }
   }
 
   private sendLatest(window: BrowserWindow): void {
-    if (this.latestState && !window.isDestroyed()) {
+    if (this.latestState && !window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.send('hexbridge:state', this.latestState)
     }
   }
 
   async startCalibration(): Promise<void> {
-    const existing = this.windows.get('calibration')
-    if (existing && !existing.isDestroyed()) {
+    if (this.quitting) throw new Error('应用正在退出，校准已取消')
+    const lifecycleEpoch = this.lifecycleEpoch
+    const existing = this.getLiveWindow('calibration')
+    if (existing) {
       existing.show()
       existing.focus()
       return
@@ -152,12 +179,13 @@ export class WindowManager {
         .getAllDisplays()
         .find((candidate) => String(candidate.id) === this.config.getSettings().displayId) ??
       screen.getPrimaryDisplay()
-    const main = this.windows.get('main')
+    const main = this.getLiveWindow('main')
     this.restoreMainAfterCalibration = Boolean(main?.isVisible())
     if (this.restoreMainAfterCalibration) main?.hide()
 
     try {
       await new Promise((resolve) => setTimeout(resolve, 220))
+      this.assertLifecycleActive(lifecycleEpoch)
       const physicalWidth = Math.max(1, Math.round(display.bounds.width * display.scaleFactor))
       const physicalHeight = Math.max(1, Math.round(display.bounds.height * display.scaleFactor))
       const captureWidth = Math.min(physicalWidth, 2_560)
@@ -178,6 +206,7 @@ export class WindowManager {
       ]).finally(() => {
         if (captureTimeout) clearTimeout(captureTimeout)
       })
+      this.assertLifecycleActive(lifecycleEpoch)
       const source =
         sources.find((candidate) => candidate.display_id === String(display.id)) ??
         (sources.length === 1 ? sources[0] : undefined)
@@ -211,22 +240,25 @@ export class WindowManager {
       window.setIgnoreMouseEvents(true)
       window.on('closed', () => this.finishCalibration())
       await this.waitForRenderer(window)
+      this.assertLifecycleActive(lifecycleEpoch)
+      if (window.isDestroyed()) throw new Error('校准窗口意外关闭')
       window.showInactive()
       await this.waitForCalibrationContent(window)
+      this.assertLifecycleActive(lifecycleEpoch)
       if (window.isDestroyed()) throw new Error('校准窗口意外关闭')
       window.setOpacity(1)
       window.setIgnoreMouseEvents(false)
       window.show()
       window.focus()
     } catch (error) {
-      this.windows.get('calibration')?.destroy()
+      this.getLiveWindow('calibration')?.destroy()
       this.finishCalibration()
       throw error
     }
   }
 
   closeCalibration(): void {
-    this.windows.get('calibration')?.destroy()
+    this.getLiveWindow('calibration')?.destroy()
   }
 
   getCalibrationContext(): CalibrationContext | null {
@@ -246,7 +278,7 @@ export class WindowManager {
 
   handleAction(sender: Electron.WebContents, action: 'minimize' | 'maximize' | 'close' | 'quit'): void {
     if (action === 'quit') {
-      this.quitting = true
+      this.prepareToQuit()
       app.quit()
       return
     }
@@ -261,16 +293,47 @@ export class WindowManager {
   }
 
   prepareToQuit(): void {
+    this.quitCommitted = true
+    this.preparedInstallToken = null
+    this.enterShutdownState()
+  }
+
+  prepareForUpdateInstall(): number {
+    const token = ++this.installPreparationSequence
+    if (!this.quitCommitted) this.preparedInstallToken = token
+    this.enterShutdownState()
+    return token
+  }
+
+  cancelPreparedQuit(token: number): void {
+    if (this.quitCommitted || token !== this.preparedInstallToken) return
+    this.preparedInstallToken = null
+    this.quitting = false
+    this.activityChanged = this.suspendedActivityChanged
+    this.suspendedActivityChanged = null
+    if (this.latestState) this.sync(this.latestState)
+  }
+
+  private enterShutdownState(): void {
+    if (this.quitting) return
     this.quitting = true
+    this.lifecycleEpoch += 1
+    this.suspendedActivityChanged = this.activityChanged
+    this.activityChanged = null
+    this.getLiveWindow('calibration')?.destroy()
   }
 
   private createWindow(name: ManagedWindow, options: Electron.BrowserWindowConstructorOptions): BrowserWindow {
+    if (this.quitting) throw new Error('应用正在退出，不能创建窗口')
     const window = new BrowserWindow({
       icon: applicationIconPath(),
       ...options,
       webPreferences: secureWebPreferences(),
     })
     this.windows.set(name, window)
+    window.once('closed', () => {
+      if (this.windows.get(name) === window) this.windows.delete(name)
+    })
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     window.webContents.on('preload-error', (_event, _preloadPath, error) => {
       logger.error('HB_PRELOAD_LOAD_FAILED', {
@@ -297,15 +360,18 @@ export class WindowManager {
         window.webContents.removeListener('did-finish-load', loaded)
         window.webContents.removeListener('did-fail-load', failed)
         window.webContents.removeListener('render-process-gone', gone)
+        window.removeListener('closed', closed)
         if (error) reject(error)
         else resolve()
       }
       const loaded = (): void => finish()
       const failed = (): void => finish(new Error('校准界面加载失败'))
       const gone = (): void => finish(new Error('校准界面渲染进程异常退出'))
+      const closed = (): void => finish(new Error('校准界面已关闭'))
       window.webContents.once('did-finish-load', loaded)
       window.webContents.once('did-fail-load', failed)
       window.webContents.once('render-process-gone', gone)
+      window.once('closed', closed)
       const currentUrl = window.webContents.getURL()
       if (currentUrl && currentUrl !== 'about:blank' && !window.webContents.isLoadingMainFrame()) {
         queueMicrotask(loaded)
@@ -344,6 +410,12 @@ export class WindowManager {
     this.calibrationContext = null
     if (this.restoreMainAfterCalibration && !this.quitting) this.showMain()
     this.restoreMainAfterCalibration = false
+  }
+
+  private assertLifecycleActive(epoch: number): void {
+    if (this.quitting || epoch !== this.lifecycleEpoch) {
+      throw new Error('应用正在退出，校准已取消')
+    }
   }
 
   private isAllowedNavigation(url: string): boolean {

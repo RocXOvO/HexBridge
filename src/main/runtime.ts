@@ -121,6 +121,8 @@ export class HexBridgeRuntime {
       isGameInProgress: () =>
         this.snapshot.matchStage !== 'none',
       onStateChanged: () => this.sync(),
+      beginInstallShutdown: () => this.windows.prepareForUpdateInstall(),
+      cancelInstallShutdown: (token) => this.windows.cancelPreparedQuit(Number(token)),
     })
   }
 
@@ -413,6 +415,7 @@ export class HexBridgeRuntime {
   }
 
   stop(): void {
+    this.windows.prepareToQuit()
     this.stopScanLoop()
     this.stopGameProcessLoop()
     this.updates.stop()

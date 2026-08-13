@@ -22,6 +22,11 @@ function triggerOcrFrom(source: 'hotkey' | 'tray'): void {
   })
 }
 
+function quitApplication(): void {
+  runtime?.getWindowManager().prepareToQuit()
+  app.quit()
+}
+
 const bridgeSmokeMode = process.argv.includes('--hexbridge-smoke-test')
 const updateSmokeMode = process.argv.includes('--hexbridge-update-smoke-test')
 const publicUpdateSmokeMode = process.argv.includes('--hexbridge-public-update-smoke-test')
@@ -49,7 +54,7 @@ function refreshTrayMenu(): void {
       click: () => triggerOcrFrom('tray'),
     },
     { type: 'separator' },
-    { label: '退出', click: () => app.quit() },
+    { label: '退出', click: quitApplication },
   ]))
 }
 

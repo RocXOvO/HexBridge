@@ -27,6 +27,8 @@ interface UpdateManagerOptions {
   adapterLoader?: () => Promise<UpdateAdapter>
   feeds?: readonly UpdateFeedConfiguration[]
   scheduleAutomaticChecks?: boolean
+  beginInstallShutdown?: () => unknown
+  cancelInstallShutdown?: (token: unknown) => void
 }
 
 const emptyState = (currentVersion: string, supported: boolean): AppUpdateState => ({
@@ -95,6 +97,7 @@ export class UpdateManager {
   private adapter: UpdateAdapter | null = null
   private activeFeedProvider: UpdateFeedConfiguration['provider'] = 'generic'
   private checkInFlight: Promise<{ ok: boolean; message: string }> | null = null
+  private installShutdownToken: unknown = null
 
   constructor(private readonly options: UpdateManagerOptions) {
     this.state = emptyState(options.currentVersion, options.supported)
@@ -140,7 +143,10 @@ export class UpdateManager {
       message: '更新已下载，可在退出对局后重启安装',
     }))
     this.adapter.on('error', (error: unknown) => {
-      if (!this.checkInFlight) this.fail(error)
+      if (!this.checkInFlight) {
+        if (this.state.status === 'installing') this.cancelInstallShutdown()
+        this.fail(error)
+      }
     })
 
     if (this.options.scheduleAutomaticChecks !== false) {
@@ -305,12 +311,22 @@ export class UpdateManager {
     }
     this.patch({ status: 'installing', message: '正在退出并安装更新…' })
     try {
+      this.installShutdownToken = this.options.beginInstallShutdown?.() ?? null
       this.adapter.quitAndInstall(false, true)
+      const postInstallState = this.getState()
+      if (postInstallState.status === 'error') return { ok: false, message: postInstallState.message }
       return { ok: true, message: this.state.message }
     } catch (error) {
+      this.cancelInstallShutdown()
       this.fail(error)
       return { ok: false, message: this.state.message }
     }
+  }
+
+  private cancelInstallShutdown(): void {
+    const token = this.installShutdownToken
+    this.installShutdownToken = null
+    this.options.cancelInstallShutdown?.(token)
   }
 
   stop(): void {

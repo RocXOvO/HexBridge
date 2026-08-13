@@ -40,7 +40,8 @@ try {
     result.ok !== true ||
     result.bridge !== true ||
     result.ipc !== true ||
-    result.lcuDiscovery !== true
+    result.lcuDiscovery !== true ||
+    result.shutdownLifecycle !== true
   ) {
     throw new Error(`Electron bridge smoke test failed: ${JSON.stringify({ exitCode, result, stdout, stderr })}`)
   }
