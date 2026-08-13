@@ -12,7 +12,7 @@ import type {
 import { buildChampionCandidates, rankAugmentSlots } from '../shared/recommendations.js'
 import { ConfigStore } from './config-store.js'
 import { DataService } from './data-service.js'
-import { GameProcessExitGuard, inspectLeagueGameProcess } from './game-process.js'
+import { GameProcessExitGuard, gameProcessPollInterval, inspectLeagueGameProcess } from './game-process.js'
 import {
   commitHotkeyRegistration,
   registerInitialOcrHotkey,
@@ -22,6 +22,7 @@ import { LcuClient } from './lcu/client.js'
 import { logger } from './logger.js'
 import { AugmentScanner } from './ocr/scanner.js'
 import {
+  automaticOcrErrorDelay,
   classifyScanContext,
   detailRanksForCurrentChampion,
   isMatchContextOcrEligible,
@@ -83,7 +84,17 @@ export class HexBridgeRuntime {
   private overlay: AugmentOverlayState = { ...EMPTY_OVERLAY }
   private detail: ChampionAugmentData | null = null
   private scanTimer: NodeJS.Timeout | null = null
+  private automaticScanPhase: 'waiting' | 'recognizing' | 'latched' = 'waiting'
+  private automaticScanAbsences = 0
+  private automaticScanErrors = 0
+  private automaticFullAttempts = 0
+  private automaticScanEpoch = 0
+  private automaticScanContextKey: string | null = null
+  private automaticScanInFlightEpoch: number | null = null
+  private manualScanInFlight = false
+  private stopping = false
   private gameProcessTimer: NodeJS.Timeout | null = null
+  private gameProcessPollMs: number | null = null
   private gameProcessCheckInFlight = false
   private readonly gameProcessExitGuard = new GameProcessExitGuard()
   private augmentRound = new AugmentRoundTracker()
@@ -127,7 +138,11 @@ export class HexBridgeRuntime {
   }
 
   async initialize(): Promise<void> {
-    this.windows.setActivityChangedHandler(() => this.sync())
+    this.stopping = false
+    this.windows.setActivityChangedHandler(() => {
+      this.updateScanLoop()
+      this.sync()
+    })
     this.windows.createMainWindow()
     this.windows.createCompanionWindows()
     this.gpuAcceleration = !app.getGPUFeatureStatus().gpu_compositing?.includes('disabled')
@@ -146,7 +161,9 @@ export class HexBridgeRuntime {
       })
     }
     this.sync()
-    if (this.config.getSettings().autoOcr) void this.scanner.warmup().then(() => this.sync())
+    if (this.snapshot.matchStage !== 'launching' && this.snapshot.matchStage !== 'active') {
+      void this.scanner.warmup().then(() => this.sync())
+    }
   }
 
   setHotkeyHandler(handler: (hotkey: string) => HotkeyRegistrationResult): void {
@@ -415,6 +432,7 @@ export class HexBridgeRuntime {
   }
 
   stop(): void {
+    this.stopping = true
     this.windows.prepareToQuit()
     this.stopScanLoop()
     this.stopGameProcessLoop()
@@ -469,22 +487,110 @@ export class HexBridgeRuntime {
   }
 
   private updateScanLoop(): void {
-    const settings = this.config.getSettings()
-    if (!shouldRunOcr(settings.autoOcr, this.snapshot)) {
+    if (this.stopping) {
       this.stopScanLoop()
       return
     }
-    if (this.scanTimer) return
-    this.scanTimer = setInterval(() => void this.runScan(false), 2_000)
-    void this.runScan(false)
+    const settings = this.config.getSettings()
+    if (this.manualScanInFlight) return
+    if (!shouldRunOcr(settings.autoOcr, this.snapshot, this.windows.getMainActivity())) {
+      this.stopScanLoop()
+      return
+    }
+    const contextKey = `${this.snapshot.matchGeneration}:${this.snapshot.currentChampionId ?? 0}`
+    if (this.automaticScanContextKey !== contextKey) {
+      this.stopScanLoop()
+      this.automaticScanContextKey = contextKey
+    }
+    if (this.scanTimer || this.automaticScanInFlightEpoch != null) return
+    this.scheduleAutomaticScan(2_000)
+  }
+
+  private scheduleAutomaticScan(delayMs: number): void {
+    if (this.scanTimer) clearTimeout(this.scanTimer)
+    this.scanTimer = setTimeout(() => void this.runAutomaticScan(), delayMs)
+  }
+
+  private async runAutomaticScan(): Promise<void> {
+    this.scanTimer = null
+    const epoch = this.automaticScanEpoch
+    const generation = this.snapshot.matchGeneration
+    const championId = this.snapshot.currentChampionId
+    this.automaticScanInFlightEpoch = epoch
+    let nextDelay = 2_000
+    try {
+      const probe = await this.scanner.probeInterface()
+      if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
+      if (probe.status === 'error') {
+        this.automaticScanErrors = Math.min(3, this.automaticScanErrors + 1)
+        nextDelay = automaticOcrErrorDelay(this.automaticScanErrors - 1)
+      } else if (probe.status === 'not-detected') {
+        this.getAugmentRound().observe('not-detected')
+        this.automaticScanErrors = 0
+        this.automaticScanAbsences += 1
+        if (this.automaticScanPhase === 'recognizing' || this.automaticScanAbsences >= 2) {
+          this.automaticScanPhase = 'waiting'
+          this.automaticFullAttempts = 0
+        }
+      } else if (probe.status === 'detected') {
+        this.getAugmentRound().observe('detected')
+        this.automaticScanAbsences = 0
+        if (this.automaticScanPhase !== 'latched') {
+          const result = await this.runScan(false, undefined, true)
+          if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
+          if (result.ok) {
+            this.automaticScanErrors = 0
+            this.automaticScanPhase = 'latched'
+            this.automaticFullAttempts = 0
+          } else if (result.code === 'UNRELIABLE' || result.code === 'NOT_DETECTED') {
+            this.automaticScanErrors = 0
+            this.automaticFullAttempts += 1
+            this.automaticScanPhase = this.automaticFullAttempts >= 2 ? 'latched' : 'recognizing'
+          } else if (result.code === 'SCAN_ERROR') {
+            this.automaticScanPhase = 'waiting'
+            this.automaticFullAttempts = 0
+            this.automaticScanErrors = Math.min(3, this.automaticScanErrors + 1)
+            nextDelay = automaticOcrErrorDelay(this.automaticScanErrors - 1)
+          }
+        } else {
+          this.automaticScanErrors = 0
+        }
+      }
+    } finally {
+      if (this.automaticScanInFlightEpoch === epoch) this.automaticScanInFlightEpoch = null
+      if (!this.stopping && this.isAutomaticScanCurrent(epoch, generation, championId)) {
+        this.scheduleAutomaticScan(nextDelay)
+      } else if (!this.stopping) {
+        this.updateScanLoop()
+      }
+    }
+  }
+
+  private isAutomaticScanCurrent(epoch: number, generation: number, championId: number | null): boolean {
+    return epoch === this.automaticScanEpoch &&
+      !this.stopping &&
+      generation === this.snapshot.matchGeneration &&
+      championId != null &&
+      championId === this.snapshot.currentChampionId &&
+      shouldRunOcr(this.config.getSettings().autoOcr, this.snapshot, this.windows.getMainActivity())
   }
 
   private stopScanLoop(): void {
-    if (this.scanTimer) clearInterval(this.scanTimer)
+    this.automaticScanEpoch += 1
+    if (this.scanTimer) clearTimeout(this.scanTimer)
     this.scanTimer = null
+    this.automaticScanContextKey = null
+    this.automaticScanPhase = 'waiting'
+    this.automaticScanAbsences = 0
+    this.automaticScanErrors = 0
+    this.automaticFullAttempts = 0
   }
 
-  private async runScan(manual: boolean): Promise<ScanActionResult> {
+  private async runScan(
+    manual: boolean,
+    afterCapture?: () => void,
+    interfaceAlreadyDetected = false,
+  ): Promise<ScanActionResult> {
     if (!isMatchContextOcrEligible(this.snapshot)) {
       return { ok: false, code: 'NOT_ELIGIBLE', message: '当前没有可识别的海克斯大乱斗对局' }
     }
@@ -495,7 +601,7 @@ export class HexBridgeRuntime {
     }
     const augments = this.data.getAugments()
     if (!augments.length) return { ok: false, code: 'NO_CATALOG', message: '海克斯目录尚未就绪' }
-    const result = await this.scanner.scan(augments, manual)
+    const result = await this.scanner.scan(augments, manual, afterCapture, interfaceAlreadyDetected)
     const contextDisposition = classifyScanContext(this.snapshot, scanGeneration, scanChampionId)
     if (contextDisposition === 'ended') {
       this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
@@ -584,24 +690,43 @@ export class HexBridgeRuntime {
     return this.augmentRound
   }
 
-  private captureManualScan(): Promise<ScanActionResult> {
-    const transaction = this.windows?.captureWithoutHexBridgeWindows?.bind(this.windows)
-    return transaction ? transaction(() => this.runScan(true)) : this.runScan(true)
+  private async captureManualScan(): Promise<ScanActionResult> {
+    const managesAutomaticLoop = this.scanTimer !== undefined && typeof this.scanner?.waitUntilIdle === 'function'
+    if (managesAutomaticLoop) this.manualScanInFlight = true
+    if (managesAutomaticLoop) this.stopScanLoop()
+    try {
+      const idle = managesAutomaticLoop ? await this.scanner.waitUntilIdle() : true
+      if (!idle) {
+        return { ok: false, code: 'BUSY', message: '后台识别正在收尾，请稍后重试' }
+      }
+      const transaction = this.windows?.captureWithoutHexBridgeWindows?.bind(this.windows)
+      return transaction
+        ? await transaction((restoreWindows) => this.runScan(true, restoreWindows))
+        : await this.runScan(true)
+    } finally {
+      if (managesAutomaticLoop) {
+        this.manualScanInFlight = false
+        this.updateScanLoop()
+      }
+    }
   }
 
   private updateGameProcessLoop(): void {
-    if (this.snapshot.matchStage !== 'launching' && this.snapshot.matchStage !== 'active') {
+    const pollMs = gameProcessPollInterval(this.snapshot.matchStage)
+    if (pollMs == null) {
       this.stopGameProcessLoop()
       return
     }
-    if (this.gameProcessTimer) return
-    this.gameProcessTimer = setInterval(() => void this.checkGameProcess(), 2_000)
-    void this.checkGameProcess()
+    if (this.gameProcessTimer && this.gameProcessPollMs === pollMs) return
+    if (this.gameProcessTimer) clearInterval(this.gameProcessTimer)
+    this.gameProcessPollMs = pollMs
+    this.gameProcessTimer = setInterval(() => void this.checkGameProcess(), pollMs)
   }
 
   private stopGameProcessLoop(): void {
     if (this.gameProcessTimer) clearInterval(this.gameProcessTimer)
     this.gameProcessTimer = null
+    this.gameProcessPollMs = null
     this.gameProcessExitGuard.reset()
   }
 

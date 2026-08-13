@@ -49,6 +49,7 @@ async function scannerFixture() {
     .mockResolvedValueOnce('由心及物\n复原力')
     .mockResolvedValueOnce('冰寒\n功能')
     .mockResolvedValueOnce('虹吸\n复原力')
+  vi.spyOn(scanner.engine, 'initialize').mockResolvedValue()
   return { scanner, widths }
 }
 
@@ -78,6 +79,28 @@ describe('low-cost OCR capture plan', () => {
       .mockResolvedValue(true)
     expect((await scanner.scan(augments, true)).status).toBe('matched')
     expect(widths).toEqual([augmentScannerDefaults.ocrCaptureWidth])
+    expect(augmentScannerDefaults.ocrCaptureWidth).toBe(1_440)
+  })
+
+  it('releases hidden windows immediately after capture and before OCR inference', async () => {
+    const { scanner } = await scannerFixture()
+    vi.spyOn(scanner as unknown as { hasInterfaceSignal(crop: Buffer): Promise<boolean> }, 'hasInterfaceSignal')
+      .mockResolvedValue(true)
+    const order: string[] = []
+    vi.mocked(scanner.engine.recognize)
+      .mockReset()
+      .mockImplementation(async () => { order.push('recognize'); return '由心及物' })
+    await scanner.scan(augments, true, () => order.push('restore'))
+    expect(order[0]).toBe('restore')
+    expect(order.slice(1)).toEqual(['recognize', 'recognize', 'recognize'])
+  })
+
+  it('lets a manual request wait briefly for an automatic probe to release the scanner', async () => {
+    const { scanner } = await scannerFixture()
+    const probe = scanner.probeInterface()
+    const idle = scanner.waitUntilIdle(1_000)
+    await probe
+    await expect(idle).resolves.toBe(true)
   })
 
   it('validates three recognized titles before calibration can be saved', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChampionAugmentData, ChampSelectSnapshot } from '../src/shared/contracts.js'
 import {
+  automaticOcrErrorDelay,
   classifyScanContext,
   detailRanksForCurrentChampion,
   isCurrentScanContext,
@@ -25,14 +26,19 @@ const snapshot = (patch: Partial<ChampSelectSnapshot> = {}): ChampSelectSnapshot
 })
 
 describe('runtime state guards', () => {
+  it('backs off repeated automatic capture or model errors', () => {
+    expect([0, 1, 2, 3, 8].map(automaticOcrErrorDelay)).toEqual([4_000, 8_000, 15_000, 15_000, 15_000])
+  })
   it('rejects a late champion-detail response after the selected champion changes', () => {
     expect(isCurrentChampionRequest(103, 1, 81, 2)).toBe(false)
     expect(isCurrentChampionRequest(81, 2, 81, 2)).toBe(true)
   })
 
-  it('keeps OCR eligible from game launch through active play without coupling to LCU transport', () => {
-    expect(shouldRunOcr(true, snapshot({ matchStage: 'launching', phase: 'None' }))).toBe(true)
+  it('runs automatic OCR only during active play while the main window is visible', () => {
+    expect(shouldRunOcr(true, snapshot({ matchStage: 'launching', phase: 'None' }))).toBe(false)
     expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }))).toBe(true)
+    expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }), { visible: false, minimized: false })).toBe(false)
+    expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }), { visible: true, minimized: true })).toBe(false)
     expect(shouldRunOcr(true, snapshot({ matchStage: 'selecting' }))).toBe(false)
     expect(shouldRunOcr(false, snapshot())).toBe(false)
   })

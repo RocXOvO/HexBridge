@@ -23,13 +23,18 @@ const DEFAULT_RECTS: CalibrationRects = {
 const SLOTS: AugmentSlot[] = ['left', 'center', 'right']
 const MAX_DIAGNOSTIC_FILES = 60
 const AUTO_GATE_WIDTH = 960
-const OCR_CAPTURE_WIDTH = 1_920
+const OCR_CAPTURE_WIDTH = 1_440
 
 export interface ScanResult {
   status: 'matched' | 'not-detected' | 'unreliable' | 'busy' | 'error'
   slots: OcrSlotResult[]
   durationMs: number
   error: string | null
+}
+
+export interface InterfaceProbeResult {
+  status: 'detected' | 'not-detected' | 'busy' | 'error'
+  durationMs: number
 }
 
 export interface AugmentScannerDependencies {
@@ -40,6 +45,7 @@ export interface AugmentScannerDependencies {
 export class AugmentScanner {
   readonly engine = new OcrEngine()
   private busy = false
+  private readonly idleWaiters = new Set<() => void>()
   private lastDurationMs: number | null = null
   private lastError: string | null = null
 
@@ -71,6 +77,23 @@ export class AugmentScanner {
     }
   }
 
+  async waitUntilIdle(timeoutMs = 1_500): Promise<boolean> {
+    if (!this.busy) return true
+    return new Promise((resolve) => {
+      let settled = false
+      const settle = (idle: boolean): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        this.idleWaiters.delete(onIdle)
+        resolve(idle)
+      }
+      const onIdle = (): void => settle(true)
+      const timeout = setTimeout(() => settle(false), timeoutMs)
+      this.idleWaiters.add(onIdle)
+    })
+  }
+
   async clearDiagnostics(): Promise<number> {
     try {
       const names = (await readdir(this.diagnosticsDirectory)).filter((name) => name.endsWith('.png'))
@@ -83,7 +106,12 @@ export class AugmentScanner {
     }
   }
 
-  async scan(augments: AugmentMeta[], manual = false): Promise<ScanResult> {
+  async scan(
+    augments: AugmentMeta[],
+    manual = false,
+    afterCapture?: () => void,
+    interfaceAlreadyDetected = false,
+  ): Promise<ScanResult> {
     if (this.busy) return { status: 'busy', slots: [], durationMs: 0, error: null }
     this.busy = true
     const startedAt = Date.now()
@@ -94,17 +122,17 @@ export class AugmentScanner {
 
       // Automatic polling only captures a small thumbnail first. A 4K OCR
       // frame is requested only after at least two title slots look active.
-      if (!manual) {
-        const gateScreenshot = await this.captureDisplay(display, AUTO_GATE_WIDTH)
-        const gateCrops = await this.cropTitles(gateScreenshot, rects, false)
+      if (!manual && !interfaceAlreadyDetected) {
+        const gateCrops = await this.captureTitleCrops(display, AUTO_GATE_WIDTH, rects, false)
         const gates = await Promise.all(gateCrops.map((crop) => this.hasInterfaceSignal(crop)))
         if (gates.filter(Boolean).length < 2) {
           return this.finish('not-detected', [], startedAt, null)
         }
       }
 
-      const screenshot = await this.captureDisplay(display, OCR_CAPTURE_WIDTH)
-      const crops = await this.cropTitles(screenshot, rects, true)
+      const crops = await this.captureTitleCrops(display, OCR_CAPTURE_WIDTH, rects, true, afterCapture)
+
+      if (manual) await this.engine.initialize(true)
 
       if (settings.diagnosticsScreenshots && manual) {
         try {
@@ -138,7 +166,31 @@ export class AugmentScanner {
       })
       return this.finish('error', [], startedAt, message)
     } finally {
-      this.busy = false
+      this.releaseIdleWaiters()
+    }
+  }
+
+  async probeInterface(): Promise<InterfaceProbeResult> {
+    if (this.busy) return { status: 'busy', durationMs: 0 }
+    this.busy = true
+    const startedAt = Date.now()
+    try {
+      const settings = this.getSettings()
+      const display = this.resolveDisplay(settings.displayId)
+      const rects = settings.calibration ?? DEFAULT_RECTS
+      const gateCrops = await this.captureTitleCrops(display, AUTO_GATE_WIDTH, rects, false)
+      const gates = await Promise.all(gateCrops.map((crop) => this.hasInterfaceSignal(crop)))
+      return {
+        status: gates.filter(Boolean).length >= 2 ? 'detected' : 'not-detected',
+        durationMs: Date.now() - startedAt,
+      }
+    } catch (error) {
+      logger.warn('OCR interface probe failed', {
+        errorName: error instanceof Error ? error.name : 'Error',
+      })
+      return { status: 'error', durationMs: Date.now() - startedAt }
+    } finally {
+      this.releaseIdleWaiters()
     }
   }
 
@@ -152,6 +204,7 @@ export class AugmentScanner {
     try {
       const encoded = backgroundDataUrl.match(/^data:image\/(?:png|jpeg);base64,([A-Za-z0-9+/=]+)$/)?.[1]
       if (!encoded) return { ok: false, names: [], message: '校准截图格式无效，请重新打开校准' }
+      await this.engine.initialize(true)
       const crops = await this.cropTitles(Buffer.from(encoded, 'base64'), rects, true)
       const recognized: OcrSlotResult[] = []
       for (let index = 0; index < crops.length; index += 1) {
@@ -170,7 +223,7 @@ export class AugmentScanner {
     } catch {
       return { ok: false, names: [], message: '校准识别验证失败，请重新框选或稍后重试' }
     } finally {
-      this.busy = false
+      this.releaseIdleWaiters()
     }
   }
 
@@ -186,14 +239,31 @@ export class AugmentScanner {
     return { status, slots, durationMs, error }
   }
 
+  private releaseIdleWaiters(): void {
+    this.busy = false
+    const waiters = [...this.idleWaiters]
+    this.idleWaiters.clear()
+    for (const resolve of waiters) resolve()
+  }
+
   private resolveDisplay(displayId: string): Electron.Display {
     if (this.dependencies.resolveDisplay) return this.dependencies.resolveDisplay(displayId)
     const displays = screen.getAllDisplays()
     return displays.find((display) => String(display.id) === displayId) ?? screen.getPrimaryDisplay()
   }
 
-  private async captureDisplay(display: Electron.Display, maximumWidth: number): Promise<Buffer> {
-    if (this.dependencies.captureDisplay) return this.dependencies.captureDisplay(display, maximumWidth)
+  private async captureTitleCrops(
+    display: Electron.Display,
+    maximumWidth: number,
+    rects: CalibrationRects,
+    prepareForOcr: boolean,
+    afterCapture?: () => void,
+  ): Promise<Buffer[]> {
+    if (this.dependencies.captureDisplay) {
+      const screenshot = await this.dependencies.captureDisplay(display, maximumWidth)
+      afterCapture?.()
+      return this.cropTitles(screenshot, rects, prepareForOcr)
+    }
     const physicalWidth = Math.max(1, Math.round(display.bounds.width * display.scaleFactor))
     const physicalHeight = Math.max(1, Math.round(display.bounds.height * display.scaleFactor))
     const width = Math.min(maximumWidth, physicalWidth)
@@ -207,7 +277,17 @@ export class AugmentScanner {
       sources.find((candidate) => candidate.display_id === String(display.id)) ??
       (sources.length === 1 ? sources[0] : undefined)
     if (!source || source.thumbnail.isEmpty()) throw new Error('无法捕获目标显示器')
-    return source.thumbnail.toPNG()
+    const croppedImages = cropNativeImageTitles(source.thumbnail, rects)
+    afterCapture?.()
+    const encodedCrops = croppedImages.map((crop) => crop.toPNG())
+    return Promise.all(encodedCrops.map(async (encodedCrop) => {
+      if (!prepareForOcr) return encodedCrop
+      return sharp(encodedCrop)
+        .resize({ height: 180, fit: 'inside', withoutEnlargement: false })
+        .sharpen()
+        .png()
+        .toBuffer()
+    }))
   }
 
   private async cropTitles(
@@ -261,6 +341,23 @@ export class AugmentScanner {
       ),
     )
   }
+}
+
+export function cropNativeImageTitles(
+  thumbnail: Electron.NativeImage,
+  rects: CalibrationRects,
+): Electron.NativeImage[] {
+  const size = thumbnail.getSize()
+  return SLOTS.map((slot) => {
+    const titleRect = titleRectForCalibration(rects[slot])
+    const pixelRect = normalizedRectToPixels(titleRect, size.width, size.height)
+    return thumbnail.crop({
+      x: pixelRect.left,
+      y: pixelRect.top,
+      width: pixelRect.width,
+      height: pixelRect.height,
+    })
+  })
 }
 
 export const augmentScannerDefaults = {

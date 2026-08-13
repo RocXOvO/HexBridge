@@ -51,4 +51,16 @@ describe('augment round lifecycle', () => {
     expect(tracker.observe('error').clearPrevious).toBe(false)
     expect(tracker.observe('matched', { combination: '1:2:3' }).commitMatched).toBe(false)
   })
+
+  it('requires two consecutive low-cost absences before accepting the next round', () => {
+    const tracker = new AugmentRoundTracker()
+    tracker.observe('matched', { combination: '1:2:3' })
+    tracker.observe('not-detected')
+    tracker.observe('detected')
+    tracker.observe('not-detected')
+    expect(tracker.observe('matched', { combination: '1:2:3' }).commitMatched).toBe(false)
+    tracker.observe('not-detected')
+    tracker.observe('not-detected')
+    expect(tracker.observe('matched', { combination: '1:2:3' }).commitMatched).toBe(true)
+  })
 })

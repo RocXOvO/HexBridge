@@ -5,11 +5,24 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  GAME_PROCESS_ACTIVE_POLL_MS,
   GAME_PROCESS_EXIT_CONFIRM_MS,
+  GAME_PROCESS_LAUNCHING_POLL_MS,
   GameProcessExitGuard,
+  gameProcessPollInterval,
   isLeagueGameProcessRunning,
   tasklistShowsLeagueGame,
 } from '../src/main/game-process.js'
+
+describe('game process polling budget', () => {
+  it('avoids the old two-second process spawn throughout active games', () => {
+    expect(gameProcessPollInterval('selecting')).toBeNull()
+    expect(gameProcessPollInterval('launching')).toBe(GAME_PROCESS_LAUNCHING_POLL_MS)
+    expect(gameProcessPollInterval('active')).toBe(GAME_PROCESS_ACTIVE_POLL_MS)
+    expect(GAME_PROCESS_LAUNCHING_POLL_MS).toBeGreaterThanOrEqual(3_000)
+    expect(GAME_PROCESS_ACTIVE_POLL_MS).toBeGreaterThanOrEqual(10_000)
+  })
+})
 
 const delay = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds))

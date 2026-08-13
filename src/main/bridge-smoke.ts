@@ -3,6 +3,7 @@ import type { RuntimeState } from '../shared/contracts.js'
 import { ConfigStore } from './config-store.js'
 import { discoverLcuCredentials } from './lcu/discovery.js'
 import { secureWebPreferences, WindowManager } from './window-manager.js'
+import { cropNativeImageTitles } from './ocr/scanner.js'
 
 const CHANNEL = 'hexbridge:get-state'
 const TIMEOUT_MS = 15_000
@@ -31,7 +32,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.15',
+    currentVersion: '0.1.16',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -182,6 +183,17 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
         sources.find((candidate) => candidate.display_id === String(display.id)) ?? sources[0]
       if (!source || source.thumbnail.isEmpty()) {
         throw new SmokeFailure('HB_SMOKE_DISPLAY_CAPTURE_FAILED')
+      }
+      const nativeCrops = cropNativeImageTitles(source.thumbnail, {
+        left: { x: .1, y: .1, width: .2, height: .1 },
+        center: { x: .4, y: .1, width: .2, height: .1 },
+        right: { x: .7, y: .1, width: .2, height: .1 },
+      })
+      if (
+        nativeCrops.length !== 3 ||
+        nativeCrops.some((crop) => crop.isEmpty() || crop.toPNG().length < 16)
+      ) {
+        throw new SmokeFailure('HB_SMOKE_NATIVE_IMAGE_CROP_FAILED')
       }
       const rendered = await window.webContents.executeJavaScript(`(() => new Promise((resolve) => {
         const image = new Image()

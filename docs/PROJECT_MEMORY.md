@@ -2,6 +2,7 @@
 
 > 最后更新：2026-08-13
 > 当前基线：公开最新正式 Release 为 [v0.1.15](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.15)，公开、Latest、non-draft、non-prerelease，于 2026-08-13T14:14:49Z 发布；annotated tag object `e8e165b9b1498873ca472be9641e9c316775c222` 指向产品 / 记忆提交 `c5331271fcb218f21202572acc7ac5fe06090be8`。正式 run `31708642394` / job `94475549775` 于 14:09:13Z～14:14:58Z success，约 5m45s：clean `npm ci`、version gate、audit high 0、OCR synthetic + 真实 4K、Windows 27 files / 236 tests、lint / typecheck、retention、legacy root 0.1.14、pack / metadata / packaged UI / bridge、seed 旧 installer cache 的 v0.1.14 差分、checksums、v2 channel render、preflight、artifact、draft publish、v2 channel、public verify 与 public packaged check 全通过。public channel verified `0.1.15 / 199,233,286 bytes`，packaged public check 为 channel 0.1.15 / `updateAvailable=false`。正式差分窄证据为 1,335,875 / 199,233,286 bytes、Range 12、redirect 3、old / new blockmap 各 1、zero full、isolated cache；但 smoke 人工 seed 旧 installer cache，且 v0.1.15 的单 Range 逻辑不能反向进入执行更新的 v0.1.14 旧客户端。用户随后同机报告 v0.1.14→v0.1.15 仍看到 / 可能下载约 200 MB，目前尚不能区分 UI 先显示 full metadata size 还是网络真实 full-download fallback，HB-033 继续 `IN PROGRESS`。v0.1.15 实现 v2 single-range、AugmentRound、统一图标、手动截图隐藏恢复、中文状态 / 推荐依据和有界 toast；HB-034～HB-038 也继续 `IN PROGRESS`。中文 Release notes 保留未签名 / SmartScreen 与用户实机边界；历史 Release / assets / tags 保留契约不变。
+> 当前本地候选：版本已升至 v0.1.16，尚未 commit / push、运行 Windows workflow、创建 tag 或 Release。用户脱敏日志现已覆盖连续两局：两局均在 LCU active 期间保留对应英雄，终局均按预期清理；这为 HB-020 / HB-022 的本局连续性、终局和第二局换代子链提供真实正向证据，但不替代三卡 OCR / 推荐与性能同机验收。日志在 23:12 记录热键手动 OCR 返回稳定状态 `BUSY`，证明该次热键已到达 Main 手动路径，且当时后台自动扫描占用 single-flight；不记录端口、路径或身份。v0.1.16 候选将自动扫描限制为 active + Main 可见，收紧 round / gate、退避、epoch 与 manual 优先级，并降低截图 / OCR / 进程探测成本；本地 29 files / 254 passed + 1 skipped、typecheck、lint、diff-check、真实 4K fixture（最近一次 134ms）、source bridge / UI 和 version v0.1.16 gate 均通过，独立最终审查 P0 / P1 为 0并批准 Windows 候选。Windows Actions 与真实 Windows 游戏 frametime 尚未运行，HB-024～026 均不得标 `VERIFIED`，HB-026 当前最多处于代码候选 / `IN PROGRESS` 边界。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -163,12 +164,12 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 - `desktopCapturer` 只截取用户设置的显示器；依据 `bounds × scaleFactor` 请求物理尺寸。
 - 默认标题区域使用归一化矩形，用户可以依次拖框校准左 / 中 / 右标题。
-- v0.1.12 默认关闭自动 OCR；用户显式开启后每 2 秒只允许一个自动扫描任务，先做最大宽 960px 的低分辨率标题 ROI 门控，信号命中后才请求最大宽 1920px 的 OCR 帧；`busy` 时拒绝重入。手动按钮 / 当前配置快捷键只触发一次 1920px 捕获，不经过周期门控。
+- v0.1.12 默认关闭自动 OCR；v0.1.16 候选进一步要求只有本局为 `active` 且 Main 窗口可见时才调度自动扫描。用户显式开启后每 2 秒只允许一个自动扫描任务，先做最大宽 960px 的低分辨率标题 ROI 门控，信号命中后才进入 full OCR；`busy` 时拒绝自动重入。手动按钮 / 当前配置快捷键只触发一次有界捕获，不经过周期门控，并可为取得优先级等待在途自动任务最多 1.5 秒。
 - 先对三块裁切做低成本灰度信号门控，至少两块命中才启动 OCR。
 - 三块按左 / 中 / 右串行识别，中文标准化后精确或模糊匹配；置信度阈值不得低于 90%。
-- 三张全部可靠识别才自动展示；组合去重；连续 3 次丢失后隐藏。当前配置的手动快捷键只强制重新截图 / 识别，不发送键鼠事件；其 v0.1.12 原子注册实现和 Windows 未验证边界见 HB-025。
+- 三张全部可靠识别才自动展示；组合去重。v0.1.16 候选对同一组三卡 full OCR 成功一次后不重复识别，不可靠结果最多重试两次，连续两次明确 absence 才重置 gate / round 扫描 tracker；该重置只允许后续重新识别，不得清除 HB-034 规定的上一组可靠展示结果。当前配置的手动快捷键只强制重新截图 / 识别，不发送键鼠事件；其原子注册与 Windows 游戏前台未验证边界见 HB-025。
 - 识别结果呈现契约按用户 v0.1.13 实机反馈修正：海克斯三卡结果与推荐应作为实时助手页的对局内容显示，不得识别成功后打开覆盖屏幕顶部的大块黑色浮窗。是否保留任何小型伴随窗口须由 HB-029 重新审计；当前用户明确否定的“黑屏顶部浮窗”不得作为完成态。
-- 自动扫描只在 LCU 已连接且 `InProgress + queueId ∈ {2400, 3270}` 时运行；断线 / 离局立即停表。在途扫描结束后必须再次检查连接和阶段，不能让旧结果重新显示浮窗。
+- 自动扫描只在保留的目标本局上下文为 `active + queueId ∈ {2400, 3270}`、Main 可见、自动 OCR 已显式开启且 Runtime 未 stopping 时运行；LCU transport 交接本身不能否定仍有效的 active generation。离局 / generation 或 champion 变化、Main hidden / minimized、关闭自动 OCR或 stopping 必须停表；在途扫描结束后再次以 scan epoch + generation + champion + stopping 原子校验，旧结果不得进入新局或重新显示已移除的浮窗。
 - 当前英雄变化时应先立即同步 snapshot / 候选 UI，再在后台非阻塞补齐英雄详情；详情返回后仅在 `championId + requestSequence + dataVersion` 仍匹配时二次同步，不能让上游请求阻塞 1.5 秒界面刷新目标。
 - 游戏要求无边框模式；独占全屏不在 V1 保证范围。
 
@@ -413,15 +414,16 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-020 WeGame 选人到游戏客户端交接期上下文丢失
 
 - 严重度：阻断性（交接后本局英雄 / 详情、OCR 和海克斯推荐可能不可用）
-- 状态：`IN PROGRESS`（v0.1.13 用户同机已确认选人结束→独立游戏客户端启动→InProgress 的英雄连续性子项通过；完整终局语义与第二局仍未闭环，不能标整体 `FIXED` / `VERIFIED`）
+- 状态：`IN PROGRESS`（最新用户脱敏日志已覆盖连续两局的 active / 英雄保留、终局清理与第二局换代子链；三卡 OCR / 推荐和真实游戏性能仍未闭环，不能标整体 `VERIFIED`）
 - v0.1.11 用户同机真实回归：选人阶段与最后等待阶段均能正常显示当前英雄；在 League 启动独立游戏客户端之前的交接空窗，主窗口当前英雄再次消失并回到“等待选择英雄”。这证明 3270 / actions / trailing-poll 修复只关闭了此前的选人阶段拒绝，尚未关闭跨客户端交接问题。当前没有足够的脱敏状态链确认这次清空发生在哪个 reducer / transport / process / Renderer 分支，不得把既有根因直接套用为本次新根因。
 - 本轮高概率根因（尚未实机终证）：独立游戏进程首次被检测到后，旧路径会立即把 `launching` 提升为 `active`；随后 launcher / LCU 在交接空窗给出瞬时 `Lobby / WaitingForStats / EndOfGame` 等 terminal-like phase 时，旧 tracker 对 active 上下文缺少交接确认或独立进程心跳宽限，可能直接清空英雄。另一条高概率路径是 raw phase 为 `None`、gameflow 没有 queue 时，lobby fallback 暂时给出其他队列；旧逻辑没有区分 queue 来自 gameflow 还是 lobby fallback，可能把该暂态值当可信异队列并清空。这两条来自代码路径与已知症状的对应关系，不是用户日志已经证明的唯一根因。
 - v0.1.13 交接实现：poll evidence 新增 `queueSource = gameflow | lobby | none`；只有可靠 gameflow queue 或完整新 ChampSelect 才能原子结束 / 换代，`None + lobby fallback` 的异队列先进入有界确认而不立即破坏旧局。独立游戏进程检测不再只是一次性 active 信号：Runtime 在 `launching / active` 期间每 2 秒检查，按 generation + champion 原子守卫调用 `confirmGameActive`，tracker 保存独立游戏心跳。第二轮审查发现并修正 P1：即使 phase 是 `FailedToLaunch / TerminatedInError`，刚刚确认仍在运行的独立游戏进程也必须优先于 launcher 的瞬时失败 phase；只有没有 fresh 独立进程心跳时，明确失败才可立即清理。真实 gameflow 异队列与完整下一 ChampSelect 仍必须换代，不能把宽限变成串局。
 - v0.1.13 用户同机脱敏时间线（不记录端口、凭据、路径、英雄 ID或完整 session）：应用最初在无客户端进程时保持 detached / no match；WeGame / LCU 启动后完成只读连接，依次观察目标队列 3270 的 Lobby、Matchmaking、ChampSelect。ChampSelect 从空英雄进入 `selecting / generation 1`，最后一次换英雄仍在同一 generation；随后进入 `launching`，再到 `InProgress / active`，全程保留同一最终英雄和 retained authority。对局结束侧先出现 `WaitingForStats` / 空 phase，游戏进程退出确认后才清理到 `matchStage=none`。这证明本次报告机器上“选人结束→独立游戏客户端启动→InProgress”的英雄连续性子项已通过，也证明清理并非发生在交接空窗；但单次时间线未覆盖第二局，且终局 phase / 退出清理语义仍需按 runbook 单独复核，因此 HB-020 总体继续 `IN PROGRESS`。
-- 范围冻结：用户已明确确认当前 v0.1.13 不再发生交接时英雄丢失，因此不得继续把 `normalize` / handoff reducer 当作当前主线反复修改，也不得为了尚未复现的交接问题扩大租约或放松清理边界。只有未来同机出现新的脱敏反例时才重新打开该子项；当前 HB-020 的剩余工作限定为完整终局清理、第二局换代，以及 OCR / 推荐结果与本局上下文的正确联动。
+- 最新两局用户日志证据（不记录端口、路径、身份、凭据或完整 session）：同一报告机器的脱敏时间线现已覆盖连续两局；每局在 LCU active 期间都保持该局已确认英雄，终局均清理旧 match context，下一局建立新的本局上下文而未复用上一局英雄。它补齐 HB-020 的终局清理与第二局换代正向实机证据；但附件同时在 23:12 记录热键手动 OCR 返回 `BUSY`，表明 OCR / 推荐可用性仍未闭环，所以不能把“本局上下文生命周期通过”外推成整个产品链 `VERIFIED`。
+- 范围冻结：用户已明确确认不再发生交接时英雄丢失，最新两局日志又覆盖终局清理与第二局换代；不得继续把 `normalize` / handoff reducer 当作当前主线反复修改，也不得为了尚未复现的交接问题扩大租约或放松清理边界。只有未来同机出现新的脱敏反例时才重新打开上下文状态机；当前 HB-020 剩余工作限定为 OCR / 推荐结果与同一 generation 的正确联动，以及正式匹配 queue 等尚未采集的产品边界。
 - 第二轮审查另一 P1 与 dirty 修正：`tasklist` 结果从 boolean 改为 `running | not-running | error`。`GameProcessExitGuard` 必须针对同一 generation + champion 先真实观察到 `running`，之后仅在 active 状态下连续观察 `not-running` 满 4 秒才允许报告退出；`error` 中断负向确认，launching 阶段绝不据此清理。退出 guard 成立后仍由 tracker 检查 5 秒独立心跳已经过期，generation + champion 仍匹配时才原子清除上下文。这样 tasklist 暂态错误、第一次未发现、旧 generation 迟到结果都不能结束本局。
 - 证据来源隔离：可靠三卡 `augment-interface` 仍可把上下文推进 active，但不能写入 / 刷新“独立游戏进程仍在运行”的 heartbeat；只有真实 game-process `running` 结果能够续该心跳，避免 OCR 自身把已经退出的游戏无限续租。
-- 自动化与实机证据边界：P1 增量覆盖 fresh heartbeat 优先 terminal failure、tri-state tasklist、同 generation / champion 的 running→4 秒连续 not-running、error 中断、launching 不清、5 秒心跳过期原子清理及 augment-interface 不续进程心跳；v0.1.13 正式 Windows 200-test 门禁通过。上述用户时间线又补齐了报告机器上的交接连续性子项，但仍没有第二局换代，也没有对 `WaitingForStats → None → game-process-exited` 是否满足所有期望终局语义作完整用户确认，故 HB-020 总体只能维持 `IN PROGRESS`。
+- 自动化与实机证据边界：P1 增量覆盖 fresh heartbeat 优先 terminal failure、tri-state tasklist、同 generation / champion 的 running→4 秒连续 not-running、error 中断、launching 不清、5 秒心跳过期原子清理及 augment-interface 不续进程心跳；v0.1.13 正式 Windows 200-test 门禁通过。最新两局用户日志又补齐报告机器上的交接、active 英雄保留、终局清理与第二局换代，但没有补齐 OCR / 推荐和性能；因此只能把 LCU match-context 生命周期子链记为实机通过，HB-020 总体继续 `IN PROGRESS`。
 - v0.1.12 交接实现：`MatchContextTracker` 在本局尚未成为 active 时，把 launcher-side `Lobby / WaitingForStats / PreEndOfGame / EndOfGame`、空 / 未知 phase、partial observation 和结构存在但英雄 / identity 已消失的 outgoing ChampSelect 视为可能的 handoff，提交 `launching + handoffCommitted` 并使用有界 launching 租约保留已确认英雄 / 详情，而不是沿用旧 15 秒 terminal confirmation 清空；不同正英雄、可靠新 identity、明确失败和租约到期仍须换代 / 清理。production `LcuClient → Runtime` 回放已覆盖 3270 选人后短暂 Lobby 再到 InProgress，断言 generation、英雄详情、overlay、request sequence 与 OCR 资格连续。这是针对实机症状的保守实现，不是已经确认的新根因或修复闭环。
 - 首轮审查 P1 修正：可信且显式的异队列 observation 现在先于 launcher-side terminal / Lobby 宽限处理；它会立即清理旧本局，而不再被 handoff grace 暂时保留。只有来自可信 authority 的显式异队列可以破坏上下文，外部 / 未信任 authority 仍不能覆盖旧局。对应测试与最终只读审查已通过，但 Windows 与真实第二局 / 转入其他队列尚未完成。
 - 后续审查 P1 修正：当可信同一 poll 给出完整受支持 `ChampSelect`，且 queue 从 2400 切到 3270 或从 3270 切到 2400 时，tracker 直接把它作为新局原子换代：更新 queue / hero、进入 `selecting` 并只递增一次 generation，不得先经过清空快照、handoff 宽限或把另一受支持 queue 错当普通异队列终止。当前只由 2400↔3270 两向目标测试证明，完整 Runtime 链、Windows 与真实同机换队列仍未验证。
@@ -439,7 +441,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 交接期契约：从 `ChampSelect` 最后有效快照开始，即使出现 LeagueClientUx 进程退出、LCU 凭据失效、端口消失、`GameStart` 前 phase / endpoint 空窗或游戏客户端尚未完全启动，也不得仅因这些暂态事件清除本局已确认的受支持队列（2400 或 3270）、当前英雄、匹配的英雄详情 / `dataVersion`、推荐上下文和 OCR 启用前提。游戏客户端启动并进入 `GameStart` / `InProgress` 后应继续同一局上下文，且不得短暂回显上一局或其他队列数据。
 - 必须采集的脱敏证据：按时间顺序记录 phase、LCU 连接状态、发现来源类别、凭据 / 端口是否可用、LeagueClientUx 与游戏客户端是否存在、match-context generation、是否携带英雄 / 详情以及每次保留或清理的原因码。不得记录 token、API Key、PUUID、完整 session、带凭据 URL 或未裁切截图。
 - 防再犯与验收门禁：下一轮定位必须取得同一台真实 Windows + 国服 WeGame 的交接录制与脱敏状态链，或由该状态链生成可回放 fixture；内容覆盖最后一次有效 `ChampSelect` 英雄、最后等待、LeagueClientUx 退出 / 凭据或端口失效、`GameStart` 前空窗、实际游戏客户端进程启动及进入对局，全程断言英雄、详情、数据版本、推荐与 OCR 资格不丢失。没有这份真实状态证据时，任何代码修改和单元 / packaged 测试最多只能维持 `IN PROGRESS`。
-- 状态升级规则：报告问题用户已在 v0.1.13 同机、同 WeGame 环境证明交接至 InProgress 的英雄连续性，该子项可记为通过；但当前缺陷范围还包含完整终局清理与第二局换代，因此总体暂不升级。至少再完成一整局（三卡 OCR / 实时助手推荐可用、终局正确清理）并进入第二局验证新英雄替换、不串局后，才能重新评估 `FIXED / UNVERIFIED` 或 `VERIFIED`；不得用模拟测试、CI 或其他机器结果补齐这些剩余实机步骤。
+- 状态升级规则：报告问题用户已在同机、同 WeGame 环境以连续两局日志证明交接至 InProgress、active 英雄保留、终局清理和第二局不串英雄；这些具体子项可记为通过。HB-020 仍包含三卡 OCR / 实时助手推荐与本局 generation 对齐，23:12 的 `BUSY` 反而证明该链仍有可用性问题；只有报告用户同机完成三卡触发、推荐展示、跨轮与离局清理后，才能重新评估总体 `FIXED / UNVERIFIED` 或 `VERIFIED`。不得用模拟测试、CI 或其他机器结果补齐。
 
 ### HB-021 v0.1.5 实机无法发现正式更新
 
@@ -456,11 +458,12 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-022 国服选人阶段当前英雄与选人浮窗不显示
 
 - 严重度：阻断性（选人阶段核心英雄信息与紧凑浮窗不可用）
-- 状态：`IN PROGRESS`（v0.1.13 同机已确认选人阶段与交接至 InProgress 连续；完整终局和第二局仍待验）
+- 状态：`IN PROGRESS`（最新用户日志已覆盖两局英雄保留、终局清理与第二局换代；实时助手三卡 OCR / 推荐仍待同机闭环）
 - 用户实机症状：用户在 v0.1.10、国服 / WeGame 自定义海克斯大乱斗中报告当前英雄、选人浮窗和进局上下文不显示。该问题与 HB-020 的跨阶段上下文直接相关，但两个缺陷状态仍分别维护，均不得提前关闭。
 - v0.1.11 用户同机真实回归：3270 修复后，选人阶段与最后等待阶段已能正常显示当前英雄；但在 League 启动独立游戏客户端之前的交接空窗，主窗口当前英雄再次消失并回到“等待选择英雄”。因此 HB-022 的选人阶段子问题已有正向实机证据，跨客户端交接子问题仍真实失败；HB-020 / HB-022 均继续 `IN PROGRESS`。当前证据不足以确定新的清空分支，不猜根因。
 - v0.1.13 用户同机更新：新的脱敏时间线推翻了“当前版本交接仍失败”的现状判断——目标队列 3270 的最终英雄在同一 generation 内从 selecting 经 launching 连续进入 InProgress / active，直到游戏进程退出确认后才清理。故 HB-022 的“选人英雄显示 + 最后等待 + 独立游戏客户端启动前后连续性”子项可记为通过；历史 v0.1.11 回归失败保留为旧版本事实。由于附件未证明第二局新 generation、完整终局 UI / 浮窗行为和正式匹配 queue，HB-022 总体仍为 `IN PROGRESS`，不得写整体 `FIXED` / `VERIFIED`。
-- 当前工作焦点不再是选人 / handoff normalize：HB-022 后续只跟踪完整终局、第二局和实时助手内 OCR / 三卡推荐是否与同一 generation 对齐；游戏前台快捷键无反馈归 HB-025，黑屏顶部浮窗与实时助手结果归 HB-029，英雄专属选取率决策归 HB-030。
+- 最新两局用户日志更新：连续两局均在 active 阶段保留各自英雄，终局正确清理，下一局建立新上下文；因此 HB-022 的“选人 / 交接 / 终局 / 第二局不串英雄”子链已有报告用户同机正向证据。附件没有证明正式匹配 queue，也没有证明每轮 OCR / 英雄详情 / 三卡推荐在实时助手正确出现和换代；总体继续 `IN PROGRESS`，不标 `FIXED` / `VERIFIED`。
+- 当前工作焦点不再是选人 / handoff normalize：HB-022 的终局和第二局英雄换代已有两局日志正向证据，后续只跟踪实时助手内 OCR / 三卡推荐是否与同一 generation 对齐及正式匹配 queue；23:12 热键到达但返回 `BUSY` 归 HB-025 / HB-026，黑屏顶部浮窗与实时助手结果归 HB-029，英雄专属选取率归 HB-030。
 - v0.1.12 实现边界：HB-022 复用 HB-020 的 `launching + handoffCommitted` 保留策略，并继续保留 `{2400,3270}`、actions hero、authority / generation 守卫；实时助手空态也区分“未发现客户端”和“已连接但等待英雄”。回放只能证明代码对已知合成 phase 序列有效，不能代替报告用户同机的独立游戏客户端启动前空窗。
 - v0.1.13 实现与边界：HB-022 复用 HB-020 的 `queueSource`、tri-state game-process、exit guard、独立游戏心跳和 generation + champion 原子守卫；正式 Windows 门禁及上述用户同机脱敏时间线均证明选人最后一帧到独立游戏客户端稳定运行期间的英雄连续性。附件没有保存 / 提供完整 session，符合隐私契约；也不包含第二局或完整终局验收，因此状态继续 `IN PROGRESS`。
 - 用户脱敏证据：LCU 发现阶段出现多个 candidate，最终选择的 source 为 `log`；credentials 已验证，随后应用只呈现 transport-connected / 旧版 raw 连接状态，没有周期 heartbeat，snapshot 持续为 phase `None`、queue 与 champion 均为 `null`，与选人界面不显示吻合。诊断时间后缀 `Z` 表示 UTC，用户按本地时间理解时产生困惑；本文件不记录任何端口值。
@@ -480,7 +483,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - `v0.1.10` 当前验证：新增 production `LcuClient → HexBridgeRuntime` 回放，覆盖 authority alias / rotation、外部 authority 干扰、可信交接推进、同局最后换英雄、active 后同英雄无 identity 的第二局以及终局 / 新局边界。独立审查无 P0 / P1。candidate commit `cb2098c79842f61447ab933766b42ff45c1604c5` 的 Windows workflow_dispatch run [31665154616](https://github.com/RocXOvO/HexBridge/actions/runs/31665154616) / job [94338020977](https://github.com/RocXOvO/HexBridge/actions/runs/31665154616/job/94338020977) 通过候选门禁。正式 annotated tag / 产品 / 记忆提交为 `345c0d5443760a9dcc6717a96a6068b6101b16d1`；tag run [31665517026](https://github.com/RocXOvO/HexBridge/actions/runs/31665517026) / job [94339115148](https://github.com/RocXOvO/HexBridge/actions/runs/31665517026/job/94339115148) 成功，用时约 5m23s。132 tests、packaged UI / bridge、synthetic updater、public update check、Release、channel 写入与旧 Release cleanup 全部通过。该结果不运行真实 WeGame；报告用户同机复测前 HB-022 继续 `IN PROGRESS`。
 - 既有证据边界：`v0.1.8` Windows 预发布 / tag CI、packaged UI / bridge smokes、reducer 单测和 post-tag Runtime handoff 模拟回放均未连接真实国服 WeGame，也未读取用户实际 `ChampSelect` session。它们不能证明真实国服选人阶段能获得当前英雄或显示浮窗，不能支持“已覆盖”“已修复”或用户环境异常等结论。
 - 定位所需证据：仍须确认设置 / 关于页显示的完整应用版本；由诊断页导出带本地时区 offset 的候选发现、仲裁 / 重探、连接、heartbeat、queue / phase、session / current-champion endpoint 受控状态、snapshot 正向字段、catalog 状态、Runtime 提交和 champ-select 浮窗显隐决定。还需要将用户真实 session 的结构制作成字段级脱敏 fixture，只保留复现解析分支所需的结构、类型和匿名 / 合成 ID；不得索取或记录端口值、token、API Key、PUUID、用户名、安装 / 游戏路径、带凭据 URL、完整原始 session 或未裁切截图。
-- 验收标准：报告问题的同一台 Windows + 国服 WeGame 已在 3270 自定义局证明当前英雄从 ChampSelect / 最后换英雄经 launching 到 InProgress 保持同一 generation；仍须另行确认正式匹配实际 queue ID，并保留 2400 回归。authority 应正确绑定同一进程的多来源 / 轮换并隔离进程复用，仲裁应脱离长期空 candidate，外部 authority 与 known terminal 残留不得误切换或覆盖本局。完整终局和第二局还要保持正确 generation、清理与换代，实时助手结果不得串局；完成这些剩余实机步骤前总体继续 `IN PROGRESS`。仅凭局部 tests、CI、production 回放或其他机器成功不得升级状态。
+- 验收标准：报告问题的同一台 Windows + 国服 WeGame 已在连续两局 3270 自定义局证明当前英雄从 ChampSelect / 最后换英雄经 launching 到 active 保持、终局清理并在第二局换代；仍须另行确认正式匹配实际 queue ID，并保留 2400 回归。authority 应正确绑定同一进程的多来源 / 轮换并隔离进程复用，仲裁应脱离长期空 candidate，外部 authority 与 known terminal 残留不得误切换或覆盖本局。实时助手 OCR / 推荐仍不得串局或被后台 busy 长期阻断；完成这些剩余实机步骤前总体继续 `IN PROGRESS`。仅凭局部 tests、CI、production 回放或其他机器成功不得升级状态。
 
 ### HB-023 Windows 客户端更新通常退化为约 199 MB 完整包下载
 
@@ -509,6 +512,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 确定根因与首帧修复：title-band 新模板使用 `v-show`，即使元素不可见仍会先求值 `looksLikeWholeCard(rects[slot])`；初始 `rects[slot]` 为 `undefined`，旧 helper 读取其字段并在 Vue 首次 render 抛错。修复让 `looksLikeWholeCard` 接受 optional rect 并在缺失时返回 false，同时把 title-band 改为 `v-if`，并新增 undefined / null 回归测试。修复审查无 P0 / P1，commit `f74c0ef` 已 push；retry 中校准显示、Esc、窗口销毁和主窗重新可见均通过，因此首帧根因范围已有 Windows packaged 正向证据，但 HB-024 总体仍不升级。
 - 第二次 Windows 烟测失败与修正：retry run [31681888143](https://github.com/RocXOvO/HexBridge/actions/runs/31681888143) / job [94388977148](https://github.com/RocXOvO/HexBridge/actions/runs/31681888143/job/94388977148) 最终只失败在烟测把“主窗恢复”硬编码为必须同时 `focused=true` 且 `paused=false`。无交互 Windows runner 可能合法拒绝 focus；产品也故意在 unfocused 时暂停装饰 / 非必要工作。烟测修正为 `hidden=false` 即窗口恢复，并按实际焦点分别断言 focused→unpaused、unfocused→paused，不放宽校准窗口已销毁、主 target 存活和可见性的断言。修正复审无 P0 / P1，commit `0f7b8b9` 已 push。
 - 第三次 Windows packaged 正向证据：workflow_dispatch run [31682463869](https://github.com/RocXOvO/HexBridge/actions/runs/31682463869) / job [94390815147](https://github.com/RocXOvO/HexBridge/actions/runs/31682463869/job/94390815147) 成功；校准截图为 1024×768，校准窗口能显示，完整截图 IPC sender isolation、Esc 关闭和主窗恢复均通过。恢复状态实际为 `hidden=false / focused=false / paused=true`，与无交互 runner 和产品暂停契约一致。该窄范围 Windows packaged 证据不等于用户 4K / DPI / 多屏校准或实际 3/3 OCR 保存闭环。
+- v0.1.16 候选 OCR 基础设施：模型在应用启动后有界预热，失败进入 60 秒 cooldown，手动识别和校准验证可显式 force retry，避免自动后台失败永久阻断人工路径；PP-OCR detector 输入上限降至 640，ONNX Runtime 线程配置为 intra-op 2 / inter-op 1并使用 sequential execution。真实 4K title-only fixture 最近一次为 134ms；这只是本机固定 fixture 性能，不证明用户 Windows 4K 校准、任意标题或实时截图链。
 - 验收标准：真实 Windows 4K 下覆盖 100%～150% DPI、主 / 非主显示器、多显示器不同缩放与窗口位置，验证自动定位或明确标题框选、实时裁切预览、OCR 文本 / 置信度、保存 / 取消 / 重启回显；保存后的手动按钮与配置快捷键均能对同一画面给出一致识别。还需覆盖整卡误框、空白、单 / 双卡、低置信度、显示器热插拔和不安全跨屏，断言不合格配置不能静默保存且诊断不含未裁切全屏或敏感信息。
 
 ### HB-025 OCR 手动识别全局快捷键不可配置
@@ -522,18 +526,24 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 后续审查 P1 修正：Runtime 不再只按本次结果的错误码决定 override，而是在每次注册 / 保存 / 回滚结果后持续比较真实 `activeHotkey` 与当前持久化 hotkey；两者不同就保留 active override，相同才清除。这样一次 rollback 双失败后，后续冲突 / 无效修改也不会把 UI 回退成未实际注册的磁盘值。目标测试与最终只读审查已通过，真实 Windows 全局注册仍未完成。
 - 启动快捷键 P1 修正：空字符串 active 是明确业务状态，表示当前没有任何全局 OCR 快捷键注册成功，不能用 truthy 判断退回 persisted 文案。启动时若默认 F8 本身冲突，或自定义配置注册失败且 fallback F8 也冲突，Runtime 保留空 active override；设置页、托盘和诊断入口统一显示未注册状态，不得声称 F8 可用，同时仍允许用户录制新组合键恢复。新增两项测试覆盖上述两条启动路径；它们未运行真实 Windows `globalShortcut`，状态仍为 `IN PROGRESS`。
 - v0.1.13 用户同机实机证据：游戏处于前台时，配置的全局 OCR 快捷键按下无反应，但实时助手内的手动识别按钮可以触发并得到识别结果。这证明 OCR 单次业务路径至少可由按钮调用，也直接推翻“Windows 前台 globalShortcut 已闭环”的任何推断；当前还不能从症状区分注册未成功、活动键展示与真实注册不一致、被游戏 / 系统拦截或按键事件到达后未触发业务调用。定位需记录脱敏的 persisted / active 是否一致、注册状态 / 错误码和单次触发计数，不得记录用户本地路径或敏感凭据。
+- 最新用户日志证据：23:12 的受控状态记录热键来源手动 OCR 返回 `BUSY`。这证明该次游戏前台快捷键已到达 Main 共用手动路径，也把这一次“无结果”收窄为后台自动任务占用 single-flight，而非本次按键完全未注册 / 未送达；但单次事件不能证明默认键、自定义键、冲突、重启和所有游戏前台组合均正常，HB-025 继续 `IN PROGRESS`。日志不得保留具体按键、端口、路径、身份或截图。
 - 统一手动 OCR 状态契约：快捷键、托盘入口和实时助手按钮必须调用同一 Main 业务路径，并向 Renderer / 诊断只暴露稳定的 `code`、`source`、`timestamp`、`message`（或等价固定字段）。`source` 只能是受控枚举，用于区分 hotkey / tray / button，不记录具体按键内容；状态、日志和 IPC 不得包含截图数据、OCR 裁切路径、token、API Key、PUUID、完整 session、带凭据 URL 或其他敏感字段。成功、busy、不可用、捕获失败、识别失败必须在三个入口得到一致反馈，不能让快捷键静默无响应。
-- 当前 v0.1.14 候选实现：实时助手按钮、全局快捷键与托盘入口已统一调用同一 Main 触发函数；诊断状态固定为 `manualOcr.code / source / timestamp / message`，触发 sequence 防止较早任务结果覆盖较新的手动触发，`SCAN_ERROR` 明确映射为 `error`。手动 OCR 日志只保留受控 `source`、稳定 `code`、`duration` 和 `errorName`；普通异常 message、本地路径、截图内容和敏感字段均不记录。相关实现已进入本轮 24 files / 210 passed + 1 skip 本地全链，首轮 3 个 P1 已修且最终审查无 P0 / P1；新增 `renderer-contracts.test.ts` 将纳入候选提交但不在该既有计数内。Windows Actions 和真实游戏前台仍未验证，故状态继续 `IN PROGRESS`。
+- v0.1.14 正式实现：实时助手按钮、全局快捷键与托盘入口统一调用同一 Main 触发函数；诊断状态固定为 `manualOcr.code / source / timestamp / message`，触发 sequence 防止较早任务结果覆盖较新的手动触发，`SCAN_ERROR` 映射为 `error`。手动 OCR 日志只保留受控 `source`、稳定 `code`、`duration` 和 `errorName`；普通异常 message、本地路径、截图内容和敏感字段均不记录。
+- v0.1.16 候选仲裁：手动 OCR 遇到自动任务 busy 时取得优先权，最多等待在途自动扫描 1.5 秒；无论成功、失败、超时、epoch 失效或异常，自动调度状态都必须在 finally 路径恢复，不能让一次手动请求永久停掉或重复开启自动循环。scan epoch 与 generation / champion / stopping 守卫阻止旧任务提交。该候选已通过本地测试与审查，但 Windows workflow 和报告用户同机热键复测尚未运行，HB-025 不升级。
 - 验收标准：覆盖默认键、自定义单键 / 组合键、冲突、注册失败、非法 / 系统保留键、恢复默认、连续修改、持久化与重启；在真实游戏前台时全局生效且只触发一次单次捕获，设置输入框聚焦时不得误触发。按钮与快捷键的识别状态、错误和 OCR 结果一致。
 
 ### HB-026 切屏或进入游戏后 HexBridge 导致性能下降
 
 - 严重度：高（影响游戏帧率 / 帧时间，关闭 HexBridge 后恢复）
-- 状态：`IN PROGRESS`；v0.1.12 已包含低分辨率门控与默认关闭自动 OCR，但真实性能根因、Windows 4K 预算和 hidden pause 尚未验证。
+- 状态：`IN PROGRESS`；v0.1.16 候选已完成代码级降载与本地门禁，最多构成 `FIXED / UNVERIFIED` 的候选边界；Windows Actions、真实 4K 游戏 frametime / CPU / GPU 和报告用户同机复测未完成，不得写已修复或 `VERIFIED`。
 - 用户实机症状：切屏或进入游戏后出现明显性能下降，关闭 HexBridge 后恢复。周期性 `desktopCapturer` / OCR 是高概率调查方向，但当前没有 CPU / GPU、捕获频率或调用栈证据，不得写成已确认根因。
 - 捕获预算契约：默认不得持续执行高成本全屏抓取或全分辨率 OCR。自动模式只允许低频、低分辨率、严格 ROI 的廉价界面门控，命中后才进入 OCR；用户必须能彻底关闭自动模式。手动快捷键 / 按钮只触发一次有界捕获与识别，不得启动隐式循环。
 - 调度契约：capture / OCR 必须 single-flight，上一任务未完成时不得堆积；窗口隐藏、最小化、不可见或自动识别关闭时暂停非必要任务。`InProgress` 路径必须有明确捕获频率、CPU / GPU 和耗时预算，连续未命中应退避；省电档与 `prefers-reduced-motion` 不得继续运行与视觉无关的高成本后台循环。
 - v0.1.12 实现：新配置和一次性迁移只把 `autoOcr` 设为 `false`，明确保留用户原有 `visualMode` 与其他设置；用户显式重新开启后，Runtime 的自动周期从 750ms 放宽为 2 秒。每次自动 tick 先只请求最大宽 960 的显示器缩略图并裁三个标题 ROI，至少两块低成本信号命中后才再请求最大宽 1920 的 OCR 帧；未命中不启动 OCR。手动按钮 / 快捷键跳过轮询门控，只做一次最大宽 1920 的有界捕获；scanner 继续用 `busy` 实现 single-flight。单测覆盖迁移保留各视觉档、自动 miss 只捕获 960、hit 才追加 1920、手动只捕获一次 1920。当前尚未实现 / 证明主窗口 hidden 时停止 Main 自动扫描，也没有连续 miss 退避和真实 4K FPS / CPU / GPU 数据。
+- 最新实机定位证据：用户日志在 23:12 显示热键手动 OCR 返回 `BUSY`，直接证明后台自动扫描曾在用户需要手动识别时占用 single-flight。该事实说明 OCR 调度 / 仲裁确实参与用户可见失败，但没有 CPU / GPU / frametime、捕获频率或调用栈，仍不能把整个切屏卡顿唯一归因于 OCR。
+- v0.1.16 候选调度：自动扫描仅允许 `active + Main visible + autoOcr enabled`；固定 2 秒 tick 先做 960px gate。对同一组三卡，full OCR 成功一次即停止重复识别，不可靠结果最多尝试两次；连续两次明确 absence 才同步重置 gate / round tracker，且不清除最后可靠展示结果。错误按连续次数进入 4 / 8 / 15 秒退避。scan epoch 结合 generation、champion 与 stopping 在所有异步提交前校验；手动优先最多等待 busy 1.5 秒，并在所有路径恢复自动调度。
+- v0.1.16 候选捕获 / OCR 成本：手动捕获请求最大宽 1440 的 `NativeImage`，在 Main 内直接裁三块标题 ROI，随后恢复原窗口状态；不再把全屏编码为 PNG，也不再通过 sharp 对全屏做三次解码。PP-OCR detector 最大输入 640，ONNX Runtime 使用 intra-op 2 / inter-op 1和 sequential execution；模型启动预热，失败后自动路径 cooldown 60 秒，手动 / 校准允许 force retry。游戏进程探测在 launching 约每 3 秒、active 约每 10 秒执行，并取消进入阶段时的立即 tasklist 调用，降低切换峰值。
+- v0.1.16 候选验证：本地 29 test files / 254 passed + 1 skipped，typecheck、lint、`git diff --check`、真实 4K fixture（最近一次 134ms）、source bridge / UI smoke 和 version v0.1.16 gate 全通过；独立最终审查 P0 / P1 为 0并批准 Windows 候选。版本尚未 commit / push，Windows workflow、tag / Release 和报告用户同机性能数据均未运行，因此 HB-026 保持 `IN PROGRESS`。
 - 后续审查 P1 修正：`visualMode` 已重新纳入受限设置 IPC 白名单，设置页恢复“自动 / 电影 / 均衡 / 省电”选择并写回同一配置；revision migration 只关闭 `autoOcr`，不得重置已有 visual mode。目标测试覆盖各旧视觉选择迁移后保持不变；Renderer 交互、持久化重启和三档实际视觉 / 性能仍待 Windows 验证。
 - 验收标准：在真实 Windows 4K 游戏、固定场景和相同画质下，记录基线、HexBridge 空闲、自动模式、单次手动识别及关闭 HexBridge后的游戏 FPS / 1% low / frametime，HexBridge CPU / GPU / 内存、capture / OCR 次数与单次耗时；进行多轮切屏、进入对局、隐藏 / 最小化和关闭前后对照。自动模式须符合声明预算且无持续帧时间尖峰，关闭自动识别后捕获计数必须归零，手动触发只增加一次；任何优化在这些真实 4K 数据前不得标 `FIXED`。
 

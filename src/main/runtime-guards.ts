@@ -52,8 +52,18 @@ export function isCurrentChampionRequest(
 export function shouldRunOcr(
   autoOcr: boolean,
   snapshot: ChampSelectSnapshot,
+  mainActivity: { visible: boolean; minimized: boolean } = { visible: true, minimized: false },
 ): boolean {
-  return autoOcr && isMatchContextOcrEligible(snapshot)
+  return autoOcr &&
+    snapshot.modeActive &&
+    snapshot.currentChampionId != null &&
+    snapshot.matchStage === 'active' &&
+    mainActivity.visible &&
+    !mainActivity.minimized
+}
+
+export function automaticOcrErrorDelay(errors: number): number {
+  return [4_000, 8_000, 15_000][Math.max(0, Math.min(2, Math.trunc(errors)))] ?? 15_000
 }
 
 export function isMatchContextOcrEligible(snapshot: ChampSelectSnapshot): boolean {

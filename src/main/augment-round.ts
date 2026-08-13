@@ -1,4 +1,4 @@
-export type AugmentInterfaceResult = 'matched' | 'not-detected' | 'unreliable' | 'busy' | 'error'
+export type AugmentInterfaceResult = 'matched' | 'detected' | 'not-detected' | 'unreliable' | 'busy' | 'error'
 
 export interface AugmentRoundDecision {
   commitMatched: boolean
@@ -32,6 +32,11 @@ export class AugmentRoundTracker {
         this.consecutiveAbsence += 1
         if (this.consecutiveAbsence >= 2) this.phase = 'between-rounds'
       }
+      return { commitMatched: false, clearPrevious: false }
+    }
+
+    if (result === 'detected') {
+      if (this.phase === 'showing') this.consecutiveAbsence = 0
       return { commitMatched: false, clearPrevious: false }
     }
 

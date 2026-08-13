@@ -2,9 +2,17 @@ import { execFile } from 'node:child_process'
 
 const GAME_PROCESS = 'League of Legends.exe'
 export const GAME_PROCESS_EXIT_CONFIRM_MS = 4_000
+export const GAME_PROCESS_LAUNCHING_POLL_MS = 3_000
+export const GAME_PROCESS_ACTIVE_POLL_MS = 10_000
 
 export type LeagueGameProcessStatus = 'running' | 'not-running' | 'error'
 export type GameProcessMatchStage = 'none' | 'selecting' | 'launching' | 'active'
+
+export function gameProcessPollInterval(matchStage: GameProcessMatchStage): number | null {
+  if (matchStage === 'launching') return GAME_PROCESS_LAUNCHING_POLL_MS
+  if (matchStage === 'active') return GAME_PROCESS_ACTIVE_POLL_MS
+  return null
+}
 
 export interface GameProcessMatchContext {
   matchStage: GameProcessMatchStage

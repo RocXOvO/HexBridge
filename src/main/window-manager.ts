@@ -50,6 +50,7 @@ export class WindowManager {
   private suspendedActivityChanged: (() => void) | null = null
   private lifecycleEpoch = 0
   private captureTransactionInFlight = false
+  private captureWindowsHidden = false
 
   constructor(private readonly config: ConfigStore) {}
 
@@ -145,7 +146,7 @@ export class WindowManager {
   sync(state: RuntimeState): void {
     if (this.quitting) return
     this.latestState = state
-    if (this.captureTransactionInFlight) return
+    if (this.captureWindowsHidden) return
     const champion = this.getLiveWindow('champion')
     const shouldShowChampion = shouldShowChampionCompanion(state.settings, state.snapshot)
     if (shouldShowChampion) champion?.showInactive()
@@ -154,7 +155,7 @@ export class WindowManager {
     this.broadcastVisible(state)
   }
 
-  async captureWithoutHexBridgeWindows<T>(task: () => Promise<T>): Promise<T> {
+  async captureWithoutHexBridgeWindows<T>(task: (restoreWindows: () => void) => Promise<T>): Promise<T> {
     if (this.quitting) throw new Error('应用正在退出，无法截图')
     if (this.captureTransactionInFlight) throw new Error('截图任务正在运行')
     if (this.getLiveWindow('calibration')) throw new Error('请先完成或取消屏幕校准')
@@ -169,16 +170,12 @@ export class WindowManager {
       }
     })
     this.captureTransactionInFlight = true
-    try {
-      for (const entry of original) {
-        if (entry.visible && !entry.window?.isDestroyed()) entry.window?.hide()
-      }
-      this.notifyActivityChanged()
-      await new Promise((resolve) => setTimeout(resolve, 220))
-      if (this.quitting || lifecycleEpoch !== this.lifecycleEpoch) throw new Error('截图已因应用状态变化取消')
-      return await task()
-    } finally {
-      this.captureTransactionInFlight = false
+    this.captureWindowsHidden = true
+    let restored = false
+    const restoreWindows = (): void => {
+      if (restored) return
+      restored = true
+      this.captureWindowsHidden = false
       if (!this.quitting && lifecycleEpoch === this.lifecycleEpoch) {
         for (const entry of original) {
           const window = this.getLiveWindow(entry.name)
@@ -187,6 +184,18 @@ export class WindowManager {
         }
         this.notifyActivityChanged()
       }
+    }
+    try {
+      for (const entry of original) {
+        if (entry.visible && !entry.window?.isDestroyed()) entry.window?.hide()
+      }
+      this.notifyActivityChanged()
+      await new Promise((resolve) => setTimeout(resolve, 220))
+      if (this.quitting || lifecycleEpoch !== this.lifecycleEpoch) throw new Error('截图已因应用状态变化取消')
+      return await task(restoreWindows)
+    } finally {
+      this.captureTransactionInFlight = false
+      restoreWindows()
     }
   }
 

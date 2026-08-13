@@ -54,6 +54,25 @@ describe('WindowManager shutdown lifecycle', () => {
     expect(champion.focus).not.toHaveBeenCalled()
   })
 
+  it('can restore windows after capture while OCR work is still pending', async () => {
+    const manager = new WindowManager({} as any)
+    const main = fakeWindow({ visible: true, focused: false })
+    ;(manager as any).windows.set('main', main)
+    let finishOcr!: () => void
+    const ocrPending = new Promise<void>((resolve) => { finishOcr = resolve })
+
+    const transaction = manager.captureWithoutHexBridgeWindows(async (restoreWindows) => {
+      restoreWindows()
+      await ocrPending
+      return 'done'
+    })
+    await vi.waitFor(() => expect(main.showInactive).toHaveBeenCalledOnce())
+    expect(main.focus).not.toHaveBeenCalled()
+    finishOcr()
+    await expect(transaction).resolves.toBe('done')
+    expect(main.showInactive).toHaveBeenCalledOnce()
+  })
+
   it('does not restore capture windows after shutdown begins', async () => {
     const manager = new WindowManager({} as any)
     const main = fakeWindow({ visible: true, focused: false })
