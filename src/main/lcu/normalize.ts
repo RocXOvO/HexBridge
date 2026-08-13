@@ -263,6 +263,26 @@ export class MatchContextTracker {
       })
     }
 
+    // A trusted, explicit queue change is stronger than any launcher hand-off
+    // grace. Process it before generic Lobby/ReadyCheck terminal retention so
+    // a later queue 450 lobby can never expose the previous Mayhem champion.
+    if (
+      evidence.destructive &&
+      next.queueId != null &&
+      this.confirmed &&
+      next.queueId !== this.confirmed.queueId
+    ) {
+      if (!observationTrusted) return this.retainUntrustedObservation(next, now)
+      this.confirmed = null
+      this.pendingTerminal = null
+      this.lastDecision = 'cleared-queue-change'
+      // A complete positive ChampSelect observation can both terminate the
+      // previous queue and establish the next supported Mayhem match in the
+      // same poll. Continue into the confirmation branch so switching between
+      // queue 2400 and 3270 never creates a one-poll empty state.
+      if (!hasPositiveChampSelectEvidence) return this.withoutContext(next)
+    }
+
     if (evidence.destructive && CLEAR_CONTEXT_PHASES.has(next.phase)) {
       if (this.confirmed && !observationTrusted) {
         return this.retainUntrustedObservation(next, now)
@@ -305,9 +325,15 @@ export class MatchContextTracker {
       }
       const immediateFailure = next.phase === 'FailedToLaunch' || next.phase === 'TerminatedInError'
       if (this.confirmed && !immediateFailure && this.confirmed.stage !== 'active') {
-        const confirmationMs = this.confirmed.handoffCommitted
-          ? MATCH_CONTEXT_NONE_GRACE_MS
-          : MATCH_CONTEXT_TERMINAL_CONFIRM_MS
+        // CN/WeGame can briefly report launcher-side Lobby/WaitingForStats
+        // while LeagueClientUx is still connected but has already handed the
+        // selected match to the separate game process. This is not reliable
+        // end-of-match evidence before the match has ever become active.
+        // Commit the hand-off and keep the last confirmed hero for the normal
+        // bounded launch lease instead of erasing it after 15 seconds.
+        this.confirmed.stage = 'launching'
+        this.confirmed.handoffCommitted = true
+        const confirmationMs = MATCH_CONTEXT_NONE_GRACE_MS
         const samePending = this.pendingTerminal?.phase === next.phase &&
           this.pendingTerminal.authorityEpoch === (evidence.authorityEpoch ?? null)
         if (!samePending) {
@@ -332,18 +358,6 @@ export class MatchContextTracker {
       this.pendingTerminal = null
       this.lastDecision = 'cleared-terminal-phase'
       return this.withoutContext(next)
-    }
-
-    if (
-      evidence.destructive &&
-      next.queueId != null &&
-      this.confirmed &&
-      next.queueId !== this.confirmed.queueId
-    ) {
-      if (!observationTrusted) return this.retainUntrustedObservation(next, now)
-      this.confirmed = null
-      this.pendingTerminal = null
-      this.lastDecision = 'cleared-queue-change'
     }
 
     this.pendingTerminal = null
@@ -371,7 +385,12 @@ export class MatchContextTracker {
       const conflictingHero =
         next.currentChampionId != null &&
         next.currentChampionId !== this.confirmed.currentChampionId
-      if (!conflictingHero && (sameIdentity || sessionMissing || sameHeroWithoutIdentity)) {
+      const incompleteOutgoingObservation =
+        !isAramMayhemQueueId(next.queueId) || next.currentChampionId == null
+      if (
+        !conflictingHero &&
+        (sameIdentity || sessionMissing || sameHeroWithoutIdentity || incompleteOutgoingObservation)
+      ) {
         const elapsed = now - this.confirmed.lastMatchPhaseAt
         const leaseMs = this.confirmed.enteredGame
           ? MATCH_CONTEXT_MAX_STALE_MS
@@ -463,6 +482,7 @@ export class MatchContextTracker {
       // The CN client can return an empty/404 phase while LeagueClientUx is
       // still reachable but already handing control to the game process.
       this.confirmed.stage = 'launching'
+      this.confirmed.handoffCommitted = true
     } else if (canCarryMatchPhase) {
       this.confirmed.lastMatchPhaseAt = now
       this.confirmed.stage = stageForPhase(next.phase, this.confirmed.stage)
@@ -474,6 +494,7 @@ export class MatchContextTracker {
       // Unknown regional hand-off phases must not erase a confirmed match. A
       // named terminal phase or a new queue still clears it above.
       this.confirmed.stage = this.confirmed.stage === 'selecting' ? 'launching' : this.confirmed.stage
+      if (this.confirmed.stage === 'launching') this.confirmed.handoffCommitted = true
       this.lastDecision = 'retained-unknown-phase'
     } else {
       this.lastDecision = 'retained-match-phase'
@@ -622,6 +643,7 @@ export class MatchContextTracker {
       this.confirmed.enteredGame = true
     } else if (this.confirmed.stage === 'selecting') {
       this.confirmed.stage = 'launching'
+      this.confirmed.handoffCommitted = true
     }
     this.lastDecision = 'retained-partial-observation'
     return this.withContext({

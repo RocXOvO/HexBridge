@@ -5,6 +5,7 @@ import { matchAugmentText, normalizeOcrText, textSimilarity } from '../src/share
 const augments: AugmentMeta[] = [
   { id: 1, name: '珠光护手', iconUrl: '', rarity: 2, rarityName: '金色', description: '', globalTier: 1 },
   { id: 2, name: '万用瞄准镜', iconUrl: '', rarity: 2, rarityName: '金色', description: '', globalTier: 2 },
+  { id: 3, name: '由心及物', iconUrl: '', rarity: 1, rarityName: '银色', description: '', globalTier: 2 },
 ]
 
 describe('OCR text matching', () => {
@@ -21,5 +22,12 @@ describe('OCR text matching', () => {
   })
   it('exposes deterministic similarity', () => {
     expect(textSimilarity('万用瞄准镜', '万用瞄准境')).toBeCloseTo(.8)
+  })
+  it('matches the title line when a category label is also present', () => {
+    expect(matchAugmentText('left', '由心及物\n复原力', augments)).toMatchObject({
+      augmentId: 3,
+      name: '由心及物',
+      confidence: 1,
+    })
   })
 })

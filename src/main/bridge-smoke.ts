@@ -30,7 +30,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.11',
+    currentVersion: '0.1.12',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -154,7 +154,7 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
       return {
         bridge: true,
         ipc: Boolean(state && state.snapshot && state.snapshot.phase === 'None' && state.api && state.update),
-        updaterBridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate', 'openReleasePage']
+        updaterBridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate', 'openReleasePage', 'setOcrHotkey', 'previewCalibration']
           .every((name) => typeof window.hexbridge[name] === 'function'),
       }
     })()`)

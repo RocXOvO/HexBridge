@@ -213,6 +213,18 @@ try {
       'the main UI and preload bridge',
     )
 
+    const calibrationIsolation = await mainCdp.evaluate(`(async () => {
+      try {
+        await window.hexbridge.getCalibrationContext()
+        return { rejected: false }
+      } catch (error) {
+        return { rejected: true, safe: !/(data:image|token|\\\\|:\\/)/i.test(String(error?.message || error)) }
+      }
+    })()`)
+    if (!calibrationIsolation?.rejected || !calibrationIsolation.safe) {
+      throw new Error(`Calibration screenshot bridge isolation failed: ${JSON.stringify(calibrationIsolation)}`)
+    }
+
     const keyResult = await mainCdp.evaluate(`(async () => {
       const clickByText = (selector, text) => {
         const element = [...document.querySelectorAll(selector)].find((item) => item.textContent.includes(text))
@@ -253,9 +265,12 @@ try {
       'the API Key submit button to recover after validation',
     )
 
-    const updaterUi = await mainCdp.evaluate(`(() => {
-      const card = [...document.querySelectorAll('.settings-card')]
-        .find((item) => item.textContent.includes('客户端更新'))
+    const updaterUi = await mainCdp.evaluate(`(async () => {
+      const updateNavigation = [...document.querySelectorAll('.sidebar nav button')]
+        .find((item) => item.textContent.includes('更新'))
+      updateNavigation?.click()
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      const card = document.querySelector('.update-surface')
       if (!card) return null
       const buttons = [...card.querySelectorAll('button')].map((item) => item.textContent.trim())
       return {
@@ -281,8 +296,8 @@ try {
       clickByText('.sidebar nav button', '实时助手')
       await settle()
       const liveStatus = font('.empty-copy p')
-      const sideStatus = font('.side-foot small')
-      return { diagnostics, liveStatus, sideStatus }
+      const liveEyebrow = font('.eyebrow')
+      return { diagnostics, liveStatus, liveEyebrow }
     })()`)
     if (Object.values(typography).some((value) => value < 14)) {
       throw new Error(`Critical typography regressed: ${JSON.stringify(typography)}`)
@@ -316,7 +331,7 @@ try {
         settings.click()
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
         const button = [...document.querySelectorAll('.settings-card button')]
-          .find((item) => item.textContent.includes('校准三张海克斯名称区域'))
+          .find((item) => item.textContent.includes('框选三张完整海克斯卡片'))
         if (!button) throw new Error('Missing calibration entry')
         button.click()
         return true
@@ -350,7 +365,8 @@ try {
         calibration.imageWidth / calibration.imageHeight < .5 ||
         calibration.imageWidth / calibration.imageHeight > 4 ||
         !calibration.imageSource.startsWith('data:image/') ||
-        !calibration.text.includes('左侧卡片标题') ||
+        !calibration.text.includes('左侧整张卡片') ||
+        !calibration.text.includes('自动提取') ||
         !calibration.text.includes('Esc')
       ) {
         throw new Error(`Calibration instructions regressed: ${JSON.stringify(calibration)}`)
@@ -383,7 +399,7 @@ try {
       )
     }
 
-    return { keyFeedback, keyIdle, updaterUi, typography, reducedMotion, calibration }
+    return { keyFeedback, keyIdle, updaterUi, typography, reducedMotion, calibrationIsolation, calibration }
   }
 
   const hardStop = new Promise((_, reject) => {

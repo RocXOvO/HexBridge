@@ -45,13 +45,18 @@ export function matchAugmentText(
   augments: AugmentMeta[],
   threshold = 0.9,
 ): OcrSlotResult {
+  const candidates = [rawText, ...rawText.split(/[\r\n|]+/)]
+    .map((line) => line.trim())
+    .filter(Boolean)
   let best: AugmentMeta | null = null
   let bestScore = 0
   for (const augment of augments) {
-    const score = textSimilarity(rawText, augment.name)
-    if (score > bestScore) {
-      best = augment
-      bestScore = score
+    for (const candidate of candidates) {
+      const score = textSimilarity(candidate, augment.name)
+      if (score > bestScore) {
+        best = augment
+        bestScore = score
+      }
     }
   }
 

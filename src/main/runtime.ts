@@ -7,12 +7,18 @@ import type {
   ChampSelectSnapshot,
   LcuConnectionState,
   RuntimeState,
+  HotkeyRegistrationResult,
   VisualMode,
 } from '../shared/contracts.js'
 import { buildChampionCandidates, rankAugmentSlots } from '../shared/recommendations.js'
 import { ConfigStore } from './config-store.js'
 import { DataService } from './data-service.js'
 import { isLeagueGameProcessRunning } from './game-process.js'
+import {
+  commitHotkeyRegistration,
+  registerInitialOcrHotkey,
+  resolveActiveHotkeyOverride,
+} from './hotkey-manager.js'
 import { LcuClient } from './lcu/client.js'
 import { logger } from './logger.js'
 import { AugmentScanner } from './ocr/scanner.js'
@@ -76,7 +82,8 @@ export class HexBridgeRuntime {
   private championRequestSequence = 0
   private dataReady = false
   private gpuAcceleration = true
-  private onHotkeyChanged: ((hotkey: string) => void) | null = null
+  private onHotkeyChanged: ((hotkey: string) => HotkeyRegistrationResult) | null = null
+  private activeHotkeyOverride: string | null = null
 
   constructor() {
     const userData = app.getPath('userData')
@@ -123,13 +130,24 @@ export class HexBridgeRuntime {
     if (this.config.getSettings().autoOcr) void this.scanner.warmup().then(() => this.sync())
   }
 
-  setHotkeyHandler(handler: (hotkey: string) => void): void {
+  setHotkeyHandler(handler: (hotkey: string) => HotkeyRegistrationResult): void {
     this.onHotkeyChanged = handler
-    handler(this.config.getSettings().hotkey)
+    const configured = this.config.getSettings().hotkey
+    const result = registerInitialOcrHotkey(configured, handler)
+    if (result.ok && result.activeHotkey !== configured) {
+      this.config.updateSettings({ hotkey: result.activeHotkey })
+    }
+    this.activeHotkeyOverride = resolveActiveHotkeyOverride(
+      this.config.getSettings().hotkey,
+      result.activeHotkey,
+    )
   }
 
   getState(): RuntimeState {
-    const settings = this.config.getSettings()
+    const storedSettings = this.config.getSettings()
+    const settings = this.activeHotkeyOverride !== null
+      ? { ...storedSettings, hotkey: this.activeHotkeyOverride }
+      : storedSettings
     const activeVisualMode = this.activeVisualMode(settings)
     const scanner = this.scanner.getDiagnostics()
     return {
@@ -169,7 +187,6 @@ export class HexBridgeRuntime {
         ? { ...patch, calibration: null }
         : patch
     const next = this.config.updateSettings(normalizedPatch)
-    if (next.hotkey !== previous.hotkey) this.onHotkeyChanged?.(next.hotkey)
     if (!next.autoOcr) this.stopScanLoop()
     else this.updateScanLoop()
     if (next.gameDirectory !== previous.gameDirectory) {
@@ -182,6 +199,28 @@ export class HexBridgeRuntime {
     }
     this.sync()
     return next
+  }
+
+  setOcrHotkey(hotkey: string): HotkeyRegistrationResult {
+    const previous = this.config.getSettings().hotkey
+    if (!this.onHotkeyChanged) {
+      return { ok: false, activeHotkey: previous, errorCode: 'HOTKEY_UNAVAILABLE', message: '全局快捷键服务尚未就绪' }
+    }
+    const result = commitHotkeyRegistration(
+      previous,
+      this.onHotkeyChanged(hotkey),
+      (activeHotkey) => this.config.updateSettings({ hotkey: activeHotkey }),
+      (oldHotkey) => this.onHotkeyChanged?.(oldHotkey) ?? {
+        ok: false,
+        activeHotkey: previous,
+        errorCode: 'HOTKEY_UNAVAILABLE',
+        message: '全局快捷键服务尚未就绪',
+      },
+    )
+    const persistedHotkey = this.config.getSettings().hotkey
+    this.activeHotkeyOverride = resolveActiveHotkeyOverride(persistedHotkey, result.activeHotkey)
+    this.sync()
+    return result
   }
 
   async validateAndSaveApiKey(apiKey: string): Promise<{ ok: boolean; message: string }> {
@@ -277,6 +316,16 @@ export class HexBridgeRuntime {
     return this.windows.getCalibrationContext()
   }
 
+  async previewCalibration(rects: AppSettings['calibration']): Promise<{ ok: boolean; names: string[]; message: string }> {
+    const context = this.windows.getCalibrationContext()
+    if (!context || !rects) return { ok: false, names: [], message: '校准会话已失效，请重新打开校准' }
+    const augments = this.data.getAugments()
+    if (!augments.length) return { ok: false, names: [], message: '海克斯目录尚未就绪，请先刷新数据' }
+    const result = await this.scanner.previewCalibration(context.backgroundDataUrl, rects, augments)
+    this.sync()
+    return result
+  }
+
   completeCalibration(rects: AppSettings['calibration']): void {
     if (rects) this.updateSettings({ calibration: rects })
     this.windows.closeCalibration()
@@ -351,7 +400,7 @@ export class HexBridgeRuntime {
       return
     }
     if (this.scanTimer) return
-    this.scanTimer = setInterval(() => void this.runScan(false), 750)
+    this.scanTimer = setInterval(() => void this.runScan(false), 2_000)
     void this.runScan(false)
   }
 
@@ -429,7 +478,12 @@ export class HexBridgeRuntime {
       this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
       this.sync()
     }
-    const message = result.error ?? (result.status === 'not-detected' ? '未检测到海克斯界面' : '未能可靠识别三张卡')
+    const matchedCount = result.slots.filter((slot) => slot.augmentId != null).length
+    const message = result.error ?? (
+      result.status === 'not-detected'
+        ? '未检测到三张海克斯标题，请停在三卡界面或重新校准整张卡片'
+        : `已识别 ${matchedCount}/3 张卡片，请等待动画稳定后重试`
+    )
     return { ok: false, message }
   }
 
@@ -438,7 +492,7 @@ export class HexBridgeRuntime {
     if (settings.visualMode !== 'auto') return settings.visualMode
     const lowMemory = process.getSystemMemoryInfo().total < 8 * 1024 * 1024
     if (!this.gpuAcceleration || lowMemory) return 'eco'
-    return 'balanced'
+    return 'cinematic'
   }
 
   private updateGameProcessLoop(): void {

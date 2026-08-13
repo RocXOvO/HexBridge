@@ -158,7 +158,7 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
   })
 
   it('retains the selected hero and Runtime detail when the game process takes over', async () => {
-    let phase: 'ChampSelect' | 'InProgress' | 'EndOfGame' = 'ChampSelect'
+    let phase: 'ChampSelect' | 'Lobby' | 'InProgress' | 'EndOfGame' = 'ChampSelect'
     let selectionReady = false
     const client = new LcuClient(() => '', {
       disableWebSocket: true,
@@ -237,6 +237,20 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
     }
     runtime.championRequestSequence = 7
 
+    // Real CN/WeGame hand-off: LeagueClientUx can remain reachable while its
+    // gameflow briefly returns Lobby before the separate game process appears.
+    phase = 'Lobby'
+    await client.pollOnce()
+    expect(runtime.snapshot).toMatchObject({
+      queueId: 3270,
+      modeActive: true,
+      currentChampionId: 115,
+      matchStage: 'launching',
+      matchGeneration: 1,
+    })
+    expect(runtime.detail).toBe(detail)
+    expect(runtime.championRequestSequence).toBe(7)
+
     phase = 'InProgress'
     await client.pollOnce()
     expect(runtime.snapshot).toMatchObject({
@@ -260,6 +274,25 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
     })
     expect(runtime.detail).toBeNull()
     expect(runtime.championRequestSequence).toBe(8)
+    client.stop()
+  })
+
+  it('shows an ordinary inactive message for unreachable historical candidates', async () => {
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      discover: async () => ({
+        ...discovery(),
+        processCount: 0,
+        candidates: [{ ...credentials, source: 'log', processId: null, processStartedAt: null }],
+      }),
+      request: async () => { throw new Error('ECONNREFUSED') },
+    })
+    await client.pollOnce()
+    expect(client.getState()).toMatchObject({
+      connected: false,
+      source: null,
+      lastError: '英雄联盟客户端未启动或尚未发现',
+    })
     client.stop()
   })
 

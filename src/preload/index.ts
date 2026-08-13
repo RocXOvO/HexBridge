@@ -9,6 +9,7 @@ const api: HexBridgeApi = {
     return () => ipcRenderer.removeListener('hexbridge:state', listener)
   },
   updateSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('hexbridge:update-settings', patch),
+  setOcrHotkey: (hotkey: string) => ipcRenderer.invoke('hexbridge:set-ocr-hotkey', hotkey),
   validateAndSaveApiKey: (apiKey: string) => ipcRenderer.invoke('hexbridge:validate-key', apiKey),
   clearApiKey: () => ipcRenderer.invoke('hexbridge:clear-key'),
   refreshData: () => ipcRenderer.invoke('hexbridge:refresh-data'),
@@ -21,6 +22,8 @@ const api: HexBridgeApi = {
   retryLcuConnection: () => ipcRenderer.invoke('hexbridge:retry-lcu'),
   startCalibration: () => ipcRenderer.invoke('hexbridge:start-calibration'),
   getCalibrationContext: () => ipcRenderer.invoke('hexbridge:get-calibration-context'),
+  previewCalibration: (rects: CalibrationRects) =>
+    ipcRenderer.invoke('hexbridge:preview-calibration', rects),
   completeCalibration: (rects: CalibrationRects) =>
     ipcRenderer.invoke('hexbridge:complete-calibration', rects),
   cancelCalibration: () => ipcRenderer.invoke('hexbridge:cancel-calibration'),

@@ -1,5 +1,26 @@
 import type { NormalizedRect } from './contracts.js'
 
+/**
+ * Calibration intentionally asks the user to outline each whole card because
+ * that target is large and unambiguous at 4K. OCR only needs the title band.
+ */
+export function cardRectToTitleRect(card: NormalizedRect): NormalizedRect {
+  return {
+    x: card.x + card.width * 0.10,
+    y: card.y + card.height * 0.39,
+    width: card.width * 0.80,
+    height: card.height * 0.17,
+  }
+}
+
+export function looksLikeWholeCard(rect: NormalizedRect): boolean {
+  return rect.height >= 0.18 || rect.height >= rect.width * 1.25
+}
+
+export function titleRectForCalibration(rect: NormalizedRect): NormalizedRect {
+  return looksLikeWholeCard(rect) ? cardRectToTitleRect(rect) : rect
+}
+
 export interface PixelRect {
   left: number
   top: number

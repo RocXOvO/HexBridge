@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { AugmentSlot, CalibrationContext, CalibrationRects, NormalizedRect } from '../../shared/contracts'
+import { looksLikeWholeCard } from '../../shared/ocr-geometry'
 import { api } from './state'
 
 const slots: AugmentSlot[] = ['left', 'center', 'right']
-const labels = { left: '左侧卡片标题', center: '中间卡片标题', right: '右侧卡片标题' }
+const labels = { left: '左侧整张卡片', center: '中间整张卡片', right: '右侧整张卡片' }
 const rects = ref<Partial<CalibrationRects>>({})
 const context = ref<CalibrationContext | null>(null)
 const loading = ref(true)
 const error = ref('')
 const saving = ref(false)
+const verifying = ref(false)
 const active = computed(() => slots.find((slot) => !rects.value[slot]) ?? null)
 const start = ref<{ x: number; y: number } | null>(null)
 const draft = ref<NormalizedRect | null>(null)
@@ -40,7 +42,7 @@ function move(event: PointerEvent): void {
 }
 
 function up(): void {
-  if (active.value && draft.value && draft.value.width > .03 && draft.value.height > .015) {
+  if (active.value && draft.value && draft.value.width > .08 && draft.value.height > .20) {
     rects.value[active.value] = draft.value
   }
   start.value = null
@@ -74,12 +76,30 @@ async function cancel(): Promise<void> {
 
 async function save(): Promise<void> {
   if (active.value || saving.value) return
+  const ordered = slots.map((slot) => rects.value[slot] as NormalizedRect)
+  const [left, center, right] = ordered
+  if (
+    !left || !center || !right ||
+    !ordered.every(looksLikeWholeCard) ||
+    !(left.x < center.x && center.x < right.x)
+  ) {
+    error.value = '请按左、中、右顺序框住三张完整卡片，不要只框标题。'
+    return
+  }
   saving.value = true
   try {
+    verifying.value = true
+    const preview = await api.previewCalibration(rects.value as CalibrationRects)
+    verifying.value = false
+    if (!preview.ok) {
+      error.value = preview.message
+      return
+    }
     await api.completeCalibration(rects.value as CalibrationRects)
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : '保存校准失败'
   } finally {
+    verifying.value = false
     saving.value = false
   }
 }
@@ -93,7 +113,12 @@ onMounted(async () => {
   try {
     context.value = await api.getCalibrationContext()
     if (!context.value) throw new Error('校准会话已失效，请返回设置重试')
-    if (context.value.existing) rects.value = structuredClone(context.value.existing)
+    if (
+      context.value.existing &&
+      slots.every((slot) => looksLikeWholeCard(context.value?.existing?.[slot] as NormalizedRect))
+    ) {
+      rects.value = structuredClone(context.value.existing)
+    }
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : '无法加载校准画面'
   } finally {
@@ -129,18 +154,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keydown))
       :style="style(rects[slot])"
     >
       <span>{{ labels[slot] }}</span>
+      <i v-if="looksLikeWholeCard(rects[slot]!)" class="calibration-title-band">自动识别标题区域</i>
     </div>
     <div v-if="draft && active" class="calibration-rect" :style="style(draft)">
       <span>{{ labels[active] }}</span>
     </div>
 
     <div class="calibration-toolbar" role="dialog" aria-labelledby="calibration-title">
-      <small>海克斯标题识别区域 · {{ context?.displayLabel || '正在读取显示器' }}</small>
+      <small>海克斯整卡校准 · {{ context?.displayLabel || '正在读取显示器' }}</small>
       <h2 id="calibration-title">
         {{ loading ? '正在准备校准画面' : active ? `拖框选中${labels[active]}` : '三个标题区域已完成' }}
       </h2>
       <p>
-        只框住每张海克斯卡片顶部的中文名称，不要框描述和图标。按左、中、右顺序完成；按 Esc 随时退出。
+        框住每张海克斯的整张卡片，HexBridge 会自动提取中部中文标题，不需要你精确瞄准文字。按左、中、右顺序完成；按 Esc 随时退出。
       </p>
       <p v-if="context" class="calibration-meta">
         截图 {{ context.physicalWidth }}×{{ context.physicalHeight }} · 框选会按比例适配 DPI
@@ -153,7 +179,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', keydown))
         <button class="ghost" :disabled="loading" @click.stop="reset">重新框选</button>
         <button class="ghost" @click.stop="cancel">取消（Esc）</button>
         <button class="primary" :disabled="!!active || loading || saving" @click.stop="save">
-          {{ saving ? '正在保存…' : '保存校准' }}
+          {{ verifying ? '正在验证三张标题…' : saving ? '正在保存…' : '验证并保存' }}
         </button>
       </div>
     </div>

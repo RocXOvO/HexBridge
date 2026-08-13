@@ -7,7 +7,7 @@ import type {
 
 const defaultViewSettings: AppSettings = {
   visualMode: 'auto',
-  autoOcr: true,
+  autoOcr: false,
   showChampionPanel: true,
   showAugmentOverlay: true,
   hotkey: 'F8',
@@ -48,7 +48,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.11',
+    currentVersion: '0.1.12',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -84,6 +84,12 @@ const unavailableApi: HexBridgeApi = {
   getState: async () => unavailableState,
   onStateChanged: () => () => undefined,
   updateSettings: async () => unavailableState.settings,
+  setOcrHotkey: async () => ({
+    ok: false,
+    activeHotkey: unavailableState.settings.hotkey,
+    errorCode: 'BRIDGE_UNAVAILABLE',
+    message: '安全桥接不可用',
+  }),
   validateAndSaveApiKey: async () => ({ ok: false, message: '安全桥接未加载' }),
   clearApiKey: async () => undefined,
   refreshData: async () => ({ ok: false, message: '安全桥接未加载' }),
@@ -96,6 +102,7 @@ const unavailableApi: HexBridgeApi = {
   retryLcuConnection: async () => ({ ok: false, message: '安全桥接未加载' }),
   startCalibration: async () => undefined,
   getCalibrationContext: async () => null,
+  previewCalibration: async () => ({ ok: false, names: [], message: '安全桥接未加载' }),
   completeCalibration: async () => undefined,
   cancelCalibration: async () => undefined,
   windowAction: async () => undefined,

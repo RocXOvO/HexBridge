@@ -49,6 +49,13 @@ export interface AppSettings {
   diagnosticsScreenshots: boolean
 }
 
+export interface HotkeyRegistrationResult {
+  ok: boolean
+  activeHotkey: string
+  errorCode: string | null
+  message: string
+}
+
 export interface DisplayOption {
   id: string
   label: string
@@ -212,6 +219,7 @@ export interface HexBridgeApi {
   getState(): Promise<RuntimeState>
   onStateChanged(callback: (state: RuntimeState) => void): () => void
   updateSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+  setOcrHotkey(hotkey: string): Promise<HotkeyRegistrationResult>
   validateAndSaveApiKey(apiKey: string): Promise<{ ok: boolean; message: string }>
   clearApiKey(): Promise<void>
   refreshData(): Promise<{ ok: boolean; message: string }>
@@ -224,6 +232,7 @@ export interface HexBridgeApi {
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>
   startCalibration(): Promise<void>
   getCalibrationContext(): Promise<CalibrationContext | null>
+  previewCalibration(rects: CalibrationRects): Promise<{ ok: boolean; names: string[]; message: string }>
   completeCalibration(rects: CalibrationRects): Promise<void>
   cancelCalibration(): Promise<void>
   windowAction(action: 'minimize' | 'maximize' | 'close' | 'quit'): Promise<void>

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ChampionSummary } from '../../shared/contracts'
+import type { ChampionSummary, VisualModePreference } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
+import { matchesChampionSearch } from '../../shared/champion-search'
 
-type Page = 'live' | 'ranking' | 'settings' | 'diagnostics'
+type Page = 'live' | 'ranking' | 'updates' | 'settings' | 'diagnostics'
 const { state, isPreview, bridgeError } = useRuntime()
 const page = ref<Page>('live')
 const search = ref('')
-const rankingSort = ref<'tier' | 'winRate' | 'role'>('tier')
+const rankingSort = ref<'tier' | 'winRate'>('tier')
+const selectedChampionId = ref<number | null>(null)
 const apiKey = ref('')
 const toast = ref('')
 const busy = ref(false)
@@ -19,8 +21,10 @@ const calibrationBusy = ref(false)
 const lcuBusy = ref(false)
 const updateBusy = ref(false)
 const installArmed = ref(false)
-const gameDirectory = ref(state.value.settings.gameDirectory)
 const pageVisible = ref(!document.hidden)
+const windowFocused = ref(document.hasFocus())
+const recordingHotkey = ref(false)
+const hotkeyFeedback = ref('')
 const matchContextPresent = computed(() => state.value.snapshot.matchStage !== 'none')
 const matchStatus = computed(() => describeMatchStatus(state.value.snapshot, state.value.lcu.connected))
 const retainedMatch = computed(() => matchStatus.value.retained)
@@ -33,16 +37,12 @@ const recognizedChampionId = computed(() => state.value.snapshot.currentChampion
 const recognizedChampionMissingData = computed(() => recognizedChampionId.value != null && !current.value)
 const heroStyle = computed(() => current.value?.splashUrl ? { backgroundImage: `url(${current.value.splashUrl})` } : {})
 const statusLabel = computed(() => matchStatus.value.label)
-const lcuStatusTitle = computed(() => matchStatus.value.lcuTitle)
 
 const ranking = computed(() => {
   const query = search.value.trim().toLowerCase()
-  const rows = state.value.champions.filter((item) =>
-    !query || item.name.toLowerCase().includes(query) || item.alias.toLowerCase().includes(query),
-  )
+  const rows = state.value.champions.filter((item) => matchesChampionSearch(item, query))
   return [...rows].sort((a, b) => {
     if (rankingSort.value === 'winRate') return (b.winRate ?? -1) - (a.winRate ?? -1)
-    if (rankingSort.value === 'role') return (a.roles[0] ?? '').localeCompare(b.roles[0] ?? '', 'zh-CN')
     return (a.tier ?? 99) - (b.tier ?? 99) || (b.winRate ?? -1) - (a.winRate ?? -1)
   })
 })
@@ -55,6 +55,10 @@ function tier(value: number | null): string {
   return value == null ? '—' : `T${value}`
 }
 
+function tierLabel(value: number | null): string {
+  return value == null ? '暂无数据' : ['顶尖', '强势', '均衡', '偏弱', '挑战'][value - 1] ?? `第 ${value} 档`
+}
+
 function bytes(value: number | null): string {
   if (value == null) return '—'
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`
@@ -63,6 +67,11 @@ function bytes(value: number | null): string {
 
 async function updateSettings(patch: Parameters<typeof api.updateSettings>[0]): Promise<void> {
   await api.updateSettings(patch)
+}
+
+function setVisualMode(event: Event): void {
+  const visualMode = (event.target as HTMLSelectElement).value as VisualModePreference
+  void updateSettings({ visualMode })
 }
 
 async function validateKey(): Promise<void> {
@@ -203,28 +212,55 @@ async function retryLcu(): Promise<void> {
   }
 }
 
-async function saveGameDirectory(): Promise<void> {
-  try {
-    await updateSettings({ gameDirectory: gameDirectory.value.trim() })
-    toast.value = '游戏目录已保存，正在重新检测客户端…'
-  } catch (error) {
-    toast.value = error instanceof Error ? error.message : '游戏目录保存失败'
+async function recordHotkey(event: KeyboardEvent): Promise<void> {
+  if (!recordingHotkey.value || event.repeat) return
+  event.preventDefault()
+  event.stopPropagation()
+  if (event.key === 'Escape') {
+    recordingHotkey.value = false
+    hotkeyFeedback.value = '已取消录制'
+    return
   }
+  const key = /^F(?:[1-9]|1[0-2])$/i.test(event.key)
+    ? event.key.toUpperCase()
+    : event.code.startsWith('Key')
+      ? event.code.slice(3)
+      : event.code.startsWith('Digit')
+        ? event.code.slice(5)
+        : ''
+  if (!key || ['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) return
+  const candidate = [event.ctrlKey ? 'Ctrl' : '', event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : '', key]
+    .filter(Boolean)
+    .join('+')
+  recordingHotkey.value = false
+  const result = await api.setOcrHotkey(candidate)
+  hotkeyFeedback.value = result.message
+  toast.value = result.message
 }
 
-watch(() => state.value.settings.gameDirectory, (value) => { gameDirectory.value = value })
 watch(() => state.value.update.status, (value) => {
   if (value !== 'downloaded') installArmed.value = false
 })
 const visibilityChanged = (): void => { pageVisible.value = !document.hidden }
-onMounted(() => document.addEventListener('visibilitychange', visibilityChanged))
-onBeforeUnmount(() => document.removeEventListener('visibilitychange', visibilityChanged))
+const focusChanged = (): void => { windowFocused.value = document.hasFocus() }
+onMounted(() => {
+  document.addEventListener('visibilitychange', visibilityChanged)
+  window.addEventListener('focus', focusChanged)
+  window.addEventListener('blur', focusChanged)
+  window.addEventListener('keydown', recordHotkey, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', visibilityChanged)
+  window.removeEventListener('focus', focusChanged)
+  window.removeEventListener('blur', focusChanged)
+  window.removeEventListener('keydown', recordHotkey, true)
+})
 
 const championAlt = (champion: ChampionSummary | null) => champion ? `${champion.name}头像` : ''
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'animations-paused': !pageVisible }" :data-performance="state.diagnostics.activeVisualMode">
+  <div class="app-shell" :class="{ 'animations-paused': !pageVisible || !windowFocused }" :data-performance="state.diagnostics.activeVisualMode">
     <header class="titlebar">
       <div class="title-brand"><LogoMark /><span>HexBridge</span><small>{{ state.update.currentVersion }}</small></div>
       <div class="drag-region" />
@@ -240,13 +276,10 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       <nav>
         <button :class="{ active: page === 'live' }" @click="page = 'live'"><span>◈</span>实时助手</button>
         <button :class="{ active: page === 'ranking' }" @click="page = 'ranking'"><span>⌁</span>英雄榜</button>
+        <button :class="{ active: page === 'updates' }" @click="page = 'updates'"><span>↟</span>更新</button>
         <button :class="{ active: page === 'settings' }" @click="page = 'settings'"><span>◇</span>设置</button>
         <button :class="{ active: page === 'diagnostics' }" @click="page = 'diagnostics'"><span>···</span>诊断</button>
       </nav>
-      <div class="side-foot">
-        <span :class="['status-dot', state.lcu.connected || retainedMatch ? 'ok' : '']" />
-        <div><b>{{ lcuStatusTitle }}</b><small>{{ statusLabel }}</small></div>
-      </div>
     </aside>
 
     <main class="stage">
@@ -256,10 +289,10 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       <button
         v-if="['available', 'downloading', 'downloaded', 'error'].includes(state.update.status) && state.update.availableVersion"
         class="update-banner"
-        @click="page = 'settings'"
+        @click="page = 'updates'"
       >
         <span>{{ state.update.status === 'downloaded' ? '更新已下载' : `HexBridge v${state.update.availableVersion} 可用` }}</span>
-        <small>{{ state.update.status === 'downloading' ? `${updatePercent.toFixed(0)}%` : '前往设置查看 →' }}</small>
+        <small>{{ state.update.status === 'downloading' ? `${updatePercent.toFixed(0)}%` : '查看更新 →' }}</small>
       </button>
       <section v-if="page === 'live'" class="live-page">
         <div class="hero-backdrop" :style="heroStyle" />
@@ -274,7 +307,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 
           <div class="current-hero" v-if="current">
             <img :src="current.iconUrl" :alt="championAlt(current)" />
-            <div class="hero-name"><small>当前英雄</small><h1>{{ current.name }}</h1><p>{{ current.roles.join(' · ') || '未知定位' }}</p></div>
+            <div class="hero-name"><small>当前英雄</small><h1>{{ current.name }}</h1><p>{{ current.title || '海克斯大乱斗' }}</p></div>
             <div class="hero-metrics">
               <div><small>强度</small><b class="tier-value">{{ tier(current.tier) }}</b></div>
               <div><small>胜率</small><b>{{ winRate(current.winRate) }}</b></div>
@@ -290,8 +323,8 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             </div>
             <div class="empty-copy">
               <small>{{ recognizedChampionMissingData ? 'CHAMPION DETECTED' : state.lcu.connected ? 'LCU CONNECTED' : 'SEARCHING FOR LCU' }}</small>
-              <h2>{{ recognizedChampionMissingData ? `已识别英雄 #${recognizedChampionId}` : state.lcu.connected ? '等待选择英雄' : '正在寻找英雄联盟客户端' }}</h2>
-              <p>{{ recognizedChampionMissingData ? 'LCU 读取正常，但英雄数据目录尚未就绪或缺少该英雄；请在设置中刷新数据。' : state.lcu.connected ? '进入海克斯大乱斗选人阶段后会自动显示英雄。' : (state.lcu.lastError || '请先启动 WeGame 与英雄联盟客户端。') }}</p>
+              <h2>{{ recognizedChampionMissingData ? `已识别英雄 #${recognizedChampionId}` : state.lcu.connected ? '等待选择英雄' : '英雄联盟客户端未启动或未发现' }}</h2>
+              <p>{{ recognizedChampionMissingData ? 'LCU 读取正常，但英雄数据目录尚未就绪或缺少该英雄；请刷新数据。' : state.lcu.connected ? '进入海克斯大乱斗选人阶段后会自动显示英雄。' : '启动 WeGame 与英雄联盟后，HexBridge 会在后台自动连接。' }}</p>
               <button v-if="!state.lcu.connected" class="ghost reconnect-button" :disabled="lcuBusy" @click="retryLcu">
                 {{ lcuBusy ? '正在检测…' : '立即重新检测' }}
               </button>
@@ -302,7 +335,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           <TransitionGroup name="reorder" tag="div" class="bench-grid">
             <article v-for="item in bench" :key="item.id" :class="['bench-card', { best: item.isBest }]">
               <img :src="item.iconUrl" :alt="championAlt(item)" />
-              <div class="bench-info"><b>{{ item.name }}</b><small>{{ item.roles[0] || '未知' }}</small></div>
+              <div class="bench-info"><b>{{ item.name }}</b><small>{{ item.title || '可选英雄' }}</small></div>
               <div class="bench-stats"><b>{{ tier(item.tier) }}</b><span>{{ winRate(item.winRate) }}</span></div>
               <div v-if="item.isBest" class="best-strip">首选 · 较当前 {{ item.winRateDelta != null && item.winRateDelta >= 0 ? '+' : '' }}{{ item.winRateDelta == null ? '—' : (item.winRateDelta * 100).toFixed(1) + '%' }}</div>
             </article>
@@ -312,56 +345,40 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       </section>
 
       <section v-else-if="page === 'ranking'" class="page-content standard-page">
-        <div class="page-heading"><div><small>PATCH {{ state.api.gamePatch || '—' }}</small><h1>英雄榜</h1><p>海克斯大乱斗英雄强度与胜率快照</p></div><button class="ghost" :disabled="busy" @click="refresh">刷新数据</button></div>
-        <div class="toolbar"><label class="search"><span>⌕</span><input v-model="search" placeholder="搜索英雄" /></label><div class="segmented"><button v-for="sort in (['tier','winRate','role'] as const)" :key="sort" :class="{ active: rankingSort === sort }" @click="rankingSort = sort">{{ sort === 'tier' ? 'Tier' : sort === 'winRate' ? '胜率' : '角色' }}</button></div></div>
+        <div class="page-heading"><div><small>版本 {{ state.api.gamePatch || '—' }}</small><h1>英雄榜</h1><p>海克斯大乱斗英雄强度与胜率快照</p></div><button class="ghost" :disabled="busy" @click="refresh">刷新数据</button></div>
+        <div class="toolbar"><label class="search"><span>⌕</span><input v-model="search" placeholder="搜索英雄名、称号或别名（如 VN）" /></label><div class="segmented"><button v-for="sort in (['tier','winRate'] as const)" :key="sort" :class="{ active: rankingSort === sort }" @click="rankingSort = sort">{{ sort === 'tier' ? '强度' : '胜率' }}</button></div></div>
         <div class="ranking-list">
-          <article v-for="(item, index) in ranking" :key="item.id">
-            <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><div class="rank-name"><b>{{ item.name }}</b><small>{{ item.roles.join(' · ') }}</small></div><span class="tier-pill">{{ tier(item.tier) }}</span><div class="rank-wr"><small>胜率</small><b>{{ winRate(item.winRate) }}</b></div>
+          <article v-for="(item, index) in ranking" :key="item.id" :class="['tier-row', `tier-${item.tier || 0}`, { selected: selectedChampionId === item.id }]" :style="{ '--tier-level': String(item.tier || 0) }" tabindex="0" @click="selectedChampionId = item.id" @focus="selectedChampionId = item.id">
+            <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><div class="rank-name"><b>{{ item.name }}</b><small>{{ item.title || '海克斯大乱斗英雄' }}</small></div><div class="tier-band"><small>强度</small><b>{{ tierLabel(item.tier) }}</b></div><div class="rank-wr"><small>胜率</small><b>{{ winRate(item.winRate) }}</b></div>
           </article>
         </div>
+      </section>
+
+      <section v-else-if="page === 'updates'" class="page-content standard-page update-page">
+        <div class="page-heading"><div><small>HEXBRIDGE UPDATE</small><h1>软件更新</h1><p>像桌面工具一样独立管理检查、下载和安装，不会静默更新。</p></div></div>
+        <article class="update-surface">
+          <header><div><small>当前版本</small><h2>v{{ state.update.currentVersion }}</h2></div><span :class="['connection-pill', state.update.status]">{{ state.update.status }}</span></header>
+          <div class="update-summary"><div><small>可用版本</small><b>{{ state.update.availableVersion ? `v${state.update.availableVersion}` : '已是最新或尚未检查' }}</b></div><p aria-live="polite">{{ state.update.message }}<small v-if="state.update.errorCode" class="update-code">诊断码：{{ state.update.errorCode }}</small></p></div>
+          <div v-if="state.update.status === 'downloading' || state.update.status === 'downloaded'" class="update-progress"><div><i :style="{ width: `${updatePercent}%` }" /></div><small>{{ updatePercent.toFixed(0) }}% · {{ bytes(state.update.transferred) }} / {{ bytes(state.update.total) }}<template v-if="state.update.bytesPerSecond"> · {{ bytes(state.update.bytesPerSecond) }}/s</template></small></div>
+          <p v-if="state.update.releaseNotes" class="update-notes">{{ state.update.releaseNotes }}</p>
+          <div class="update-actions"><button class="ghost" :disabled="updateBusy || ['checking','downloading','installing'].includes(state.update.status)" @click="checkUpdate">{{ state.update.status === 'checking' ? '检查中…' : '检查更新' }}</button><button v-if="state.update.status === 'error'" class="ghost" @click="openReleasePage">打开官方下载页</button><button v-if="state.update.status === 'available' || (state.update.status === 'error' && state.update.availableVersion)" class="primary" :disabled="updateBusy" @click="downloadUpdate">确认下载</button><button v-if="state.update.status === 'downloaded' && !installArmed" class="primary" :disabled="updateInstallBlocked" @click="installUpdate">{{ updateInstallBlocked ? '当前流程结束后安装' : '重启并安装' }}</button><template v-if="state.update.status === 'downloaded' && installArmed"><span class="install-warning">应用将立即退出。确定安装？</span><button class="primary" :disabled="updateInstallBlocked" @click="installUpdate">确认重启安装</button><button class="ghost" @click="installArmed = false">取消</button></template></div>
+          <small>不会静默更新、下载或安装。Windows 发布物尚未商业代码签名；下载仍会校验 SHA-512，安装前由你二次确认。</small>
+        </article>
       </section>
 
       <section v-else-if="page === 'settings'" class="page-content standard-page settings-page">
         <div class="page-heading"><div><small>PREFERENCES</small><h1>设置</h1><p>本地、安全、按你的游戏环境运行</p></div></div>
         <div class="settings-grid">
           <article class="settings-card wide"><header><div><h3>数据服务</h3><p>Key 使用 Windows safeStorage 加密，仅由主进程访问。HEAD 验证不消耗 data credits。</p></div><span :class="['connection-pill', state.api.status]">{{ state.api.configured ? state.api.status : '未配置' }}</span></header><div class="key-row"><input v-model="apiKey" type="password" autocomplete="off" placeholder="hx_live_••••••••" @keyup.enter="validateKey" /><button class="primary" :disabled="keyBusy || !apiKey.trim()" :aria-busy="keyBusy" @click="validateKey">{{ keyBusy ? '正在验证…' : '验证并保存' }}</button><button class="ghost" :disabled="keyBusy" @click="clearKey">清除</button></div><p v-if="keyFeedback.message" :class="['inline-feedback', keyFeedback.kind]" aria-live="polite">{{ keyFeedback.message }}</p><small>申请地址：data.dtodo.cn/developer.html</small></article>
-          <article class="settings-card wide update-card">
-            <header>
-              <div><h3>客户端更新</h3><p>仅检查 GitHub Releases 正式版。发现更新后由你确认下载，下载完成后再确认重启安装，不会静默更新。</p></div>
-              <span :class="['connection-pill', state.update.status]">{{ state.update.status }}</span>
-            </header>
-            <div class="update-summary">
-              <div><small>当前版本</small><b>v{{ state.update.currentVersion }}</b></div>
-              <div><small>可用版本</small><b>{{ state.update.availableVersion ? `v${state.update.availableVersion}` : '—' }}</b></div>
-              <p aria-live="polite">{{ state.update.message }}<small v-if="state.update.errorCode" class="update-code">诊断码：{{ state.update.errorCode }}</small></p>
-            </div>
-            <div v-if="state.update.status === 'downloading' || state.update.status === 'downloaded'" class="update-progress">
-              <div><i :style="{ width: `${updatePercent}%` }" /></div>
-              <small>{{ updatePercent.toFixed(0) }}% · {{ bytes(state.update.transferred) }} / {{ bytes(state.update.total) }}<template v-if="state.update.bytesPerSecond"> · {{ bytes(state.update.bytesPerSecond) }}/s</template></small>
-            </div>
-            <p v-if="state.update.releaseNotes" class="update-notes">{{ state.update.releaseNotes }}</p>
-            <div class="update-actions">
-              <button class="ghost" :disabled="updateBusy || ['checking','downloading','installing'].includes(state.update.status)" @click="checkUpdate">{{ state.update.status === 'checking' ? '检查中…' : '检查更新' }}</button>
-              <button v-if="state.update.status === 'error'" class="ghost" @click="openReleasePage">打开官方下载页</button>
-              <button v-if="state.update.status === 'available' || (state.update.status === 'error' && state.update.availableVersion)" class="primary" :disabled="updateBusy" @click="downloadUpdate">确认下载</button>
-              <button v-if="state.update.status === 'downloaded' && !installArmed" class="primary" :disabled="updateInstallBlocked" @click="installUpdate">{{ updateInstallBlocked ? '当前流程结束后安装' : '重启并安装' }}</button>
-              <template v-if="state.update.status === 'downloaded' && installArmed">
-                <span class="install-warning">应用将立即退出。确定安装？</span>
-                <button class="primary" :disabled="updateInstallBlocked" @click="installUpdate">确认重启安装</button>
-                <button class="ghost" @click="installArmed = false">取消</button>
-              </template>
-            </div>
-            <small>当前 Windows 发布物未进行商业代码签名，更新包会校验发布元数据中的 SHA-512，但不等同于发布者身份签名。</small>
-          </article>
-          <article class="settings-card"><h3>视觉性能</h3><p>对局中始终使用省电浮窗样式。</p><select :value="state.settings.visualMode" @change="updateSettings({ visualMode: ($event.target as HTMLSelectElement).value as any })"><option value="auto">自动（推荐）</option><option value="cinematic">电影档</option><option value="balanced">均衡档</option><option value="eco">省电档</option></select><div class="setting-hint">当前：{{ state.diagnostics.activeVisualMode }}</div></article>
-          <article class="settings-card"><h3>目标显示器</h3><p>OCR 会截取这个显示器。默认坐标通常可用；只有三张海克斯名称识别位置不准时才需要校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '校准三张海克斯名称区域' }}</button><small class="calibration-entry-hint">“三张标题”指游戏内同时出现的左、中、右三张海克斯卡片顶部名称。请先让无边框游戏停在该界面；HexBridge 会隐藏自己并显示屏幕截图供框选。</small></article>
-          <article class="settings-card wide switches"><label><div><b>自动 OCR</b><small>游戏客户端接管后每 750ms 低成本检测</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人及游戏客户端交接期显示，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>海克斯浮窗</b><small>三张全部可靠识别后自动出现</small></div><input type="checkbox" :checked="state.settings.showAugmentOverlay" @change="updateSettings({ showAugmentOverlay: ($event.target as HTMLInputElement).checked })" /></label></article>
-          <article class="settings-card wide"><h3>游戏目录（自动发现失败时使用）</h3><p>填写包含 LeagueClient.exe 或 lockfile 的英雄联盟安装目录，不要填写 WeGame 启动器或 Game 子目录。保存后会立即重新检测。</p><div class="directory-row"><input v-model="gameDirectory" placeholder="例如 D:\英雄联盟 或 D:\WeGameApps\英雄联盟" @keyup.enter="saveGameDirectory" /><button class="primary" @click="saveGameDirectory">保存并检测</button><button class="ghost" :disabled="lcuBusy" @click="retryLcu">{{ lcuBusy ? '检测中…' : '重新检测' }}</button></div></article>
+          <article class="settings-card"><h3>目标显示器</h3><p>默认自动选择主显示器；只有三张卡片位置不准时才需要校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">停在三卡界面后依次框住整张左、中、右卡片，标题区域会自动提取。</small></article>
+          <article class="settings-card"><h3>识别快捷键</h3><p>点击录制后按下新的全局组合键；冲突或无效时会保留原快捷键。</p><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? '推荐使用 F8 或 Ctrl+Shift+字母；Esc 取消。' : '快捷键未注册或已被其他程序占用，请录制一个新快捷键。') }}</small></article>
+          <article class="settings-card"><h3>视觉与性能</h3><p>对局中始终走省电路径；这里控制主窗口平时的视觉效果。</p><select :value="state.settings.visualMode" @change="setVisualMode"><option value="auto">自动（推荐）</option><option value="cinematic">电影档</option><option value="balanced">均衡档</option><option value="eco">省电档</option></select><small>隐藏窗口、降低动态效果或系统开启“减少动画”时会自动暂停装饰动效。</small></article>
+          <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>默认关闭；开启后每 2 秒低分辨率门控，命中后才识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人及游戏客户端交接期显示，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>海克斯浮窗</b><small>三张全部可靠识别后自动出现</small></div><input type="checkbox" :checked="state.settings.showAugmentOverlay" @change="updateSettings({ showAugmentOverlay: ($event.target as HTMLInputElement).checked })" /></label></article>
         </div>
       </section>
 
       <section v-else class="page-content standard-page diagnostics-page">
-        <div class="page-heading"><div><small>SYSTEM HEALTH</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">F8 立即识别</button></div></div>
+        <div class="page-heading"><div><small>SYSTEM HEALTH</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">{{ state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别' }}</button></div></div>
         <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DATA API</small><b>{{ state.api.status }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms` }}</p></div></article></div>
         <div class="log-panel"><header><b>本地日志</b><span>{{ state.diagnostics.logLines.length }} 行</span></header><pre>{{ state.diagnostics.logLines.join('\n') || '暂无日志' }}</pre></div>
         <p class="choice-note">诊断截图仅在手动识别时保存，最多保留 60 张裁切图。</p>

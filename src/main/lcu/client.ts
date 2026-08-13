@@ -472,7 +472,10 @@ export class LcuClient extends EventEmitter {
     this.candidatePool = discovery.candidates
     this.nextCandidateRefreshAt = Date.now() + 10_000
     if (!discovery.candidates.length) {
-      this.state = { ...this.state, connected: false, source: null, lastError: discovery.summary }
+      const ordinaryMessage = discovery.processCount === 0 && !discovery.manualConfigured
+        ? '英雄联盟客户端未启动或尚未发现'
+        : '英雄联盟客户端暂时不可用，正在后台重试'
+      this.state = { ...this.state, connected: false, source: null, lastError: ordinaryMessage }
       return false
     }
     const selection = await selectReachableLcuCredentials(
@@ -502,12 +505,20 @@ export class LcuClient extends EventEmitter {
       return true
     }
     const reason = [...new Set(selection.failures)].slice(0, 2).join('；') || '只读探测失败'
+    const ordinaryMessage = discovery.processCount === 0 && !discovery.manualConfigured
+      ? '英雄联盟客户端未启动或尚未发现'
+      : '英雄联盟客户端暂时不可用，正在后台重试'
     this.state = {
       ...this.state,
       connected: false,
       source: null,
-      lastError: `检测到 ${discovery.candidates.length} 个候选，但无法连接：${reason}`,
+      lastError: ordinaryMessage,
     }
+    logger.debug('LCU candidates were not reachable', {
+      candidateCount: discovery.candidates.length,
+      processCount: discovery.processCount,
+      failureClass: reason,
+    })
     return false
   }
 

@@ -11,7 +11,7 @@ const reason = (value: string) => ['stale', 'limited', 'offline'].includes(state
       <div v-if="state.overlay.visible" class="augment-slots">
         <article v-for="slot in state.overlay.slots" :key="slot.slot" :class="[`place-${slot.position ?? 0}`, { tied: slot.tied, unknown: !slot.augmentId }]">
           <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
-          <div><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? reason(slot.reason) : '未识别，请按 F8 重试' }}</p></div>
+          <div><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? reason(slot.reason) : (state.settings.hotkey ? `未识别，请按 ${state.settings.hotkey} 重试` : '未识别，请在主窗口手动重试') }}</p></div>
         </article>
       </div>
     </Transition>

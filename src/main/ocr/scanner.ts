@@ -10,24 +10,31 @@ import type {
   OcrSlotResult,
 } from '../../shared/contracts.js'
 import { matchAugmentText } from '../../shared/ocr-match.js'
-import { normalizedRectToPixels } from '../../shared/ocr-geometry.js'
+import { normalizedRectToPixels, titleRectForCalibration } from '../../shared/ocr-geometry.js'
 import { logger } from '../logger.js'
 import { OcrEngine } from './ocr-engine.js'
 
 const DEFAULT_RECTS: CalibrationRects = {
-  left: { x: 0.165, y: 0.255, width: 0.205, height: 0.082 },
-  center: { x: 0.3975, y: 0.255, width: 0.205, height: 0.082 },
-  right: { x: 0.63, y: 0.255, width: 0.205, height: 0.082 },
+  left: { x: 0.245, y: 0.37, width: 0.134, height: 0.085 },
+  center: { x: 0.436, y: 0.37, width: 0.137, height: 0.085 },
+  right: { x: 0.629, y: 0.37, width: 0.136, height: 0.085 },
 }
 
 const SLOTS: AugmentSlot[] = ['left', 'center', 'right']
 const MAX_DIAGNOSTIC_FILES = 60
+const AUTO_GATE_WIDTH = 960
+const OCR_CAPTURE_WIDTH = 1_920
 
 export interface ScanResult {
   status: 'matched' | 'not-detected' | 'unreliable' | 'busy' | 'error'
   slots: OcrSlotResult[]
   durationMs: number
   error: string | null
+}
+
+export interface AugmentScannerDependencies {
+  resolveDisplay?(displayId: string): Electron.Display
+  captureDisplay?(display: Electron.Display, maximumWidth: number): Promise<Buffer>
 }
 
 export class AugmentScanner {
@@ -39,6 +46,7 @@ export class AugmentScanner {
   constructor(
     private readonly getSettings: () => AppSettings,
     private readonly diagnosticsDirectory: string,
+    private readonly dependencies: AugmentScannerDependencies = {},
   ) {}
 
   getDiagnostics(): {
@@ -82,34 +90,21 @@ export class AugmentScanner {
     try {
       const settings = this.getSettings()
       const display = this.resolveDisplay(settings.displayId)
-      const physicalWidth = Math.max(1, Math.round(display.bounds.width * display.scaleFactor))
-      const physicalHeight = Math.max(1, Math.round(display.bounds.height * display.scaleFactor))
-      const sources = await desktopCapturer.getSources({
-        types: ['screen'],
-        thumbnailSize: { width: physicalWidth, height: physicalHeight },
-        fetchWindowIcons: false,
-      })
-      const source =
-        sources.find((candidate) => candidate.display_id === String(display.id)) ??
-        (sources.length === 1 ? sources[0] : undefined)
-      if (!source || source.thumbnail.isEmpty()) throw new Error('无法捕获目标显示器')
-
-      const screenshot = source.thumbnail.toPNG()
-      const metadata = await sharp(screenshot).metadata()
-      const width = metadata.width ?? physicalWidth
-      const height = metadata.height ?? physicalHeight
       const rects = settings.calibration ?? DEFAULT_RECTS
-      const crops: Buffer[] = []
-      for (const slot of SLOTS) {
-        const rect = rects[slot]
-        const pixelRect = normalizedRectToPixels(rect, width, height)
-        const crop = await sharp(screenshot)
-          .extract(pixelRect)
-          .sharpen()
-          .png()
-          .toBuffer()
-        crops.push(crop)
+
+      // Automatic polling only captures a small thumbnail first. A 4K OCR
+      // frame is requested only after at least two title slots look active.
+      if (!manual) {
+        const gateScreenshot = await this.captureDisplay(display, AUTO_GATE_WIDTH)
+        const gateCrops = await this.cropTitles(gateScreenshot, rects, false)
+        const gates = await Promise.all(gateCrops.map((crop) => this.hasInterfaceSignal(crop)))
+        if (gates.filter(Boolean).length < 2) {
+          return this.finish('not-detected', [], startedAt, null)
+        }
       }
+
+      const screenshot = await this.captureDisplay(display, OCR_CAPTURE_WIDTH)
+      const crops = await this.cropTitles(screenshot, rects, true)
 
       if (settings.diagnosticsScreenshots && manual) {
         try {
@@ -119,9 +114,11 @@ export class AugmentScanner {
         }
       }
 
-      const gates = await Promise.all(crops.map((crop) => this.hasInterfaceSignal(crop)))
-      if (gates.filter(Boolean).length < 2) {
-        return this.finish('not-detected', [], startedAt, null)
+      if (manual) {
+        const gates = await Promise.all(crops.map((crop) => this.hasInterfaceSignal(crop)))
+        if (gates.filter(Boolean).length < 2) {
+          return this.finish('not-detected', [], startedAt, null)
+        }
       }
 
       const recognized: OcrSlotResult[] = []
@@ -141,6 +138,38 @@ export class AugmentScanner {
     }
   }
 
+  async previewCalibration(
+    backgroundDataUrl: string,
+    rects: CalibrationRects,
+    augments: AugmentMeta[],
+  ): Promise<{ ok: boolean; names: string[]; message: string }> {
+    if (this.busy) return { ok: false, names: [], message: '识别任务正在运行，请稍后重试' }
+    this.busy = true
+    try {
+      const encoded = backgroundDataUrl.match(/^data:image\/(?:png|jpeg);base64,([A-Za-z0-9+/=]+)$/)?.[1]
+      if (!encoded) return { ok: false, names: [], message: '校准截图格式无效，请重新打开校准' }
+      const crops = await this.cropTitles(Buffer.from(encoded, 'base64'), rects, true)
+      const recognized: OcrSlotResult[] = []
+      for (let index = 0; index < crops.length; index += 1) {
+        const rawText = await this.engine.recognize(crops[index] as Buffer)
+        recognized.push(matchAugmentText(SLOTS[index] as AugmentSlot, rawText, augments, 0.9))
+      }
+      const names = recognized.map((slot) => slot.augmentId == null ? '' : slot.name)
+      const count = names.filter(Boolean).length
+      return {
+        ok: count === 3,
+        names,
+        message: count === 3
+          ? `识别验证通过：${names.join(' / ')}`
+          : `仅识别 ${count}/3 张标题，请重新框住完整卡片`,
+      }
+    } catch {
+      return { ok: false, names: [], message: '校准识别验证失败，请重新框选或稍后重试' }
+    } finally {
+      this.busy = false
+    }
+  }
+
   private finish(
     status: ScanResult['status'],
     slots: OcrSlotResult[],
@@ -154,8 +183,46 @@ export class AugmentScanner {
   }
 
   private resolveDisplay(displayId: string): Electron.Display {
+    if (this.dependencies.resolveDisplay) return this.dependencies.resolveDisplay(displayId)
     const displays = screen.getAllDisplays()
     return displays.find((display) => String(display.id) === displayId) ?? screen.getPrimaryDisplay()
+  }
+
+  private async captureDisplay(display: Electron.Display, maximumWidth: number): Promise<Buffer> {
+    if (this.dependencies.captureDisplay) return this.dependencies.captureDisplay(display, maximumWidth)
+    const physicalWidth = Math.max(1, Math.round(display.bounds.width * display.scaleFactor))
+    const physicalHeight = Math.max(1, Math.round(display.bounds.height * display.scaleFactor))
+    const width = Math.min(maximumWidth, physicalWidth)
+    const height = Math.max(1, Math.round(width * physicalHeight / physicalWidth))
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width, height },
+      fetchWindowIcons: false,
+    })
+    const source =
+      sources.find((candidate) => candidate.display_id === String(display.id)) ??
+      (sources.length === 1 ? sources[0] : undefined)
+    if (!source || source.thumbnail.isEmpty()) throw new Error('无法捕获目标显示器')
+    return source.thumbnail.toPNG()
+  }
+
+  private async cropTitles(
+    screenshot: Buffer,
+    rects: CalibrationRects,
+    prepareForOcr: boolean,
+  ): Promise<Buffer[]> {
+    const metadata = await sharp(screenshot).metadata()
+    if (!metadata.width || !metadata.height) throw new Error('目标显示器截图尺寸无效')
+    const image = sharp(screenshot)
+    return Promise.all(SLOTS.map(async (slot) => {
+      const titleRect = titleRectForCalibration(rects[slot])
+      const pixelRect = normalizedRectToPixels(titleRect, metadata.width as number, metadata.height as number)
+      let crop = image.clone().extract(pixelRect)
+      if (prepareForOcr) {
+        crop = crop.resize({ height: 180, fit: 'inside', withoutEnlargement: false }).sharpen()
+      }
+      return crop.png().toBuffer()
+    }))
   }
 
   private async hasInterfaceSignal(crop: Buffer): Promise<boolean> {
@@ -192,4 +259,8 @@ export class AugmentScanner {
   }
 }
 
-export const augmentScannerDefaults = { rects: DEFAULT_RECTS }
+export const augmentScannerDefaults = {
+  rects: DEFAULT_RECTS,
+  automaticGateWidth: AUTO_GATE_WIDTH,
+  ocrCaptureWidth: OCR_CAPTURE_WIDTH,
+}

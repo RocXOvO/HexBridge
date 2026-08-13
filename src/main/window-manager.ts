@@ -26,6 +26,12 @@ export function secureWebPreferences(): Electron.WebPreferences {
   }
 }
 
+export function applicationIconPath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.resolve(process.cwd(), 'build/icon.png')
+}
+
 export class WindowManager {
   private windows = new Map<ManagedWindow, BrowserWindow>()
   private quitting = false
@@ -236,6 +242,11 @@ export class WindowManager {
     }
   }
 
+  isWindowSender(name: 'main' | 'calibration', sender: Electron.WebContents): boolean {
+    const window = this.windows.get(name)
+    return Boolean(window && !window.isDestroyed() && window.webContents === sender)
+  }
+
   handleAction(sender: Electron.WebContents, action: 'minimize' | 'maximize' | 'close' | 'quit'): void {
     if (action === 'quit') {
       this.quitting = true
@@ -258,6 +269,7 @@ export class WindowManager {
 
   private createWindow(name: ManagedWindow, options: Electron.BrowserWindowConstructorOptions): BrowserWindow {
     const window = new BrowserWindow({
+      icon: applicationIconPath(),
       ...options,
       webPreferences: secureWebPreferences(),
     })

@@ -7,11 +7,12 @@ const champion = (
   tier: number,
   winRate: number,
   roles: string[],
+  title = '',
 ) => ({
   id,
   alias,
   name,
-  title: '',
+  title,
   roles,
   tier,
   winRate,
@@ -24,12 +25,12 @@ const champion = (
 
 export function createDemoApi(): HexBridgeApi {
   const champions = [
-    champion(103, 'Ahri', '阿狸', 2, 0.528, ['法师', '刺客']),
-    champion(81, 'Ezreal', '伊泽瑞尔', 1, 0.552, ['射手', '法师']),
-    champion(63, 'Brand', '布兰德', 1, 0.547, ['法师']),
-    champion(89, 'Leona', '蕾欧娜', 3, 0.514, ['坦克', '辅助']),
-    champion(51, 'Caitlyn', '凯特琳', 2, 0.535, ['射手']),
-    champion(154, 'Zac', '扎克', 2, 0.531, ['坦克', '战士']),
+    champion(103, 'Ahri', '阿狸', 2, 0.528, ['法师', '刺客'], '九尾妖狐'),
+    champion(81, 'Ezreal', '伊泽瑞尔', 1, 0.552, ['射手', '法师'], '探险家'),
+    champion(63, 'Brand', '布兰德', 1, 0.547, ['法师'], '复仇焰魂'),
+    champion(89, 'Leona', '蕾欧娜', 3, 0.514, ['坦克', '辅助'], '曙光女神'),
+    champion(51, 'Caitlyn', '凯特琳', 2, 0.535, ['射手'], '皮城女警'),
+    champion(154, 'Zac', '扎克', 2, 0.531, ['坦克', '战士'], '生化魔人'),
   ]
   const current = {
     ...champions[0]!,
@@ -47,7 +48,7 @@ export function createDemoApi(): HexBridgeApi {
   }))
   const settings: AppSettings = {
     visualMode: 'auto',
-    autoOcr: true,
+    autoOcr: false,
     showChampionPanel: true,
     showAugmentOverlay: true,
     hotkey: 'F8',
@@ -80,9 +81,9 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'available',
-      currentVersion: '0.1.11',
-      availableVersion: '0.1.11',
-      releaseName: 'HexBridge v0.1.11',
+      currentVersion: '0.1.12',
+      availableVersion: '0.1.12',
+      releaseName: 'HexBridge v0.1.12',
       releaseNotes: '预览模式的更新提示。',
       percent: null,
       transferred: null,
@@ -90,7 +91,7 @@ export function createDemoApi(): HexBridgeApi {
       bytesPerSecond: null,
       lastCheckedAt: Date.now(),
       errorCode: null,
-      message: '发现新版本 0.1.11',
+      message: '发现新版本 0.1.12',
     },
     champions,
     candidates: [current, ...bench],
@@ -126,6 +127,10 @@ export function createDemoApi(): HexBridgeApi {
       demoState.settings = { ...demoState.settings, ...patch }
       return demoState.settings
     },
+    setOcrHotkey: async (hotkey: string) => {
+      demoState.settings.hotkey = hotkey
+      return { ok: true, activeHotkey: hotkey, errorCode: null, message: `识别快捷键已设为 ${hotkey}` }
+    },
     validateAndSaveApiKey: async () => ({ ok: true, message: '预览模式：验证成功' }),
     clearApiKey: async () => undefined,
     refreshData: async () => ({ ok: true, message: '预览模式：数据已刷新' }),
@@ -141,6 +146,7 @@ export function createDemoApi(): HexBridgeApi {
     retryLcuConnection: async () => ({ ok: false, message: '预览模式：未连接客户端' }),
     startCalibration: async () => undefined,
     getCalibrationContext: async () => null,
+    previewCalibration: async () => ({ ok: true, names: ['由心及物', '冰寒', '虹吸'], message: '识别验证通过' }),
     completeCalibration: async (rects) => { demoState.settings.calibration = rects },
     cancelCalibration: async () => undefined,
     windowAction: async () => undefined,
