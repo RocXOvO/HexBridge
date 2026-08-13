@@ -1,8 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-14
-> 当前基线：公开最新正式 Release 为 [v0.1.17](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.17)，于 2026-08-14T17:21:55Z 发布，为 Latest、non-draft、non-prerelease。annotated tag object `7b6b638af2a89e19f4bc7ac8623dd31ab0b40bd6` 指向产品 / 记忆 commit `d7edf9fc917d8e1645d109e88324589deb4f7140`；main 可包含 tag 后的本次记忆提交并领先 tag，但 Release 产品源码固定为该 tag 指向。正式 run `31724844667` / job `94530534700` success，约 5m54s；Windows 29 test files / 260 passed、真实 4K fixture 272ms，完整门禁、packaged UI / bridge、差分 updater、Release / public channel / packaged check 全通过。public v2 channel 为 `0.1.17 / 199,236,595 bytes`，public packaged check 为 `updateAvailable=false`。HB-039 / HB-040 与静默安装分流仍为 `FIXED / UNVERIFIED`；未签名 / SmartScreen、用户同机出装 / 空态和真实 installed 安装边界不变。
-> 当前候选：`v0.1.18` 源码 commit `8b7bdac` 与 packaged UI smoke 竞态修复 commit `f24ff6f` 已 push main。首次 workflow_dispatch run `31729473777` / job `94545977255` 因 Vue Transition 后旧烟测过早查询校准入口而失败，产品校准功能仍存在；改为 `waitUntil` 等待稳定入口后，第二次 run `31730129727` / job `94548232662` success，约 5m33s，Windows 30 files / 264 passed + 1 Windows skip 及完整候选门禁全通过。当前尚未 tag / Release，公开 Latest 仍为 v0.1.17；真实 installed 更新和用户视觉仍未验证。
+> 当前基线：公开最新正式 Release 为 [v0.1.18](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.18)，publishedAt `2026-08-13T18:32:55Z`，为 Latest、non-draft、non-prerelease。annotated tag object `c7f7025accd2e6e9a1325d08a3c80e3c466f2e77` 指向产品 / 候选记忆 commit `2ca71e217ca93c24f1f00aa68c272475df76b884`；main 可包含 tag 后的本次记忆提交并领先 tag，但 Release 产品源码固定为该 tag 指向。正式 run `31730817286` / job `94550598423` success，约 5m34s；Windows 30 files / 264 passed + 1 Windows skip、packaged UI / calibration / bridge、差分 updater、Release / channel / public packaged check 与完整门禁全通过。v0.1.17 的五项资产仍保留，Release 列表 v0.1.11～v0.1.18 保留；真实 installed 更新、用户视觉、UAC / SmartScreen 仍未验，不得写 `VERIFIED`。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -724,6 +723,18 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 第二次 workflow_dispatch run `31730129727` / job `94548232662` success，约 5m33s：clean `npm ci`、audit、public 0.1.17、OCR fixture、Windows 30 files / 264 passed + 1 Windows skip、lint、typecheck、retention / legacy、pack、metadata、packaged UI + calibration、packaged bridge、synthetic differential updater、checksums 与 artifact 全通过；tag-only 步骤按预期 skip。
 - 当前尚未 tag / Release，公开 Latest 仍为 v0.1.17。更新 installed 链、跨版本改进弹窗、Windows 用户视觉 / 动效与固定外链仍不得据 runner 写 `VERIFIED`。
 
+2026-08-14 `v0.1.18` 正式 Release 基线：
+
+- annotated tag object `c7f7025accd2e6e9a1325d08a3c80e3c466f2e77` 指向产品 / 候选记忆 commit `2ca71e217ca93c24f1f00aa68c272475df76b884`。正式 tag run `31730817286` / job `94550598423` 于 18:27:29Z～18:33:03Z success，约 5m34s；30 files / 264 passed + 1 Windows skip、packaged UI / calibration / bridge、differential updater、Release / channel / public packaged check 与全部门禁通过。
+- Release [v0.1.18](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.18) 的 publishedAt 为 `2026-08-13T18:32:55Z`，为 Latest、non-draft、non-prerelease。v0.1.17 的五项资产仍完整保留，公开 Release 列表 v0.1.11～v0.1.18 保留，远端 retention 契约继续生效。
+- 正式五项资产：
+  - EXE：199,236,775 bytes，SHA-256 `494a3c7c4e581fbd70c6df89212d1e586520728247eee39fe7987f4a82a6b06b`。
+  - blockmap：201,347 bytes，SHA-256 `248162e6c2b0bda86b297abc0fc3e58ddd4143480248923b11fcb252a8360269`。
+  - ZIP：274,389,785 bytes，SHA-256 `3398e2e7b52e2577bd8bc820ad68ac126db18470458a54e8e09a7658a51f512f`。
+  - `latest.yml`：346 bytes，SHA-256 `cf43ec05e2d959f1afe85156e7a17e82215d63ac60e1394840f4bcacb80ee766`。
+  - `SHA256SUMS.txt`：182 bytes，SHA-256 `ba95ed4049fe70079c6446f7bc672f9c04009b10bdf2b237123d26d454ce1b1e`。
+- 发布成功不替代真实 installed v0.1.17→v0.1.18 更新、跨版本 curated 改进弹窗、用户视觉 / 动效、UAC / SmartScreen 或系统替换 / 重启验收；相关 HB 状态不得升级为 `VERIFIED`。
+
 2026-08-14 `v0.1.17` Windows 候选基线（已 push，未 tag / Release）：
 
 - 实时助手已显示当前英雄 data.dtodo 单英雄详情中 documented `builds[0]` 的同一路线出门装、第一组核心装与情境装备，标注 `iesdev` 与补丁；没有新增 endpoint、请求或 credits，不跨 build，也不消费 `fullItems / itemOrders`。装备须同时具备正整数 ID、非空名称与合法 HTTPS 图标，否则相应分组明确显示“暂无数据”。
@@ -939,10 +950,9 @@ v0.1.16 Windows 候选与正式发布基线：
 
 ## 九、发布与 GitHub 状态
 
-- v0.1.18 候选状态：源码 commit `8b7bdac` 和 Transition 后 packaged UI 入口等待修复 commit `f24ff6f` 已 push main。首次 run `31729473777` 因旧 smoke 过早查校准入口失败；第二次 run `31730129727` / job `94548232662` success，Windows 30 files / 264 passed + 1 skip、packaged UI / calibration、bridge、differential updater 与完整候选门禁全通过。当前尚未 tag / Release，公开 Latest 仍为 v0.1.17，不得预写 tag、正式 Actions 或资产结果。
-- v0.1.17 发布状态：annotated tag object `7b6b638af2a89e19f4bc7ac8623dd31ab0b40bd6` 指向产品 / 记忆 commit `d7edf9fc917d8e1645d109e88324589deb4f7140`；正式 run `31724844667` / job `94530534700` success，约 5m54s。Release [v0.1.17](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.17) 于 2026-08-14T17:21:55Z 公开，为 Latest、non-draft、non-prerelease；public v2 channel 为 `0.1.17 / 199,236,595 bytes`，public packaged check 返回 `updateAvailable=false`。
-- 正式资产与差分：EXE / blockmap / ZIP / `latest.yml` / `SHA256SUMS.txt` 五项大小和 SHA-256 见第七节；previous 0.1.16→synthetic 0.1.18 差分为 Range 11、redirect 3、blockmap 各1、1,235,951 / 199,236,595 bytes、isolated cache。Actions artifact ID `9190979002`，473,416,475 bytes，digest 前缀 `6697dfc…`。
-- 当前 Git / 版本：main 在本次记忆更新提交后可领先 v0.1.17 tag，不在该提交内预写自身未知 hash；Release 产品源码固定为 tag 指向的 `d7edf9fc917d8e1645d109e88324589deb4f7140`。历史正式 Releases / assets / tags 保留契约不变；不得移动、改写或删除任何已发布产品 tag / 正式 Release assets。
+- v0.1.18 发布状态：annotated tag object `c7f7025accd2e6e9a1325d08a3c80e3c466f2e77` 指向产品 / 候选记忆 commit `2ca71e217ca93c24f1f00aa68c272475df76b884`；正式 run `31730817286` / job `94550598423` success，约 5m34s。Release [v0.1.18](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.18) publishedAt `2026-08-13T18:32:55Z`，为 Latest、non-draft、non-prerelease；完整门禁和 public packaged check 全通过。
+- v0.1.18 正式资产：EXE / blockmap / ZIP / `latest.yml` / `SHA256SUMS.txt` 五项大小和 SHA-256 见第七节。v0.1.17 五项资产仍保留，远端公开 Releases v0.1.11～v0.1.18 继续并存。
+- 当前 Git / 版本：main 在本次记忆更新提交后可领先 v0.1.18 tag，不在该提交内预写自身未知 hash；Release 产品源码固定为 tag 指向的 `2ca71e217ca93c24f1f00aa68c272475df76b884`。历史正式 Releases / assets / tags 保留契约不变；不得移动、改写或删除任何已发布产品 tag / 正式 Release assets。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -1123,3 +1133,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-14 | v0.1.17 / 正式 Release | Release SUCCESS；HB-039 / HB-040 与安装分流保持 FIXED / UNVERIFIED | annotated tag object `7b6b638af2a89e19f4bc7ac8623dd31ab0b40bd6` 指向产品 / 记忆 commit `d7edf9fc917d8e1645d109e88324589deb4f7140`；出装 schema v3、空态收口和安装分流正式发布 | run31724844667/job94530534700 success约5m54s；Windows29 files260 tests、4K fixture272ms、完整门禁、UI/bridge、差分、Release/channel/public packaged check全过；previous0.1.16→synthetic0.1.18 传输1,235,951/199,236,595 bytes、Range11、redirect3、blockmap各1、isolated cache；五资产与artifact ID9190979002摘要已记录 | 用户同机出装/空态、真实installed静默NSIS/完整包/UAC/替换仍未验；未签名且可能SmartScreen | Release v0.1.17于17:21:55Z公开Latest/non-draft/non-prerelease；main后续记忆提交可领先tag，不预写未知hash
 - 2026-08-14 | v0.1.18 / 本地候选 | 候选完成本地门禁；相关 HB 保持 FIXED / UNVERIFIED 或 IN PROGRESS | 侧栏微动效与 out-in 页面转场含 reduced-motion/eco 守卫；移除标题版本、独立更新页和旧分段 Renderer IPC；Main 无参 applyUpdate 单击完成 check→download→silent install并三处对局守卫；跨0.1.17升级 curated 改进列表一次性持久化；固定API Key申请外链；出装缺组仍暂无数据 | 最终审查修复P1后无已知P0/P1；本地30 files264 pass+1 Windows skip、typecheck/lint/diff、source bridge/UI、build/preload全过 | Windows workflow、真实installed更新、跨版本弹窗与用户视觉尚未验证；UAC/SmartScreen边界不变 | 本地0.1.18尚未commit/push/tag/Release；公开Latest仍v0.1.17
 - 2026-08-14 | v0.1.18 / Windows 候选 | workflow_dispatch SUCCESS；相关 HB 状态不升级 | 源码commit `8b7bdac` 与 smoke 竞态修复commit `f24ff6f`已push；首轮旧烟测在Vue Transition完成前过早查校准入口，改为waitUntil稳定入口，产品校准功能未回归 | 首次run31729473777/job94545977255仅因smoke时序失败；第二次run31730129727/job94548232662 success约5m33s，clean/audit/public0.1.17/OCR/Windows30 files264 pass+1 skip/lint/typecheck/retention/legacy/pack/metadata/UI+calibration/bridge/differential updater/checksums/artifact全过 | Windows runner不等于真实installed更新、跨版本弹窗、用户视觉/动效或固定外链验收 | tag-only按预期skip；尚未tag/Release，公开Latest仍v0.1.17
+- 2026-08-14 | v0.1.18 / 正式 Release | Release SUCCESS；相关 HB 状态不升级 | annotated tag object `c7f7025accd2e6e9a1325d08a3c80e3c466f2e77` 指向产品/候选记忆 commit `2ca71e217ca93c24f1f00aa68c272475df76b884`；单入口更新、curated改进列表、导航转场与固定Key外链正式发布 | run31730817286/job94550598423 success约5m34s；30 files264 pass+1 skip、UI/calibration/bridge/differential updater、Release/channel/public packaged check与全部门禁通过；五资产摘要已记录 | 真实installed更新、跨版本弹窗、用户视觉/UAC/SmartScreen/替换重启仍未验，不得VERIFIED | Release v0.1.18为Latest/non-draft/non-prerelease；v0.1.17五资产及v0.1.11～v0.1.18 Releases保留；main后续记忆提交可领先tag，不预写未知hash
