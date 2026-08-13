@@ -45,7 +45,7 @@ describe('augment recommendations', () => {
     ]
     const result = rankAugmentSlots(slots, ranks, augments)
     expect(result.map((slot) => slot.position)).toEqual([3, 1, 2])
-    expect(result[1]?.reason).toBe('英雄专属排名 #8 / 100')
+    expect(result[1]?.reason).toBe('该英雄适配度排名第 8（共 100 项）')
     expect(result[1]?.pickRate).toBe(.27)
     expect(result[1]).toMatchObject({ statsSource: 'tencent', statsRegion: 'CN' })
   })
@@ -59,7 +59,7 @@ describe('augment recommendations', () => {
     const result = rankAugmentSlots(slots, ranks, noGlobal)
     expect(result[0]).toMatchObject({ position: 1, tied: true })
     expect(result[1]).toMatchObject({ position: 1, tied: true })
-    expect(result[2]).toMatchObject({ position: null, reason: '暂无可靠数据' })
+    expect(result[2]).toMatchObject({ position: null, reason: '暂无可靠的推荐依据' })
     expect(result.map((slot) => slot.position)).toEqual([1, 1, null])
   })
 })

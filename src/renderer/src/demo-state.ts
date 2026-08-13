@@ -80,7 +80,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'available',
-      currentVersion: '0.1.14',
+      currentVersion: '0.1.15',
       availableVersion: '0.1.15',
       releaseName: 'HexBridge v0.1.15',
       releaseNotes: '预览模式的更新提示。',
@@ -88,6 +88,8 @@ export function createDemoApi(): HexBridgeApi {
       transferred: null,
       total: 198_000_000,
       bytesPerSecond: null,
+      downloadMode: null,
+      downloadModeMessage: '',
       lastCheckedAt: Date.now(),
       errorCode: null,
       message: '发现新版本 0.1.15',

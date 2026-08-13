@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import electron from 'electron'
@@ -47,6 +47,15 @@ try {
   }
   if (process.platform === 'win32' && result.windowsDisplayCapture !== true) {
     throw new Error(`Electron display capture smoke test failed: ${JSON.stringify(result)}`)
+  }
+  if (packagedExecutable && process.platform === 'win32') {
+    const packagedResources = path.join(path.dirname(packagedExecutable), 'resources')
+    const iconSizes = await Promise.all(['icon.ico', 'icon.png'].map(async (name) => (
+      await stat(path.join(packagedResources, name))
+    ).size))
+    if (iconSizes.some((size) => size < 1_000)) {
+      throw new Error(`Packaged application icon resources are missing or empty: ${JSON.stringify(iconSizes)}`)
+    }
   }
   const security = result.security ?? {}
   if (

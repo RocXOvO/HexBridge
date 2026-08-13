@@ -287,11 +287,12 @@ try {
         bridge: ['checkForUpdates', 'downloadUpdate', 'installUpdate', 'openReleasePage']
           .every((name) => typeof window.hexbridge[name] === 'function'),
         currentVersion: card.textContent.includes(${JSON.stringify(`v${expectedVersion}`)}),
-        explicitConsent: card.textContent.includes('不会静默更新'),
+        chineseStatus: card.textContent.includes('当前系统不支持') || card.textContent.includes('等待检查'),
+        redundantSecurityCopy: card.textContent.includes('商业代码签名') || card.textContent.includes('不会静默更新'),
         checkButton: buttons.some((text) => text.includes('检查更新')),
       }
     })()`)
-    if (!updaterUi?.bridge || !updaterUi.currentVersion || !updaterUi.explicitConsent || !updaterUi.checkButton) {
+    if (!updaterUi?.bridge || !updaterUi.currentVersion || !updaterUi.chineseStatus || updaterUi.redundantSecurityCopy || !updaterUi.checkButton) {
       throw new Error(`Updater UI/bridge smoke failed: ${JSON.stringify(updaterUi)}`)
     }
 

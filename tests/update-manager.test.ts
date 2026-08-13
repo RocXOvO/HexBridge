@@ -41,6 +41,8 @@ class FakeUpdater extends EventEmitter implements UpdateAdapter {
   allowPrerelease = true
   allowDowngrade = true
   fullChangelog = true
+  disableDifferentialDownload = true
+  logger: UpdateAdapter['logger'] = null
   check = vi.fn(async (): Promise<unknown> => undefined)
   download = vi.fn(async () => [] as string[])
   install = vi.fn()
@@ -73,7 +75,7 @@ const setup = (inGame = false, lifecycle?: { begin: () => unknown; cancel: (toke
     onStateChanged: changed,
     adapter,
     feeds: [
-      { provider: 'generic', url: 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/' },
+      { provider: 'generic', url: 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/', useMultipleRangeRequest: false },
       { provider: 'github', owner: 'RocXOvO', repo: 'HexBridge', releaseType: 'release' },
     ],
     scheduleAutomaticChecks: false,
@@ -93,6 +95,7 @@ describe('client update manager', () => {
       allowPrerelease: false,
       allowDowngrade: false,
       fullChangelog: false,
+      disableDifferentialDownload: false,
     })
 
     adapter.check.mockResolvedValueOnce(availableResult({
@@ -103,7 +106,8 @@ describe('client update manager', () => {
     expect(await manager.check()).toMatchObject({ ok: true })
     expect(adapter.feed).toHaveBeenCalledWith({
       provider: 'generic',
-      url: 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/',
+      url: 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/',
+      useMultipleRangeRequest: false,
     })
     expect(manager.getState()).toMatchObject({
       status: 'available',
@@ -113,6 +117,8 @@ describe('client update manager', () => {
     })
 
     adapter.download.mockImplementationOnce(async () => {
+      adapter.logger?.info('Download block maps (old: hidden, new: hidden)')
+      adapter.logger?.info('Full: 200 MB, To download: 2 MB (1%)')
       adapter.emit('download-progress', {
         percent: 51.5,
         transferred: 103,
@@ -123,9 +129,74 @@ describe('client update manager', () => {
       return ['hidden-local-path']
     })
     expect(await manager.download()).toMatchObject({ ok: true })
-    expect(manager.getState()).toMatchObject({ status: 'downloaded', percent: 100 })
+    expect(manager.getState()).toMatchObject({
+      status: 'downloaded',
+      percent: 100,
+      downloadMode: 'differential',
+      downloadModeMessage: '差分下载',
+    })
     expect(manager.install()).toMatchObject({ ok: true })
     expect(adapter.install).toHaveBeenCalledWith(false, true)
+  })
+
+  it('shows a controlled full-package fallback without exposing updater internals', async () => {
+    const { adapter, manager } = setup()
+    adapter.check.mockResolvedValueOnce(availableResult())
+    await manager.check()
+    adapter.download.mockImplementationOnce(async () => {
+      adapter.logger?.info('Download block maps (old: private-local-path, new: secret-url)')
+      adapter.logger?.error('Cannot download differentially, fallback to full download: C:\\private\\installer.exe')
+      adapter.emit('download-progress', { percent: 1, transferred: 2, total: 200 })
+      return []
+    })
+
+    await manager.download()
+    expect(manager.getState()).toMatchObject({
+      status: 'downloading',
+      downloadMode: 'full',
+      downloadModeMessage: '差分不可用，已改用完整安装包',
+      message: '差分下载不可用，正在下载完整安装包…',
+    })
+    expect(JSON.stringify(manager.getState())).not.toContain('private')
+    expect(JSON.stringify(manager.getState())).not.toContain('secret-url')
+  })
+
+  it('keeps the differential fallback reason after later progress and completion events', async () => {
+    const { adapter, manager } = setup()
+    adapter.check.mockResolvedValueOnce(availableResult())
+    await manager.check()
+    adapter.download.mockImplementationOnce(async () => {
+      adapter.logger?.error('Cannot download differentially, fallback to full download: hidden')
+      adapter.emit('download-progress', { percent: 80, transferred: 160, total: 200 })
+      adapter.emit('update-downloaded', { version: '0.1.5' })
+      return []
+    })
+
+    await manager.download()
+    expect(manager.getState()).toMatchObject({
+      status: 'downloaded',
+      downloadMode: 'full',
+      downloadModeMessage: '差分不可用，已改用完整安装包',
+      message: '差分不可用，完整安装包已下载，可在退出对局后重启安装',
+    })
+  })
+
+  it('labels an already cached installer without pretending it was a full download', async () => {
+    const { adapter, manager } = setup()
+    adapter.check.mockResolvedValueOnce(availableResult())
+    await manager.check()
+    adapter.download.mockImplementationOnce(async () => {
+      adapter.emit('update-downloaded', { version: '0.1.5' })
+      return ['hidden-local-path']
+    })
+
+    expect(await manager.download()).toMatchObject({ ok: true })
+    expect(manager.getState()).toMatchObject({
+      status: 'downloaded',
+      downloadMode: null,
+      downloadModeMessage: '已使用本机缓存',
+      message: '已找到本机缓存的更新，可在退出对局后重启安装',
+    })
   })
 
   it('blocks installation during a game and never invokes the installer', async () => {
@@ -198,7 +269,7 @@ describe('client update manager', () => {
 
     expect(await manager.check()).toEqual({ ok: true, message: '发现新版本 0.1.6' })
     expect(adapter.feed.mock.calls).toEqual([
-      [{ provider: 'generic', url: 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/' }],
+      [{ provider: 'generic', url: 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/', useMultipleRangeRequest: false }],
       [{ provider: 'github', owner: 'RocXOvO', repo: 'HexBridge', releaseType: 'release' }],
     ])
     expect(manager.getState()).toMatchObject({ status: 'available', availableVersion: '0.1.6' })

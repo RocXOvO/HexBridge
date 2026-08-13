@@ -27,6 +27,11 @@ export function secureWebPreferences(): Electron.WebPreferences {
 }
 
 export function applicationIconPath(): string {
+  if (process.platform === 'win32') {
+    return app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.ico')
+      : path.resolve(process.cwd(), 'build/icon.ico')
+  }
   return app.isPackaged
     ? path.join(process.resourcesPath, 'icon.png')
     : path.resolve(process.cwd(), 'build/icon.png')
@@ -44,6 +49,7 @@ export class WindowManager {
   private activityChanged: (() => void) | null = null
   private suspendedActivityChanged: (() => void) | null = null
   private lifecycleEpoch = 0
+  private captureTransactionInFlight = false
 
   constructor(private readonly config: ConfigStore) {}
 
@@ -139,12 +145,49 @@ export class WindowManager {
   sync(state: RuntimeState): void {
     if (this.quitting) return
     this.latestState = state
+    if (this.captureTransactionInFlight) return
     const champion = this.getLiveWindow('champion')
     const shouldShowChampion = shouldShowChampionCompanion(state.settings, state.snapshot)
     if (shouldShowChampion) champion?.showInactive()
     else champion?.hide()
 
     this.broadcastVisible(state)
+  }
+
+  async captureWithoutHexBridgeWindows<T>(task: () => Promise<T>): Promise<T> {
+    if (this.quitting) throw new Error('应用正在退出，无法截图')
+    if (this.captureTransactionInFlight) throw new Error('截图任务正在运行')
+    if (this.getLiveWindow('calibration')) throw new Error('请先完成或取消屏幕校准')
+    const lifecycleEpoch = this.lifecycleEpoch
+    const original = (['main', 'champion'] as const).map((name) => {
+      const window = this.getLiveWindow(name)
+      return {
+        name,
+        window,
+        visible: Boolean(window?.isVisible()),
+        minimized: Boolean(window?.isMinimized()),
+      }
+    })
+    this.captureTransactionInFlight = true
+    try {
+      for (const entry of original) {
+        if (entry.visible && !entry.window?.isDestroyed()) entry.window?.hide()
+      }
+      this.notifyActivityChanged()
+      await new Promise((resolve) => setTimeout(resolve, 220))
+      if (this.quitting || lifecycleEpoch !== this.lifecycleEpoch) throw new Error('截图已因应用状态变化取消')
+      return await task()
+    } finally {
+      this.captureTransactionInFlight = false
+      if (!this.quitting && lifecycleEpoch === this.lifecycleEpoch) {
+        for (const entry of original) {
+          const window = this.getLiveWindow(entry.name)
+          if (!entry.visible || entry.minimized || !window) continue
+          window.showInactive()
+        }
+        this.notifyActivityChanged()
+      }
+    }
   }
 
   private broadcastVisible(state: RuntimeState): void {

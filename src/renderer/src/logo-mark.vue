@@ -1,14 +1,22 @@
 <template>
-  <svg viewBox="0 0 48 48" aria-hidden="true">
-    <path class="frame" d="M24 3 41 13v22L24 45 7 35V13Z" />
-    <path class="bridge" d="M15 31V17m18 14V17M15 25c5-5 13-5 18 0M13 32h22" />
-    <path class="core" d="m24 15 3 3-3 3-3-3Z" />
+  <svg viewBox="0 0 1024 1024" aria-hidden="true">
+    <defs>
+      <linearGradient id="logo-tile" x1="94" y1="80" x2="916" y2="946" gradientUnits="userSpaceOnUse"><stop stop-color="#161b26" /><stop offset=".52" stop-color="#0a0d14" /><stop offset="1" stop-color="#08090d" /></linearGradient>
+      <linearGradient id="logo-edge" x1="232" y1="170" x2="800" y2="848" gradientUnits="userSpaceOnUse"><stop stop-color="#8bf0dd" /><stop offset=".48" stop-color="#65bdb5" /><stop offset="1" stop-color="#806fe0" /></linearGradient>
+      <linearGradient id="logo-bridge" x1="312" y1="382" x2="718" y2="694" gradientUnits="userSpaceOnUse"><stop stop-color="#77e0cf" /><stop offset=".52" stop-color="#f0f4ef" /><stop offset="1" stop-color="#eabe69" /></linearGradient>
+      <radialGradient id="logo-aura"><stop stop-color="#71dbc9" stop-opacity=".32" /><stop offset="1" stop-color="#71dbc9" stop-opacity="0" /></radialGradient>
+      <filter id="logo-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+    </defs>
+    <rect x="32" y="32" width="960" height="960" rx="224" fill="url(#logo-tile)" />
+    <circle cx="512" cy="502" r="356" fill="url(#logo-aura)" />
+    <path d="M512 126 830 310v404L512 898 194 714V310Z" fill="#0c1119" fill-opacity=".78" stroke="url(#logo-edge)" stroke-width="34" />
+    <path d="M318 672V390M706 672V390" fill="none" stroke="url(#logo-bridge)" stroke-width="58" stroke-linecap="round" />
+    <path d="M318 548c106-116 282-116 388 0M290 674h444" fill="none" stroke="url(#logo-bridge)" stroke-width="52" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="m512 382 50 50-50 50-50-50Z" fill="#f2c76f" filter="url(#logo-glow)" />
+    <path d="m512 399 33 33-33 33-33-33Z" fill="#f7f3df" />
   </svg>
 </template>
 
 <style scoped>
 svg { width: 100%; height: 100%; overflow: visible; }
-.frame { fill: rgba(104,211,194,.07); stroke: #70d6c6; stroke-width: 1.6; }
-.bridge { fill: none; stroke: #e7bc70; stroke-width: 2; stroke-linecap: round; }
-.core { fill: #f5f2df; stroke: #70d6c6; stroke-width: .5; }
 </style>

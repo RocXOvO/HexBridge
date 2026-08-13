@@ -2,6 +2,7 @@
 
 > 最后更新：2026-08-13
 > 当前基线：公开最新正式 Release 为 [v0.1.14](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.14)，公开、Latest、non-draft、non-prerelease；tag / 产品提交为 `5bd64052ec9262f38bbea0351e28c889d69009e3`。正式 workflow run `31697626369` / job `94438937472` success，约 5m36s：Windows audit 0、OCR 合成 + 真实 4K、25 test files / 219 passed + 1 Windows-only skip、lint、typecheck、retention、packaged UI / bridge（含 `shutdownLifecycle`）、synthetic updater、metadata / checksums、public update check 与 Release 全通过。public channel 核验 `version=0.1.14`、EXE size `199,183,989 bytes`，SHA-512 与正式 EXE 一致。v0.1.11～v0.1.14 Releases 均保留，至少 v0.1.12 / v0.1.13 的五项资产已确认仍完整，远端 retention 生效；这不证明真实旧 / 新 blockmap、HTTP Range / 206 或差分字节链。正式产物仍未做商业代码签名，SmartScreen / 未知发布者边界不变。用户已确认 v0.1.13 同机的选人→独立游戏客户端交接连续性，`normalize` / handoff reducer 继续冻结；完整终局 / 第二局仍缺证据。v0.1.14 移除 augment BrowserWindow / route / component、收口 Main 手动 OCR 状态，按窄白名单接入英雄专属 `pickRate` v2 缓存，并恢复肉眼可见原始 Tier，HB-029～031 继续 `IN PROGRESS`。HB-032 托盘退出生命周期竞态已通过代码、最终复审和 Windows packaged `shutdownLifecycle` 窄门禁，保持 `FIXED / UNVERIFIED`，等待报告用户同机从系统托盘右键退出复测。2026-08-13 安全收尾审计未发现 v0.1.14 源码新增 P0；游戏前台全局热键仍是未闭环 P1，因旧版用户已证明按钮可识别而 League 前台热键无响应，v0.1.14 只增加诊断与统一触发链，没有真实 League 前台 OS 输入门禁，HB-025 继续 `IN PROGRESS`。主线程已安全清空权威仓库精确 `release/` 的 10 个本地条目；远端 Release / tags 与用户目录未受影响。其他用户实机未闭环项保持原状态；Node 20 deprecated annotation 为非阻断维护项。本轮到此停止构建、依赖安装、索引和后台任务，后续 iCloud Desktop / Documents 本地化及冲突副本治理交由协调会话执行。
+> 当前本地候选：版本已升为 v0.1.15，HB-033～HB-038 均进入 `IN PROGRESS`。候选已实现 v2 single-range 差分通道 / 上一正式版资产 Windows smoke 设计、三卡 round 保留、主图标与更新图标统一、手动截图隐藏 / 恢复自身窗口、中文状态 / 推荐依据和有界 toast；发布流程改为自有 draft 幂等发布并把 channel 写入后置。完整本地为 27 test files / 235 passed + 1 skipped，typecheck / lint、synthetic + 真实 4K OCR、build / preload / source bridge / UI、icon / retention / legacy / diff-check 全通过，最终审查无 P0 / P1。尚未 commit、push、运行 Windows workflow、tag 或 Release；真实 Windows 差分 / 图标 / 截图与报告用户同机三卡 / toast 均未验，所有六项不得写 `FIXED` / `VERIFIED`。公开 Latest 仍为 v0.1.14，隐私、未签名 / SmartScreen、README / Release 安全说明与远端 retention 边界不变。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -605,6 +606,60 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 生命周期契约：托盘退出必须先进入单向 shutdown 状态，停止或忽略后续窗口 activity / Runtime sync、定时器、IPC 广播与可能重建窗口的逻辑；任何 BrowserWindow 调用前都要依据受管引用与 `isDestroyed()` 做一致守卫。退出顺序应有唯一所有者，并保证窗口 `close / closed / hide / blur` 等尾部事件不会把已销毁对象重新送入同步路径。
 - 验收标准：真实 Windows packaged 中连续多次覆盖托盘退出、主窗口可见 / hidden / 最小化、选人伴随窗 / 校准窗存在、OCR 在途、LCU 轮询 / 数据请求在途等状态；每次都须无主进程异常、无窗口重建、无残留进程，并在有界时间内退出。自动化至少应在真实 Electron 生命周期中模拟 activityChanged 与 destroy 交错，断言 sync 不访问 destroyed BrowserWindow，且 release workflow 必须在 tag 前执行 packaged 托盘退出烟测。修复、Windows workflow 与用户同机复测完成前不得标 `FIXED` / `VERIFIED`。
 
+### HB-033 v0.1.13→v0.1.14 实机更新仍下载约 190 MB 完整 EXE
+
+- 严重度：中高（自动更新可用但未实现用户期望的显著差分节省，并占用较多时间与流量）
+- 状态：`IN PROGRESS`（v0.1.15 本地候选已实现 v2 single-range 差分与 Windows smoke 设计；真实 Windows public 差分尚未验证）
+- 用户实机症状：从 v0.1.13 更新到 v0.1.14 时仍下载约 190 MB，与完整 EXE 量级一致。该事实补强 HB-023 的真实失败证据，但当前没有旧 / 新 blockmap 请求、HTTP 响应或 updater debug 抓包，不能直接断言是哪一个环节触发 full-download fallback。
+- 差分契约：受支持源版本必须能取得不可变的旧 / 新 versioned blockmap；客户端只允许请求固定官方通道，验证 metadata / SHA-512 后使用 HTTP Range / 206 拉取差异块，实际 installer 网络传输量须显著小于完整 EXE。缺 blockmap、摘要损坏、服务器无 Range 或差分应用失败时允许安全回退完整包，但 UI 必须明确显示“已改用完整安装包”和预计 / 实际下载量，不能继续把完整下载呈现为差分。
+- v0.1.15 本地候选：引入 v2 single-range 差分协议；Windows packaged smoke 设计会读取真实上一正式 Release 的 EXE / blockmap，要求 metadata 首次请求 `302` 后下载路径发出 Range、服务返回 `206`、full installer 请求数为 0，实际传输量低于完整包 25%。legacy root 永久固定为 v0.1.14，不随 public channel 漂移；无法差分时普通 UI 使用明确中文说明已改用完整安装包。发布流程使用自有 draft 幂等发布，只有唯一 starter 的 0 字节占位资产允许删除，远端历史正式资产仍不可删；public channel 必须在正式资产回读验证后最后写入。
+- 验收标准：真实 Windows installed v0.1.13→后续版，分别覆盖空 updater cache 与已有 cache，抓包 / 受控服务端日志确认旧 / 新 blockmap、Range / 206、实际字节、SHA-512 与安装成功，断言未触发 full-download fallback；另覆盖每种失败条件，确认明确提示并安全回退。不得记录带查询参数 URL、token、用户路径或安装目录。
+
+### HB-034 三卡识别结果数秒后被连续丢帧清除
+
+- 严重度：高（用户来不及查看或比较已经成功识别的三卡推荐）
+- 状态：`IN PROGRESS`（v0.1.15 本地候选已实现 round 保留；真实多轮游戏仍未验证）
+- 用户实机症状：三张海克斯成功识别并显示后，结果在数秒内消失。当前不能从症状判断是界面检测丢失、OCR 连续未命中、阶段同步、timer 或 Renderer 状态覆盖，禁止猜根因。
+- 状态契约：一组已可靠识别的三卡结果必须作为本轮最后可靠结果保留。连续丢帧、OCR 未识别、窗口暂时消失、动画过渡或 HexBridge 窗口显隐均不得清除；只有下一轮海克斯选择界面被正向、可靠检测到时，才进入新的 round 并清理 / 替换旧结果。终局 / 新游戏的既有 generation 边界仍可清理，不能把跨局保留扩大成陈旧结果泄漏。
+- v0.1.15 本地候选：新增 `AugmentRound` 状态；成功结果跨界面空窗 / 连续 miss 保留，只有下一轮界面可靠正向出现时换代。手动触发得到 unreliable 结果时允许安全清理旧轮，避免用户明确重试后继续展示不可确认的旧组合；终局与新 generation 边界继续清理。
+- 验收标准：自动化覆盖成功结果→长时间 miss / 界面消失仍保留、同轮重复结果去重、正向检测下一轮后清旧结果、终局与第二局换代；真实一整局覆盖多轮海克斯，确认用户可持续查看上一轮结果直到下一轮明确出现。
+
+### HB-035 Windows 安装 / 桌面图标与客户端运行图标不一致
+
+- 严重度：中（品牌识别混乱，用户无法确认不同入口是否属于同一应用）
+- 状态：`IN PROGRESS`（v0.1.15 本地候选已统一 ICO / Logo 并更换更新导航图标；Windows 实看尚未完成）
+- 用户目标：以用户认可的桌面快捷方式图标作为唯一 HexBridge 主图标来源，统一 Windows 桌面快捷方式、安装器、EXE、任务栏、窗口标题 / 运行图标与托盘；更新导航入口改用新的、语义清楚且风格一致的独立图标，不能继续复用容易混淆的旧符号。
+- 契约：所有主图标必须由同一受控源生成所需 ICO / PNG 尺寸，透明边缘和小尺寸轮廓一致；更新导航图标属于应用内导航资产，不得冒充主应用 icon。不得复制第三方品牌、代码或素材。
+- v0.1.15 本地候选：Windows builder / 安装器、窗口与托盘统一使用同一 ICO / Logo 资源链，更新导航改为独立的新图标；icon verifier 已通过。该静态 / 构建前证据不替代桌面快捷方式、任务栏缓存、窗口标题、托盘和覆盖安装后的真实 Windows 视觉检查。
+- 验收标准：Windows 安装后逐项截取 / 检查安装器、桌面快捷方式、EXE 属性、任务栏、窗口标题 / 运行图标、托盘和更新导航；要求主图标一致、非 Electron 默认、缓存刷新 / 覆盖安装后不残留旧图标，更新导航图标清晰可辨。
+
+### HB-036 手动 OCR 截图可能捕获 HexBridge 自身遮挡窗口
+
+- 严重度：高（应用自身遮挡三卡会直接导致 OCR 失败或误识别）
+- 状态：`IN PROGRESS`（v0.1.15 本地候选已实现手动截图前隐藏 / 后恢复；Windows 合成器与真实游戏尚未验证）
+- 手动捕获契约：按钮、快捷键与托盘的同一 Main 手动 OCR 路径，在截图前必须记录所有可能遮挡目标的 HexBridge 受管窗口原始可见 / 最小化 / 焦点状态，将这些窗口隐藏，等待 Windows 桌面合成器完成至少一个可证明的稳定帧后再截图。捕获成功、失败、超时或异常后都须按原状态恢复；原本 hidden / 最小化的窗口不得被唤醒，原本失焦的窗口不得抢焦点。
+- 隐私与失败边界：完整屏幕帧只能在内存中用于一次有界检测 / OCR，不得保存到磁盘、日志或 Renderer；诊断保存仍只允许经既有开关保存三张标题裁切。隐藏 / 恢复必须有生命周期 epoch / destroyed window 守卫，退出或安装期间不得重建窗口。
+- v0.1.15 本地候选：手动 OCR 前记录 main / champion 窗口状态并隐藏，等待合成后截图，再以 `showInactive` 等不抢焦点方式按原可见状态恢复；原本 hidden 的窗口不恢复。完整帧仍只驻留内存，未放宽全屏保存边界。
+- 验收标准：Windows packaged 覆盖主窗、选人伴随窗、校准窗、toast / 菜单可能遮挡，断言截图像素中不存在 HexBridge 窗口且捕获后可见 / 焦点状态精确恢复；覆盖 capture 失败、窗口销毁、退出竞态与多显示器。真实游戏前台按钮 / 快捷键结果应一致。
+
+### HB-037 用户可见更新状态与推荐依据未完整中文化
+
+- 严重度：中（影响简体中文产品一致性与推荐解释可读性）
+- 状态：`IN PROGRESS`（v0.1.15 本地候选已中文化状态与推荐依据；Windows / 用户视觉仍未验）
+- UI 文案契约：删除更新页底部面向普通用户的“不静默安装 / 未签名 / SHA-512”说明；这些安全事实继续完整保留在 README、Release notes、诊断 / 校验资料和实际确认流程中，不得删除或伪称已签名。所有用户可见状态枚举与 fallback，包括 `downloading`，必须映射为自然简体中文，不能直接渲染内部 code。
+- 推荐解释契约：三卡推荐依据使用简洁、自然、可核对的中文，明确 rank / tier / 当前英雄选取率的上游口径，不输出字段名拼接、机器式中英混排或夸大结论；pickRate 仍不参与排序，海克斯胜率 / wins / games 继续禁止。
+- v0.1.15 本地候选：更新状态与 fallback 映射为简体中文，更新页移除底部普通用户技术说明；三卡依据使用自然中文并明确为上游当前英雄专属推荐，不改变 rank 排序和 pickRate 次级展示边界。README / Release 中未签名、校验与用户确认说明继续保留。
+- 验收标准：建立用户可见字符串清单 / 快照，覆盖更新全部状态与错误、三卡成功 / 并列 / 暂无数据 / stale、长中文和缺字段；断言内部英文 code 只留诊断，普通 UI 无上述底部技术说明，README / Release 安全边界仍在。
+
+### HB-038 底部 toast 无有界消失与替换策略
+
+- 严重度：中（提示长期遮挡页面，多个结果叠加或过期状态误导用户）
+- 状态：`IN PROGRESS`（v0.1.15 本地候选已实现有界 toast；Windows / 用户交互尚未验）
+- 交互契约：底部瞬时 toast 必须有明确、可测试的最大显示时长并自动消失；后续 toast 到达时替换前一个，不叠加队列或让旧提示继续占位。成功 / 普通信息可较短，错误可适度延长但仍有界；重复同消息不得无限续期。页面内的持续业务状态、进度、错误详情和诊断卡可以继续保留，不能为让 toast 消失而清除真实状态。
+- 可访问性与生命周期：toast 替换 / 消失应尊重 reduced-motion，并提供静态淡出或无动画等价行为；窗口 hidden / 销毁、路由切换、退出时清 timer，迟到 timer 不得清除较新的 toast。
+- v0.1.15 本地候选：成功 / 普通 toast 最长 4.5 秒，错误 toast 最长 8 秒；新提示立即替换旧提示，sequence / timer 守卫防止旧 timer 清除新消息。页面内持续状态不随 toast 消失。
+- 验收标准：fake timer 覆盖自动消失、后消息替换、旧 timer 不清新消息、重复消息、错误时长、路由 / 窗口销毁；packaged UI 验证不遮挡关键按钮且页面持续状态仍存在。
+
 ### HB-013～HB-017 的 v0.1.3 packaged smoke 边界
 
 - tag workflow 在 Windows runner 启动实际 unpacked EXE：bridge smoke 验证 CommonJS preload、bridge / IPC 和安全偏好；packaged UI smoke 验证 invalid-Key 反馈与 busy 恢复、关键文字 14px、三个 reduced-motion 选择器、1024×768 校准截图 data URL / Renderer 解码、中文说明 14px，以及真实 CDP `Esc` 后主窗口恢复。
@@ -741,6 +796,7 @@ v0.1.14 正式发布基线：
 - **本地与远端 Release 语义**：本地 `clean:release` 只在下一次 `pack:win` 前安全清空仓库根下精确 `release/`；它不删除 GitHub 资产，也不负责清理用户下载目录 / 已安装版本。v0.1.12 后审计时，工作区 `release/` 只含该版版本化 EXE / ZIP / blockmap 和当次 metadata / `win-unpacked`，未发现旧版本号产物；这是历史观察，不代表当前 CI 资产落在本机，也不等于未来每次失败 / 中断构建后都只保留完整当前版本。远端必须继续保留 v0.1.11 起所有正式 Releases / assets / tags，历史已删除资产不能伪称恢复。
 - **闭环判定**：GitHub Release、Windows runner、单元 / 回放 fixture、packaged smoke、ONNX fixture 或静态 verifier 只能作为对应窄范围证据。涉及真实 WeGame / LCU 交接、用户 4K / DPI / 多屏、游戏前台全局热键、性能、更新安装或差分传输的目标，必须取得报告用户同机或等价真实 Windows installed 环境的可复核结果才能升级。v0.1.13 新时间线足以通过 HB-020 / HB-022 的交接连续性子项，但不足以升级其总体状态；快捷键与黑屏顶部浮窗反而新增真实失败证据。当前没有证据支持把 HB-020、HB-022、HB-023～HB-031 整体标为 `FIXED` / `VERIFIED`。
 - **当前实机缺口冻结**：HB-020 / HB-022 的选人→独立游戏客户端交接子项已由报告用户通过，但终局清理和第二局换代仍未验；真实 4K 三卡 OCR / 英雄专属 pickRate / 原始 Tier、游戏性能、Windows EXE / 任务栏 / 托盘 / 安装器四处 icon、真实差分传输与安装、HB-032 系统托盘右键退出均保持各自当前状态，不得由 v0.1.14 发布成功外推关闭。
+- **v0.1.15 本地候选（HB-033～038）**：六项均为 `IN PROGRESS`。候选已实现 v2 single-range 差分与真实上一正式 Release 资产 smoke 设计、`AugmentRound` 跨空窗保留、统一主 icon / 更新导航 icon、手动截图隐藏 main / champion 后 `showInactive` 恢复、用户状态 / 推荐依据中文化，以及 toast 成功 4.5 秒 / 错误 8 秒与替换守卫。发布流程同时改为自有 draft 幂等发布、唯一 starter 0 字节删除例外和 channel 后置。最新本地 27 files / 235 passed + 1 skipped，typecheck / lint、synthetic + 真实 4K OCR、build / preload / source bridge / UI、icon / retention / legacy / diff-check 全通过，最终审查无 P0 / P1；但未 commit / push / Windows / tag / Release，真实 Windows 和用户同机证据仍为空，不得升级。
 
 - Windows 10 与 Windows 11 x64 的安装、卸载、便携版启动、托盘、开机后首次 `safeStorage` 行为。
 - HB-012 已在 source Electron 和 Windows unpacked packaged EXE 中验证 CommonJS preload、`window.hexbridge`、`getState()` IPC 和安全偏好；仍需安装版实际启动 / 卸载，并人工确认故障时 `preload-error` 可进入受控日志。自动烟测不能代替真实 WeGame / LCU 对局验收。
@@ -766,6 +822,7 @@ v0.1.14 正式发布基线：
 - HB-028：当前 `IN PROGRESS`。v0.1.13 已移除普通用户视觉档位 UI / IPC 写入口，revision 2 把旧 override 迁移到 auto，并由 Main 自动 policy 选择前台 cinematic、失焦 balanced、hidden / minimized / launching / active / 低资源 eco；最终复审、本地 clean 全链及正式 Windows packaged UI 门禁通过。真实 4K 性能、reduced-motion 组合和报告用户同机窗口切换实测未完成，不能写 `FIXED` / `VERIFIED`。
 - HB-029～HB-031 当前均为 `IN PROGRESS`。v0.1.14 已删除 augment BrowserWindow / `#augment` route / `AugmentOverlay.vue`，OCR 结果只进入实时助手且状态同步不 show / focus；已按数值与来源 / 区域 allowlist 清洗英雄专属 `pickRate`，rank 排序不变，详情缓存升为 v2且 legacy 只回退 stale rank / tier；Tier 背景条显示肉眼可见原始 `Tn` 并移除“强度顶尖”。正式 Windows tag run 已通过 25 files / 219 passed + 1 skip、真实 4K OCR、packaged UI / bridge 与 public update check；但游戏前台快捷键和报告用户同机 OCR / 数据 / 视觉仍未验证，三项不得写 `FIXED` / `VERIFIED`。
 - HB-032 当前为 `FIXED / UNVERIFIED`。v0.1.14 tag / 产品提交 `5bd64052ec9262f38bbea0351e28c889d69009e3` 已正式发布；tag run `31697626369` / job `94438937472` 通过 25 files / 219 passed + 1 skip、真实 4K OCR、packaged UI / bridge `shutdownLifecycle`、updater / public check、metadata / checksums 与 Release 全链。但尚无报告用户同机系统托盘右键退出复测，不能标 `VERIFIED`。
+- HB-033～HB-038 当前均为 `IN PROGRESS`。v0.1.15 本地候选及 27 files / 235+1 完整门禁、最终审查无 P0 / P1只证明代码候选已收敛；真实 Windows v2 差分 / 302→Range 206 / 零 full / <25%、安装与任务栏图标、合成器隐藏截图恢复，以及报告用户同机多轮三卡 / 中文依据 / toast 仍未验。版本尚未 commit、push、Windows workflow、tag 或 Release，公开 Latest 仍 v0.1.14。
 - 界面长期契约：验证降低原画模糊 / 遮罩后英雄仍清晰可辨且文字对比合格；独立更新提示 / 页面可从全局入口回访且不再依赖设置页；普通设置中无游戏目录 UI，同时底层 fallback 的保留 / 删除有审计结论；等待英雄轨道球在 balanced / cinematic 可见并在 eco / InProgress / hidden / reduced-motion 静止；英雄榜职业全中文、无冗余角色列 / 筛选，Tier 背景条同时保留准确 Tier 文本 / 无障碍语义且不得用“强度顶尖”替代；选中行轻微悬浮与极光在 eco / InProgress / hidden / reduced-motion 停止；搜索覆盖正式中文名、称号、alias 与可审计常用别名；Windows EXE / 任务栏 / 托盘 / 安装器图标均非空且非默认；侧栏无独立 LCU 状态，普通未连接状态统一合并到实时助手；新配色为独立实现且无第三方代码 / 素材复制。以上均须视觉快照、键盘 / 搜索回归、Windows packaged 图标 / 可读性和渲染性能证据，当前不得预写完成。
 - 无边框游戏下真实三卡：默认关闭自动 OCR 时，按钮 / 当前配置快捷键应完成一次有界识别；显式开启自动 OCR 后按 2 秒门控周期工作，需记录三卡稳定出现到展示的真实延迟，刷新动画期间不误识别，连续丢失正确隐藏。
 - 1080p / 2K / 4K、100% / 125% / 150% DPI、多显示器、非主显示器、显示器热插拔和手动拖框校准。
@@ -944,3 +1001,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-13 | HB-032 / Windows 候选通过 | FIXED / UNVERIFIED（packaged窄门禁通过；用户同机未复测） | WindowManager以preparedInstallToken表示可撤安装准备、quitCommitted表示不可撤退出；Updater持token回滚安装错误；Runtime接prepare/cancel；校准lifecycle epoch守卫异步与窗口存活；quitting同步fail-closed并清destroyed引用 | commit `34d14b45156eb762480c7d13af72dca2fd20ed2b`已push；run31697118111/job94437330072 success约5m8s，Windows clean audit0、OCR合成+真实4K、25 files/219 pass+1 skip、lint/typecheck/retention/pack/metadata/packaged UI/bridge含shutdownLifecycle/updater/checksums/artifact全过 | packaged bridge未通过系统托盘右键执行完整报告路径；等待用户同机复测，无异常、无残留进程后才可VERIFIED | tag-only按预期skip；v0.1.14未tag/Release，公开Latest仍v0.1.13
 - 2026-08-13 | v0.1.14 / 正式 Release | Release SUCCESS；HB-032保持FIXED / UNVERIFIED，其他实机项状态不升级 | tag/产品commit `5bd64052ec9262f38bbea0351e28c889d69009e3`；移除augment窗口、Main内三卡/OCR状态、英雄专属pickRate v2缓存、可见原始Tier及两阶段退出生命周期进入正式产品 | run31697626369/job94438937472 success约5m36s；audit0、真实4K OCR、25 files/219 pass+1 skip、lint/typecheck/retention、packaged UI/bridge含shutdownLifecycle、synthetic updater、metadata/checksums/public update check/publish全过；正式五资产与public channel0.1.14/199183989/SHA512一致 | 报告用户同机托盘右键退出、游戏前台快捷键、三卡OCR/pickRate/Tier视觉、终局/第二局及真实Range/206差分仍未验；未签名/SmartScreen、Node20 annotation边界不变 | Release https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.14 为Latest/non-draft/non-prerelease；v0.1.11～v0.1.13 Releases保留，至少v0.1.12/v0.1.13五资产确认完整
 - 2026-08-13 | v0.1.14 安全收尾 / 完成度与迁移冻结 | 安全收尾完成；缺陷状态不升级 | 在权威repo执行项目自带clean:release，仅删除精确release/下10个本地条目（含旧0.1.13交叉产物与iCloud“ 2”冲突副本），目录清空；源码审计无新增P0，HB-025前台热键仍为未闭环P1 | 清理脚本安全结束，release/为空；未触碰远端Release/tags、Downloads、安装目录或目录外文件。v0.1.14诊断/自动化不等于League前台OS输入门禁 | 交接子项已通过但终局/第二局未验；真实4K三卡/pickRate/Tier、性能、四处icon、真实差分和托盘右键退出保持现状 | 到此不再启动构建/npm ci/索引/后台任务；iCloud Desktop/Documents本地化与冲突治理交由协调会话
+- 2026-08-13 | v0.1.15 HB-033～038 本地候选 | 六项均IN PROGRESS；不得FIXED/VERIFIED | v2 single-range+上一正式Release EXE/blockmap Windows smoke设计（302/Range206/零full/<25%，legacy根冻结0.1.14）及明确中文fallback；AugmentRound跨空窗保留且manual unreliable安全清旧；统一ICO/Logo/更新icon；manual capture隐藏main/champion、合成后截图、showInactive恢复；中文状态/英雄专属依据；toast成功4.5s/错误8s。发布采用自有draft幂等、唯一starter零字节删除例外、channel后置 | 27 files/235 pass+1 skip、typecheck/lint、synthetic+真实4K OCR、build/preload/source bridge/UI、icon/retention/legacy/diff-check全过；终审无P0/P1 | 未commit/push/Windows/tag/Release；真实Windows差分、图标、截图及报告用户同机三卡/toast未验 | 本地版本0.1.15，公开Latest仍v0.1.14；隐私/未签名/README与Release安全边界不变

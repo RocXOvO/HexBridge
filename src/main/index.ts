@@ -1,5 +1,4 @@
 import { app, globalShortcut, Menu, nativeImage, Tray } from 'electron'
-import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { runBridgeSmokeTest } from './bridge-smoke.js'
 import { registerIpc } from './ipc.js'
@@ -8,6 +7,7 @@ import { HexBridgeRuntime } from './runtime.js'
 import { runPackagedUpdateSmokeTest } from './update-smoke.js'
 import { runPublicUpdateSmokeTest } from './public-update-smoke.js'
 import { OcrHotkeyManager } from './hotkey-manager.js'
+import { applicationIconPath } from './window-manager.js'
 
 let runtime: HexBridgeRuntime | null = null
 let tray: Tray | null = null
@@ -87,6 +87,7 @@ async function start(): Promise<void> {
     return
   }
 
+  if (process.platform === 'win32') app.setAppUserModelId('dev.hexbridge.app')
   runtime = new HexBridgeRuntime()
   registerIpc(runtime)
   await runtime.initialize()
@@ -102,10 +103,7 @@ async function start(): Promise<void> {
     message: '全局快捷键服务尚未就绪',
   })
 
-  const iconPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'icon.png')
-    : path.resolve(process.cwd(), 'build/icon.png')
-  const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+  const trayIcon = nativeImage.createFromPath(applicationIconPath()).resize({ width: 16, height: 16 })
   tray = new Tray(trayIcon)
   tray.setToolTip('HexBridge')
   refreshTrayMenu()

@@ -90,11 +90,13 @@ function rankReason(
   meta: AugmentMeta | undefined,
 ): string {
   if (rank?.rank != null) {
-    return `英雄专属排名 #${rank.rank}${rank.total ? ` / ${rank.total}` : ''}`
+    return rank.total
+      ? `该英雄适配度排名第 ${rank.rank}（共 ${rank.total} 项）`
+      : `该英雄适配度排名第 ${rank.rank}`
   }
-  if (rank?.tier != null) return `英雄专属 Tier ${rank.tier}`
-  if (meta?.globalTier != null) return `全局 Tier ${meta.globalTier}`
-  return '暂无可靠数据'
+  if (rank?.tier != null) return `该英雄的适配等级为第 ${rank.tier} 档`
+  if (meta?.globalTier != null) return `缺少英雄专属数据，参考全局第 ${meta.globalTier} 档`
+  return '暂无可靠的推荐依据'
 }
 
 export function rankAugmentSlots(

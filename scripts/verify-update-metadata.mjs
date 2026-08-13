@@ -53,7 +53,10 @@ if (currentBlockmaps.length !== 1 || currentBlockmaps[0] !== blockmapName) {
   throw new Error('Expected exactly one current-version NSIS blockmap')
 }
 if (!/^provider:\s*generic$/m.test(appUpdate)) throw new Error('Packaged app-update.yml provider is not generic')
-if (!/^url:\s*https:\/\/raw\.githubusercontent\.com\/RocXOvO\/HexBridge\/update-channel\/?$/m.test(appUpdate)) {
+if (!/^useMultipleRangeRequest:\s*false$/m.test(appUpdate)) {
+  throw new Error('Packaged updater must use single HTTP range requests')
+}
+if (!/^url:\s*https:\/\/raw\.githubusercontent\.com\/RocXOvO\/HexBridge\/update-channel\/v2\/?$/m.test(appUpdate)) {
   throw new Error('Packaged app-update.yml stable channel mismatch')
 }
 

@@ -7,6 +7,13 @@ export interface UpdateAdapter {
   allowPrerelease: boolean
   allowDowngrade: boolean
   fullChangelog: boolean
+  disableDifferentialDownload: boolean
+  logger: {
+    info(message?: unknown): void
+    warn(message?: unknown): void
+    error(message?: unknown): void
+    debug?(message?: unknown): void
+  } | null
   setFeedURL(options: UpdateFeedConfiguration): void
   on(event: string, listener: (...args: any[]) => void): unknown
   checkForUpdates(): Promise<unknown>
@@ -15,7 +22,7 @@ export interface UpdateAdapter {
 }
 
 export type UpdateFeedConfiguration =
-  | { provider: 'generic'; url: string }
+  | { provider: 'generic'; url: string; useMultipleRangeRequest: false }
   | { provider: 'github'; owner: string; repo: string; releaseType: 'release' }
 
 interface UpdateManagerOptions {
@@ -41,6 +48,8 @@ const emptyState = (currentVersion: string, supported: boolean): AppUpdateState 
   transferred: null,
   total: null,
   bytesPerSecond: null,
+  downloadMode: null,
+  downloadModeMessage: '',
   lastCheckedAt: null,
   errorCode: null,
   message: supported ? '可检查正式版更新' : '仅 Windows 安装版支持客户端内更新',
@@ -98,6 +107,7 @@ export class UpdateManager {
   private activeFeedProvider: UpdateFeedConfiguration['provider'] = 'generic'
   private checkInFlight: Promise<{ ok: boolean; message: string }> | null = null
   private installShutdownToken: unknown = null
+  private differentialFallback = false
 
   constructor(private readonly options: UpdateManagerOptions) {
     this.state = emptyState(options.currentVersion, options.supported)
@@ -126,22 +136,53 @@ export class UpdateManager {
     this.adapter.allowPrerelease = false
     this.adapter.allowDowngrade = false
     this.adapter.fullChangelog = false
-    this.adapter.on('download-progress', (progress: any) => this.patch({
-      status: 'downloading',
-      percent: Math.min(100, finiteNonNegative(progress?.percent) ?? 0),
-      transferred: finiteNonNegative(progress?.transferred),
-      total: finiteNonNegative(progress?.total),
-      bytesPerSecond: finiteNonNegative(progress?.bytesPerSecond),
-      errorCode: null,
-      message: '正在下载更新…',
-    }))
-    this.adapter.on('update-downloaded', (info: any) => this.patch({
-      status: 'downloaded',
-      availableVersion: safeVersion(info?.version) ?? this.state.availableVersion,
-      percent: 100,
-      errorCode: null,
-      message: '更新已下载，可在退出对局后重启安装',
-    }))
+    this.adapter.disableDifferentialDownload = false
+    this.adapter.logger = {
+      info: (message) => this.observeUpdaterTransport('info', message),
+      warn: (message) => this.observeUpdaterTransport('warn', message),
+      error: (message) => this.observeUpdaterTransport('error', message),
+      debug: () => undefined,
+    }
+    this.adapter.on('download-progress', (progress: any) => {
+      const downloadMode = this.state.downloadMode === 'preparing' ? 'full' : this.state.downloadMode
+      this.patch({
+        status: 'downloading',
+        percent: Math.min(100, finiteNonNegative(progress?.percent) ?? 0),
+        transferred: finiteNonNegative(progress?.transferred),
+        total: finiteNonNegative(progress?.total),
+        bytesPerSecond: finiteNonNegative(progress?.bytesPerSecond),
+        downloadMode,
+        downloadModeMessage: downloadMode === 'differential'
+          ? '差分下载'
+          : this.differentialFallback
+            ? '差分不可用，已改用完整安装包'
+            : '完整安装包下载',
+        errorCode: null,
+        message: downloadMode === 'differential'
+          ? '正在下载版本差异…'
+          : this.differentialFallback
+            ? '差分下载不可用，正在下载完整安装包…'
+            : '正在下载完整安装包…',
+      })
+    })
+    this.adapter.on('update-downloaded', (info: any) => {
+      const downloadedFromCache = this.state.downloadMode === 'preparing'
+      this.patch({
+        status: 'downloaded',
+        availableVersion: safeVersion(info?.version) ?? this.state.availableVersion,
+        percent: 100,
+        downloadMode: downloadedFromCache ? null : this.state.downloadMode,
+        downloadModeMessage: downloadedFromCache ? '已使用本机缓存' : this.state.downloadModeMessage,
+        errorCode: null,
+        message: this.state.downloadMode === 'differential'
+          ? '差分更新已下载，可在退出对局后重启安装'
+          : this.differentialFallback
+            ? '差分不可用，完整安装包已下载，可在退出对局后重启安装'
+          : downloadedFromCache
+            ? '已找到本机缓存的更新，可在退出对局后重启安装'
+            : '更新已下载，可在退出对局后重启安装',
+      })
+    })
     this.adapter.on('error', (error: unknown) => {
       if (!this.checkInFlight) {
         if (this.state.status === 'installing') this.cancelInstallShutdown()
@@ -154,6 +195,27 @@ export class UpdateManager {
       this.periodicCheckTimer = setInterval(() => void this.check(false), 6 * 60 * 60 * 1_000)
     }
     this.patch({ status: 'idle', errorCode: null, message: '可检查正式版更新' })
+  }
+
+  private observeUpdaterTransport(level: 'info' | 'warn' | 'error', value: unknown): void {
+    if (this.state.status !== 'downloading') return
+    const message = typeof value === 'string' ? value : ''
+    if (level === 'info' && (message.startsWith('Download block maps') || /^Full: .*To download:/i.test(message))) {
+      this.patch({
+        downloadMode: 'differential',
+        downloadModeMessage: '差分下载',
+        message: '正在准备差分更新…',
+      })
+      return
+    }
+    if (level === 'error' && message.startsWith('Cannot download differentially, fallback to full download')) {
+      this.differentialFallback = true
+      this.patch({
+        downloadMode: 'full',
+        downloadModeMessage: '差分不可用，已改用完整安装包',
+        message: '差分下载不可用，正在改用完整安装包…',
+      })
+    }
   }
 
   getState(): AppUpdateState {
@@ -262,6 +324,8 @@ export class UpdateManager {
         transferred: null,
         total: null,
         bytesPerSecond: null,
+        downloadMode: null,
+        downloadModeMessage: '',
         lastCheckedAt: Date.now(),
         errorCode: 'UPDATE_UNTRUSTED',
         message: '更新信息未通过官方发布地址校验，已停止更新',
@@ -278,6 +342,8 @@ export class UpdateManager {
       transferred: null,
       total: finiteNonNegative(updateInfo.files?.[0]?.size),
       bytesPerSecond: null,
+      downloadMode: null,
+      downloadModeMessage: '',
       lastCheckedAt: Date.now(),
       errorCode: null,
       message: `发现新版本 ${safeVersion(updateInfo.version) ?? ''}`.trim(),
@@ -292,7 +358,15 @@ export class UpdateManager {
     if (this.state.status !== 'available' && !(this.state.status === 'error' && this.state.availableVersion)) {
       return { ok: false, message: '请先检查并确认有可用更新' }
     }
-    this.patch({ status: 'downloading', percent: 0, errorCode: null, message: '正在下载更新…' })
+    this.patch({
+      status: 'downloading',
+      percent: 0,
+      downloadMode: 'preparing',
+      downloadModeMessage: '正在准备下载方式',
+      errorCode: null,
+      message: '正在准备更新下载…',
+    })
+    this.differentialFallback = false
     try {
       await this.adapter.downloadUpdate()
       return { ok: this.state.status !== 'error', message: this.state.message }

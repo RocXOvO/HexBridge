@@ -4,6 +4,7 @@ export interface UpdateSmokeResult {
   ok: true
   availableVersion: string
   downloaded: true
+  differentialDownload: true
 }
 
 class UpdateSmokeFailure extends Error {
@@ -44,15 +45,24 @@ export async function runPackagedUpdateSmokeTest(): Promise<UpdateSmokeResult> {
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowPrerelease = false
   autoUpdater.allowDowngrade = false
-  autoUpdater.setFeedURL({ provider: 'generic', url: feed })
+  autoUpdater.disableDifferentialDownload = false
+  autoUpdater.setFeedURL({ provider: 'generic', url: feed, useMultipleRangeRequest: false })
 
   let availableVersion: string | null = null
   let downloaded = false
+  let differentialDownload = false
   let rejectEvent: ((error: Error) => void) | null = null
   const eventFailure = new Promise<never>((_resolve, reject) => { rejectEvent = reject })
   const onError = (): void => rejectEvent?.(new UpdateSmokeFailure('HB_UPDATE_SMOKE_UPDATER_ERROR'))
   const onAvailable = (info: { version?: string }): void => { availableVersion = info.version ?? null }
   const onDownloaded = (): void => { downloaded = true }
+  autoUpdater.logger = {
+    info: (message) => {
+      if (typeof message === 'string' && /^Full: .*To download:/i.test(message)) differentialDownload = true
+    },
+    warn: () => undefined,
+    error: () => undefined,
+  }
   autoUpdater.on('error', onError)
   autoUpdater.on('update-available', onAvailable)
   autoUpdater.on('update-downloaded', onDownloaded)
@@ -64,7 +74,8 @@ export async function runPackagedUpdateSmokeTest(): Promise<UpdateSmokeResult> {
     if (version !== expectedVersion) throw new UpdateSmokeFailure('HB_UPDATE_SMOKE_VERSION_MISMATCH')
     await autoUpdater.downloadUpdate()
     if (!downloaded) throw new UpdateSmokeFailure('HB_UPDATE_SMOKE_DOWNLOAD_EVENT_MISSING')
-    return { ok: true, availableVersion: version, downloaded: true }
+    if (!differentialDownload) throw new UpdateSmokeFailure('HB_UPDATE_SMOKE_DIFFERENTIAL_MISSING')
+    return { ok: true, availableVersion: version, downloaded: true, differentialDownload: true }
   }
 
   try {

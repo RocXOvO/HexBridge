@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ChampionSummary, RankedAugmentSlot } from '../../shared/contracts'
+import type { ApiConnectionState, ChampionSummary, RankedAugmentSlot, RuntimeDiagnostics } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -14,6 +14,8 @@ const rankingSort = ref<'tier' | 'winRate'>('tier')
 const selectedChampionId = ref<number | null>(null)
 const apiKey = ref('')
 const toast = ref('')
+const toastIsError = ref(false)
+let toastTimer: ReturnType<typeof setTimeout> | null = null
 const busy = ref(false)
 const keyBusy = ref(false)
 const keyFeedback = ref<{ kind: 'idle' | 'progress' | 'success' | 'error'; message: string }>({ kind: 'idle', message: '' })
@@ -30,6 +32,70 @@ const matchStatus = computed(() => describeMatchStatus(state.value.snapshot, sta
 const retainedMatch = computed(() => matchStatus.value.retained)
 const updateInstallBlocked = computed(() => matchContextPresent.value)
 const updatePercent = computed(() => Math.max(0, Math.min(100, state.value.update.percent ?? 0)))
+
+const updateStatusText: Record<string, string> = {
+  unsupported: '当前系统不支持',
+  idle: '等待检查',
+  checking: '正在检查',
+  'up-to-date': '已是最新',
+  available: '发现新版本',
+  downloading: '正在下载',
+  downloaded: '下载完成',
+  installing: '正在安装',
+  error: '更新失败',
+}
+const updateStatusLabel = computed(() => updateStatusText[state.value.update.status] ?? '状态未知')
+
+const apiStatusText: Record<ApiConnectionState['status'], string> = {
+  missing: '未配置',
+  ready: '已就绪',
+  stale: '使用缓存数据',
+  unauthorized: '密钥无效',
+  limited: '请求受限',
+  offline: '网络离线',
+  error: '服务异常',
+}
+
+const manualOcrCodeText: Record<RuntimeDiagnostics['manualOcrCode'], string> = {
+  IDLE: '尚未识别',
+  RUNNING: '正在识别',
+  MATCHED: '识别完成',
+  NOT_ELIGIBLE: '当前阶段不可识别',
+  NO_CHAMPION: '尚未识别当前英雄',
+  NO_CATALOG: '海克斯目录尚未就绪',
+  BUSY: '已有识别任务运行中',
+  CONTEXT_ENDED: '本局上下文已结束',
+  CONTEXT_SWITCHED: '当前英雄已发生变化',
+  NOT_DETECTED: '未检测到三卡界面',
+  UNRELIABLE: '识别结果不够可靠',
+  SCAN_ERROR: '截图或识别失败',
+  UNEXPECTED_ERROR: '发生未预期错误',
+}
+
+const updateErrorText: Record<string, string> = {
+  UPDATE_ACCESS: '无法访问更新服务',
+  UPDATE_FAILED: '更新操作失败',
+  UPDATE_INTEGRITY: '更新包完整性校验失败',
+  UPDATE_METADATA: '更新信息无效',
+  UPDATE_OFFLINE: '网络连接不可用',
+  UPDATE_RATE_LIMIT: '更新服务请求过于频繁',
+  UPDATE_TLS: '安全连接建立失败',
+  UPDATE_UNTRUSTED: '更新来源未通过校验',
+}
+
+function dismissToast(): void {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = null
+  toast.value = ''
+  toastIsError.value = false
+}
+
+function showToast(message: string, error = false, durationMs = error ? 8_000 : 4_500): void {
+  dismissToast()
+  toast.value = message
+  toastIsError.value = error
+  toastTimer = setTimeout(dismissToast, durationMs)
+}
 
 const current = computed(() => state.value.candidates.find((item) => item.isCurrent) ?? null)
 const bench = computed(() => state.value.candidates.filter((item) => !item.isCurrent))
@@ -110,12 +176,12 @@ async function validateKey(): Promise<void> {
   try {
     const result = await api.validateAndSaveApiKey(apiKey.value)
     keyFeedback.value = { kind: result.ok ? 'success' : 'error', message: result.message }
-    toast.value = result.message
+    showToast(result.message, !result.ok)
     if (result.ok) apiKey.value = ''
   } catch (error) {
     const message = error instanceof Error ? error.message : 'API Key 验证失败，请稍后重试'
     keyFeedback.value = { kind: 'error', message }
-    toast.value = message
+    showToast(message, true)
   } finally {
     keyBusy.value = false
   }
@@ -135,9 +201,9 @@ async function refresh(): Promise<void> {
   busy.value = true
   try {
     const result = await api.refreshData()
-    toast.value = result.message
+    showToast(result.message, !result.ok)
   } catch (error) {
-    toast.value = error instanceof Error ? error.message : '数据刷新失败'
+    showToast(error instanceof Error ? error.message : '数据刷新失败', true)
   } finally {
     busy.value = false
   }
@@ -149,9 +215,9 @@ async function checkUpdate(): Promise<void> {
   installArmed.value = false
   try {
     const result = await api.checkForUpdates()
-    toast.value = result.message
+    showToast(result.message, !result.ok)
   } catch (error) {
-    toast.value = error instanceof Error ? error.message : '检查更新失败'
+    showToast(error instanceof Error ? error.message : '检查更新失败', true)
   } finally {
     updateBusy.value = false
   }
@@ -162,9 +228,9 @@ async function downloadUpdate(): Promise<void> {
   updateBusy.value = true
   try {
     const result = await api.downloadUpdate()
-    toast.value = result.message
+    showToast(result.message, !result.ok)
   } catch (error) {
-    toast.value = error instanceof Error ? error.message : '下载更新失败'
+    showToast(error instanceof Error ? error.message : '下载更新失败', true)
   } finally {
     updateBusy.value = false
   }
@@ -178,50 +244,53 @@ async function installUpdate(): Promise<void> {
   installArmed.value = false
   try {
     const result = await api.installUpdate()
-    toast.value = result.message
+    showToast(result.message, !result.ok)
   } catch (error) {
-    toast.value = error instanceof Error ? error.message : '安装更新失败'
+    showToast(error instanceof Error ? error.message : '安装更新失败', true)
   }
 }
 
 async function openReleasePage(): Promise<void> {
   try {
     const result = await api.openReleasePage()
-    toast.value = result.message
+    showToast(result.message, !result.ok)
   } catch (error) {
-    toast.value = error instanceof Error ? error.message : '打开官方下载页失败'
+    showToast(error instanceof Error ? error.message : '打开官方下载页失败', true)
   }
 }
 
 async function triggerOcr(): Promise<void> {
   try {
     const result = await api.triggerOcr()
-    toast.value = result.message
+    showToast(result.message, !result.ok)
   } catch (error) {
-    toast.value = error instanceof Error ? error.message : 'OCR 识别失败'
+    showToast(error instanceof Error ? error.message : 'OCR 识别失败', true)
   }
 }
 
 async function clearDiagnostics(): Promise<void> {
   try {
     const result = await api.clearDiagnosticScreenshots()
-    toast.value = result.message
+    showToast(result.message, !result.ok)
   } catch (error) {
-    toast.value = error instanceof Error ? error.message : '清除诊断截图失败'
+    showToast(error instanceof Error ? error.message : '清除诊断截图失败', true)
   }
 }
 
 async function startCalibration(): Promise<void> {
   if (calibrationBusy.value) return
   calibrationBusy.value = true
-  toast.value = '正在隐藏主窗口并捕获目标显示器…'
+  showToast('正在隐藏主窗口并捕获目标显示器…', false, 8_000)
   try {
     await api.startCalibration()
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : ''
-    toast.value = /get sources|captur|屏幕捕获|目标显示器/i.test(rawMessage)
-      ? '无法截取目标显示器，请允许 HexBridge 使用屏幕录制后重试'
-      : '无法启动校准，主窗口已恢复，请稍后重试'
+    showToast(
+      /get sources|captur|屏幕捕获|目标显示器/i.test(rawMessage)
+        ? '无法截取目标显示器，请允许 HexBridge 使用屏幕录制后重试'
+        : '无法启动校准，主窗口已恢复，请稍后重试',
+      true,
+    )
   } finally {
     calibrationBusy.value = false
   }
@@ -230,12 +299,12 @@ async function startCalibration(): Promise<void> {
 async function retryLcu(): Promise<void> {
   if (lcuBusy.value) return
   lcuBusy.value = true
-  toast.value = '正在重新检测 LeagueClientUx、lockfile 和客户端日志…'
+  showToast('正在重新检测 LeagueClientUx、lockfile 和客户端日志…', false, 8_000)
   try {
     const result = await api.retryLcuConnection()
-    toast.value = result.message
+    showToast(result.message, !result.ok)
   } catch (error) {
-    toast.value = error instanceof Error ? error.message : '重新检测客户端失败'
+    showToast(error instanceof Error ? error.message : '重新检测客户端失败', true)
   } finally {
     lcuBusy.value = false
   }
@@ -264,7 +333,7 @@ async function recordHotkey(event: KeyboardEvent): Promise<void> {
   recordingHotkey.value = false
   const result = await api.setOcrHotkey(candidate)
   hotkeyFeedback.value = result.message
-  toast.value = result.message
+  showToast(result.message, !result.ok)
 }
 
 watch(() => state.value.update.status, (value) => {
@@ -279,6 +348,7 @@ onMounted(() => {
   window.addEventListener('keydown', recordHotkey, true)
 })
 onBeforeUnmount(() => {
+  dismissToast()
   document.removeEventListener('visibilitychange', visibilityChanged)
   window.removeEventListener('focus', focusChanged)
   window.removeEventListener('blur', focusChanged)
@@ -305,7 +375,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       <nav>
         <button :class="{ active: page === 'live' }" @click="page = 'live'"><span>◈</span>实时助手</button>
         <button :class="{ active: page === 'ranking' }" @click="page = 'ranking'"><span>⌁</span>英雄榜</button>
-        <button :class="{ active: page === 'updates' }" @click="page = 'updates'"><span>↟</span>更新</button>
+        <button :class="{ active: page === 'updates' }" @click="page = 'updates'"><span class="nav-update-icon" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 15.5h12" /></svg></span>更新</button>
         <button :class="{ active: page === 'settings' }" @click="page = 'settings'"><span>◇</span>设置</button>
         <button :class="{ active: page === 'diagnostics' }" @click="page = 'diagnostics'"><span>···</span>诊断</button>
       </nav>
@@ -351,7 +421,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
               <LogoMark />
             </div>
             <div class="empty-copy">
-              <small>{{ recognizedChampionMissingData ? 'CHAMPION DETECTED' : state.lcu.connected ? 'LCU CONNECTED' : 'SEARCHING FOR LCU' }}</small>
+              <small>{{ recognizedChampionMissingData ? '已识别英雄' : state.lcu.connected ? '客户端已连接' : '正在检测客户端' }}</small>
               <h2>{{ recognizedChampionMissingData ? `已识别英雄 #${recognizedChampionId}` : state.lcu.connected ? '等待选择英雄' : '英雄联盟客户端未启动或未发现' }}</h2>
               <p>{{ recognizedChampionMissingData ? 'LCU 读取正常，但英雄数据目录尚未就绪或缺少该英雄；请刷新数据。' : state.lcu.connected ? '进入海克斯大乱斗选人阶段后会自动显示英雄。' : '启动 WeGame 与英雄联盟后，HexBridge 会在后台自动连接。' }}</p>
               <button v-if="!state.lcu.connected" class="ghost reconnect-button" :disabled="lcuBusy" @click="retryLcu">
@@ -362,7 +432,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 
           <section v-if="augmentAssistantVisible" class="augment-assistant" aria-live="polite">
             <header>
-              <div><small>AUGMENT ADVISOR</small><h2>海克斯推荐</h2><p>按上游 rank 排序；选取率仅作次级展示，识别结果只在主窗口更新。data.dtodo 单英雄统计 · {{ state.api.gamePatch || '补丁未标注' }} · {{ state.api.dataVersion || '数据未就绪' }}<template v-if="['stale','limited','offline'].includes(state.api.status)"> · 已过期</template></p></div>
+              <div><small>实时推荐</small><h2>海克斯推荐</h2><p>优先采用上游提供的英雄专属推荐顺序；选取率仅作参考。data.dtodo 单英雄统计 · {{ state.api.gamePatch || '补丁未标注' }} · {{ state.api.dataVersion || '数据未就绪' }}<template v-if="['stale','limited','offline'].includes(state.api.status)"> · 已过期</template></p></div>
               <button class="ghost" :disabled="state.diagnostics.ocrBusy" @click="triggerOcr">
                 {{ state.diagnostics.ocrBusy ? '识别中…' : (state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别') }}
               </button>
@@ -383,7 +453,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           </section>
 
           <template v-if="selecting">
-            <div class="bench-head"><div><small>AVAILABLE</small><h2>备战席</h2></div><span>{{ bench.length }} 位可选英雄</span></div>
+            <div class="bench-head"><div><small>可用英雄</small><h2>备战席</h2></div><span>{{ bench.length }} 位可选英雄</span></div>
             <TransitionGroup name="reorder" tag="div" class="bench-grid">
               <article v-for="item in bench" :key="item.id" :class="['bench-card', { best: item.isBest }]">
                 <img :src="item.iconUrl" :alt="championAlt(item)" />
@@ -408,21 +478,20 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       </section>
 
       <section v-else-if="page === 'updates'" class="page-content standard-page update-page">
-        <div class="page-heading"><div><small>HEXBRIDGE UPDATE</small><h1>软件更新</h1><p>像桌面工具一样独立管理检查、下载和安装，不会静默更新。</p></div></div>
+        <div class="page-heading"><div><small>正式版本</small><h1>软件更新</h1><p>检查、下载并安装 HexBridge 正式版本</p></div></div>
         <article class="update-surface">
-          <header><div><small>当前版本</small><h2>v{{ state.update.currentVersion }}</h2></div><span :class="['connection-pill', state.update.status]">{{ state.update.status }}</span></header>
-          <div class="update-summary"><div><small>可用版本</small><b>{{ state.update.availableVersion ? `v${state.update.availableVersion}` : '已是最新或尚未检查' }}</b></div><p aria-live="polite">{{ state.update.message }}<small v-if="state.update.errorCode" class="update-code">诊断码：{{ state.update.errorCode }}</small></p></div>
-          <div v-if="state.update.status === 'downloading' || state.update.status === 'downloaded'" class="update-progress"><div><i :style="{ width: `${updatePercent}%` }" /></div><small>{{ updatePercent.toFixed(0) }}% · {{ bytes(state.update.transferred) }} / {{ bytes(state.update.total) }}<template v-if="state.update.bytesPerSecond"> · {{ bytes(state.update.bytesPerSecond) }}/s</template></small></div>
+          <header><div><small>当前版本</small><h2>v{{ state.update.currentVersion }}</h2></div><span :class="['connection-pill', state.update.status]">{{ updateStatusLabel }}</span></header>
+          <div class="update-summary"><div><small>可用版本</small><b>{{ state.update.availableVersion ? `v${state.update.availableVersion}` : '已是最新或尚未检查' }}</b></div><p aria-live="polite">{{ state.update.message }}<small v-if="state.update.errorCode" class="update-code" :title="state.update.errorCode">诊断：{{ updateErrorText[state.update.errorCode] || '更新服务返回异常' }}</small></p></div>
+          <div v-if="state.update.status === 'downloading' || state.update.status === 'downloaded'" class="update-progress"><div><i :style="{ width: `${updatePercent}%` }" /></div><small><b v-if="state.update.downloadModeMessage">{{ state.update.downloadModeMessage }} · </b>{{ updatePercent.toFixed(0) }}% · {{ bytes(state.update.transferred) }} / {{ bytes(state.update.total) }}<template v-if="state.update.bytesPerSecond"> · {{ bytes(state.update.bytesPerSecond) }}/s</template></small></div>
           <p v-if="state.update.releaseNotes" class="update-notes">{{ state.update.releaseNotes }}</p>
           <div class="update-actions"><button class="ghost" :disabled="updateBusy || ['checking','downloading','installing'].includes(state.update.status)" @click="checkUpdate">{{ state.update.status === 'checking' ? '检查中…' : '检查更新' }}</button><button v-if="state.update.status === 'error'" class="ghost" @click="openReleasePage">打开官方下载页</button><button v-if="state.update.status === 'available' || (state.update.status === 'error' && state.update.availableVersion)" class="primary" :disabled="updateBusy" @click="downloadUpdate">确认下载</button><button v-if="state.update.status === 'downloaded' && !installArmed" class="primary" :disabled="updateInstallBlocked" @click="installUpdate">{{ updateInstallBlocked ? '当前流程结束后安装' : '重启并安装' }}</button><template v-if="state.update.status === 'downloaded' && installArmed"><span class="install-warning">应用将立即退出。确定安装？</span><button class="primary" :disabled="updateInstallBlocked" @click="installUpdate">确认重启安装</button><button class="ghost" @click="installArmed = false">取消</button></template></div>
-          <small>不会静默更新、下载或安装。Windows 发布物尚未商业代码签名；下载仍会校验 SHA-512，安装前由你二次确认。</small>
         </article>
       </section>
 
       <section v-else-if="page === 'settings'" class="page-content standard-page settings-page">
-        <div class="page-heading"><div><small>PREFERENCES</small><h1>设置</h1><p>本地、安全、按你的游戏环境运行</p></div></div>
+        <div class="page-heading"><div><small>本地偏好</small><h1>设置</h1><p>本地、安全、按你的游戏环境运行</p></div></div>
         <div class="settings-grid">
-          <article class="settings-card wide"><header><div><h3>数据服务</h3><p>Key 使用 Windows safeStorage 加密，仅由主进程访问。HEAD 验证不消耗 data credits。</p></div><span :class="['connection-pill', state.api.status]">{{ state.api.configured ? state.api.status : '未配置' }}</span></header><div class="key-row"><input v-model="apiKey" type="password" autocomplete="off" placeholder="hx_live_••••••••" @keyup.enter="validateKey" /><button class="primary" :disabled="keyBusy || !apiKey.trim()" :aria-busy="keyBusy" @click="validateKey">{{ keyBusy ? '正在验证…' : '验证并保存' }}</button><button class="ghost" :disabled="keyBusy" @click="clearKey">清除</button></div><p v-if="keyFeedback.message" :class="['inline-feedback', keyFeedback.kind]" aria-live="polite">{{ keyFeedback.message }}</p><small>申请地址：data.dtodo.cn/developer.html</small></article>
+          <article class="settings-card wide"><header><div><h3>数据服务</h3><p>Key 使用 Windows safeStorage 加密，仅由主进程访问。HEAD 验证不消耗 data credits。</p></div><span :class="['connection-pill', state.api.status]">{{ state.api.configured ? apiStatusText[state.api.status] : '未配置' }}</span></header><div class="key-row"><input v-model="apiKey" type="password" autocomplete="off" placeholder="hx_live_••••••••" @keyup.enter="validateKey" /><button class="primary" :disabled="keyBusy || !apiKey.trim()" :aria-busy="keyBusy" @click="validateKey">{{ keyBusy ? '正在验证…' : '验证并保存' }}</button><button class="ghost" :disabled="keyBusy" @click="clearKey">清除</button></div><p v-if="keyFeedback.message" :class="['inline-feedback', keyFeedback.kind]" aria-live="polite">{{ keyFeedback.message }}</p><small>申请地址：data.dtodo.cn/developer.html</small></article>
           <article class="settings-card"><h3>目标显示器</h3><p>默认自动选择主显示器；只有三张卡片位置不准时才需要校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">停在三卡界面后依次框住整张左、中、右卡片，标题区域会自动提取。</small></article>
           <article class="settings-card"><h3>识别快捷键</h3><p>点击录制后按下新的全局组合键；冲突或无效时会保留原快捷键。</p><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? '推荐使用 F8 或 Ctrl+Shift+字母；Esc 取消。' : '快捷键未注册或已被其他程序占用，请录制一个新快捷键。') }}</small></article>
           <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>默认关闭；开启后每 2 秒低分辨率门控，命中后才识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人及游戏客户端交接期显示，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label></article>
@@ -430,13 +499,13 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       </section>
 
       <section v-else class="page-content standard-page diagnostics-page">
-        <div class="page-heading"><div><small>SYSTEM HEALTH</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">{{ state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别' }}</button></div></div>
-        <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DATA API</small><b>{{ state.api.status }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.manualOcrStatus === 'idle' ? (state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms`) : `${state.diagnostics.manualOcrMessage} · ${state.diagnostics.manualOcrCode} · ${manualOcrTime(state.diagnostics.manualOcrTriggeredAt)}` }}</p></div></article></div>
+        <div class="page-heading"><div><small>系统状态</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">{{ state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别' }}</button></div></div>
+        <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>数据服务</small><b>{{ apiStatusText[state.api.status] }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.manualOcrStatus === 'idle' ? (state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms`) : `${state.diagnostics.manualOcrMessage} · ${manualOcrCodeText[state.diagnostics.manualOcrCode]} · ${manualOcrTime(state.diagnostics.manualOcrTriggeredAt)}` }}</p></div></article></div>
         <div class="log-panel"><header><b>本地日志</b><span>{{ state.diagnostics.logLines.length }} 行</span></header><pre>{{ state.diagnostics.logLines.join('\n') || '暂无日志' }}</pre></div>
         <p class="choice-note">诊断截图仅在手动识别时保存，最多保留 60 张裁切图。</p>
         <div v-if="isPreview" class="preview-banner">浏览器视觉预览模式 · Electron 中将显示实时数据</div>
       </section>
     </main>
-    <Transition name="toast"><div v-if="toast" class="toast" @click="toast = ''">{{ toast }}</div></Transition>
+    <Transition name="toast"><div v-if="toast" :class="['toast', { error: toastIsError }]" :role="toastIsError ? 'alert' : 'status'" @click="dismissToast">{{ toast }}</div></Transition>
   </div>
 </template>

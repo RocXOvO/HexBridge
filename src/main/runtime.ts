@@ -34,6 +34,7 @@ import { WindowManager } from './window-manager.js'
 import { UpdateManager, type UpdateAdapter } from './update-manager.js'
 import { OFFICIAL_RELEASE_PAGE_URL, STABLE_UPDATE_FEEDS } from './update-channel.js'
 import { resolveAutomaticVisualMode } from './visual-policy.js'
+import { AugmentRoundTracker } from './augment-round.js'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -85,8 +86,7 @@ export class HexBridgeRuntime {
   private gameProcessTimer: NodeJS.Timeout | null = null
   private gameProcessCheckInFlight = false
   private readonly gameProcessExitGuard = new GameProcessExitGuard()
-  private scanMisses = 0
-  private lastCombination = ''
+  private augmentRound = new AugmentRoundTracker()
   private championRequestSequence = 0
   private dataReady = false
   private gpuAcceleration = true
@@ -330,7 +330,7 @@ export class HexBridgeRuntime {
     this.sync()
     try {
       const result = isMatchContextOcrEligible(this.snapshot)
-        ? await this.runScan(true)
+        ? await this.captureManualScan()
         : { ok: false, code: 'NOT_ELIGIBLE' as const, message: '仅在海克斯大乱斗对局中识别' }
       if (requestSequence === this.manualOcrSequence) {
         this.manualOcr = {
@@ -440,8 +440,7 @@ export class HexBridgeRuntime {
     }
     if (!isMatchContextOcrEligible(snapshot)) {
       this.overlay = { ...EMPTY_OVERLAY, championId: snapshot.currentChampionId }
-      this.scanMisses = 0
-      this.lastCombination = ''
+      this.getAugmentRound().reset()
     }
     this.updateScanLoop()
     this.updateGameProcessLoop()
@@ -519,7 +518,11 @@ export class HexBridgeRuntime {
         this.data.getState().dataVersion,
       )
       const combination = result.slots.map((slot) => slot.augmentId).join(':')
-      if (combination !== this.lastCombination || manual) {
+      const decision = this.getAugmentRound().observe('matched', {
+        combination,
+        manual,
+      })
+      if (decision.commitMatched) {
         const ranked = rankAugmentSlots(result.slots, detailRanks, augments)
         this.overlay = {
           visible: true,
@@ -528,15 +531,26 @@ export class HexBridgeRuntime {
           detectedAt: Date.now(),
           message: ranked.some((slot) => slot.position != null) ? '推荐已更新' : '暂无可靠数据',
         }
-        this.lastCombination = combination
         this.sync()
       }
-      this.scanMisses = 0
       return { ok: true, code: 'MATCHED', message: '已识别三张海克斯' }
     }
 
-    this.scanMisses += 1
-    if (result.status === 'unreliable' && manual) {
+    const roundDecision = this.getAugmentRound().observe(
+      result.status === 'not-detected' ? 'not-detected' : result.status === 'unreliable' ? 'unreliable' : 'error',
+      {
+        manual,
+      },
+    )
+    if (roundDecision.clearPrevious) {
+      this.overlay = {
+        ...EMPTY_OVERLAY,
+        visible: true,
+        championId: this.snapshot.currentChampionId,
+        message: '新一轮海克斯已出现，正在等待识别稳定',
+      }
+      this.sync()
+    } else if (result.status === 'unreliable' && manual && !this.overlay.visible) {
       const detailRanks = detailRanksForCurrentChampion(
         this.detail,
         this.snapshot.currentChampionId,
@@ -549,9 +563,6 @@ export class HexBridgeRuntime {
         detectedAt: Date.now(),
         message: '存在未识别卡牌，请重试',
       }
-      this.sync()
-    } else if (this.scanMisses >= 3 && this.overlay.visible) {
-      this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
       this.sync()
     }
     const matchedCount = result.slots.filter((slot) => slot.augmentId != null).length
@@ -566,6 +577,16 @@ export class HexBridgeRuntime {
         ? 'UNRELIABLE'
         : 'SCAN_ERROR'
     return { ok: false, code, message }
+  }
+
+  private getAugmentRound(): AugmentRoundTracker {
+    this.augmentRound ??= new AugmentRoundTracker()
+    return this.augmentRound
+  }
+
+  private captureManualScan(): Promise<ScanActionResult> {
+    const transaction = this.windows?.captureWithoutHexBridgeWindows?.bind(this.windows)
+    return transaction ? transaction(() => this.runScan(true)) : this.runScan(true)
   }
 
   private updateGameProcessLoop(): void {

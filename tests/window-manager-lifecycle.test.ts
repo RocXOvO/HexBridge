@@ -21,7 +21,52 @@ const state = {
   snapshot: { phase: 'ChampSelect', matchStage: 'selecting' },
 } as any
 
+function fakeWindow(options: { visible: boolean; focused: boolean }) {
+  return {
+    isDestroyed: vi.fn(() => false),
+    isVisible: vi.fn(() => options.visible),
+    isMinimized: vi.fn(() => false),
+    isFocused: vi.fn(() => options.focused),
+    hide: vi.fn(),
+    show: vi.fn(),
+    showInactive: vi.fn(),
+    focus: vi.fn(),
+  }
+}
+
 describe('WindowManager shutdown lifecycle', () => {
+  it('hides visible windows for a manual capture and restores without stealing focus', async () => {
+    const manager = new WindowManager({} as any)
+    const main = fakeWindow({ visible: true, focused: false })
+    const champion = fakeWindow({ visible: true, focused: false })
+    ;(manager as any).windows.set('main', main)
+    ;(manager as any).windows.set('champion', champion)
+    const order: string[] = []
+    main.hide.mockImplementation(() => order.push('hide-main'))
+    champion.hide.mockImplementation(() => order.push('hide-champion'))
+    main.showInactive.mockImplementation(() => order.push('restore-main'))
+    champion.showInactive.mockImplementation(() => order.push('restore-champion'))
+
+    await manager.captureWithoutHexBridgeWindows(async () => { order.push('capture') })
+
+    expect(order).toEqual(['hide-main', 'hide-champion', 'capture', 'restore-main', 'restore-champion'])
+    expect(main.focus).not.toHaveBeenCalled()
+    expect(champion.focus).not.toHaveBeenCalled()
+  })
+
+  it('does not restore capture windows after shutdown begins', async () => {
+    const manager = new WindowManager({} as any)
+    const main = fakeWindow({ visible: true, focused: false })
+    ;(manager as any).windows.set('main', main)
+
+    await expect(manager.captureWithoutHexBridgeWindows(async () => {
+      manager.prepareToQuit()
+      throw new Error('capture failed')
+    })).rejects.toThrow('capture failed')
+
+    expect(main.showInactive).not.toHaveBeenCalled()
+    expect(main.show).not.toHaveBeenCalled()
+  })
   it('does not synchronize or emit activity after shutdown starts', () => {
     const manager = new WindowManager({} as any)
     const activityChanged = vi.fn()

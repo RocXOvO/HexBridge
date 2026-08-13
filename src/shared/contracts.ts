@@ -182,6 +182,8 @@ export type AppUpdateStatus =
   | 'installing'
   | 'error'
 
+export type UpdateDownloadMode = 'preparing' | 'differential' | 'full' | null
+
 export interface AppUpdateState {
   status: AppUpdateStatus
   currentVersion: string
@@ -192,6 +194,8 @@ export interface AppUpdateState {
   transferred: number | null
   total: number | null
   bytesPerSecond: number | null
+  downloadMode: UpdateDownloadMode
+  downloadModeMessage: string
   lastCheckedAt: number | null
   errorCode: string | null
   message: string

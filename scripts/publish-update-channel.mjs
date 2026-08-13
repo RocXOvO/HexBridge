@@ -10,7 +10,7 @@ if (!token) throw new Error('GITHUB_TOKEN is required to publish the stable chan
 const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'))
 const version = String(packageJson.version)
 if (tag !== `v${version}`) throw new Error(`Stable channel tag ${tag} does not match ${version}`)
-const content = await readFile(path.join(process.cwd(), 'release', 'update-channel', 'latest.yml'), 'utf8')
+const content = await readFile(path.join(process.cwd(), 'release', 'update-channel', 'v2', 'latest.yml'), 'utf8')
 if (!content.startsWith(`version: ${version}\n`)) throw new Error('Stable channel content version mismatch')
 
 const parseStableVersion = (value) => {
@@ -25,7 +25,7 @@ const compareVersions = (left, right) => {
   return 0
 }
 
-const apiUrl = `https://api.github.com/repos/${repository}/contents/latest.yml`
+const apiUrl = `https://api.github.com/repos/${repository}/contents/v2/latest.yml`
 const headers = {
   Accept: 'application/vnd.github+json',
   Authorization: `Bearer ${token}`,
@@ -79,7 +79,7 @@ if (shouldPublish) {
   if (!updateResponse.ok) throw new Error(`Unable to publish stable channel: HTTP ${updateResponse.status}`)
 }
 
-const rawUrl = 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/latest.yml'
+const rawUrl = 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/latest.yml'
 let verified = false
 for (let attempt = 0; attempt < 8; attempt += 1) {
   const response = await fetch(`${rawUrl}?noCache=${Date.now()}`, { cache: 'no-store' }).catch(() => null)

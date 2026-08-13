@@ -28,8 +28,18 @@ describe('main-window recommendation presentation', () => {
 
   it('labels pick rate as champion-specific secondary data in the main assistant', () => {
     expect(appSource).toContain('该英雄选取率')
-    expect(appSource).toContain('按上游 rank 排序')
+    expect(appSource).toContain('优先采用上游提供的英雄专属推荐顺序')
     expect(appSource).toContain('data.dtodo 单英雄统计')
-    expect(appSource).toContain('结果只在主窗口更新')
+    expect(appSource).toContain('选取率仅作参考')
+  })
+
+  it('renders user-facing update and diagnostic status in Chinese', () => {
+    expect(appSource).toContain("MATCHED: '识别完成'")
+    expect(appSource).toContain("ready: '已就绪'")
+    expect(appSource).not.toContain('{{ state.api.status }}')
+    expect(appSource).not.toContain('{{ state.diagnostics.manualOcrCode }}')
+    expect(appSource).not.toContain('CHAMPION DETECTED')
+    expect(appSource).not.toContain('LCU CONNECTED')
+    expect(appSource).not.toContain('SEARCHING FOR LCU')
   })
 })

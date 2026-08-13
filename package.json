@@ -1,6 +1,6 @@
 {
   "name": "hexbridge",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "A read-only ARAM Mayhem companion for League of Legends.",
   "author": "HexBridge contributors",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -21,6 +21,7 @@
     "test:ui:packaged": "node scripts/electron-ui-smoke.mjs release/win-unpacked/HexBridge.exe",
     "test:update:packaged": "node scripts/electron-update-smoke.mjs release/win-unpacked/HexBridge.exe",
     "test:update:public": "node scripts/verify-public-update-channel.mjs",
+    "test:update:legacy": "node scripts/verify-legacy-update-channel.mjs",
     "test:update:public:packaged": "node scripts/electron-public-update-smoke.mjs release/win-unpacked/HexBridge.exe",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -31,6 +32,7 @@
     "verify:update-metadata": "node scripts/verify-update-metadata.mjs",
     "render:update-channel": "node scripts/render-update-channel.mjs",
     "preflight:release": "node scripts/preflight-stable-release.mjs",
+    "publish:release": "node scripts/publish-stable-release.mjs",
     "publish:update-channel": "node scripts/publish-update-channel.mjs",
     "verify:preload": "node scripts/verify-preload-bundle.mjs",
     "clean:release": "node scripts/clean-local-release.mjs",
@@ -85,7 +87,8 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/"
+        "url": "https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/",
+        "useMultipleRangeRequest": false
       }
     ],
     "asarUnpack": [
@@ -110,6 +113,10 @@
       {
         "from": "build/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
       }
     ],
     "win": {

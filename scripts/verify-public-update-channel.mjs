@@ -1,6 +1,10 @@
 const expectedVersion = (process.env.HEXBRIDGE_EXPECTED_UPDATE_VERSION || process.argv[2] || '').replace(/^v/, '')
-const channelUrl = `https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/latest.yml?noCache=${Date.now()}`
-const response = await fetch(channelUrl, { cache: 'no-store' })
+const versionedUrl = `https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/latest.yml?noCache=${Date.now()}`
+const legacyUrl = `https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/latest.yml?noCache=${Date.now()}`
+let response = await fetch(versionedUrl, { cache: 'no-store' })
+if (!response.ok && response.status === 404 && !expectedVersion) {
+  response = await fetch(legacyUrl, { cache: 'no-store' })
+}
 if (!response.ok) throw new Error(`Stable update channel returned HTTP ${response.status}`)
 const metadata = await response.text()
 const value = (pattern, label) => {
