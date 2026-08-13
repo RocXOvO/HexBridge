@@ -8,12 +8,11 @@ import type {
   LcuConnectionState,
   RuntimeState,
   HotkeyRegistrationResult,
-  VisualMode,
 } from '../shared/contracts.js'
 import { buildChampionCandidates, rankAugmentSlots } from '../shared/recommendations.js'
 import { ConfigStore } from './config-store.js'
 import { DataService } from './data-service.js'
-import { isLeagueGameProcessRunning } from './game-process.js'
+import { GameProcessExitGuard, inspectLeagueGameProcess } from './game-process.js'
 import {
   commitHotkeyRegistration,
   registerInitialOcrHotkey,
@@ -34,6 +33,7 @@ import {
 import { WindowManager } from './window-manager.js'
 import { UpdateManager, type UpdateAdapter } from './update-manager.js'
 import { OFFICIAL_RELEASE_PAGE_URL, STABLE_UPDATE_FEEDS } from './update-channel.js'
+import { resolveAutomaticVisualMode } from './visual-policy.js'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -77,6 +77,7 @@ export class HexBridgeRuntime {
   private scanTimer: NodeJS.Timeout | null = null
   private gameProcessTimer: NodeJS.Timeout | null = null
   private gameProcessCheckInFlight = false
+  private readonly gameProcessExitGuard = new GameProcessExitGuard()
   private scanMisses = 0
   private lastCombination = ''
   private championRequestSequence = 0
@@ -109,6 +110,7 @@ export class HexBridgeRuntime {
   }
 
   async initialize(): Promise<void> {
+    this.windows.setActivityChangedHandler(() => this.sync())
     this.windows.createMainWindow()
     this.windows.createCompanionWindows()
     this.gpuAcceleration = !app.getGPUFeatureStatus().gpu_compositing?.includes('disabled')
@@ -148,7 +150,15 @@ export class HexBridgeRuntime {
     const settings = this.activeHotkeyOverride !== null
       ? { ...storedSettings, hotkey: this.activeHotkeyOverride }
       : storedSettings
-    const activeVisualMode = this.activeVisualMode(settings)
+    const mainActivity = this.windows.getMainActivity()
+    const activeVisualMode = resolveAutomaticVisualMode({
+      matchStage: this.snapshot.matchStage,
+      mainVisible: mainActivity.visible,
+      mainFocused: mainActivity.focused,
+      mainMinimized: mainActivity.minimized,
+      gpuAcceleration: this.gpuAcceleration,
+      lowMemory: process.getSystemMemoryInfo().total < 8 * 1024 * 1024,
+    })
     const scanner = this.scanner.getDiagnostics()
     return {
       lcu: { ...this.lcuState },
@@ -487,16 +497,8 @@ export class HexBridgeRuntime {
     return { ok: false, message }
   }
 
-  private activeVisualMode(settings: AppSettings): VisualMode {
-    if (this.snapshot.matchStage === 'launching' || this.snapshot.matchStage === 'active') return 'eco'
-    if (settings.visualMode !== 'auto') return settings.visualMode
-    const lowMemory = process.getSystemMemoryInfo().total < 8 * 1024 * 1024
-    if (!this.gpuAcceleration || lowMemory) return 'eco'
-    return 'cinematic'
-  }
-
   private updateGameProcessLoop(): void {
-    if (this.snapshot.matchStage !== 'launching') {
+    if (this.snapshot.matchStage !== 'launching' && this.snapshot.matchStage !== 'active') {
       this.stopGameProcessLoop()
       return
     }
@@ -508,23 +510,42 @@ export class HexBridgeRuntime {
   private stopGameProcessLoop(): void {
     if (this.gameProcessTimer) clearInterval(this.gameProcessTimer)
     this.gameProcessTimer = null
+    this.gameProcessExitGuard.reset()
   }
 
   private async checkGameProcess(): Promise<void> {
-    if (this.gameProcessCheckInFlight || this.snapshot.matchStage !== 'launching') return
+    if (
+      this.gameProcessCheckInFlight ||
+      (this.snapshot.matchStage !== 'launching' && this.snapshot.matchStage !== 'active')
+    ) return
     this.gameProcessCheckInFlight = true
     const generation = this.snapshot.matchGeneration
     const championId = this.snapshot.currentChampionId
     try {
-      const running = await isLeagueGameProcessRunning()
-      if (
-        running &&
-        championId != null &&
-        this.snapshot.matchStage === 'launching' &&
+      const status = await inspectLeagueGameProcess()
+      const stillCurrent = championId != null &&
+        (this.snapshot.matchStage === 'launching' || this.snapshot.matchStage === 'active') &&
         this.snapshot.matchGeneration === generation &&
         this.snapshot.currentChampionId === championId
+      if (!stillCurrent) {
+        this.gameProcessExitGuard.reset()
+        return
+      }
+      const confirmedExit = this.gameProcessExitGuard.observe(status, {
+        matchStage: this.snapshot.matchStage,
+        matchGeneration: generation,
+        currentChampionId: championId,
+      })
+      if (
+        status === 'running' &&
+        stillCurrent
       ) {
         this.lcu.confirmGameActive('game-process', generation, championId)
+      } else if (
+        confirmedExit &&
+        this.snapshot.matchStage === 'active'
+      ) {
+        this.lcu.confirmGameInactive(generation, championId)
       }
     } finally {
       this.gameProcessCheckInFlight = false

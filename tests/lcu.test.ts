@@ -23,6 +23,7 @@ import {
 import {
   carryForwardMatchContext,
   MatchContextTracker,
+  INDEPENDENT_GAME_HEARTBEAT_MS,
   MATCH_CONTEXT_MAX_STALE_MS,
   MATCH_CONTEXT_NONE_GRACE_MS,
   MATCH_CONTEXT_TERMINAL_CONFIRM_MS,
@@ -665,7 +666,7 @@ describe('LCU snapshot normalization', () => {
   })
 
   it.each(['Lobby', 'Matchmaking', 'ReadyCheck'])(
-    'clears a trusted retained match immediately on explicit queue change in %s',
+    'clears a trusted gameflow-sourced other queue during hand-off in %s',
     (phase) => {
       const tracker = new MatchContextTracker()
       const selected = tracker.apply(normalizeChampSelectSnapshot({
@@ -690,6 +691,7 @@ describe('LCU snapshot normalization', () => {
         destructive: true,
         champSelectSession: 'skipped',
         currentChampion: 'skipped',
+        queueSource: 'gameflow',
         matchIdentity: null,
         authorityEpoch: 1,
       })
@@ -702,6 +704,73 @@ describe('LCU snapshot normalization', () => {
       expect(tracker.getLastDecision()).toBe('cleared-queue-change')
     },
   )
+
+  it('retains a selected hero through None plus a foreign lobby fallback during game hand-off', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 3270 }, champSelectSession: {}, currentChampionId: 115,
+    }), 1_000, {
+      destructive: true, champSelectSession: 'ok', currentChampion: 'ok',
+      queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
+    })
+    tracker.transportDisconnected(selected, 2_000)
+    const fallback = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, lobbySession: { gameConfig: { queueId: 450 } },
+      champSelectSession: null, currentChampionId: null,
+    }), 3_000, {
+      destructive: true, champSelectSession: 'empty', currentChampion: 'empty',
+      queueSource: 'lobby', matchIdentity: null, authorityEpoch: 1,
+    })
+
+    expect(fallback).toMatchObject({
+      queueId: 3270, modeActive: true, currentChampionId: 115,
+      matchStage: 'launching', matchGeneration: 1,
+    })
+    expect(tracker.getLastDecision()).toBe('retained-terminal-confirmation')
+  })
+
+  it('keeps an independently confirmed active game through a transient launcher Lobby', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 3270 }, champSelectSession: {}, currentChampionId: 115,
+    }), 1_000, {
+      destructive: true, champSelectSession: 'ok', currentChampion: 'ok',
+      queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
+    })
+    const launching = tracker.transportDisconnected(selected, 2_000)
+    const active = tracker.confirmGameActive(launching, 1, 115, 3_000)
+    const transient = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'Lobby', gameflowSession: { queueId: 3270 }, champSelectSession: null, currentChampionId: null,
+    }), 4_000, {
+      destructive: true, champSelectSession: 'skipped', currentChampion: 'skipped',
+      queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
+    })
+    const heartbeat = tracker.confirmGameActive(transient, 1, 115, 5_000)
+
+    expect(active).toMatchObject({ currentChampionId: 115, matchStage: 'active' })
+    expect(transient).toMatchObject({ currentChampionId: 115, matchStage: 'active' })
+    expect(heartbeat).toMatchObject({ currentChampionId: 115, matchStage: 'active' })
+    expect(tracker.getLastDecision()).toBe('confirmed-game-active')
+  })
+
+  it('clears an active match after the independent game heartbeat expires', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 3270 }, champSelectSession: {}, currentChampionId: 115,
+    }), 1_000, { destructive: true, champSelectSession: 'ok', currentChampion: 'ok', queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1 })
+    const active = tracker.confirmGameActive(tracker.transportDisconnected(selected, 2_000), 1, 115, 3_000)
+    const whileRunning = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'EndOfGame', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 4_000, { destructive: true, champSelectSession: 'skipped', currentChampion: 'skipped', queueSource: 'none', matchIdentity: null, authorityEpoch: 1 })
+    const ended = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'EndOfGame', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 3_000 + INDEPENDENT_GAME_HEARTBEAT_MS + 1, { destructive: true, champSelectSession: 'skipped', currentChampion: 'skipped', queueSource: 'none', matchIdentity: null, authorityEpoch: 1 })
+
+    expect(active.matchStage).toBe('active')
+    expect(whileRunning).toMatchObject({ currentChampionId: 115, matchStage: 'active' })
+    expect(ended).toMatchObject({ currentChampionId: null, matchStage: 'none' })
+    expect(tracker.getLastDecision()).toBe('cleared-terminal-phase')
+  })
 
   it.each([
     [2400, 3270],
@@ -945,6 +1014,56 @@ describe('LCU snapshot normalization', () => {
     }), 2_000)
     expect(terminal).toMatchObject({ currentChampionId: null, matchStage: 'none' })
   })
+
+  it.each(['FailedToLaunch', 'TerminatedInError'])(
+    'keeps an independently running game through a transient %s phase',
+    (phase) => {
+      const tracker = new MatchContextTracker()
+      const selected = tracker.apply(normalizeChampSelectSnapshot({
+        phase: 'ChampSelect', gameflowSession: { queueId: 3270 }, champSelectSession: {},
+        currentChampionId: 103,
+      }), 1_000)
+      const active = tracker.confirmGameActive(
+        tracker.transportDisconnected(selected, 1_500),
+        1,
+        103,
+        2_000,
+      )
+      const transient = tracker.apply(normalizeChampSelectSnapshot({
+        phase, gameflowSession: null, champSelectSession: null, currentChampionId: null,
+      }), 2_000 + INDEPENDENT_GAME_HEARTBEAT_MS, {
+        destructive: true, champSelectSession: 'skipped', currentChampion: 'skipped',
+        queueSource: 'none', matchIdentity: null, authorityEpoch: 0,
+      })
+
+      expect(active.matchStage).toBe('active')
+      expect(transient).toMatchObject({
+        queueId: 3270, currentChampionId: 103, matchStage: 'active', matchGeneration: 1,
+      })
+      expect(tracker.getLastDecision()).toBe('confirmed-game-active')
+    },
+  )
+
+  it.each(['FailedToLaunch', 'TerminatedInError'])(
+    'clears %s after the independent game heartbeat is stale',
+    (phase) => {
+      const tracker = new MatchContextTracker()
+      const selected = tracker.apply(normalizeChampSelectSnapshot({
+        phase: 'ChampSelect', gameflowSession: { queueId: 3270 }, champSelectSession: {},
+        currentChampionId: 103,
+      }), 1_000)
+      tracker.confirmGameActive(tracker.transportDisconnected(selected, 1_500), 1, 103, 2_000)
+      const terminal = tracker.apply(normalizeChampSelectSnapshot({
+        phase, gameflowSession: null, champSelectSession: null, currentChampionId: null,
+      }), 2_000 + INDEPENDENT_GAME_HEARTBEAT_MS + 1, {
+        destructive: true, champSelectSession: 'skipped', currentChampion: 'skipped',
+        queueSource: 'none', matchIdentity: null, authorityEpoch: 0,
+      })
+
+      expect(terminal).toMatchObject({ currentChampionId: null, matchStage: 'none' })
+      expect(tracker.getLastDecision()).toBe('cleared-terminal-phase')
+    },
+  )
 
   it('ignores terminal and other-queue observations from a replacement client authority', () => {
     const tracker = new MatchContextTracker()

@@ -20,17 +20,24 @@ const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): AppS
 
 describe('settings migration', () => {
   it.each(['eco', 'balanced', 'cinematic'] as const)(
-    'disables legacy automatic OCR without changing an explicit %s preference',
+    'disables legacy automatic OCR and removes the obsolete %s visual override',
     (visualMode) => {
       const migrated = migrateSettingsForRevision(settings(visualMode, true), 0)
-      expect(migrated).toMatchObject({ revision: 1, settings: { visualMode, autoOcr: false } })
+      expect(migrated).toMatchObject({ revision: 2, settings: { visualMode: 'auto', autoOcr: false } })
     },
   )
 
-  it('does not repeat the migration', () => {
-    expect(migrateSettingsForRevision(settings('auto', true), 1)).toEqual({
+  it('migrates a revision-one manual override without changing OCR again', () => {
+    expect(migrateSettingsForRevision(settings('eco', true), 1)).toEqual({
       settings: settings('auto', true),
-      revision: 1,
+      revision: 2,
+    })
+  })
+
+  it('does not repeat the migration at the current revision', () => {
+    expect(migrateSettingsForRevision(settings('auto', true), 2)).toEqual({
+      settings: settings('auto', true),
+      revision: 2,
     })
   })
 })

@@ -24,6 +24,7 @@ vi.mock('../src/main/config-store.js', () => ({
 }))
 
 import { LcuClient } from '../src/main/lcu/client.js'
+import { INDEPENDENT_GAME_HEARTBEAT_MS } from '../src/main/lcu/normalize.js'
 import { HexBridgeRuntime } from '../src/main/runtime.js'
 
 const a: LcuCredentials = {
@@ -205,7 +206,12 @@ describe('production LCU transport hand-off replay', () => {
     expect(runtime.overlay).toBe(overlay)
     expect(runtime.championRequestSequence).toBe(7)
 
-    client.confirmGameActive('game-process', 1, 103)
+    client.confirmGameActive(
+      'game-process',
+      1,
+      103,
+      Date.now() - INDEPENDENT_GAME_HEARTBEAT_MS - 1,
+    )
     expect(runtime.snapshot.matchStage).toBe('active')
 
     phase = 'matching-end'

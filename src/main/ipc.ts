@@ -3,7 +3,6 @@ import type { AppSettings, CalibrationRects } from '../shared/contracts.js'
 import { HexBridgeRuntime } from './runtime.js'
 
 const allowedSettingKeys = new Set<keyof AppSettings>([
-  'visualMode',
   'autoOcr',
   'showChampionPanel',
   'showAugmentOverlay',
@@ -17,9 +16,7 @@ function sanitizeSettings(value: unknown): Partial<AppSettings> {
   const patch: Partial<AppSettings> = {}
   for (const [key, entry] of Object.entries(value)) {
     if (!allowedSettingKeys.has(key as keyof AppSettings)) continue
-    if (key === 'visualMode' && ['auto', 'cinematic', 'balanced', 'eco'].includes(String(entry))) {
-      patch.visualMode = entry as AppSettings['visualMode']
-    } else if (['autoOcr', 'showChampionPanel', 'showAugmentOverlay', 'diagnosticsScreenshots'].includes(key)) {
+    if (['autoOcr', 'showChampionPanel', 'showAugmentOverlay', 'diagnosticsScreenshots'].includes(key)) {
       if (typeof entry === 'boolean') Object.assign(patch, { [key]: entry })
     } else if (key === 'displayId' && typeof entry === 'string') {
       patch.displayId = entry.slice(0, 80)

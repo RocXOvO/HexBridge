@@ -9,6 +9,8 @@ import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
 import {
   MatchContextTracker,
   normalizeChampSelectSnapshot,
+  queueIdFromLobby,
+  queueIdFromSession,
   type LcuEndpointObservationStatus,
 } from './normalize.js'
 
@@ -331,10 +333,16 @@ export function applyLcuPollResults(
   // not let a terminal phase, queue change, or empty champ select destructively
   // mutate the retained match before transport hand-off protection runs.
   const endpointStatus = summarizeLcuAuxiliaryResults(phase, results)
+  const queueSource = queueIdFromSession(resolved.gameflowSession) != null
+    ? 'gameflow'
+    : queueIdFromLobby(resolved.lobbySession) != null
+      ? 'lobby'
+      : 'none'
   const observed = tracker.apply(normalized, now, {
     destructive: resolved.failure == null,
     champSelectSession: endpointStatus.champSelectSession,
     currentChampion: endpointStatus.currentChampion,
+    queueSource,
     matchIdentity: extractLcuMatchIdentity(
       resolved.gameflowSession,
       resolved.champSelectSession,
@@ -408,15 +416,41 @@ export class LcuClient extends EventEmitter {
     reason: 'game-process' | 'augment-interface',
     expectedGeneration: number,
     expectedChampionId: number,
+    now = Date.now(),
   ): boolean {
     const previousStage = this.snapshot.matchStage
+    const previousUpdatedAt = this.snapshot.updatedAt
     this.snapshot = this.matchContext.confirmGameActive(
       this.snapshot,
       expectedGeneration,
       expectedChampionId,
+      now,
+      reason,
     )
-    if (this.snapshot.matchStage !== previousStage) this.publishUpdate(reason)
+    if (
+      this.snapshot.matchStage !== previousStage ||
+      this.snapshot.updatedAt !== previousUpdatedAt
+    ) this.publishUpdate(reason)
     return this.snapshot.matchStage === 'active' && previousStage !== 'active'
+  }
+
+  confirmGameInactive(
+    expectedGeneration: number,
+    expectedChampionId: number,
+    now = Date.now(),
+  ): boolean {
+    const previousStage = this.snapshot.matchStage
+    this.snapshot = this.matchContext.confirmGameInactive(
+      this.snapshot,
+      expectedGeneration,
+      expectedChampionId,
+      now,
+    )
+    if (previousStage !== 'none' && this.snapshot.matchStage === 'none') {
+      this.publishUpdate('game-process-exited')
+      return true
+    }
+    return false
   }
 
   start(): void {

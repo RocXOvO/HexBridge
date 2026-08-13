@@ -5,6 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  GAME_PROCESS_EXIT_CONFIRM_MS,
+  GameProcessExitGuard,
   isLeagueGameProcessRunning,
   tasklistShowsLeagueGame,
 } from '../src/main/game-process.js'
@@ -21,6 +23,37 @@ async function waitForExit(child: ChildProcess, milliseconds: number): Promise<b
 }
 
 describe('League game process evidence', () => {
+  it('requires a real running observation and continuous negative grace before clearing', () => {
+    const guard = new GameProcessExitGuard()
+    const context = { matchStage: 'active' as const, matchGeneration: 4, currentChampionId: 103 }
+
+    expect(guard.observe('not-running', context, 1_000)).toBe(false)
+    expect(guard.observe('running', context, 2_000)).toBe(false)
+    expect(guard.observe('not-running', context, 3_000)).toBe(false)
+    expect(guard.observe('not-running', context, 3_000 + GAME_PROCESS_EXIT_CONFIRM_MS - 1)).toBe(false)
+    expect(guard.observe('not-running', context, 3_000 + GAME_PROCESS_EXIT_CONFIRM_MS)).toBe(true)
+  })
+
+  it('does not treat errors as exit evidence and isolates match generations', () => {
+    const guard = new GameProcessExitGuard()
+    const first = { matchStage: 'active' as const, matchGeneration: 4, currentChampionId: 103 }
+    const second = { matchStage: 'active' as const, matchGeneration: 5, currentChampionId: 81 }
+
+    guard.observe('running', first, 1_000)
+    guard.observe('not-running', first, 2_000)
+    expect(guard.observe('error', first, 10_000)).toBe(false)
+    expect(guard.observe('not-running', first, 11_000)).toBe(false)
+    expect(guard.observe('not-running', second, 20_000)).toBe(false)
+    expect(guard.observe('not-running', second, 30_000)).toBe(false)
+  })
+
+  it('never clears launching matches that have not reached active', () => {
+    const guard = new GameProcessExitGuard()
+    const context = { matchStage: 'launching' as const, matchGeneration: 4, currentChampionId: 103 }
+    guard.observe('running', context, 1_000)
+    expect(guard.observe('not-running', context, 20_000)).toBe(false)
+  })
+
   it('accepts only a CSV task row for the actual game executable', () => {
     expect(tasklistShowsLeagueGame('"League of Legends.exe","8124","Console","1","2,014,220 K"')).toBe(true)
     expect(tasklistShowsLeagueGame('"LeagueClientUx.exe","8124","Console","1","220,000 K"')).toBe(false)

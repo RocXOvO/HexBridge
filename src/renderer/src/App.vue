@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ChampionSummary, VisualModePreference } from '../../shared/contracts'
+import type { ChampionSummary } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -67,11 +67,6 @@ function bytes(value: number | null): string {
 
 async function updateSettings(patch: Parameters<typeof api.updateSettings>[0]): Promise<void> {
   await api.updateSettings(patch)
-}
-
-function setVisualMode(event: Event): void {
-  const visualMode = (event.target as HTMLSelectElement).value as VisualModePreference
-  void updateSettings({ visualMode })
 }
 
 async function validateKey(): Promise<void> {
@@ -372,7 +367,6 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           <article class="settings-card wide"><header><div><h3>数据服务</h3><p>Key 使用 Windows safeStorage 加密，仅由主进程访问。HEAD 验证不消耗 data credits。</p></div><span :class="['connection-pill', state.api.status]">{{ state.api.configured ? state.api.status : '未配置' }}</span></header><div class="key-row"><input v-model="apiKey" type="password" autocomplete="off" placeholder="hx_live_••••••••" @keyup.enter="validateKey" /><button class="primary" :disabled="keyBusy || !apiKey.trim()" :aria-busy="keyBusy" @click="validateKey">{{ keyBusy ? '正在验证…' : '验证并保存' }}</button><button class="ghost" :disabled="keyBusy" @click="clearKey">清除</button></div><p v-if="keyFeedback.message" :class="['inline-feedback', keyFeedback.kind]" aria-live="polite">{{ keyFeedback.message }}</p><small>申请地址：data.dtodo.cn/developer.html</small></article>
           <article class="settings-card"><h3>目标显示器</h3><p>默认自动选择主显示器；只有三张卡片位置不准时才需要校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">停在三卡界面后依次框住整张左、中、右卡片，标题区域会自动提取。</small></article>
           <article class="settings-card"><h3>识别快捷键</h3><p>点击录制后按下新的全局组合键；冲突或无效时会保留原快捷键。</p><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? '推荐使用 F8 或 Ctrl+Shift+字母；Esc 取消。' : '快捷键未注册或已被其他程序占用，请录制一个新快捷键。') }}</small></article>
-          <article class="settings-card"><h3>视觉与性能</h3><p>对局中始终走省电路径；这里控制主窗口平时的视觉效果。</p><select :value="state.settings.visualMode" @change="setVisualMode"><option value="auto">自动（推荐）</option><option value="cinematic">电影档</option><option value="balanced">均衡档</option><option value="eco">省电档</option></select><small>隐藏窗口、降低动态效果或系统开启“减少动画”时会自动暂停装饰动效。</small></article>
           <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>默认关闭；开启后每 2 秒低分辨率门控，命中后才识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人及游戏客户端交接期显示，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>海克斯浮窗</b><small>三张全部可靠识别后自动出现</small></div><input type="checkbox" :checked="state.settings.showAugmentOverlay" @change="updateSettings({ showAugmentOverlay: ($event.target as HTMLInputElement).checked })" /></label></article>
         </div>
       </section>

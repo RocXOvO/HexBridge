@@ -25,10 +25,20 @@ export function migrateSettingsForRevision(
   settings: AppSettings,
   revision: number,
 ): { settings: AppSettings; revision: number } {
-  if (revision >= 1) return { settings, revision }
-  // Preserve an explicit visual preference. Only automatic OCR caused the
-  // 4K capture regression, so that is the sole setting migrated once.
-  return { settings: { ...settings, autoOcr: false }, revision: 1 }
+  let next = { ...settings }
+  let nextRevision = revision
+  if (nextRevision < 1) {
+    next = { ...next, autoOcr: false }
+    nextRevision = 1
+  }
+  if (nextRevision < 2) {
+    // Visual scheduling is Main-process policy from v0.1.13 onward. Discard
+    // old manual overrides so an installation cannot remain stuck in a costly
+    // or unexpectedly low-quality mode after the UI control is removed.
+    next = { ...next, visualMode: 'auto' }
+    nextRevision = 2
+  }
+  return { settings: next, revision: nextRevision }
 }
 
 export class ConfigStore {
@@ -43,9 +53,8 @@ export class ConfigStore {
       this.store.get('settingsRevision'),
     )
     if (migration.revision !== this.store.get('settingsRevision')) {
-      // v0.1.11 captured a full 4K display every 750ms. Migrate every existing
-      // installation to manual OCR once; users may explicitly re-enable the
-      // new low-resolution gated automatic mode afterwards.
+      // Apply one-time, revisioned safety migrations without altering the API
+      // key, calibration, display selection or overlay preferences.
       this.store.set('settings', migration.settings)
       this.store.set('settingsRevision', migration.revision)
     }

@@ -10,7 +10,7 @@ const positiveInteger = (value: unknown): number | null => {
   return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null
 }
 
-const queueIdFromSession = (session: any): number | null =>
+export const queueIdFromSession = (session: any): number | null =>
   positiveInteger(
     session?.gameData?.queue?.id ??
       session?.gameData?.queueId ??
@@ -19,7 +19,7 @@ const queueIdFromSession = (session: any): number | null =>
       session?.gameClient?.queueId,
   )
 
-const queueIdFromLobby = (lobby: any): number | null =>
+export const queueIdFromLobby = (lobby: any): number | null =>
   positiveInteger(lobby?.gameConfig?.queueId ?? lobby?.queueId)
 
 const championIdFromActions = (
@@ -112,6 +112,7 @@ const CLEAR_CONTEXT_PHASES = new Set<GameflowPhase>([
 export const MATCH_CONTEXT_NONE_GRACE_MS = 10 * 60 * 1_000
 export const MATCH_CONTEXT_MAX_STALE_MS = 12 * 60 * 60 * 1_000
 export const MATCH_CONTEXT_TERMINAL_CONFIRM_MS = 15_000
+export const INDEPENDENT_GAME_HEARTBEAT_MS = 5_000
 
 interface ConfirmedMatchContext {
   queueId: number
@@ -123,6 +124,7 @@ interface ConfirmedMatchContext {
   matchIdentity: string | null
   authorityEpoch: number | null
   handoffCommitted: boolean
+  independentGameHeartbeatAt: number | null
 }
 
 export type LcuEndpointObservationStatus = 'ok' | 'empty' | 'error' | 'skipped'
@@ -131,6 +133,7 @@ export interface MatchContextEvidence {
   destructive: boolean
   champSelectSession: LcuEndpointObservationStatus
   currentChampion?: LcuEndpointObservationStatus
+  queueSource?: 'gameflow' | 'lobby' | 'none'
   matchIdentity: string | null
   authorityEpoch?: number | null
   champSelectTimerPhase?: string | null
@@ -141,6 +144,7 @@ const DEFAULT_EVIDENCE: MatchContextEvidence = {
   destructive: true,
   champSelectSession: 'ok',
   currentChampion: 'ok',
+  queueSource: 'gameflow',
   matchIdentity: null,
   authorityEpoch: 0,
   champSelectTimerPhase: null,
@@ -161,6 +165,7 @@ export type MatchContextDecision =
   | 'cleared-terminal-phase'
   | 'cleared-queue-change'
   | 'cleared-new-champ-select'
+  | 'cleared-game-process-exit'
   | 'expired'
 
 /**
@@ -263,9 +268,9 @@ export class MatchContextTracker {
       })
     }
 
-    // A trusted, explicit queue change is stronger than any launcher hand-off
-    // grace. Process it before generic Lobby/ReadyCheck terminal retention so
-    // a later queue 450 lobby can never expose the previous Mayhem champion.
+    // A lobby queue observed while the raw phase is None is launcher UI state,
+    // not proof that the already-selected game ended. Only gameflow-sourced
+    // queue changes or a complete new ChampSelect can terminate atomically.
     if (
       evidence.destructive &&
       next.queueId != null &&
@@ -273,21 +278,40 @@ export class MatchContextTracker {
       next.queueId !== this.confirmed.queueId
     ) {
       if (!observationTrusted) return this.retainUntrustedObservation(next, now)
+      if (!hasPositiveChampSelectEvidence && evidence.queueSource === 'lobby') {
+        const samePending = this.pendingTerminal?.authorityEpoch ===
+          (evidence.authorityEpoch ?? null)
+        if (!samePending) {
+          this.pendingTerminal = {
+            phase: next.phase,
+            authorityEpoch: evidence.authorityEpoch ?? null,
+            since: now,
+          }
+        }
+        if (now - (this.pendingTerminal?.since ?? now) <= MATCH_CONTEXT_NONE_GRACE_MS) {
+          this.lastDecision = 'retained-terminal-confirmation'
+          return this.withContext({
+            ...next,
+            queueId: null,
+            currentChampionId: null,
+            benchChampionIds: [],
+            benchEnabled: false,
+          })
+        }
+      }
       this.confirmed = null
       this.pendingTerminal = null
       this.lastDecision = 'cleared-queue-change'
-      // A complete positive ChampSelect observation can both terminate the
-      // previous queue and establish the next supported Mayhem match in the
-      // same poll. Continue into the confirmation branch so switching between
-      // queue 2400 and 3270 never creates a one-poll empty state.
       if (!hasPositiveChampSelectEvidence) return this.withoutContext(next)
+      // Continue below: a complete supported ChampSelect establishes the next
+      // generation in this same poll without a visible empty state.
     }
 
     if (evidence.destructive && CLEAR_CONTEXT_PHASES.has(next.phase)) {
       if (this.confirmed && !observationTrusted) {
         return this.retainUntrustedObservation(next, now)
       }
-      if (this.confirmed) {
+      if (this.confirmed && this.confirmed.stage !== 'active') {
         const leaseMs = this.confirmed.enteredGame
           ? MATCH_CONTEXT_MAX_STALE_MS
           : MATCH_CONTEXT_NONE_GRACE_MS
@@ -323,19 +347,43 @@ export class MatchContextTracker {
           benchEnabled: false,
         })
       }
+      const independentGameAlive = Boolean(
+        this.confirmed?.independentGameHeartbeatAt != null &&
+        now - this.confirmed.independentGameHeartbeatAt <= INDEPENDENT_GAME_HEARTBEAT_MS,
+      )
+      if (this.confirmed && independentGameAlive) {
+        this.confirmed.enteredGame = true
+        this.confirmed.stage = 'active'
+        this.confirmed.lastMatchPhaseAt = now
+        this.lastDecision = 'confirmed-game-active'
+        return this.withContext({
+          ...next,
+          queueId: null,
+          currentChampionId: null,
+          benchChampionIds: [],
+          benchEnabled: false,
+        })
+      }
       const immediateFailure = next.phase === 'FailedToLaunch' || next.phase === 'TerminatedInError'
-      if (this.confirmed && !immediateFailure && this.confirmed.stage !== 'active') {
+      if (this.confirmed && immediateFailure) {
+        this.confirmed = null
+        this.pendingTerminal = null
+        this.lastDecision = 'cleared-terminal-phase'
+        return this.withoutContext(next)
+      }
+      if (this.confirmed && this.confirmed.stage !== 'active') {
         // CN/WeGame can briefly report launcher-side Lobby/WaitingForStats
-        // while LeagueClientUx is still connected but has already handed the
-        // selected match to the separate game process. This is not reliable
-        // end-of-match evidence before the match has ever become active.
-        // Commit the hand-off and keep the last confirmed hero for the normal
-        // bounded launch lease instead of erasing it after 15 seconds.
+        // while LeagueClientUx hands the match to the separate game process.
+        // It may also do so for one or more polls immediately after the game
+        // process appears. A single launcher-side terminal observation is not
+        // reliable end-of-match evidence. Keep the selected champion until
+        // the transition is stable, and let the game-process heartbeat cancel
+        // this pending terminal state while the real game is still running.
         this.confirmed.stage = 'launching'
         this.confirmed.handoffCommitted = true
         const confirmationMs = MATCH_CONTEXT_NONE_GRACE_MS
-        const samePending = this.pendingTerminal?.phase === next.phase &&
-          this.pendingTerminal.authorityEpoch === (evidence.authorityEpoch ?? null)
+        const samePending = this.pendingTerminal?.authorityEpoch ===
+          (evidence.authorityEpoch ?? null)
         if (!samePending) {
           this.pendingTerminal = {
             phase: next.phase,
@@ -442,6 +490,7 @@ export class MatchContextTracker {
         authorityEpoch: evidence.authorityEpoch ?? existing?.authorityEpoch ?? null,
         handoffCommitted: existing?.handoffCommitted === true || timerHandoff ||
           isEnteredGamePhase(next.phase) || evidence.gameClientRunning === true,
+        independentGameHeartbeatAt: existing?.independentGameHeartbeatAt ?? null,
       }
       this.lastDecision = 'confirmed'
       return this.withContext(next)
@@ -530,10 +579,11 @@ export class MatchContextTracker {
     expectedGeneration: number,
     expectedChampionId: number,
     now = Date.now(),
+    source: 'game-process' | 'augment-interface' = 'game-process',
   ): ChampSelectSnapshot {
     if (
       !this.confirmed ||
-      this.confirmed.stage !== 'launching' ||
+      (this.confirmed.stage !== 'launching' && this.confirmed.stage !== 'active') ||
       this.confirmed.generation !== expectedGeneration ||
       this.confirmed.currentChampionId !== expectedChampionId
     ) {
@@ -542,11 +592,42 @@ export class MatchContextTracker {
     this.confirmed.enteredGame = true
     this.confirmed.stage = 'active'
     this.confirmed.handoffCommitted = true
+    if (source === 'game-process') this.confirmed.independentGameHeartbeatAt = now
     this.confirmed.lastMatchPhaseAt = now
     this.pendingTerminal = null
     this.lastDecision = 'confirmed-game-active'
     return this.withContext({
       ...previous,
+      benchChampionIds: [],
+      benchEnabled: false,
+      updatedAt: now,
+    })
+  }
+
+  confirmGameInactive(
+    previous: ChampSelectSnapshot,
+    expectedGeneration: number,
+    expectedChampionId: number,
+    now = Date.now(),
+  ): ChampSelectSnapshot {
+    if (
+      !this.confirmed ||
+      this.confirmed.stage !== 'active' ||
+      this.confirmed.generation !== expectedGeneration ||
+      this.confirmed.currentChampionId !== expectedChampionId ||
+      this.confirmed.independentGameHeartbeatAt == null ||
+      now - this.confirmed.independentGameHeartbeatAt <= INDEPENDENT_GAME_HEARTBEAT_MS
+    ) {
+      return previous
+    }
+    this.confirmed = null
+    this.pendingTerminal = null
+    this.lastDecision = 'cleared-game-process-exit'
+    return this.withoutContext({
+      ...previous,
+      queueId: null,
+      modeActive: false,
+      currentChampionId: null,
       benchChampionIds: [],
       benchEnabled: false,
       updatedAt: now,

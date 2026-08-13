@@ -38,8 +38,22 @@ export class WindowManager {
   private latestState: RuntimeState | null = null
   private calibrationContext: CalibrationContext | null = null
   private restoreMainAfterCalibration = false
+  private activityChanged: (() => void) | null = null
 
   constructor(private readonly config: ConfigStore) {}
+
+  setActivityChangedHandler(handler: () => void): void {
+    this.activityChanged = handler
+  }
+
+  getMainActivity(): { visible: boolean; focused: boolean; minimized: boolean } {
+    const main = this.windows.get('main')
+    return {
+      visible: Boolean(main && !main.isDestroyed() && main.isVisible()),
+      focused: Boolean(main && !main.isDestroyed() && main.isFocused()),
+      minimized: Boolean(main && !main.isDestroyed() && main.isMinimized()),
+    }
+  }
 
   createMainWindow(): BrowserWindow {
     const saved = this.config.getWindowBounds('main')
@@ -57,7 +71,14 @@ export class WindowManager {
     window.once('ready-to-show', () => {
       window.show()
       this.sendLatest(window)
+      this.activityChanged?.()
     })
+    window.on('show', () => this.activityChanged?.())
+    window.on('hide', () => this.activityChanged?.())
+    window.on('focus', () => this.activityChanged?.())
+    window.on('blur', () => this.activityChanged?.())
+    window.on('minimize', () => this.activityChanged?.())
+    window.on('restore', () => this.activityChanged?.())
     window.on('close', (event) => {
       if (!this.quitting) {
         event.preventDefault()
