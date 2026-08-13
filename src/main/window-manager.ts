@@ -8,7 +8,7 @@ import { shouldShowChampionCompanion } from './runtime-guards.js'
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url))
 
-type ManagedWindow = 'main' | 'champion' | 'augment' | 'calibration'
+type ManagedWindow = 'main' | 'champion' | 'calibration'
 
 export function resolvePreloadPath(): string {
   return path.resolve(moduleDirectory, '../preload/index.cjs')
@@ -108,19 +108,6 @@ export class WindowManager {
     })
     champion.setAlwaysOnTop(true, 'floating')
     this.rememberBounds(champion, 'champion')
-
-    const augment = this.createWindow('augment', {
-      frame: false,
-      transparent: true,
-      show: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      focusable: false,
-      resizable: false,
-      hasShadow: false,
-    })
-    augment.setAlwaysOnTop(true, 'screen-saver')
-    augment.setIgnoreMouseEvents(true)
   }
 
   showMain(): void {
@@ -138,17 +125,6 @@ export class WindowManager {
     if (shouldShowChampion) champion?.showInactive()
     else champion?.hide()
 
-    const augment = this.windows.get('augment')
-    const shouldShowAugment = state.settings.showAugmentOverlay && state.overlay.visible
-    if (shouldShowAugment && augment) {
-      const display =
-        screen.getAllDisplays().find((candidate) => String(candidate.id) === state.settings.displayId) ??
-        screen.getPrimaryDisplay()
-      augment.setBounds(display.bounds)
-      augment.showInactive()
-    } else {
-      augment?.hide()
-    }
     this.broadcastVisible(state)
   }
 

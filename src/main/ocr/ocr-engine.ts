@@ -68,8 +68,10 @@ export class OcrEngine {
       logger.info('OCR models loaded')
     } catch (error) {
       this.service = null
-      this.error = error instanceof Error ? error.message : String(error)
-      logger.warn('OCR models unavailable', this.error)
+      this.error = 'OCR 模型加载失败'
+      logger.warn('OCR models unavailable', {
+        errorName: error instanceof Error ? error.name : 'Error',
+      })
       throw error
     }
   }

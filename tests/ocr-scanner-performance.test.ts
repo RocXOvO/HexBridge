@@ -21,7 +21,6 @@ const settings = (): AppSettings => ({
   visualMode: 'auto',
   autoOcr: false,
   showChampionPanel: true,
-  showAugmentOverlay: true,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',

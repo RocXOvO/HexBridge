@@ -41,7 +41,6 @@ export interface AppSettings {
   visualMode: VisualModePreference
   autoOcr: boolean
   showChampionPanel: boolean
-  showAugmentOverlay: boolean
   hotkey: string
   gameDirectory: string
   displayId: string
@@ -122,6 +121,10 @@ export interface ChampionAugmentRank {
   rank: number | null
   total: number | null
   tier: number | null
+  /** Champion-specific selection ratio from the documented upstream detail endpoint. */
+  pickRate: number | null
+  statsSource: 'iesdev' | 'tencent' | 'aramgg-client-upload' | null
+  statsRegion: 'WORLD' | 'CN' | null
 }
 
 export interface ChampionAugmentData {
@@ -146,6 +149,9 @@ export interface RankedAugmentSlot extends OcrSlotResult {
   reason: string
   iconUrl: string
   rarityName: string
+  pickRate: number | null
+  statsSource: ChampionAugmentRank['statsSource']
+  statsRegion: ChampionAugmentRank['statsRegion']
 }
 
 export interface AugmentOverlayState {
@@ -196,6 +202,24 @@ export interface RuntimeDiagnostics {
   ocrBusy: boolean
   ocrLastDurationMs: number | null
   ocrLastError: string | null
+  manualOcrStatus: 'idle' | 'running' | 'matched' | 'miss' | 'error'
+  manualOcrCode:
+    | 'IDLE'
+    | 'RUNNING'
+    | 'MATCHED'
+    | 'NOT_ELIGIBLE'
+    | 'NO_CHAMPION'
+    | 'NO_CATALOG'
+    | 'BUSY'
+    | 'CONTEXT_ENDED'
+    | 'CONTEXT_SWITCHED'
+    | 'NOT_DETECTED'
+    | 'UNRELIABLE'
+    | 'SCAN_ERROR'
+    | 'UNEXPECTED_ERROR'
+  manualOcrSource: 'button' | 'hotkey' | 'tray' | null
+  manualOcrTriggeredAt: number | null
+  manualOcrMessage: string
   polling: boolean
   activeVisualMode: VisualMode
   gpuAcceleration: boolean

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChampSelectSnapshot } from '../src/shared/contracts.js'
+import type { ChampionAugmentData, ChampSelectSnapshot } from '../src/shared/contracts.js'
 import {
   classifyScanContext,
   detailRanksForCurrentChampion,
@@ -67,10 +67,10 @@ describe('runtime state guards', () => {
   })
 
   it('never ranks with details for another champion or data version', () => {
-    const detail = {
+    const detail: ChampionAugmentData = {
       championId: 103,
       dataVersion: '16.15.6',
-      ranks: [{ augmentId: 1, rank: 1, total: 100, tier: 1 }],
+      ranks: [{ augmentId: 1, rank: 1, total: 100, tier: 1, pickRate: .2, statsSource: 'tencent', statsRegion: 'CN' }],
     }
     expect(detailRanksForCurrentChampion(detail, 103, '16.15.6')).toHaveLength(1)
     expect(detailRanksForCurrentChampion(detail, 81, '16.15.6')).toEqual([])

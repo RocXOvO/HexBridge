@@ -89,7 +89,7 @@ describe('LCU handoff through runtime state', () => {
     const detail: ChampionAugmentData = {
       championId: 103,
       dataVersion: '16.15.6',
-      ranks: [{ augmentId: 1, rank: 1, total: 100, tier: 1 }],
+      ranks: [{ augmentId: 1, rank: 1, total: 100, tier: 1, pickRate: .2, statsSource: 'tencent', statsRegion: 'CN' }],
     }
     const overlay = {
       visible: true,

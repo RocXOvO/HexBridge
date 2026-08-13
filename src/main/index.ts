@@ -13,6 +13,15 @@ let runtime: HexBridgeRuntime | null = null
 let tray: Tray | null = null
 let hotkeys: OcrHotkeyManager | null = null
 
+function triggerOcrFrom(source: 'hotkey' | 'tray'): void {
+  void runtime?.triggerOcr(source).catch((error) => {
+    logger.warn('Manual OCR trigger callback failed', {
+      source,
+      errorName: error instanceof Error ? error.name : 'Error',
+    })
+  })
+}
+
 const bridgeSmokeMode = process.argv.includes('--hexbridge-smoke-test')
 const updateSmokeMode = process.argv.includes('--hexbridge-update-smoke-test')
 const publicUpdateSmokeMode = process.argv.includes('--hexbridge-public-update-smoke-test')
@@ -37,7 +46,7 @@ function refreshTrayMenu(): void {
     { label: '打开 HexBridge', click: () => runtime?.getWindowManager().showMain() },
     {
       label: activeHotkey ? `${activeHotkey} 立即识别` : '手动立即识别（快捷键未注册）',
-      click: () => void runtime?.triggerOcr(),
+      click: () => triggerOcrFrom('tray'),
     },
     { type: 'separator' },
     { label: '退出', click: () => app.quit() },
@@ -78,7 +87,7 @@ async function start(): Promise<void> {
   await runtime.initialize()
   hotkeys = new OcrHotkeyManager(
     globalShortcut,
-    () => void runtime?.triggerOcr(),
+    () => triggerOcrFrom('hotkey'),
     () => refreshTrayMenu(),
   )
   runtime.setHotkeyHandler((candidate) => hotkeys?.register(candidate) ?? {

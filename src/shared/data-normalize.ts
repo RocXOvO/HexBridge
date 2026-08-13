@@ -8,8 +8,21 @@ export const asNumber = (value: unknown): number | null => {
 const ratio = (value: unknown): number | null => {
   const numberValue = asNumber(value)
   if (numberValue == null) return null
-  return numberValue > 1 ? numberValue / 100 : numberValue
+  const normalized = numberValue > 1 ? numberValue / 100 : numberValue
+  return normalized >= 0 && normalized <= 1 ? normalized : null
 }
+
+const documentedRatio = (value: unknown): number | null => {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+    ? value
+    : null
+}
+
+const statsSource = (value: unknown): 'iesdev' | 'tencent' | 'aramgg-client-upload' | null =>
+  value === 'iesdev' || value === 'tencent' || value === 'aramgg-client-upload' ? value : null
+
+const statsRegion = (value: unknown): 'WORLD' | 'CN' | null =>
+  value === 'WORLD' || value === 'CN' ? value : null
 
 export function safeRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -84,6 +97,11 @@ export function normalizeChampionAugmentDetail(
         rank: asNumber(stats.rank),
         total: asNumber(stats.total),
         tier: asNumber(stats.tier),
+        // The documented champion-detail contract is already a 0..1 ratio.
+        // Reject percentages or malformed values instead of guessing units.
+        pickRate: documentedRatio(stats.pickRate),
+        statsSource: statsSource(stats.source),
+        statsRegion: statsRegion(stats.region),
       }]
     }),
   }

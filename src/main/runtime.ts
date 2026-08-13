@@ -63,6 +63,13 @@ const EMPTY_OVERLAY: AugmentOverlayState = {
   message: '等待海克斯界面',
 }
 
+type ManualOcrCode = RuntimeState['diagnostics']['manualOcrCode']
+interface ScanActionResult {
+  ok: boolean
+  code: ManualOcrCode
+  message: string
+}
+
 export class HexBridgeRuntime {
   private readonly config = new ConfigStore()
   private readonly data: DataService
@@ -85,10 +92,18 @@ export class HexBridgeRuntime {
   private gpuAcceleration = true
   private onHotkeyChanged: ((hotkey: string) => HotkeyRegistrationResult) | null = null
   private activeHotkeyOverride: string | null = null
+  private manualOcrSequence = 0
+  private manualOcr: Pick<RuntimeState['diagnostics'], 'manualOcrStatus' | 'manualOcrCode' | 'manualOcrSource' | 'manualOcrTriggeredAt' | 'manualOcrMessage'> = {
+    manualOcrStatus: 'idle',
+    manualOcrCode: 'IDLE',
+    manualOcrSource: null,
+    manualOcrTriggeredAt: null,
+    manualOcrMessage: '尚未手动识别',
+  }
 
   constructor() {
     const userData = app.getPath('userData')
-    this.data = new DataService(path.join(userData, 'data-cache'), this.config)
+    this.data = new DataService(path.join(userData, 'data-cache'), this.config, app.getVersion())
     this.lcu = new LcuClient(() => this.config.getSettings().gameDirectory)
     this.scanner = new AugmentScanner(
       () => this.config.getSettings(),
@@ -182,6 +197,7 @@ export class HexBridgeRuntime {
         ocrBusy: scanner.busy,
         ocrLastDurationMs: scanner.lastDurationMs,
         ocrLastError: scanner.lastError,
+        ...this.manualOcr,
         polling: true,
         activeVisualMode,
         gpuAcceleration: this.gpuAcceleration,
@@ -296,11 +312,58 @@ export class HexBridgeRuntime {
     }
   }
 
-  async triggerOcr(): Promise<{ ok: boolean; message: string }> {
-    if (!isMatchContextOcrEligible(this.snapshot)) {
-      return { ok: false, message: '仅在海克斯大乱斗对局中识别' }
+  async triggerOcr(
+    source: 'button' | 'hotkey' | 'tray' = 'button',
+  ): Promise<{ ok: boolean; message: string }> {
+    const requestSequence = (this.manualOcrSequence ?? 0) + 1
+    this.manualOcrSequence = requestSequence
+    const triggeredAt = Date.now()
+    this.manualOcr = {
+      manualOcrStatus: 'running',
+      manualOcrCode: 'RUNNING',
+      manualOcrSource: source,
+      manualOcrTriggeredAt: triggeredAt,
+      manualOcrMessage: '正在识别三张海克斯…',
     }
-    return this.runScan(true)
+    this.sync()
+    try {
+      const result = isMatchContextOcrEligible(this.snapshot)
+        ? await this.runScan(true)
+        : { ok: false, code: 'NOT_ELIGIBLE' as const, message: '仅在海克斯大乱斗对局中识别' }
+      if (requestSequence === this.manualOcrSequence) {
+        this.manualOcr = {
+          manualOcrStatus: result.ok ? 'matched' : result.code === 'SCAN_ERROR' ? 'error' : 'miss',
+          manualOcrCode: result.code,
+          manualOcrSource: source,
+          manualOcrTriggeredAt: triggeredAt,
+          manualOcrMessage: result.message,
+        }
+        this.sync()
+      }
+      logger.info('Manual OCR completed', {
+        source,
+        outcome: result.code,
+        durationMs: Date.now() - triggeredAt,
+      })
+      return { ok: result.ok, message: result.message }
+    } catch (error) {
+      const result = { ok: false, message: 'OCR 识别异常，请稍后重试' }
+      if (requestSequence === this.manualOcrSequence) {
+        this.manualOcr = {
+          manualOcrStatus: 'error',
+          manualOcrCode: 'UNEXPECTED_ERROR',
+          manualOcrSource: source,
+          manualOcrTriggeredAt: triggeredAt,
+          manualOcrMessage: result.message,
+        }
+        this.sync()
+      }
+      logger.warn('Manual OCR failed', {
+        source,
+        errorName: error instanceof Error ? error.name : 'Error',
+      })
+      return result
+    }
   }
 
   async clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }> {
@@ -419,32 +482,32 @@ export class HexBridgeRuntime {
     this.scanTimer = null
   }
 
-  private async runScan(manual: boolean): Promise<{ ok: boolean; message: string }> {
+  private async runScan(manual: boolean): Promise<ScanActionResult> {
     if (!isMatchContextOcrEligible(this.snapshot)) {
-      return { ok: false, message: '当前没有可识别的海克斯大乱斗对局' }
+      return { ok: false, code: 'NOT_ELIGIBLE', message: '当前没有可识别的海克斯大乱斗对局' }
     }
     const scanGeneration = this.snapshot.matchGeneration
     const scanChampionId = this.snapshot.currentChampionId
     if (scanChampionId == null) {
-      return { ok: false, message: '当前没有可识别的英雄' }
+      return { ok: false, code: 'NO_CHAMPION', message: '当前没有可识别的英雄' }
     }
     const augments = this.data.getAugments()
-    if (!augments.length) return { ok: false, message: '海克斯目录尚未就绪' }
+    if (!augments.length) return { ok: false, code: 'NO_CATALOG', message: '海克斯目录尚未就绪' }
     const result = await this.scanner.scan(augments, manual)
     const contextDisposition = classifyScanContext(this.snapshot, scanGeneration, scanChampionId)
     if (contextDisposition === 'ended') {
       this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
       this.stopScanLoop()
       this.sync()
-      return { ok: false, message: '对局上下文已结束' }
+      return { ok: false, code: 'CONTEXT_ENDED', message: '对局上下文已结束' }
     }
     if (contextDisposition === 'switched') {
       // A late result from the previous generation must never clear or stop
       // the already-running scanner for the new match.
       this.updateScanLoop()
-      return { ok: false, message: '识别结果已过期，新对局扫描继续运行' }
+      return { ok: false, code: 'CONTEXT_SWITCHED', message: '识别结果已过期，新对局扫描继续运行' }
     }
-    if (result.status === 'busy') return { ok: false, message: '识别任务正在运行' }
+    if (result.status === 'busy') return { ok: false, code: 'BUSY', message: '识别任务正在运行' }
     if (result.status === 'matched') {
       this.lcu.confirmGameActive('augment-interface', scanGeneration, scanChampionId)
       const detailRanks = detailRanksForCurrentChampion(
@@ -466,7 +529,7 @@ export class HexBridgeRuntime {
         this.sync()
       }
       this.scanMisses = 0
-      return { ok: true, message: '已识别三张海克斯' }
+      return { ok: true, code: 'MATCHED', message: '已识别三张海克斯' }
     }
 
     this.scanMisses += 1
@@ -494,7 +557,12 @@ export class HexBridgeRuntime {
         ? '未检测到三张海克斯标题，请停在三卡界面或重新校准整张卡片'
         : `已识别 ${matchedCount}/3 张卡片，请等待动画稳定后重试`
     )
-    return { ok: false, message }
+    const code: ManualOcrCode = result.status === 'not-detected'
+      ? 'NOT_DETECTED'
+      : result.status === 'unreliable'
+        ? 'UNRELIABLE'
+        : 'SCAN_ERROR'
+    return { ok: false, code, message }
   }
 
   private updateGameProcessLoop(): void {

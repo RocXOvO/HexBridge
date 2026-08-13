@@ -110,7 +110,9 @@ export class AugmentScanner {
         try {
           await this.saveDiagnosticCrops(crops)
         } catch (error) {
-          logger.warn('Unable to save OCR diagnostic crops', error instanceof Error ? error.message : error)
+          logger.warn('Unable to save OCR diagnostic crops', {
+            errorName: error instanceof Error ? error.name : 'Error',
+          })
         }
       }
 
@@ -130,8 +132,10 @@ export class AugmentScanner {
       const allReliable = recognized.length === 3 && recognized.every((slot) => slot.augmentId != null)
       return this.finish(allReliable ? 'matched' : 'unreliable', recognized, startedAt, null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      logger.warn('OCR scan failed', message)
+      const message = 'OCR 截图或识别失败'
+      logger.warn('OCR scan failed', {
+        errorName: error instanceof Error ? error.name : 'Error',
+      })
       return this.finish('error', [], startedAt, message)
     } finally {
       this.busy = false

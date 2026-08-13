@@ -10,7 +10,6 @@ const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): AppS
   visualMode,
   autoOcr,
   showChampionPanel: true,
-  showAugmentOverlay: true,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -23,21 +22,21 @@ describe('settings migration', () => {
     'disables legacy automatic OCR and removes the obsolete %s visual override',
     (visualMode) => {
       const migrated = migrateSettingsForRevision(settings(visualMode, true), 0)
-      expect(migrated).toMatchObject({ revision: 2, settings: { visualMode: 'auto', autoOcr: false } })
+      expect(migrated).toMatchObject({ revision: 3, settings: { visualMode: 'auto', autoOcr: false } })
     },
   )
 
   it('migrates a revision-one manual override without changing OCR again', () => {
     expect(migrateSettingsForRevision(settings('eco', true), 1)).toEqual({
       settings: settings('auto', true),
-      revision: 2,
+      revision: 3,
     })
   })
 
   it('does not repeat the migration at the current revision', () => {
-    expect(migrateSettingsForRevision(settings('auto', true), 2)).toEqual({
+    expect(migrateSettingsForRevision(settings('auto', true), 3)).toEqual({
       settings: settings('auto', true),
-      revision: 2,
+      revision: 3,
     })
   })
 })

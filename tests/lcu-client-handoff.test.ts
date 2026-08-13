@@ -159,7 +159,7 @@ describe('production LCU transport hand-off replay', () => {
     const detail: ChampionAugmentData = {
       championId: 103,
       dataVersion: '16.15.6',
-      ranks: [{ augmentId: 1, rank: 1, tier: 1, total: 100 }],
+      ranks: [{ augmentId: 1, rank: 1, tier: 1, total: 100, pickRate: .2, statsSource: 'tencent', statsRegion: 'CN' }],
     }
     const overlay = {
       visible: true,

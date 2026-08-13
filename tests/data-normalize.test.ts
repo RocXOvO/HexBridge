@@ -25,10 +25,38 @@ describe('upstream data sanitation', () => {
     expect(JSON.stringify(rows[0])).not.toMatch(/winRate|wins|games|pickRate/)
   })
 
-  it('stores only official rank, total and tier for a champion augment', () => {
+  it('keeps documented champion pick rate while discarding augment win fields', () => {
     const detail = normalizeChampionAugmentDetail({ data: { augments: [{
-      id: 7, stats: { rank: 3, total: 167, tier: 1, winRate: .8, wins: 999, games: 1000 },
+      id: 7, stats: { rank: 3, total: 167, tier: 1, pickRate: .24, source: 'tencent', region: 'CN', winRate: .8, wins: 999, games: 1000 },
     }] } }, 103, '16.15.6')
-    expect(detail).toEqual({ championId: 103, dataVersion: '16.15.6', ranks: [{ augmentId: 7, rank: 3, total: 167, tier: 1 }] })
+    expect(detail).toEqual({ championId: 103, dataVersion: '16.15.6', ranks: [{ augmentId: 7, rank: 3, total: 167, tier: 1, pickRate: .24, statsSource: 'tencent', statsRegion: 'CN' }] })
+    expect(JSON.stringify(detail)).not.toMatch(/winRate|wins|games/)
+  })
+
+  it('treats missing or invalid pick rates as unavailable instead of zero', () => {
+    const detail = normalizeChampionAugmentDetail({ data: { augments: [
+      { id: 1, stats: { rank: 1, pickRate: -1 } },
+      { id: 2, stats: { rank: 2, pickRate: 201 } },
+      { id: 3, stats: { rank: 3 } },
+      { id: 4, stats: { rank: 4, pickRate: 24 } },
+      { id: 5, stats: { rank: 5, pickRate: false } },
+      { id: 6, stats: { rank: 6, pickRate: [] } },
+      { id: 7, stats: { rank: 7, pickRate: ' ' } },
+      { id: 8, stats: { rank: 8, pickRate: '.24' } },
+    ] } }, 103, '16.15.6')
+    expect(detail.ranks.map((rank) => rank.pickRate)).toEqual([
+      null, null, null, null, null, null, null, null,
+    ])
+  })
+
+  it('allowlists champion augment statistic provenance', () => {
+    const detail = normalizeChampionAugmentDetail({ data: { augments: [
+      { id: 1, stats: { rank: 1, pickRate: .2, source: 'aramgg-client-upload', region: 'WORLD' } },
+      { id: 2, stats: { rank: 2, pickRate: .3, source: 'unexpected', region: 'UNKNOWN' } },
+    ] } }, 103, '16.15.6')
+    expect(detail.ranks.map(({ statsSource, statsRegion }) => [statsSource, statsRegion])).toEqual([
+      ['aramgg-client-upload', 'WORLD'],
+      [null, null],
+    ])
   })
 })

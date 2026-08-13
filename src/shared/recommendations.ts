@@ -90,7 +90,7 @@ function rankReason(
   meta: AugmentMeta | undefined,
 ): string {
   if (rank?.rank != null) {
-    return `英雄专属 #${rank.rank}${rank.total ? ` / ${rank.total}` : ''}`
+    return `英雄专属排名 #${rank.rank}${rank.total ? ` / ${rank.total}` : ''}`
   }
   if (rank?.tier != null) return `英雄专属 Tier ${rank.tier}`
   if (meta?.globalTier != null) return `全局 Tier ${meta.globalTier}`
@@ -148,6 +148,9 @@ export function rankAugmentSlots(
       reason: rankReason(rank, meta),
       iconUrl: meta?.iconUrl ?? '',
       rarityName: meta?.rarityName ?? '',
+      pickRate: rank?.pickRate ?? null,
+      statsSource: rank?.statsSource ?? null,
+      statsRegion: rank?.statsRegion ?? null,
     }
   })
 }

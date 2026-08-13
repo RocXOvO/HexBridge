@@ -5,7 +5,6 @@ import { HexBridgeRuntime } from './runtime.js'
 const allowedSettingKeys = new Set<keyof AppSettings>([
   'autoOcr',
   'showChampionPanel',
-  'showAugmentOverlay',
   'displayId',
   'calibration',
   'diagnosticsScreenshots',
@@ -16,7 +15,7 @@ function sanitizeSettings(value: unknown): Partial<AppSettings> {
   const patch: Partial<AppSettings> = {}
   for (const [key, entry] of Object.entries(value)) {
     if (!allowedSettingKeys.has(key as keyof AppSettings)) continue
-    if (['autoOcr', 'showChampionPanel', 'showAugmentOverlay', 'diagnosticsScreenshots'].includes(key)) {
+    if (['autoOcr', 'showChampionPanel', 'diagnosticsScreenshots'].includes(key)) {
       if (typeof entry === 'boolean') Object.assign(patch, { [key]: entry })
     } else if (key === 'displayId' && typeof entry === 'string') {
       patch.displayId = entry.slice(0, 80)
@@ -71,7 +70,10 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
   ipcMain.handle('hexbridge:download-update', () => runtime.downloadUpdate())
   ipcMain.handle('hexbridge:install-update', () => runtime.installUpdate())
   ipcMain.handle('hexbridge:open-release-page', () => runtime.openReleasePage())
-  ipcMain.handle('hexbridge:trigger-ocr', () => runtime.triggerOcr())
+  ipcMain.handle('hexbridge:trigger-ocr', (event) => {
+    requireSender(event, 'main')
+    return runtime.triggerOcr()
+  })
   ipcMain.handle('hexbridge:clear-diagnostics', () => runtime.clearDiagnosticScreenshots())
   ipcMain.handle('hexbridge:retry-lcu', () => runtime.retryLcuConnection())
   ipcMain.handle('hexbridge:start-calibration', (event) => {

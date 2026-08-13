@@ -205,6 +205,12 @@ try {
       (target) => target.type === 'page' && /#main$/.test(target.url),
       'the main HexBridge renderer',
     )
+    const obsoleteAugmentTarget = (await targets(debuggingPort)).find(
+      (target) => target.type === 'page' && /#augment$/.test(target.url),
+    )
+    if (obsoleteAugmentTarget) {
+      throw new Error('Obsolete full-screen augment renderer is still being created')
+    }
     mainCdp = await connectCdp(mainTarget.webSocketDebuggerUrl)
     // A freshly unpacked Windows executable can expose its CDP target before
     // the renderer runtime is ready to answer the first command. Keep the

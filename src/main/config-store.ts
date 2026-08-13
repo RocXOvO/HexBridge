@@ -13,7 +13,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   visualMode: 'auto',
   autoOcr: false,
   showChampionPanel: true,
-  showAugmentOverlay: true,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -25,7 +24,11 @@ export function migrateSettingsForRevision(
   settings: AppSettings,
   revision: number,
 ): { settings: AppSettings; revision: number } {
-  let next = { ...settings }
+  const { showAugmentOverlay: _obsoleteOverlay, ...supported } = settings as AppSettings & {
+    showAugmentOverlay?: boolean
+  }
+  void _obsoleteOverlay
+  let next: AppSettings = { ...supported }
   let nextRevision = revision
   if (nextRevision < 1) {
     next = { ...next, autoOcr: false }
@@ -37,6 +40,11 @@ export function migrateSettingsForRevision(
     // or unexpectedly low-quality mode after the UI control is removed.
     next = { ...next, visualMode: 'auto' }
     nextRevision = 2
+  }
+  if (nextRevision < 3) {
+    // Augment recommendations now live inside the main assistant. Remove the
+    // obsolete full-screen overlay preference so it cannot be re-enabled.
+    nextRevision = 3
   }
   return { settings: next, revision: nextRevision }
 }
@@ -54,7 +62,7 @@ export class ConfigStore {
     )
     if (migration.revision !== this.store.get('settingsRevision')) {
       // Apply one-time, revisioned safety migrations without altering the API
-      // key, calibration, display selection or overlay preferences.
+      // key, calibration or display selection.
       this.store.set('settings', migration.settings)
       this.store.set('settingsRevision', migration.revision)
     }

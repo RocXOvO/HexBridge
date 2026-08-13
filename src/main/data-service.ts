@@ -11,6 +11,10 @@ import { logger } from './logger.js'
 
 const API_ORIGIN = 'https://data.dtodo.cn'
 const API_PREFIX = '/api/v1/zh-CN'
+// Detail cache v1 intentionally omitted pickRate and its provenance. Keep the
+// local schema in the filename so an unchanged upstream dataVersion cannot pin
+// the old shape.
+const DETAIL_CACHE_SCHEMA = 2
 const DEFAULT_API_STATE: ApiConnectionState = {
   configured: false,
   status: 'missing',
@@ -24,6 +28,57 @@ interface ProviderConfig {
   gamePatch?: string
   dataVersion?: string
   publishedAt?: string
+}
+
+function isChampionDetailCache(value: unknown, version: string): value is ChampionAugmentData {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const detail = value as Partial<ChampionAugmentData>
+  if (!Number.isInteger(detail.championId) || (detail.championId ?? 0) <= 0) return false
+  if (detail.dataVersion !== version || !Array.isArray(detail.ranks)) return false
+  return detail.ranks.every((entry) => {
+    if (!entry || typeof entry !== 'object') return false
+    const rank = entry as Partial<ChampionAugmentData['ranks'][number]>
+    return (
+      Number.isInteger(rank.augmentId) &&
+      (rank.augmentId ?? 0) > 0 &&
+      Object.hasOwn(rank, 'pickRate') &&
+      Object.hasOwn(rank, 'statsSource') &&
+      Object.hasOwn(rank, 'statsRegion') &&
+      (rank.pickRate === null || (typeof rank.pickRate === 'number' && rank.pickRate >= 0 && rank.pickRate <= 1)) &&
+      (rank.statsSource === null || ['iesdev', 'tencent', 'aramgg-client-upload'].includes(String(rank.statsSource))) &&
+      (rank.statsRegion === null || rank.statsRegion === 'WORLD' || rank.statsRegion === 'CN')
+    )
+  })
+}
+
+function migrateLegacyChampionDetail(value: unknown, version: string): ChampionAugmentData | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const detail = value as Partial<ChampionAugmentData>
+  if (!Number.isInteger(detail.championId) || (detail.championId ?? 0) <= 0) return null
+  if (detail.dataVersion !== version || !Array.isArray(detail.ranks)) return null
+  const ranks = detail.ranks.flatMap((entry): ChampionAugmentData['ranks'] => {
+    if (!entry || typeof entry !== 'object') return []
+    const rank = entry as Partial<ChampionAugmentData['ranks'][number]>
+    if (!Number.isInteger(rank.augmentId) || (rank.augmentId ?? 0) <= 0) return []
+    const nullableNumber = (candidate: unknown): number | null =>
+      candidate === null || candidate === undefined
+        ? null
+        : typeof candidate === 'number' && Number.isFinite(candidate)
+          ? candidate
+          : null
+    return [{
+      augmentId: rank.augmentId as number,
+      rank: nullableNumber(rank.rank),
+      total: nullableNumber(rank.total),
+      tier: nullableNumber(rank.tier),
+      pickRate: null,
+      statsSource: null,
+      statsRegion: null,
+    }]
+  })
+  return ranks.length
+    ? { championId: detail.championId as number, dataVersion: version, ranks }
+    : null
 }
 
 class ProviderError extends Error {
@@ -48,6 +103,7 @@ export class DataService {
   private champions: ChampionSummary[] = []
   private augments: AugmentMeta[] = []
   private details = new Map<number, ChampionAugmentData>()
+  private legacyDetails = new Map<number, ChampionAugmentData>()
   private detailRequests = new Map<number, Promise<ChampionAugmentData>>()
   private cachedDataVersion = ''
   private cacheLoaded = false
@@ -56,6 +112,7 @@ export class DataService {
   constructor(
     private readonly cacheDirectory: string,
     private readonly configStore: ConfigStore,
+    private readonly clientVersion = 'development',
   ) {}
 
   getState(): ApiConnectionState {
@@ -87,7 +144,7 @@ export class DataService {
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10_000)
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'User-Agent': 'HexBridge/0.1.12',
+      'User-Agent': `HexBridge/${this.clientVersion}`,
     }
     if (options.authenticated !== false) {
       const key = options.apiKey ?? this.configStore.getApiKey()
@@ -258,14 +315,18 @@ export class DataService {
   private async loadDetailCaches(version: string): Promise<void> {
     try {
       const names = await readdir(this.cacheDirectory)
-      await Promise.all(
-        names
-          .filter((name) => name.startsWith(`champion-detail-${version}-`) && name.endsWith('.json'))
-          .map(async (name) => {
-            const detail = JSON.parse(await readFile(this.cachePath(name), 'utf8')) as ChampionAugmentData
-            if (detail.championId) this.details.set(detail.championId, detail)
-          }),
-      )
+      await Promise.all(names.filter((name) => name.endsWith('.json')).map(async (name) => {
+        const currentPrefix = `champion-detail-v${DETAIL_CACHE_SCHEMA}-${version}-`
+        const legacyPrefix = `champion-detail-${version}-`
+        if (!name.startsWith(currentPrefix) && !name.startsWith(legacyPrefix)) return
+        const payload = JSON.parse(await readFile(this.cachePath(name), 'utf8')) as unknown
+        if (name.startsWith(currentPrefix)) {
+          if (isChampionDetailCache(payload, version)) this.details.set(payload.championId, payload)
+          return
+        }
+        const legacy = migrateLegacyChampionDetail(payload, version)
+        if (legacy && !this.details.has(legacy.championId)) this.legacyDetails.set(legacy.championId, legacy)
+      }))
     } catch {
       // Optional cache warm-up.
     }
@@ -284,6 +345,7 @@ export class DataService {
   private async fetchChampionAugments(championId: number): Promise<ChampionAugmentData> {
     const dataVersion = this.apiState.dataVersion || this.cachedDataVersion
     const cached = this.details.get(championId)
+    const legacy = this.legacyDetails.get(championId)
     if (cached?.dataVersion === dataVersion) return cached
     if (!dataVersion) throw new Error('数据版本尚未就绪')
     try {
@@ -294,16 +356,18 @@ export class DataService {
         dataVersion,
       )
       this.details.set(championId, normalized)
+      this.legacyDetails.delete(championId)
       await this.atomicWrite(
-        `champion-detail-${dataVersion}-${championId}.json`,
+        `champion-detail-v${DETAIL_CACHE_SCHEMA}-${dataVersion}-${championId}.json`,
         normalized,
       )
       return normalized
     } catch (error) {
       this.setError(error)
-      if (cached) {
+      const fallback = cached ?? legacy
+      if (fallback) {
         if (['offline', 'error', 'limited'].includes(this.apiState.status)) this.apiState.status = 'stale'
-        return cached
+        return fallback
       }
       throw error
     }

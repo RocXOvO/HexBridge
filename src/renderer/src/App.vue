@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ChampionSummary } from '../../shared/contracts'
+import type { ChampionSummary, RankedAugmentSlot } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -37,6 +37,10 @@ const recognizedChampionId = computed(() => state.value.snapshot.currentChampion
 const recognizedChampionMissingData = computed(() => recognizedChampionId.value != null && !current.value)
 const heroStyle = computed(() => current.value?.splashUrl ? { backgroundImage: `url(${current.value.splashUrl})` } : {})
 const statusLabel = computed(() => matchStatus.value.label)
+const augmentAssistantVisible = computed(() =>
+  state.value.overlay.visible || ['launching', 'active'].includes(state.value.snapshot.matchStage),
+)
+const selecting = computed(() => state.value.snapshot.matchStage === 'selecting')
 
 const ranking = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -55,8 +59,38 @@ function tier(value: number | null): string {
   return value == null ? '—' : `T${value}`
 }
 
-function tierLabel(value: number | null): string {
-  return value == null ? '暂无数据' : ['顶尖', '强势', '均衡', '偏弱', '挑战'][value - 1] ?? `第 ${value} 档`
+function augmentPickRate(value: number | null): string {
+  return value == null ? '暂无数据' : `${(value * 100).toFixed(1)}%`
+}
+
+function augmentStatsScope(slot: RankedAugmentSlot): string {
+  const source = slot.statsSource === 'tencent'
+    ? '腾讯快照'
+    : slot.statsSource === 'iesdev'
+      ? 'iesdev'
+      : slot.statsSource === 'aramgg-client-upload'
+        ? '匿名汇总'
+        : '来源未标注'
+  const region = slot.statsRegion === 'CN'
+    ? '国服'
+    : slot.statsRegion === 'WORLD'
+      ? '跨服'
+      : '范围未标注'
+  return `${source} · ${region}`
+}
+
+function manualOcrTime(value: number | null): string {
+  return value == null ? '尚未触发' : new Date(value).toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+function slotLabel(position: number | null, tied: boolean): string {
+  return position == null ? '—' : tied ? '并列' : String(position)
+}
+
+function augmentReason(value: string): string {
+  return ['stale', 'limited', 'offline'].includes(state.value.api.status)
+    ? `数据已过期 · ${value}`
+    : value
 }
 
 function bytes(value: number | null): string {
@@ -304,7 +338,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <img :src="current.iconUrl" :alt="championAlt(current)" />
             <div class="hero-name"><small>当前英雄</small><h1>{{ current.name }}</h1><p>{{ current.title || '海克斯大乱斗' }}</p></div>
             <div class="hero-metrics">
-              <div><small>强度</small><b class="tier-value">{{ tier(current.tier) }}</b></div>
+              <div><small>Tier</small><b class="tier-value">{{ tier(current.tier) }}</b></div>
               <div><small>胜率</small><b>{{ winRate(current.winRate) }}</b></div>
             </div>
             <span v-if="current.isBest" class="best-badge">首选</span>
@@ -326,25 +360,49 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             </div>
           </div>
 
-          <div class="bench-head"><div><small>AVAILABLE</small><h2>备战席</h2></div><span>{{ bench.length }} 位可选英雄</span></div>
-          <TransitionGroup name="reorder" tag="div" class="bench-grid">
-            <article v-for="item in bench" :key="item.id" :class="['bench-card', { best: item.isBest }]">
-              <img :src="item.iconUrl" :alt="championAlt(item)" />
-              <div class="bench-info"><b>{{ item.name }}</b><small>{{ item.title || '可选英雄' }}</small></div>
-              <div class="bench-stats"><b>{{ tier(item.tier) }}</b><span>{{ winRate(item.winRate) }}</span></div>
-              <div v-if="item.isBest" class="best-strip">首选 · 较当前 {{ item.winRateDelta != null && item.winRateDelta >= 0 ? '+' : '' }}{{ item.winRateDelta == null ? '—' : (item.winRateDelta * 100).toFixed(1) + '%' }}</div>
-            </article>
-          </TransitionGroup>
-          <p class="choice-note">推荐仅作数据参考。换英雄与选择均由你在游戏中完成。</p>
+          <section v-if="augmentAssistantVisible" class="augment-assistant" aria-live="polite">
+            <header>
+              <div><small>AUGMENT ADVISOR</small><h2>海克斯推荐</h2><p>按上游 rank 排序；选取率仅作次级展示，识别结果只在主窗口更新。data.dtodo 单英雄统计 · {{ state.api.gamePatch || '补丁未标注' }} · {{ state.api.dataVersion || '数据未就绪' }}<template v-if="['stale','limited','offline'].includes(state.api.status)"> · 已过期</template></p></div>
+              <button class="ghost" :disabled="state.diagnostics.ocrBusy" @click="triggerOcr">
+                {{ state.diagnostics.ocrBusy ? '识别中…' : (state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别') }}
+              </button>
+            </header>
+            <p :class="['manual-ocr-state', state.diagnostics.manualOcrStatus]">{{ state.diagnostics.manualOcrMessage }}</p>
+            <div v-if="state.overlay.visible && state.overlay.slots.length" class="augment-live-grid">
+              <article v-for="slot in state.overlay.slots" :key="slot.slot" :class="[`place-${slot.position ?? 0}`, { tied: slot.tied, unknown: !slot.augmentId }]">
+                <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
+                <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />
+                <span v-else class="augment-icon" aria-hidden="true">◇</span>
+                <div class="augment-card-copy"><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? augmentReason(slot.reason) : '该位置尚未可靠识别' }}</p></div>
+                <div class="augment-pick-rate" :title="`data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>该英雄选取率 · {{ augmentStatsScope(slot) }}</small><b>{{ augmentPickRate(slot.pickRate) }}</b></div>
+              </article>
+            </div>
+            <div v-else class="augment-waiting">
+              <span>◇</span><div><b>等待三张海克斯</b><p>停在三卡界面后按 {{ state.settings.hotkey || '主窗口按钮' }}，识别完成后将在此排序。</p></div>
+            </div>
+          </section>
+
+          <template v-if="selecting">
+            <div class="bench-head"><div><small>AVAILABLE</small><h2>备战席</h2></div><span>{{ bench.length }} 位可选英雄</span></div>
+            <TransitionGroup name="reorder" tag="div" class="bench-grid">
+              <article v-for="item in bench" :key="item.id" :class="['bench-card', { best: item.isBest }]">
+                <img :src="item.iconUrl" :alt="championAlt(item)" />
+                <div class="bench-info"><b>{{ item.name }}</b><small>{{ item.title || '可选英雄' }}</small></div>
+                <div class="bench-stats"><b>{{ tier(item.tier) }}</b><span>{{ winRate(item.winRate) }}</span></div>
+                <div v-if="item.isBest" class="best-strip">首选 · 较当前 {{ item.winRateDelta != null && item.winRateDelta >= 0 ? '+' : '' }}{{ item.winRateDelta == null ? '—' : (item.winRateDelta * 100).toFixed(1) + '%' }}</div>
+              </article>
+            </TransitionGroup>
+            <p class="choice-note">推荐仅作数据参考。换英雄与选择均由你在游戏中完成。</p>
+          </template>
         </div>
       </section>
 
       <section v-else-if="page === 'ranking'" class="page-content standard-page">
-        <div class="page-heading"><div><small>版本 {{ state.api.gamePatch || '—' }}</small><h1>英雄榜</h1><p>海克斯大乱斗英雄强度与胜率快照</p></div><button class="ghost" :disabled="busy" @click="refresh">刷新数据</button></div>
-        <div class="toolbar"><label class="search"><span>⌕</span><input v-model="search" placeholder="搜索英雄名、称号或别名（如 VN）" /></label><div class="segmented"><button v-for="sort in (['tier','winRate'] as const)" :key="sort" :class="{ active: rankingSort === sort }" @click="rankingSort = sort">{{ sort === 'tier' ? '强度' : '胜率' }}</button></div></div>
+        <div class="page-heading"><div><small>版本 {{ state.api.gamePatch || '—' }}</small><h1>英雄榜</h1><p>海克斯大乱斗英雄 Tier 与胜率快照</p></div><button class="ghost" :disabled="busy" @click="refresh">刷新数据</button></div>
+        <div class="toolbar"><label class="search"><span>⌕</span><input v-model="search" placeholder="搜索英雄名、称号或别名（如 VN）" /></label><div class="segmented"><button v-for="sort in (['tier','winRate'] as const)" :key="sort" :class="{ active: rankingSort === sort }" @click="rankingSort = sort">{{ sort === 'tier' ? 'Tier' : '胜率' }}</button></div></div>
         <div class="ranking-list">
           <article v-for="(item, index) in ranking" :key="item.id" :class="['tier-row', `tier-${item.tier || 0}`, { selected: selectedChampionId === item.id }]" :style="{ '--tier-level': String(item.tier || 0) }" tabindex="0" @click="selectedChampionId = item.id" @focus="selectedChampionId = item.id">
-            <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><div class="rank-name"><b>{{ item.name }}</b><small>{{ item.title || '海克斯大乱斗英雄' }}</small></div><div class="tier-band"><small>强度</small><b>{{ tierLabel(item.tier) }}</b></div><div class="rank-wr"><small>胜率</small><b>{{ winRate(item.winRate) }}</b></div>
+            <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><div class="rank-name"><b>{{ item.name }}</b><small>{{ item.title || '海克斯大乱斗英雄' }}</small></div><div class="rank-tier"><small>Tier</small><b>{{ tier(item.tier) }}</b></div><div class="rank-wr"><small>胜率</small><b>{{ winRate(item.winRate) }}</b></div>
           </article>
         </div>
       </section>
@@ -367,13 +425,13 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           <article class="settings-card wide"><header><div><h3>数据服务</h3><p>Key 使用 Windows safeStorage 加密，仅由主进程访问。HEAD 验证不消耗 data credits。</p></div><span :class="['connection-pill', state.api.status]">{{ state.api.configured ? state.api.status : '未配置' }}</span></header><div class="key-row"><input v-model="apiKey" type="password" autocomplete="off" placeholder="hx_live_••••••••" @keyup.enter="validateKey" /><button class="primary" :disabled="keyBusy || !apiKey.trim()" :aria-busy="keyBusy" @click="validateKey">{{ keyBusy ? '正在验证…' : '验证并保存' }}</button><button class="ghost" :disabled="keyBusy" @click="clearKey">清除</button></div><p v-if="keyFeedback.message" :class="['inline-feedback', keyFeedback.kind]" aria-live="polite">{{ keyFeedback.message }}</p><small>申请地址：data.dtodo.cn/developer.html</small></article>
           <article class="settings-card"><h3>目标显示器</h3><p>默认自动选择主显示器；只有三张卡片位置不准时才需要校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">停在三卡界面后依次框住整张左、中、右卡片，标题区域会自动提取。</small></article>
           <article class="settings-card"><h3>识别快捷键</h3><p>点击录制后按下新的全局组合键；冲突或无效时会保留原快捷键。</p><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? '推荐使用 F8 或 Ctrl+Shift+字母；Esc 取消。' : '快捷键未注册或已被其他程序占用，请录制一个新快捷键。') }}</small></article>
-          <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>默认关闭；开启后每 2 秒低分辨率门控，命中后才识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人及游戏客户端交接期显示，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>海克斯浮窗</b><small>三张全部可靠识别后自动出现</small></div><input type="checkbox" :checked="state.settings.showAugmentOverlay" @change="updateSettings({ showAugmentOverlay: ($event.target as HTMLInputElement).checked })" /></label></article>
+          <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>默认关闭；开启后每 2 秒低分辨率门控，命中后才识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人及游戏客户端交接期显示，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label></article>
         </div>
       </section>
 
       <section v-else class="page-content standard-page diagnostics-page">
         <div class="page-heading"><div><small>SYSTEM HEALTH</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">{{ state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别' }}</button></div></div>
-        <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DATA API</small><b>{{ state.api.status }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms` }}</p></div></article></div>
+        <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DATA API</small><b>{{ state.api.status }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.manualOcrStatus === 'idle' ? (state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms`) : `${state.diagnostics.manualOcrMessage} · ${state.diagnostics.manualOcrCode} · ${manualOcrTime(state.diagnostics.manualOcrTriggeredAt)}` }}</p></div></article></div>
         <div class="log-panel"><header><b>本地日志</b><span>{{ state.diagnostics.logLines.length }} 行</span></header><pre>{{ state.diagnostics.logLines.join('\n') || '暂无日志' }}</pre></div>
         <p class="choice-note">诊断截图仅在手动识别时保存，最多保留 60 张裁切图。</p>
         <div v-if="isPreview" class="preview-banner">浏览器视觉预览模式 · Electron 中将显示实时数据</div>

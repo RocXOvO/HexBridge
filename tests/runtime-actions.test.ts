@@ -51,4 +51,95 @@ describe('runtime user actions', () => {
     })
     expect(runtime.data.initialize).not.toHaveBeenCalled()
   })
+
+  it('records a stable hotkey result even when the current phase is not OCR eligible', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = {
+      phase: 'Lobby', queueId: 3270, modeActive: false, matchStage: 'none',
+      matchGeneration: 0, currentChampionId: null,
+    }
+    runtime.manualOcr = {}
+    runtime.sync = vi.fn()
+
+    const result = await runtime.triggerOcr('hotkey')
+
+    expect(result).toEqual({ ok: false, message: '仅在海克斯大乱斗对局中识别' })
+    expect(runtime.manualOcr).toMatchObject({
+      manualOcrStatus: 'miss',
+      manualOcrCode: 'NOT_ELIGIBLE',
+      manualOcrSource: 'hotkey',
+    })
+    expect(runtime.manualOcr.manualOcrTriggeredAt).toEqual(expect.any(Number))
+    expect(runtime.sync).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the structured scan result for foreground hotkey diagnostics', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = {
+      phase: 'InProgress', queueId: 3270, modeActive: true, matchStage: 'active',
+      matchGeneration: 1, currentChampionId: 103,
+    }
+    runtime.manualOcr = {}
+    runtime.sync = vi.fn()
+    runtime.runScan = vi.fn(async () => ({ ok: false, code: 'NOT_DETECTED', message: '未检测到三张海克斯标题' }))
+
+    await runtime.triggerOcr('hotkey')
+
+    expect(runtime.runScan).toHaveBeenCalledWith(true)
+    expect(runtime.manualOcr).toMatchObject({
+      manualOcrStatus: 'miss',
+      manualOcrCode: 'NOT_DETECTED',
+      manualOcrSource: 'hotkey',
+      manualOcrMessage: '未检测到三张海克斯标题',
+    })
+  })
+
+  it('does not let an older slow scan overwrite the newest manual trigger status', async () => {
+    let finishFirst: ((result: unknown) => void) | undefined
+    const firstResult = new Promise((resolve) => { finishFirst = resolve })
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = {
+      phase: 'InProgress', queueId: 3270, modeActive: true, matchStage: 'active',
+      matchGeneration: 1, currentChampionId: 103,
+    }
+    runtime.manualOcr = {}
+    runtime.manualOcrSequence = 0
+    runtime.sync = vi.fn()
+    runtime.runScan = vi.fn()
+      .mockImplementationOnce(() => firstResult)
+      .mockResolvedValueOnce({ ok: false, code: 'BUSY', message: '识别任务正在运行' })
+
+    const first = runtime.triggerOcr('button')
+    await Promise.resolve()
+    await runtime.triggerOcr('hotkey')
+    finishFirst?.({ ok: true, code: 'MATCHED', message: '已识别三张海克斯' })
+    await first
+
+    expect(runtime.manualOcr).toMatchObject({
+      manualOcrStatus: 'miss',
+      manualOcrCode: 'BUSY',
+      manualOcrSource: 'hotkey',
+      manualOcrMessage: '识别任务正在运行',
+    })
+  })
+
+  it('classifies scanner failures as errors rather than ordinary misses', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = {
+      phase: 'InProgress', queueId: 3270, modeActive: true, matchStage: 'active',
+      matchGeneration: 1, currentChampionId: 103,
+    }
+    runtime.manualOcr = {}
+    runtime.manualOcrSequence = 0
+    runtime.sync = vi.fn()
+    runtime.runScan = vi.fn(async () => ({ ok: false, code: 'SCAN_ERROR', message: 'OCR 截图或识别失败' }))
+
+    await runtime.triggerOcr('tray')
+
+    expect(runtime.manualOcr).toMatchObject({
+      manualOcrStatus: 'error',
+      manualOcrCode: 'SCAN_ERROR',
+      manualOcrSource: 'tray',
+    })
+  })
 })

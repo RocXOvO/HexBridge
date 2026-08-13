@@ -1,6 +1,5 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import AugmentOverlay from './AugmentOverlay.vue'
 import CalibrationOverlay from './CalibrationOverlay.vue'
 import ChampionPanel from './ChampionPanel.vue'
 import { initializeState } from './state'
@@ -11,9 +10,7 @@ document.documentElement.dataset.route = route
 const component =
   route === 'champion'
     ? ChampionPanel
-    : route === 'augment'
-      ? AugmentOverlay
-      : route === 'calibration'
+    : route === 'calibration'
       ? CalibrationOverlay
       : App
 
