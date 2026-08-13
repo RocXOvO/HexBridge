@@ -108,6 +108,7 @@ export class HexBridgeRuntime {
     this.lcu.on('update', (snapshot: ChampSelectSnapshot, state: LcuConnectionState) => {
       this.handleLcuUpdate(snapshot, state)
     })
+    this.lcu.on('diagnostic', () => this.sync())
     this.lcu.start()
     this.updates.initialize()
     await this.data.initialize()

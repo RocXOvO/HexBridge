@@ -29,6 +29,8 @@ const updatePercent = computed(() => Math.max(0, Math.min(100, state.value.updat
 
 const current = computed(() => state.value.candidates.find((item) => item.isCurrent) ?? null)
 const bench = computed(() => state.value.candidates.filter((item) => !item.isCurrent))
+const recognizedChampionId = computed(() => state.value.snapshot.currentChampionId)
+const recognizedChampionMissingData = computed(() => recognizedChampionId.value != null && !current.value)
 const heroStyle = computed(() => current.value?.splashUrl ? { backgroundImage: `url(${current.value.splashUrl})` } : {})
 const statusLabel = computed(() => matchStatus.value.label)
 const lcuStatusTitle = computed(() => matchStatus.value.lcuTitle)
@@ -287,9 +289,9 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
               <LogoMark />
             </div>
             <div class="empty-copy">
-              <small>{{ state.lcu.connected ? 'LCU CONNECTED' : 'SEARCHING FOR LCU' }}</small>
-              <h2>{{ state.lcu.connected ? '等待选择英雄' : '正在寻找英雄联盟客户端' }}</h2>
-              <p>{{ state.lcu.connected ? '进入海克斯大乱斗选人阶段后会自动显示英雄。' : (state.lcu.lastError || '请先启动 WeGame 与英雄联盟客户端。') }}</p>
+              <small>{{ recognizedChampionMissingData ? 'CHAMPION DETECTED' : state.lcu.connected ? 'LCU CONNECTED' : 'SEARCHING FOR LCU' }}</small>
+              <h2>{{ recognizedChampionMissingData ? `已识别英雄 #${recognizedChampionId}` : state.lcu.connected ? '等待选择英雄' : '正在寻找英雄联盟客户端' }}</h2>
+              <p>{{ recognizedChampionMissingData ? 'LCU 读取正常，但英雄数据目录尚未就绪或缺少该英雄；请在设置中刷新数据。' : state.lcu.connected ? '进入海克斯大乱斗选人阶段后会自动显示英雄。' : (state.lcu.lastError || '请先启动 WeGame 与英雄联盟客户端。') }}</p>
               <button v-if="!state.lcu.connected" class="ghost reconnect-button" :disabled="lcuBusy" @click="retryLcu">
                 {{ lcuBusy ? '正在检测…' : '立即重新检测' }}
               </button>

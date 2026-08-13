@@ -21,6 +21,8 @@ vi.mock('../src/main/config-store.js', () => ({
 import { applyLcuPollResults } from '../src/main/lcu/client.js'
 import { MatchContextTracker, normalizeChampSelectSnapshot } from '../src/main/lcu/normalize.js'
 import { HexBridgeRuntime } from '../src/main/runtime.js'
+import { shouldShowChampionCompanion } from '../src/main/runtime-guards.js'
+import { buildChampionCandidates } from '../src/shared/recommendations.js'
 
 const connected: LcuConnectionState = {
   connected: true,
@@ -37,6 +39,44 @@ const detached: LcuConnectionState = {
 }
 
 describe('LCU handoff through runtime state', () => {
+  it('renders a fresh partial ChampSelect observation instead of dropping successful fields', async () => {
+    const tracker = new MatchContextTracker()
+    const auxiliary = await Promise.allSettled([
+      Promise.resolve({ queueId: 2400 }),
+      Promise.reject(new Error('champ-select session timed out')),
+      Promise.resolve(103),
+      Promise.resolve({ locale: 'zh_CN' }),
+      Promise.resolve(null),
+    ])
+    const observed = applyLcuPollResults(
+      tracker,
+      normalizeChampSelectSnapshot({
+        phase: 'None', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+      }),
+      'ChampSelect',
+      auxiliary,
+      1_000,
+    ).snapshot
+    const candidates = buildChampionCandidates(observed, [{
+      id: 103,
+      alias: 'Ahri',
+      name: '阿狸',
+      title: '',
+      roles: ['法师'],
+      iconUrl: '',
+      splashUrl: '',
+      tier: 1,
+      winRate: 0.53,
+      patch: '16.15',
+      date: '',
+      source: 'fixture',
+    }])
+
+    expect(observed).toMatchObject({ modeActive: true, matchStage: 'selecting', currentChampionId: 103 })
+    expect(candidates).toEqual([expect.objectContaining({ id: 103, isCurrent: true })])
+    expect(shouldShowChampionCompanion({ showChampionPanel: true }, observed)).toBe(true)
+  })
+
   it('retains detail, overlay, and OCR eligibility until a real new champion replaces the match', async () => {
     const tracker = new MatchContextTracker()
     const selected = tracker.apply(normalizeChampSelectSnapshot({

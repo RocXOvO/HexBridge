@@ -80,7 +80,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'available',
-      currentVersion: '0.1.8',
+      currentVersion: '0.1.9',
       availableVersion: '0.1.9',
       releaseName: 'HexBridge v0.1.9',
       releaseNotes: '预览模式的更新提示。',

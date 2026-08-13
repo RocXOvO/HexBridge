@@ -26,31 +26,115 @@ const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
 const READ_ONLY_ENDPOINTS = new Set([
   '/lol-gameflow/v1/gameflow-phase',
   '/lol-gameflow/v1/session',
+  '/lol-lobby/v2/lobby',
   '/lol-champ-select/v1/session',
   '/lol-champ-select/v1/current-champion',
   '/riotclient/region-locale',
 ])
 
+const KNOWN_GAMEFLOW_PHASES = new Set<GameflowPhase>([
+  'None', 'Lobby', 'Matchmaking', 'ReadyCheck', 'ChampSelect', 'GameStart',
+  'InProgress', 'Reconnect', 'WaitingForStats', 'PreEndOfGame', 'EndOfGame',
+  'FailedToLaunch', 'TerminatedInError',
+])
+
+export function isChampSelectSessionPayload(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const session = value as Record<string, unknown>
+  if (session.errorCode) return false
+  return Array.isArray(session.myTeam) ||
+    Array.isArray(session.benchChampionIds) ||
+    Array.isArray(session.benchChampions) ||
+    (session.localPlayerCellId != null && Number.isInteger(Number(session.localPlayerCellId))) ||
+    (session.timer != null && typeof session.timer === 'object')
+}
+
+export function inferEffectiveGameflowPhase(
+  rawPhase: GameflowPhase,
+  champSelectSessionAvailable: boolean,
+  currentChampionId: unknown,
+): GameflowPhase {
+  const canInferChampSelect = rawPhase === 'None' || !KNOWN_GAMEFLOW_PHASES.has(rawPhase)
+  const championId = Number(currentChampionId)
+  const positiveEvidence = champSelectSessionAvailable ||
+    (Number.isInteger(championId) && championId > 0)
+  return canInferChampSelect && positiveEvidence ? 'ChampSelect' : rawPhase
+}
+
+export interface LcuCredentialProbeResult {
+  rawPhase: GameflowPhase
+  phase: GameflowPhase
+  queueId: number | null
+  currentChampionId: number | null
+}
+
+type LcuCredentialProbeOutput = GameflowPhase | null | void | LcuCredentialProbeResult
+
+const normalizeCredentialProbe = (output: LcuCredentialProbeOutput): LcuCredentialProbeResult => {
+  if (typeof output === 'object' && output != null) return output
+  const phase = typeof output === 'string' ? output : 'None'
+  return { rawPhase: phase, phase, queueId: null, currentChampionId: null }
+}
+
+export function shouldSwitchLcuCredential(
+  current: LcuCredentials,
+  candidate: LcuCredentials | null,
+  probe: LcuCredentialProbeResult | null,
+): candidate is LcuCredentials {
+  return Boolean(
+    candidate &&
+    probe?.phase === 'ChampSelect' &&
+    probe?.queueId === 2400 &&
+    probe.currentChampionId != null &&
+    (candidate.port !== current.port || candidate.token !== current.token),
+  )
+}
+
+export function hasConfirmedTargetContext(snapshot: ChampSelectSnapshot): boolean {
+  return snapshot.modeActive &&
+    snapshot.currentChampionId != null &&
+    snapshot.matchStage !== 'none'
+}
+
 export async function selectReachableLcuCredentials(
   candidates: LcuCredentials[],
-  probe: (candidate: LcuCredentials) => Promise<void>,
-): Promise<{ credentials: LcuCredentials | null; failures: string[] }> {
+  probe: (candidate: LcuCredentials) => Promise<LcuCredentialProbeOutput>,
+): Promise<{
+  credentials: LcuCredentials | null
+  probe: LcuCredentialProbeResult | null
+  failures: string[]
+}> {
   const attempts = await Promise.all(candidates.map(async (candidate) => {
     try {
-      await probe(candidate)
-      return { candidate, failure: null }
+      const result = normalizeCredentialProbe(await probe(candidate))
+      return { candidate, probe: result, failure: null }
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
-      if (/authorization|401/i.test(message)) return { candidate: null, failure: '凭据已过期' }
-      if (/timeout/i.test(message)) return { candidate: null, failure: '只读连接超时' }
-      if (/ECONNREFUSED|not listening/i.test(message)) return { candidate: null, failure: '候选端口未监听' }
-      if (/HTTP|endpoint unavailable/i.test(message)) return { candidate: null, failure: 'LCU 端点不可用' }
-      return { candidate: null, failure: '只读连接失败' }
+      if (/authorization|401/i.test(message)) return { candidate: null, probe: null, failure: '凭据已过期' }
+      if (/timeout/i.test(message)) return { candidate: null, probe: null, failure: '只读连接超时' }
+      if (/ECONNREFUSED|not listening/i.test(message)) return { candidate: null, probe: null, failure: '候选端口未监听' }
+      if (/HTTP|endpoint unavailable/i.test(message)) return { candidate: null, probe: null, failure: 'LCU 端点不可用' }
+      return { candidate: null, probe: null, failure: '只读连接失败' }
     }
   }))
-  const reachable = attempts.find((attempt) => attempt.candidate)?.candidate ?? null
+  const probePriority = (probe: LcuCredentialProbeResult): number => {
+    if (probe.phase === 'ChampSelect' && probe.queueId === 2400 && probe.currentChampionId != null) return 100
+    if (probe.phase === 'ChampSelect' && probe.currentChampionId != null) return 80
+    if (probe.phase === 'ChampSelect' && probe.queueId === 2400) return 70
+    if (probe.phase === 'ChampSelect') return 60
+    if (probe.phase === 'GameStart' || probe.phase === 'InProgress' || probe.phase === 'Reconnect') return 50
+    return 0
+  }
+  const sourcePriority = (source: LcuCredentials['source']): number =>
+    source === 'process' ? 3 : source === 'lockfile' || source === 'manual' ? 2 : 1
+  const reachable = attempts
+    .filter((attempt): attempt is typeof attempt & { candidate: LcuCredentials } => attempt.candidate != null)
+    .sort((left, right) =>
+      probePriority(right.probe) - probePriority(left.probe) ||
+      sourcePriority(right.candidate.source) - sourcePriority(left.candidate.source),
+    )[0] ?? null
   const failures = attempts.flatMap((attempt) => attempt.failure ? [attempt.failure] : [])
-  return { credentials: reachable, failures }
+  return { credentials: reachable?.candidate ?? null, probe: reachable?.probe ?? null, failures }
 }
 
 export function resolveLcuAuxiliaryResults(
@@ -60,6 +144,7 @@ export function resolveLcuAuxiliaryResults(
   champSelectSession: unknown
   currentChampionId: unknown
   regionLocale: unknown
+  lobbySession: unknown
   failure: unknown | null
 } {
   const valueAt = (index: number): unknown => {
@@ -71,6 +156,7 @@ export function resolveLcuAuxiliaryResults(
     champSelectSession: valueAt(1),
     currentChampionId: valueAt(2),
     regionLocale: valueAt(3),
+    lobbySession: valueAt(4),
     // Locale is optional and must not invalidate an otherwise complete match
     // observation. The first three endpoints carry phase-adjacent match data.
     failure: results.slice(0, 3).find((result) => result.status === 'rejected')?.reason ?? null,
@@ -82,6 +168,7 @@ type LcuObservationSummary = {
   champSelectSession: LcuEndpointObservationStatus
   currentChampion: LcuEndpointObservationStatus
   locale: LcuEndpointObservationStatus
+  lobby: LcuEndpointObservationStatus
 }
 
 const identityValue = (value: unknown): string | null => {
@@ -107,6 +194,7 @@ export function extractLcuMatchIdentity(
 export function summarizeLcuAuxiliaryResults(
   phase: GameflowPhase,
   results: PromiseSettledResult<unknown>[],
+  champSelectProbed = phase === 'ChampSelect',
 ): LcuObservationSummary {
   const statusAt = (index: number): LcuEndpointObservationStatus => {
     const result = results[index]
@@ -115,9 +203,10 @@ export function summarizeLcuAuxiliaryResults(
   }
   return {
     gameflowSession: statusAt(0),
-    champSelectSession: phase === 'ChampSelect' ? statusAt(1) : 'skipped',
-    currentChampion: phase === 'ChampSelect' ? statusAt(2) : 'skipped',
+    champSelectSession: champSelectProbed ? statusAt(1) : 'skipped',
+    currentChampion: champSelectProbed ? statusAt(2) : 'skipped',
     locale: statusAt(3),
+    lobby: results[4] ? statusAt(4) : 'skipped',
   }
 }
 
@@ -137,6 +226,7 @@ export function applyLcuPollResults(
       'zh_CN',
     ),
     gameflowSession: resolved.gameflowSession,
+    lobbySession: resolved.lobbySession,
     champSelectSession: resolved.champSelectSession,
     currentChampionId: resolved.currentChampionId,
   })
@@ -147,6 +237,7 @@ export function applyLcuPollResults(
   const observed = tracker.apply(normalized, now, {
     destructive: resolved.failure == null,
     champSelectSession: endpointStatus.champSelectSession,
+    currentChampion: endpointStatus.currentChampion,
     matchIdentity: extractLcuMatchIdentity(
       resolved.gameflowSession,
       resolved.champSelectSession,
@@ -156,6 +247,19 @@ export function applyLcuPollResults(
     snapshot: observed,
     failure: resolved.failure,
   }
+}
+
+export function prepareLcuReductionResults(
+  _rawPhase: GameflowPhase,
+  effectivePhase: GameflowPhase,
+  results: PromiseSettledResult<unknown>[],
+): PromiseSettledResult<unknown>[] {
+  if (effectivePhase === 'ChampSelect') return results
+  return results.map((result, index) =>
+    (index === 1 || index === 2) && result.status === 'rejected'
+      ? ({ status: 'fulfilled', value: null } as PromiseFulfilledResult<unknown>)
+      : result,
+  )
 }
 
 export class LcuClient extends EventEmitter {
@@ -172,6 +276,12 @@ export class LcuClient extends EventEmitter {
   private nextDiscoveryAt = 0
   private tickInFlight: Promise<void> | null = null
   private readonly matchContext = new MatchContextTracker()
+  private candidatePool: LcuCredentials[] = []
+  private nextAlternativeProbeAt = 0
+  private nextCandidateRefreshAt = 0
+  private candidateRefreshInFlight: Promise<void> | null = null
+  private lastRawPhase: GameflowPhase = 'None'
+  private lastHeartbeatAt = 0
   private lastContextSignature = ''
   private lastObservation: LcuObservationSummary | null = null
 
@@ -228,6 +338,8 @@ export class LcuClient extends EventEmitter {
     observation: LcuObservationSummary | null = null,
   ): void {
     this.credentials = null
+    this.candidatePool = []
+    this.nextCandidateRefreshAt = 0
     this.socket?.close()
     this.socket = null
     this.snapshot = this.matchContext.transportDisconnected(this.snapshot)
@@ -241,20 +353,15 @@ export class LcuClient extends EventEmitter {
     if (Date.now() < this.nextDiscoveryAt) return false
     this.nextDiscoveryAt = Date.now() + 5000
     const discovery = await discoverLcuCredentials(this.getManualDirectory())
+    this.candidatePool = discovery.candidates
+    this.nextCandidateRefreshAt = Date.now() + 10_000
     if (!discovery.candidates.length) {
       this.state = { ...this.state, connected: false, source: null, lastError: discovery.summary }
       return false
     }
     const selection = await selectReachableLcuCredentials(
       discovery.candidates,
-      async (candidate) => {
-        const phase = await this.requestWithCredentials<GameflowPhase>(
-          '/lol-gameflow/v1/gameflow-phase',
-          candidate,
-          1_000,
-        )
-        if (phase == null) throw new Error('LCU gameflow endpoint unavailable')
-      },
+      (candidate) => this.probeCandidateContext(candidate, 1_000),
     )
     if (selection.credentials) {
       const credentials = selection.credentials
@@ -266,7 +373,10 @@ export class LcuClient extends EventEmitter {
         lastError: null,
         lastConnectedAt: Date.now(),
       }
-      logger.info('LCU credentials verified', { source: credentials.source, port: credentials.port })
+      logger.info('LCU credentials verified', {
+        source: credentials.source,
+        candidateCount: this.candidatePool.length,
+      })
       this.connectSocket(credentials)
       this.publishUpdate('transport-connected')
       return true
@@ -300,6 +410,14 @@ export class LcuClient extends EventEmitter {
     const authorization = Buffer.from(`riot:${credentials.token}`).toString('base64')
 
     return new Promise((resolve, reject) => {
+      let settled = false
+      let hardTimeout: NodeJS.Timeout | null = null
+      const finish = <Value>(callback: (value: Value) => void, value: Value): void => {
+        if (settled) return
+        settled = true
+        if (hardTimeout) clearTimeout(hardTimeout)
+        callback(value)
+      }
       const request = https.request(
         {
           hostname: '127.0.0.1',
@@ -314,24 +432,78 @@ export class LcuClient extends EventEmitter {
           const chunks: Buffer[] = []
           response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
           response.on('end', () => {
-            if (response.statusCode === 404) return resolve(null)
-            if (response.statusCode === 401) return reject(new Error('LCU authorization expired'))
+            if (response.statusCode === 404) return finish(resolve, null)
+            if (response.statusCode === 401) return finish(reject, new Error('LCU authorization expired'))
             if (!response.statusCode || response.statusCode >= 400) {
-              return reject(new Error(`LCU HTTP ${response.statusCode ?? 0}`))
+              return finish(reject, new Error(`LCU HTTP ${response.statusCode ?? 0}`))
             }
             try {
               const text = Buffer.concat(chunks).toString('utf8')
-              resolve(text ? (JSON.parse(text) as T) : (null as T | null))
+              finish(resolve, text ? (JSON.parse(text) as T) : (null as T | null))
             } catch (error) {
-              reject(error)
+              finish(reject, error)
             }
           })
         },
       )
+      hardTimeout = setTimeout(() => {
+        request.destroy(new Error('LCU request hard timeout'))
+      }, timeoutMs)
       request.on('timeout', () => request.destroy(new Error('LCU request timeout')))
-      request.on('error', reject)
+      request.on('error', (error) => finish(reject, error))
       request.end()
     })
+  }
+
+  private async probeCandidateContext(
+    candidate: LcuCredentials,
+    timeoutMs: number,
+  ): Promise<LcuCredentialProbeResult> {
+    const [phaseResult, gameflowResult, champSelectResult, championResult, lobbyResult] =
+      await Promise.allSettled([
+      this.requestWithCredentials<GameflowPhase>(
+        '/lol-gameflow/v1/gameflow-phase',
+        candidate,
+        timeoutMs,
+      ),
+      this.requestWithCredentials<unknown>('/lol-gameflow/v1/session', candidate, timeoutMs),
+      this.requestWithCredentials<unknown>(
+        '/lol-champ-select/v1/session',
+        candidate,
+        timeoutMs,
+      ),
+      this.requestWithCredentials<unknown>(
+        '/lol-champ-select/v1/current-champion',
+        candidate,
+        timeoutMs,
+      ),
+      this.requestWithCredentials<unknown>('/lol-lobby/v2/lobby', candidate, timeoutMs),
+    ])
+    if (phaseResult.status === 'rejected') throw phaseResult.reason
+    const rawPhase = phaseResult.value
+    if (rawPhase == null) throw new Error('LCU gameflow endpoint unavailable')
+    const gameflowSession = gameflowResult.status === 'fulfilled' ? gameflowResult.value : null
+    const champSelectSession = champSelectResult.status === 'fulfilled' ? champSelectResult.value : null
+    const currentChampionId = championResult.status === 'fulfilled' ? championResult.value : null
+    const lobbySession = lobbyResult.status === 'fulfilled' ? lobbyResult.value : null
+    const phase = inferEffectiveGameflowPhase(
+      rawPhase,
+      isChampSelectSessionPayload(champSelectSession),
+      currentChampionId,
+    )
+    const normalized = normalizeChampSelectSnapshot({
+      phase,
+      gameflowSession,
+      lobbySession,
+      champSelectSession,
+      currentChampionId,
+    })
+    return {
+      rawPhase,
+      phase,
+      queueId: normalized.queueId,
+      currentChampionId: normalized.currentChampionId,
+    }
   }
 
   private tick(): Promise<void> {
@@ -351,33 +523,121 @@ export class LcuClient extends EventEmitter {
         this.publishUpdate('transport-unavailable')
         return
       }
-      const phase = (await this.request<GameflowPhase>('/lol-gameflow/v1/gameflow-phase')) ?? 'None'
+      let rawPhase = (await this.request<GameflowPhase>('/lol-gameflow/v1/gameflow-phase')) ?? 'None'
+      rawPhase = await this.promoteAlternativeCredential(rawPhase)
+      this.lastRawPhase = rawPhase
+      const probeChampSelect = rawPhase === 'ChampSelect' || rawPhase === 'None' ||
+        !KNOWN_GAMEFLOW_PHASES.has(rawPhase)
       const auxiliary = await Promise.allSettled([
         this.request<any>('/lol-gameflow/v1/session'),
-        phase === 'ChampSelect' ? this.request<any>('/lol-champ-select/v1/session') : Promise.resolve(null),
-        phase === 'ChampSelect'
+        probeChampSelect ? this.request<any>('/lol-champ-select/v1/session') : Promise.resolve(null),
+        probeChampSelect
           ? this.request<number>('/lol-champ-select/v1/current-champion')
           : Promise.resolve(null),
         this.request<any>('/riotclient/region-locale'),
+        probeChampSelect ? this.request<any>('/lol-lobby/v2/lobby') : Promise.resolve(null),
       ])
-      this.lastObservation = summarizeLcuAuxiliaryResults(phase, auxiliary)
-      const reduced = applyLcuPollResults(this.matchContext, this.snapshot, phase, auxiliary)
+      const champSelectSessionAvailable =
+        auxiliary[1]?.status === 'fulfilled' && isChampSelectSessionPayload(auxiliary[1].value)
+      const probedChampion = auxiliary[2]?.status === 'fulfilled'
+        ? Number(auxiliary[2].value)
+        : 0
+      const phase = inferEffectiveGameflowPhase(
+        rawPhase,
+        probeChampSelect && champSelectSessionAvailable,
+        probeChampSelect ? probedChampion : null,
+      )
+      this.lastObservation = summarizeLcuAuxiliaryResults(phase, auxiliary, probeChampSelect)
+      const reductionResults = prepareLcuReductionResults(rawPhase, phase, auxiliary)
+      const reduced = applyLcuPollResults(this.matchContext, this.snapshot, phase, reductionResults)
       this.snapshot = reduced.snapshot
       if (reduced.failure) {
         const message = reduced.failure instanceof Error
           ? reduced.failure.message
           : 'LCU auxiliary request failed'
-        this.invalidate(message, false, this.lastObservation)
-        this.publishUpdate('auxiliary-request-failed')
+        this.state = {
+          ...this.state,
+          connected: true,
+          lastError: `部分只读端点暂不可用：${/timeout/i.test(message) ? '请求超时' : '读取失败'}`,
+        }
+        this.publishUpdate('auxiliary-partial')
+        this.publishHeartbeat(phase)
         return
       }
       this.state = { ...this.state, connected: true, lastError: null }
       this.publishUpdate('poll')
+      this.publishHeartbeat(phase)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       this.invalidate(message)
       this.publishUpdate('poll-failed')
     }
+  }
+
+  private async promoteAlternativeCredential(
+    currentPhase: GameflowPhase,
+  ): Promise<GameflowPhase> {
+    this.refreshCandidatePoolInBackground()
+    if (
+      hasConfirmedTargetContext(this.snapshot) ||
+      !this.credentials ||
+      this.candidatePool.length < 2 ||
+      Date.now() < this.nextAlternativeProbeAt
+    ) {
+      return currentPhase
+    }
+    this.nextAlternativeProbeAt = Date.now() + 2_000
+    const selection = await selectReachableLcuCredentials(
+      this.candidatePool,
+      (candidate) => this.probeCandidateContext(candidate, 800),
+    )
+    const next = selection.credentials
+    if (!shouldSwitchLcuCredential(this.credentials, next, selection.probe)) {
+      return currentPhase
+    }
+    const selectedProbe = selection.probe as LcuCredentialProbeResult
+
+    const previousSource = this.credentials.source
+    this.credentials = next
+    this.socket?.close()
+    this.socket = null
+    this.state = { ...this.state, connected: true, source: next.source, lastError: null }
+    logger.info('LCU credential candidate switched', {
+      fromSource: previousSource,
+      toSource: next.source,
+      phase: selectedProbe.phase,
+      candidateCount: this.candidatePool.length,
+    })
+    this.connectSocket(next)
+    return selectedProbe.rawPhase
+  }
+
+  private refreshCandidatePoolInBackground(): void {
+    if (
+      hasConfirmedTargetContext(this.snapshot) ||
+      !this.credentials ||
+      Date.now() < this.nextCandidateRefreshAt ||
+      this.candidateRefreshInFlight
+    ) {
+      return
+    }
+    this.nextCandidateRefreshAt = Date.now() + 10_000
+    const activeCredentials = this.credentials
+    const operation = discoverLcuCredentials(this.getManualDirectory())
+      .then((discovery) => {
+        if (this.credentials === activeCredentials && discovery.candidates.length) {
+          this.candidatePool = discovery.candidates
+        }
+      })
+      .catch((error) => {
+        logger.debug('LCU candidate refresh unavailable', {
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+      })
+      .finally(() => {
+        if (this.candidateRefreshInFlight === operation) this.candidateRefreshInFlight = null
+      })
+    this.candidateRefreshInFlight = operation
   }
 
   private connectSocket(credentials: LcuCredentials): void {
@@ -419,12 +679,14 @@ export class LcuClient extends EventEmitter {
       this.snapshot.queueId ?? 0,
       this.snapshot.currentChampionId ?? 0,
       contextDecision,
+      this.lastRawPhase,
     ].join(':')
     if (signature !== this.lastContextSignature) {
       this.lastContextSignature = signature
       logger.info('LCU match context transitioned', {
         reason,
         transport: this.state.connected ? 'connected' : 'detached',
+        rawPhase: this.lastRawPhase,
         phase: this.snapshot.phase,
         matchStage: this.snapshot.matchStage,
         matchGeneration: this.snapshot.matchGeneration,
@@ -435,6 +697,24 @@ export class LcuClient extends EventEmitter {
       })
     }
     this.emit('update', this.getSnapshot(), this.getState())
+  }
+
+  private publishHeartbeat(phase: GameflowPhase): void {
+    const now = Date.now()
+    if (now - this.lastHeartbeatAt < 15_000) return
+    this.lastHeartbeatAt = now
+    logger.debug('LCU poll heartbeat', {
+      transport: this.state.connected ? 'connected' : 'detached',
+      source: this.state.source,
+      rawPhase: this.lastRawPhase,
+      phase,
+      matchStage: this.snapshot.matchStage,
+      queueId: this.snapshot.queueId,
+      championId: this.snapshot.currentChampionId,
+      endpointStatus: this.lastObservation,
+      candidateCount: this.candidatePool.length,
+    })
+    this.emit('diagnostic')
   }
 }
 

@@ -18,10 +18,14 @@ const queueIdFromSession = (session: any): number | null =>
       session?.gameClient?.queueId,
   )
 
+const queueIdFromLobby = (lobby: any): number | null =>
+  positiveInteger(lobby?.gameConfig?.queueId ?? lobby?.queueId)
+
 export function normalizeChampSelectSnapshot(input: {
   phase: GameflowPhase
   locale?: string
   gameflowSession: unknown
+  lobbySession?: unknown
   champSelectSession: any
   currentChampionId: unknown
 }): ChampSelectSnapshot {
@@ -45,7 +49,7 @@ export function normalizeChampSelectSnapshot(input: {
     .filter((value: number | null): value is number => value != null)
     .filter((value: number, index: number, values: number[]) => values.indexOf(value) === index)
 
-  const queueId = queueIdFromSession(input.gameflowSession)
+  const queueId = queueIdFromSession(input.gameflowSession) ?? queueIdFromLobby(input.lobbySession)
   return {
     phase: input.phase,
     locale: input.locale ?? 'zh_CN',
@@ -94,12 +98,14 @@ export type LcuEndpointObservationStatus = 'ok' | 'empty' | 'error' | 'skipped'
 export interface MatchContextEvidence {
   destructive: boolean
   champSelectSession: LcuEndpointObservationStatus
+  currentChampion?: LcuEndpointObservationStatus
   matchIdentity: string | null
 }
 
 const DEFAULT_EVIDENCE: MatchContextEvidence = {
   destructive: true,
   champSelectSession: 'ok',
+  currentChampion: 'ok',
   matchIdentity: null,
 }
 
@@ -132,7 +138,13 @@ export class MatchContextTracker {
     now = next.updatedAt,
     evidence: MatchContextEvidence = DEFAULT_EVIDENCE,
   ): ChampSelectSnapshot {
-    if (!evidence.destructive) {
+    const hasPositiveChampSelectEvidence =
+      next.phase === 'ChampSelect' &&
+      next.queueId === 2400 &&
+      next.currentChampionId != null &&
+      (evidence.champSelectSession === 'ok' || evidence.currentChampion === 'ok')
+
+    if (!evidence.destructive && !hasPositiveChampSelectEvidence) {
       if (this.confirmed) return this.retainPartialObservation(next, now)
       this.lastDecision = 'retained-partial-observation'
       return this.withoutContext({

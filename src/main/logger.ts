@@ -12,6 +12,16 @@ const SECRET_PATTERNS = [
   /\b[A-Za-z0-9_-]{70,}\b/g,
 ]
 
+export function formatLocalTimestamp(date = new Date()): string {
+  const offsetMinutes = -date.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const absolute = Math.abs(offsetMinutes)
+  const hours = String(Math.floor(absolute / 60)).padStart(2, '0')
+  const minutes = String(absolute % 60).padStart(2, '0')
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return `${local.toISOString().slice(0, -1)}${sign}${hours}:${minutes}`
+}
+
 export function redact(value: unknown): string {
   let text = typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value))
   for (const pattern of SECRET_PATTERNS) text = text.replace(pattern, '[REDACTED]')
@@ -28,7 +38,7 @@ async function writeToDisk(line: string): Promise<void> {
     if (!app?.isReady?.()) return
     const directory = path.join(app.getPath('userData'), 'logs')
     await mkdir(directory, { recursive: true })
-    const date = new Date().toISOString().slice(0, 10)
+    const date = formatLocalTimestamp().slice(0, 10)
     await appendFile(path.join(directory, `hexbridge-${date}.log`), `${line}\n`, 'utf8')
   } catch {
     // Logging must never affect the companion runtime.
@@ -37,7 +47,7 @@ async function writeToDisk(line: string): Promise<void> {
 
 function emit(level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG', message: string, detail?: unknown): void {
   const suffix = detail == null ? '' : ` ${redact(detail)}`
-  const line = `${new Date().toISOString()} ${level} ${redact(message)}${suffix}`
+  const line = `${formatLocalTimestamp()} ${level} ${redact(message)}${suffix}`
   lines.push(line)
   if (lines.length > MAX_LINES) lines.splice(0, lines.length - MAX_LINES)
   if (level === 'ERROR') console.error(line)

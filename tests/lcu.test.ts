@@ -5,8 +5,13 @@ import { describe, expect, it } from 'vitest'
 import {
   applyLcuPollResults,
   extractLcuMatchIdentity,
+  hasConfirmedTargetContext,
+  inferEffectiveGameflowPhase,
+  isChampSelectSessionPayload,
   lcuReadOnlyEndpoints,
+  prepareLcuReductionResults,
   selectReachableLcuCredentials,
+  shouldSwitchLcuCredential,
   summarizeLcuAuxiliaryResults,
 } from '../src/main/lcu/client.js'
 import {
@@ -92,6 +97,18 @@ describe('LCU credential discovery parsers', () => {
 })
 
 describe('LCU snapshot normalization', () => {
+  it('accepts only structural champ-select payloads as positive evidence', () => {
+    expect(isChampSelectSessionPayload({ localPlayerCellId: 0, myTeam: [] })).toBe(true)
+    expect(isChampSelectSessionPayload({ timer: { phase: 'FINALIZATION' } })).toBe(true)
+    expect(isChampSelectSessionPayload({ errorCode: 'RPC_ERROR', localPlayerCellId: 0 })).toBe(false)
+    expect(isChampSelectSessionPayload({})).toBe(false)
+  })
+  it('infers champ select only from None or an unknown regional phase', () => {
+    expect(inferEffectiveGameflowPhase('None', true, 103)).toBe('ChampSelect')
+    expect(inferEffectiveGameflowPhase('CN_CHAMPION_SELECT', false, 103)).toBe('ChampSelect')
+    expect(inferEffectiveGameflowPhase('Lobby', true, 103)).toBe('Lobby')
+    expect(inferEffectiveGameflowPhase('EndOfGame', true, 103)).toBe('EndOfGame')
+  })
   it('supports benchChampions objects and local pick intent', () => {
     const result = normalizeChampSelectSnapshot({
       phase: 'ChampSelect',
@@ -108,6 +125,16 @@ describe('LCU snapshot normalization', () => {
   it('does not activate for another queue', () => {
     const result = normalizeChampSelectSnapshot({ phase: 'ChampSelect', gameflowSession: { queueId: 450 }, champSelectSession: {}, currentChampionId: null })
     expect(result.modeActive).toBe(false)
+  })
+  it('uses the read-only lobby queue when the gameflow session is temporarily empty', () => {
+    const result = normalizeChampSelectSnapshot({
+      phase: 'ChampSelect',
+      gameflowSession: null,
+      lobbySession: { gameConfig: { queueId: 2400 } },
+      champSelectSession: {},
+      currentChampionId: 103,
+    })
+    expect(result).toMatchObject({ queueId: 2400, modeActive: true, currentChampionId: 103 })
   })
   it('carries the selected champion and queue through GameStart and InProgress', () => {
     const champSelect = normalizeChampSelectSnapshot({
@@ -495,6 +522,7 @@ describe('LCU snapshot normalization', () => {
       champSelectSession: 'empty',
       currentChampion: 'empty',
       locale: 'ok',
+      lobby: 'skipped',
     })
   })
 
@@ -571,6 +599,7 @@ describe('LCU snapshot normalization', () => {
       champSelectSession: 'error',
       currentChampion: 'ok',
       locale: 'ok',
+      lobby: 'skipped',
     })
     expect(JSON.stringify(summarizeLcuAuxiliaryResults('ChampSelect', results))).not.toContain('secret')
   })
@@ -663,6 +692,67 @@ describe('LCU snapshot normalization', () => {
     })
   })
 
+  it('keeps fresh queue and current champion when champ-select session times out', async () => {
+    const tracker = new MatchContextTracker()
+    const auxiliary = await Promise.allSettled([
+      Promise.resolve({ queueId: 2400 }),
+      Promise.reject(new Error('session timeout')),
+      Promise.resolve(103),
+      Promise.resolve({ locale: 'zh_CN' }),
+      Promise.resolve(null),
+    ])
+    const reduced = applyLcuPollResults(tracker, normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 'ChampSelect', auxiliary, 2_000)
+
+    expect(reduced.failure).toBeInstanceOf(Error)
+    expect(reduced.snapshot).toMatchObject({
+      queueId: 2400,
+      currentChampionId: 103,
+      matchStage: 'selecting',
+      matchGeneration: 1,
+    })
+  })
+
+  it('keeps fresh queue and session-local champion when current endpoint times out', async () => {
+    const tracker = new MatchContextTracker()
+    const auxiliary = await Promise.allSettled([
+      Promise.resolve({ queueId: 2400 }),
+      Promise.resolve({
+        localPlayerCellId: 4,
+        myTeam: [{ cellId: 4, championId: 81, championPickIntent: 0 }],
+      }),
+      Promise.reject(new Error('current endpoint timeout')),
+      Promise.resolve({ locale: 'zh_CN' }),
+      Promise.resolve(null),
+    ])
+    const reduced = applyLcuPollResults(tracker, normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), 'ChampSelect', auxiliary, 2_000)
+
+    expect(reduced.failure).toBeInstanceOf(Error)
+    expect(reduced.snapshot).toMatchObject({
+      queueId: 2400,
+      currentChampionId: 81,
+      matchStage: 'selecting',
+      matchGeneration: 1,
+    })
+  })
+
+  it('treats opportunistic champ-select errors during raw None as optional', async () => {
+    const raw = await Promise.allSettled([
+      Promise.resolve(null),
+      Promise.reject(new Error('no active delegate')),
+      Promise.reject(new Error('no current champion')),
+      Promise.resolve({ locale: 'zh_CN' }),
+      Promise.resolve(null),
+    ])
+    const prepared = prepareLcuReductionResults('None', 'None', raw)
+    expect(prepared[1]).toEqual({ status: 'fulfilled', value: null })
+    expect(prepared[2]).toEqual({ status: 'fulfilled', value: null })
+    expect(prepared[0]).toBe(raw[0])
+  })
+
   it('keeps a complete observation when only locale retrieval fails', async () => {
     const tracker = new MatchContextTracker()
     const selected = tracker.apply(normalizeChampSelectSnapshot({
@@ -732,9 +822,98 @@ it('skips a stale LCU credential and keeps probing later candidates', async () =
   expect(result.failures).toEqual(['凭据已过期'])
 })
 
+it('prefers a candidate with confirmed queue 2400 and champion over an unrelated Lobby', async () => {
+  const candidates = [
+    { port: 2955, token: 'old-log', source: 'log' as const, executablePath: '' },
+    { port: 58121, token: 'live-process', source: 'process' as const, executablePath: '' },
+  ]
+  const result = await selectReachableLcuCredentials(candidates, async (candidate) =>
+    candidate.token === 'old-log'
+      ? { rawPhase: 'Lobby', phase: 'Lobby', queueId: null, currentChampionId: null }
+      : { rawPhase: 'None', phase: 'ChampSelect', queueId: 2400, currentChampionId: 103 },
+  )
+  expect(result.credentials?.token).toBe('live-process')
+  expect(result.probe).toMatchObject({ queueId: 2400, currentChampionId: 103 })
+})
+
+it('does not prefer an unrelated non-None candidate over target-mode evidence', async () => {
+  const candidates = [
+    { port: 58121, token: 'target', source: 'log' as const, executablePath: '' },
+    { port: 58122, token: 'other', source: 'process' as const, executablePath: '' },
+  ]
+  const result = await selectReachableLcuCredentials(candidates, async (candidate) =>
+    candidate.token === 'target'
+      ? { rawPhase: 'None', phase: 'ChampSelect', queueId: 2400, currentChampionId: 81 }
+      : { rawPhase: 'Lobby', phase: 'Lobby', queueId: 450, currentChampionId: null },
+  )
+  expect(result.credentials?.token).toBe('target')
+})
+
+it('switches a sticky credential only for stronger target-mode evidence', () => {
+  const current = { port: 2955, token: 'current', source: 'log' as const, executablePath: '' }
+  const alternative = { port: 58121, token: 'alternative', source: 'process' as const, executablePath: '' }
+  expect(shouldSwitchLcuCredential(current, alternative, {
+    rawPhase: 'Lobby', phase: 'Lobby', queueId: 450, currentChampionId: null,
+  })).toBe(false)
+  expect(shouldSwitchLcuCredential(current, alternative, {
+    rawPhase: 'EndOfGame', phase: 'EndOfGame', queueId: 2400, currentChampionId: 103,
+  })).toBe(false)
+  expect(shouldSwitchLcuCredential(current, alternative, {
+    rawPhase: 'None', phase: 'ChampSelect', queueId: 2400, currentChampionId: 103,
+  })).toBe(true)
+})
+
+it('prefers live ChampSelect over stale target fields in an explicit terminal phase', async () => {
+  const candidates = [
+    { port: 58120, token: 'ended', source: 'process' as const, executablePath: '' },
+    { port: 58121, token: 'live-select', source: 'log' as const, executablePath: '' },
+  ]
+  const result = await selectReachableLcuCredentials(candidates, async (candidate) =>
+    candidate.token === 'ended'
+      ? { rawPhase: 'EndOfGame', phase: 'EndOfGame', queueId: 2400, currentChampionId: 103 }
+      : { rawPhase: 'ChampSelect', phase: 'ChampSelect', queueId: 2400, currentChampionId: 81 },
+  )
+  expect(result.credentials?.token).toBe('live-select')
+  expect(shouldSwitchLcuCredential(candidates[0]!, result.credentials, result.probe)).toBe(true)
+})
+
+it('allows an unknown regional phase only after positive target-mode inference', () => {
+  const current = { port: 2955, token: 'idle', source: 'log' as const, executablePath: '' }
+  const alternative = { port: 58121, token: 'regional', source: 'process' as const, executablePath: '' }
+  expect(shouldSwitchLcuCredential(current, alternative, {
+    rawPhase: 'CN_CHAMPION_SELECT',
+    phase: 'ChampSelect',
+    queueId: 2400,
+    currentChampionId: 81,
+  })).toBe(true)
+})
+
+it('re-evaluates an initially preferred Lobby candidate when another candidate gains target evidence', async () => {
+  const candidates = [
+    { port: 58120, token: 'lobby-process', source: 'process' as const, executablePath: '' },
+    { port: 58121, token: 'target-log', source: 'log' as const, executablePath: '' },
+  ]
+  const initial = await selectReachableLcuCredentials(candidates, async (candidate) =>
+    candidate.token === 'lobby-process'
+      ? { rawPhase: 'Lobby', phase: 'Lobby', queueId: null, currentChampionId: null }
+      : { rawPhase: 'None', phase: 'None', queueId: null, currentChampionId: null },
+  )
+  expect(initial.credentials?.token).toBe('lobby-process')
+  expect(hasConfirmedTargetContext(normalizeChampSelectSnapshot({
+    phase: 'Lobby', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+  }))).toBe(false)
+
+  const later = await selectReachableLcuCredentials(candidates, async (candidate) =>
+    candidate.token === 'lobby-process'
+      ? { rawPhase: 'Lobby', phase: 'Lobby', queueId: null, currentChampionId: null }
+      : { rawPhase: 'ChampSelect', phase: 'ChampSelect', queueId: 2400, currentChampionId: 103 },
+  )
+  expect(shouldSwitchLcuCredential(initial.credentials!, later.credentials, later.probe)).toBe(true)
+})
+
 it('contains only the explicit read-only LCU allowlist', () => {
   expect([...lcuReadOnlyEndpoints]).toEqual(expect.arrayContaining([
-    '/lol-gameflow/v1/gameflow-phase', '/lol-gameflow/v1/session', '/lol-champ-select/v1/session', '/lol-champ-select/v1/current-champion', '/riotclient/region-locale',
+    '/lol-gameflow/v1/gameflow-phase', '/lol-gameflow/v1/session', '/lol-lobby/v2/lobby', '/lol-champ-select/v1/session', '/lol-champ-select/v1/current-champion', '/riotclient/region-locale',
   ]))
   expect([...lcuReadOnlyEndpoints].every((endpoint) => !endpoint.includes('patch') && !endpoint.includes('put'))).toBe(true)
 })

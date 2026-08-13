@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-13
-> 当前基线：公开最新且唯一保留的正式 Release 为 `v0.1.8`，tag / 产品源码固定指向 `b23b898b218b3e7a69bbc06b83bd3c88c7609db1`，公开 `update-channel/latest.yml` 同样指向 `0.1.8`。用户再次报告真实选人→游戏交接期英雄信息丢失，HB-020 已从 `FIXED / UNVERIFIED` 撤回为 `IN PROGRESS`；已确认 P1 根因为 transport 进入 `launching` 后迟到的空 `ChampSelect` 观察被误判为下一局，先清空 confirmed context，从而绕过交接租约。`v0.1.8` 已完成 Windows 预发布与正式 tag 全门禁，但真实 WeGame 同机复验前不得把 HB-020 标记 FIXED。所有旧 GitHub Release 记录及资产已按用户要求删除，`v0.1.0` 至 `v0.1.8` Git tags 与源码历史均保留。项目无商业代码签名。
+> 当前基线：公开最新且唯一保留的正式 Release 仍为 `v0.1.8`，tag / 产品源码固定指向 `b23b898b218b3e7a69bbc06b83bd3c88c7609db1`，公开 `update-channel/latest.yml` 同样指向 `0.1.8`。用户再次报告真实选人→游戏交接期英雄信息丢失，HB-020 已从 `FIXED / UNVERIFIED` 撤回为 `IN PROGRESS`；已确认 P1 根因为 transport 进入 `launching` 后迟到的空 `ChampSelect` 观察被误判为下一局，先清空 confirmed context，从而绕过交接租约。HB-022 保持 `IN PROGRESS`：用户脱敏诊断与代码审计形成的修复已进入本地 `v0.1.9` 候选，最终审查无 P0 / P1，本地 113 passed + 1 Windows-only skipped 及静态 / source smokes 通过；但 Windows workflow 尚未运行，候选也未 commit / push / tag / Release，根因仍需真实国服同机闭环，不能标 `FIXED`。所有旧 GitHub Release 记录及资产已按用户要求删除，`v0.1.0` 至 `v0.1.8` Git tags 与源码历史均保留。项目无商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -420,6 +420,20 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 诊断与隐私契约：诊断应区分 DNS / 无网络、超时、系统或企业代理、GitHub 限流、HTTP 404 / 其他状态、TLS / 证书、元数据格式 / 版本 / 资产缺失、校验和应用状态错误，并提供稳定错误码和可操作提示。日志与 UI 必须脱敏；不得记录或展示 API Key、GitHub / LCU token、URL query 参数、Authorization / Cookie、用户本地路径、用户名或完整下载缓存路径。
 - 必须验证的验收标准：在真实 Windows installed packaged `v0.1.5` 上，连接公开 GitHub stable provider，能够发现非 draft / prerelease 的正式 `v0.1.6` 或后续更高版本，并正确填充 `availableVersion`、Release 信息和等待用户确认状态；分别覆盖正常直连、系统代理 / 无代理、断网 / DNS / 超时、404 / 资产缺失、TLS / 证书失败与恢复重试，断言错误分类准确、诊断脱敏且失败始终保留当前版本。发现更新后必须由用户显式确认才下载，下载完成后再次确认才安装；不得静默下载、静默安装、自动退出或绕过 UAC / SmartScreen。完成定位、修复和真实 installed packaged 回归前不得标为 `FIXED` 或 `VERIFIED`。
 
+### HB-022 国服选人阶段当前英雄与选人浮窗不显示
+
+- 严重度：阻断性（选人阶段核心英雄信息与紧凑浮窗不可用）
+- 状态：`IN PROGRESS`（`v0.1.9` 本地候选实现和审查已完成，Windows / 用户实机尚未验证）
+- 用户实机症状：用户报告进入国服 / WeGame 选人界面后，HexBridge 的当前英雄信息和选人浮窗直接不显示。报告所用 HexBridge 精确版本仍待用户确认；HB-022 不得与 HB-020 的交接期 P1 自动合并。
+- 用户脱敏证据：LCU 发现阶段出现多个 candidate，最终选择的 source 为 `log`；credentials 已验证，随后应用只呈现 transport-connected / 旧版 raw 连接状态，没有周期 heartbeat，snapshot 持续为 phase `None`、queue 与 champion 均为 `null`，与选人界面不显示吻合。诊断时间后缀 `Z` 表示 UTC，用户按本地时间理解时产生困惑；本文件不记录任何端口值。
+- 代码审计判断：高概率主因是连接器接受首个“可鉴权”candidate 后长期粘滞，即使该 candidate 只返回 `None` / 空 endpoint，也没有在有界时间内对其他候选重新仲裁。审计还发现两个可能的遮蔽路径：fresh partial observation 可能覆盖已有正向字段，空英雄 catalog 可能让已取得的 champion ID 在 Renderer 中表现为无可展示英雄。以上是代码审计的高概率判断和次级风险，不是已经由用户同机证明的最终根因。
+- `v0.1.9` 候选实现：candidate target 评分只有在 phase 明确为 `ChampSelect` 时才允许给当前选人证据加权；已知 terminal phase 的残留 queue / hero 不得被推断为活动选人，也不得触发 candidate 切换。仅 raw phase 为 `None` / unknown 时，才允许依据 `queueId=2400` 与正英雄等正向 endpoint 证据推断选人目标。候选池每 10 秒刷新，已连接空 candidate 使用 2 秒有界备选重探；所有 request 都有 hard timeout，机会性 probe 失败不得破坏当前有效连接。fresh partial 合并时保留已有正向字段，并增加只读 lobby GET 作为队列识别 fallback。
+- 诊断与目录行为：诊断页每 15 秒刷新一次脱敏 heartbeat，时间显示为本地时区并带 UTC offset；面向用户的候选 / 连接诊断不再记录端口。英雄 catalog 为空时显式提示“目录不可用 / 已识别 ID 暂无法解析”，不得把已识别 champion 静默表现成未识别。
+- 当前审查与本地验证：实现已完成最终只读审查，未发现 P0 / P1；本地当前为 113 tests passed + 1 个 Windows-only skipped，source bridge / UI smokes、lint、typecheck、`git diff --check` 全部通过。版本已升为本地 `v0.1.9` 候选，但 Windows workflow 尚未运行，也尚未 commit / push / tag / Release；这些本地结果不能把 HB-022 标为 `FIXED` / `VERIFIED`。
+- 既有证据边界：`v0.1.8` Windows 预发布 / tag CI、packaged UI / bridge smokes、reducer 单测和 post-tag Runtime handoff 模拟回放均未连接真实国服 WeGame，也未读取用户实际 `ChampSelect` session。它们不能证明真实国服选人阶段能获得当前英雄或显示浮窗，不能支持“已覆盖”“已修复”或用户环境异常等结论。
+- 定位所需证据：仍须确认设置 / 关于页显示的完整应用版本；由诊断页导出带本地时区 offset 的候选发现、仲裁 / 重探、连接、heartbeat、queue / phase、session / current-champion endpoint 受控状态、snapshot 正向字段、catalog 状态、Runtime 提交和 champ-select 浮窗显隐决定。还需要将用户真实 session 的结构制作成字段级脱敏 fixture，只保留复现解析分支所需的结构、类型和匿名 / 合成 ID；不得索取或记录端口值、token、API Key、PUUID、用户名、安装 / 游戏路径、带凭据 URL、完整原始 session 或未裁切截图。
+- 验收标准：Windows workflow / packaged 验证通过后，仍必须在报告问题的同一台 Windows + 国服 WeGame 上确认精确版本并真实进入 `queueId=2400` 的 `ChampSelect`；仲裁应脱离长期空 candidate，known terminal 残留不得误切换，当前英雄一经客户端可靠确认，主界面与紧凑选人浮窗应在既定刷新目标内显示同一英雄。换英雄时同步更新，request timeout、机会性 probe 失败、fresh partial、备战席为空或 catalog 暂时不可用不得使已确认英雄无故消失。只有同机诊断链证明该问题关闭后才可标为 `FIXED / UNVERIFIED`；再覆盖重连 / 第二局等规定实机范围后才可考虑 `VERIFIED`。仅凭 CI、模拟回放或其他机器成功不得升级状态。
+
 ### HB-013～HB-017 的 v0.1.3 packaged smoke 边界
 
 - tag workflow 在 Windows runner 启动实际 unpacked EXE：bridge smoke 验证 CommonJS preload、bridge / IPC 和安全偏好；packaged UI smoke 验证 invalid-Key 反馈与 busy 恢复、关键文字 14px、三个 reduced-motion 选择器、1024×768 校准截图 data URL / Renderer 解码、中文说明 14px，以及真实 CDP `Esc` 后主窗口恢复。
@@ -493,6 +507,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - HB-019：Windows packaged `v0.1.6→synthetic 0.1.7` local-feed check / download、SHA-512、隔离 cache 已验证，真实 GitHub `v0.1.6` 更新目标也已发布；仍需 packaged `v0.1.5` 对真实 GitHub 执行 check / download、显式确认安装、`quitAndInstall`、UAC / SmartScreen、实际替换 / 重启后版本和取消 / 错误全链路。`v0.1.3` 不含更新器，必须先手动安装 `v0.1.5` 或更新正式版一次。
 - HB-020：当前为 `IN PROGRESS（迟到空 ChampSelect P1 根因已确认）`，此前“修复已随 v0.1.6 发布”的结论撤回。必须取得真实交接录制 / 脱敏状态链或可回放 fixture，覆盖最后有效 ChampSelect 英雄到实际游戏客户端启动的全程；用户同机复验前任何代码和模拟测试都不得升级为 FIXED，一整局 + 终局 + 第二局通过前不得 VERIFIED。
 - HB-021：当前 `IN PROGRESS`。`v0.1.8` 延续 raw stable channel、GitHub fallback、官方资产 allowlist、错误分类、provider 结果绑定、单调 / 并发保护，public channel 和 packaged public smoke 已通过；仍缺 installed 旧版本真实 check / download / `quitAndInstall` / UAC / 实际替换链。旧 `v0.1.5` / `v0.1.6` 无法远程修复，需从当前 Release 页手动安装最新正式版一次。
+- HB-022：当前 `IN PROGRESS`。本地 `v0.1.9` 候选已实现 ChampSelect-only target 评分、terminal 残留拒绝推断 / 切换、仅 raw None / unknown 的正向推断、10 秒候选池刷新、2 秒有界重探、request hard timeout、fresh partial 正向字段保留、lobby GET fallback、15 秒脱敏 heartbeat、本地 offset 时间、诊断移除端口与空 catalog 显式提示。最终审查无 P0 / P1，本地 113 passed + 1 skipped 及 source / 静态门禁通过；Windows workflow 与用户同机复验仍未进行，不能标 FIXED。
 - 无边框游戏下真实三卡：稳定出现后约 1 秒展示，刷新动画期间不误识别，连续丢失正确隐藏，F8 重试。
 - 1080p / 2K / 4K、100% / 125% / 150% DPI、多显示器、非主显示器、显示器热插拔和手动拖框校准。
 - 单卡 / 双卡、长中文名、OCR 错字、缺图、相同组合、并列、无详情 / 旧详情。
@@ -501,7 +516,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git / 版本：公开最新且唯一保留的 Release 为 `v0.1.8`，tag / 产品源码为 `b23b898b218b3e7a69bbc06b83bd3c88c7609db1`，public channel 为 `0.1.8`。远端所有 `v0.1.0` 至 `v0.1.8` Git tags 均原位保留；`v0.1.4` 从未有 Release。main / origin/main 已包含 tag 后的 test-only runtime handoff replay `561f9e5`，可继续包含记忆收尾提交；不得改写 tag。
+- 当前 Git / 版本：公开最新且唯一保留的 Release 仍为 `v0.1.8`，tag / 产品源码为 `b23b898b218b3e7a69bbc06b83bd3c88c7609db1`，public channel 为 `0.1.8`。本地工作树已升为包含 HB-022 候选修复的 `v0.1.9`，但尚未 commit / push / tag / Release，Windows workflow 也未运行；不得把它描述为公开版本。远端所有 `v0.1.0` 至 `v0.1.8` Git tags 均原位保留；`v0.1.4` 从未有 Release。main / origin/main 已包含 tag 后的 test-only runtime handoff replay `561f9e5`，可继续包含记忆收尾提交；不得改写 tag。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -617,3 +632,6 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-13 | v0.1.8 / Release 与保留策略执行 | 已发布；当前唯一保留的正式 Release；HB-020 保持 IN PROGRESS | annotated tag 指向产品提交 `b23b898b218b3e7a69bbc06b83bd3c88c7609db1`；正式 workflow 发布五项资产、写 public channel、回读 packaged public check，并删除旧 `v0.1.7` Release / assets，保留其 tag | run [31628139647](https://github.com/RocXOvO/HexBridge/actions/runs/31628139647) / job `94219791372` 成功，约 5m35s；Windows 100 tests及完整门禁全过。正式 EXE 199,024,334 bytes / SHA-256 `76b6320e1a0bafaca7a2fee0745aad069a436fc10c700964b57ba262e54463c2`；ZIP 274,210,661 bytes / SHA-256 `b6e411ce0cfc11ce6d9740007551e491fc6e6f844861b263da6dae0ad801bf78`；blockmap 201,291 bytes / SHA-256 `f08fe746f1874c5f88c07f157ee5bee89a6d5ddf46352a7a25c8c0955aacbbb2`；latest.yml SHA-256 `59649df2f2194619232e7e7a1ce833eb8cc8033a778d86348471aa019854b1e1`；SHA256SUMS SHA-256 `9742916869a281d1de7577caf354afbfcc736fb72cc00caf0d60d60cd7fa37a2`。public packaged check 为 channelVersion 0.1.8 / updateAvailable false | CI / Release 不能替代真实 WeGame 同机交接、一整局 OCR / 推荐、终局 / 第二局；无商业签名 | Release 非 draft / prerelease；当前 only Latest，历史 tags完整保留
 - 2026-08-13 | HB-020 / Runtime 交接回放门禁 | IN PROGRESS（状态不升级） | 新增 reducer→Runtime 的实际状态回放，覆盖 detach→迟到空 ChampSelect→partial InProgress→再次断线→下一局新英雄；交接期不得清 detail / overlay 或递增 request sequence，真实新英雄必须清旧数据并换 generation | 本地全量 14 files / 100 passed + 1 Windows-only skipped，typecheck、lint、diff-check通过；commit `561f9e5` 已 push main | 仍是合成回放，不运行 WeGame、真实 LeagueClientUx / game process、截图或 OCR 模型，不得据此把 HB-020 升级 FIXED / VERIFIED | test-only，v0.1.8 Release 产品代码不变
 - 2026-08-13 | HB-020 / 实机交接 runbook | IN PROGRESS（等待用户执行） | 新增 `docs/WEGAME_HANDOFF_RUNBOOK.md`，把真实同机状态链、不变量、失败判据、终局 / 第二局、脱敏字段与 FIXED / VERIFIED 升级门槛写为仓库契约；README 提供入口 | `git diff --check` 通过；内容与 Runtime 受控诊断字段及项目记忆一致 | 文档不能替代用户实际运行，目标仍未完成 | 待报告问题的同一机器安装 v0.1.8 后执行
+- 2026-08-13 | HB-022 / 国服选人阶段当前英雄与浮窗不显示 | REPORTED / UNDIAGNOSED | 用户实机报告选人界面中当前英雄信息与选人浮窗直接不显示；精确应用版本尚待确认，当前无代码根因或修复结论 | `v0.1.8` Windows CI、packaged smokes 与模拟 handoff 回放均不运行真实国服 `ChampSelect`，不能证明该路径可用 | 待收集版本号、诊断页受控状态链及真实 session 字段级脱敏 fixture，并在同机 queueId 2400 选人阶段复现 / 验收；不得记录 token、路径或完整 session | 只登记实机事实与证据门禁，不与 HB-020 自动合并，不写已修复
+- 2026-08-13 | HB-022 / 首轮脱敏诊断与候选仲裁草案 | REPORTED / UNDIAGNOSED→IN PROGRESS | 用户证据显示多 candidate、最终 source=log、credentials verified 后仍只有 transport-connected 且 snapshot 长期 None / null；代码审计高概率为首个可鉴权空 candidate 粘滞，另有 fresh partial / 空 catalog 遮蔽。草案采用 2400+hero 证据仲裁、None 有界重探、非致命机会性 probe、正向字段保留、lobby GET fallback、15 秒脱敏 heartbeat、本地 offset 时间和空 catalog 显式提示 | 当前尚无 review、自动化 tests 或 Windows 结果；`v0.1.8` 既有 CI / 模拟回放不能支持本问题修复结论 | 精确用户版本、真实 session 字段级脱敏 fixture、同机国服 ChampSelect 复验仍缺失；不得记录端口、token、路径或完整 session | 当前不得 FIXED / VERIFIED，等待审查与验证结果
+- 2026-08-13 | HB-022 / v0.1.9 本地候选实现与终审 | IN PROGRESS（状态不升级） | target 评分强制 phase=ChampSelect；known terminal 残留不得推断 / 切换，只有 raw None / unknown 可凭 2400+hero 正向证据推断；候选池 10 秒刷新、2 秒有界重探、request hard timeout、机会性 probe 非致命、fresh partial 保留正向字段、lobby GET fallback；诊断 15 秒 heartbeat / 本地 offset / 不记录端口，空 catalog 显式提示 | 最终只读审查无 P0 / P1；本地 113 passed + 1 Windows-only skipped，source bridge / UI、lint、typecheck、diff-check 全通过 | Windows workflow、Windows packaged 和报告用户同机国服 ChampSelect 均未验证，不得 FIXED / VERIFIED | 本地版本已升 0.1.9，尚未 commit / push / tag / Release；公开最新仍为 v0.1.8
