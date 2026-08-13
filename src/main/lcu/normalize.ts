@@ -3,6 +3,7 @@ import type {
   GameflowPhase,
   MatchContextStage,
 } from '../../shared/contracts.js'
+import { isAramMayhemQueueId } from '../../shared/mayhem-queues.js'
 
 const positiveInteger = (value: unknown): number | null => {
   const numberValue = Number(value)
@@ -21,6 +22,31 @@ const queueIdFromSession = (session: any): number | null =>
 const queueIdFromLobby = (lobby: any): number | null =>
   positiveInteger(lobby?.gameConfig?.queueId ?? lobby?.queueId)
 
+const championIdFromActions = (
+  session: any,
+  localCellId: number,
+): { observed: boolean; championId: number | null } => {
+  if (!Number.isInteger(localCellId) || !Array.isArray(session?.actions)) {
+    return { observed: false, championId: null }
+  }
+  // Newer action groups supersede older pick/reroll observations. This is a
+  // read-only fallback for regional clients that update `actions` before the
+  // current-champion endpoint or myTeam member.
+  for (let groupIndex = session.actions.length - 1; groupIndex >= 0; groupIndex -= 1) {
+    const group = session.actions[groupIndex]
+    if (!Array.isArray(group)) continue
+    for (let actionIndex = group.length - 1; actionIndex >= 0; actionIndex -= 1) {
+      const action = group[actionIndex]
+      if (Number(action?.actorCellId) !== localCellId) continue
+      if (String(action?.type ?? '').toLowerCase() !== 'pick') continue
+      // A zero on the newest local pick explicitly clears an older action; do
+      // not scan backwards and resurrect the previous champion.
+      return { observed: true, championId: positiveInteger(action?.championId) }
+    }
+  }
+  return { observed: false, championId: null }
+}
+
 export function normalizeChampSelectSnapshot(input: {
   phase: GameflowPhase
   locale?: string
@@ -34,10 +60,13 @@ export function normalizeChampSelectSnapshot(input: {
   const localMember = Array.isArray(session.myTeam)
     ? session.myTeam.find((member: any) => Number(member?.cellId) === localCellId)
     : null
+  const actionChampion = championIdFromActions(session, localCellId)
   const currentChampionId =
     positiveInteger(input.currentChampionId) ??
     positiveInteger(localMember?.championId) ??
-    positiveInteger(localMember?.championPickIntent)
+    (actionChampion.observed
+      ? actionChampion.championId
+      : positiveInteger(localMember?.championPickIntent))
 
   const benchValues = Array.isArray(session.benchChampionIds)
     ? session.benchChampionIds
@@ -54,7 +83,7 @@ export function normalizeChampSelectSnapshot(input: {
     phase: input.phase,
     locale: input.locale ?? 'zh_CN',
     queueId,
-    modeActive: queueId === 2400,
+    modeActive: isAramMayhemQueueId(queueId),
     matchStage: 'none',
     matchGeneration: 0,
     currentChampionId,
@@ -165,7 +194,7 @@ export class MatchContextTracker {
     const observationTrusted = !this.confirmed || authorityTrusted || identityTrusted
     const hasPositiveChampSelectEvidence =
       next.phase === 'ChampSelect' &&
-      next.queueId === 2400 &&
+      isAramMayhemQueueId(next.queueId) &&
       next.currentChampionId != null &&
       (evidence.champSelectSession === 'ok' || evidence.currentChampion === 'ok')
     const provesNewChampSelectAfterHandoff = Boolean(
@@ -211,7 +240,7 @@ export class MatchContextTracker {
     }
 
     // A different reachable League client must not replace a retained match,
-    // even when it exposes a complete 2400 champ-select snapshot. It may only
+    // even when it exposes a complete Mayhem champ-select snapshot. It may only
     // take over after proving the same game identity or after the old lease
     // expires.
     if (this.confirmed && !observationTrusted && hasPositiveChampSelectEvidence) {
@@ -373,7 +402,7 @@ export class MatchContextTracker {
       this.lastDecision = 'cleared-new-champ-select'
     }
 
-    if (next.queueId === 2400 && next.currentChampionId != null) {
+    if (isAramMayhemQueueId(next.queueId) && next.currentChampionId != null) {
       const existing = this.confirmed
       const timerHandoff = isChampSelectHandoffPhase(evidence.champSelectTimerPhase)
       const enteredGame = existing?.enteredGame === true ||
@@ -508,7 +537,7 @@ export class MatchContextTracker {
     return {
       ...next,
       queueId: next.queueId ?? this.confirmed.queueId,
-      modeActive: (next.queueId ?? this.confirmed.queueId) === 2400,
+      modeActive: isAramMayhemQueueId(next.queueId ?? this.confirmed.queueId),
       matchStage: this.confirmed.stage,
       matchGeneration: this.confirmed.generation,
       currentChampionId: next.currentChampionId ?? this.confirmed.currentChampionId,

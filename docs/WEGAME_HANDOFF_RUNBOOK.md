@@ -5,7 +5,7 @@
 ## 前置条件
 
 - 使用 GitHub Releases 当前唯一正式版本；先在窗口左上角确认版本号。
-- Windows 10/11 x64、国服 WeGame、海克斯大乱斗 `queueId=2400`。
+- Windows 10/11 x64、国服 WeGame、海克斯大乱斗。记录 LCU 实际 queueId：公开配置通常为 `2400`，国服自定义房间已实机观测到 `3270`。
 - 游戏使用无边框模式；设置中启用“选人浮窗”和“自动 OCR”。
 - 测试前打开 HexBridge“诊断”页。诊断页只展示受控状态字段；不要另行发送 LCU `lockfile`、token、完整 champ-select session、PUUID、API Key、用户名或本地路径。
 
@@ -16,7 +16,7 @@
 ### 1. 选人确认
 
 - `matchStage=selecting`
-- `queueId=2400`
+- `queueId=2400` 或已验证的国服 `3270`
 - `championId` 是当前英雄
 - `contextDecision=confirmed`
 
@@ -33,7 +33,7 @@
 
 这一阶段必须继续满足：
 
-- `queueId=2400`
+- `queueId` 与选人确认时相同
 - `championId` 与选人确认时相同
 - `matchGeneration` 不变
 - 主窗口仍显示当前英雄
@@ -60,7 +60,7 @@
 
 ### 5. 第二局换代
 
-同为 `queueId=2400` 的下一次选人也必须开启新 generation：
+同一海克斯大乱斗 queueId 的下一次选人也必须开启新 generation：
 
 - 新英雄未确定前不得短暂回显上一局英雄
 - 新英雄确认后 `matchGeneration` 必须递增

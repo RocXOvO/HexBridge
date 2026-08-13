@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-13
-> 当前基线：公开最新且唯一保留的正式 Release 为 `v0.1.10`，annotated tag 固定指向产品 / 记忆提交 `345c0d5443760a9dcc6717a96a6068b6101b16d1`。正式 Windows tag workflow 以 132 tests 和完整发布门禁成功，public channel 的 version / path / size / SHA-512 与正式 EXE 一致。`v0.1.9` Release / assets 已按策略删除，但 `v0.1.0` 至 `v0.1.10` Git tags 与源码历史全部保留。HB-020 与 HB-022 均保持 `IN PROGRESS`：Windows runner、packaged smokes 与受控回放不等于报告用户同机真实 WeGame 选人与交接复验，绝不能标 `FIXED` / `VERIFIED`。项目无商业代码签名，旧版本用户此次建议手动覆盖安装 v0.1.10。
+> 当前基线：公开最新且唯一保留的正式 Release 为 `v0.1.10`，annotated tag 固定指向产品 / 记忆提交 `345c0d5443760a9dcc6717a96a6068b6101b16d1`。正式 Windows tag workflow 以 132 tests 和完整发布门禁成功，public channel 的 version / path / size / SHA-512 与正式 EXE 一致。`v0.1.9` Release / assets 已按策略删除，但 `v0.1.0` 至 `v0.1.10` Git tags 与源码历史全部保留。用户 v0.1.10 同机日志已确认自定义海克斯大乱斗使用 `queueId=3270`，旧代码只接受 2400。修正已收敛为本地 `v0.1.11` 候选：最终只读复审无运行时代码 P0 / P1，clean 本地 16 files / 139 passed + 1 Windows-only skipped、source / 静态门禁和 macOS 交叉打包通过；但尚未 commit / push / Windows Actions / tag / Release。HB-020 与 HB-022 均保持 `IN PROGRESS`，Windows 和用户同机复测前绝不能标 `FIXED` / `VERIFIED`。项目无商业代码签名。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -14,7 +14,7 @@
 
 ## 一、项目目标与硬边界
 
-HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大乱斗个人实验助手。V1 只对 `queueId=2400` 激活：选人阶段展示当前英雄和备战席英雄的 Tier / 胜率；对局中本地识别实际出现的三张海克斯并给出相对推荐。
+HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大乱斗个人实验助手。当前模式识别契约支持 `queueId ∈ {2400, 3270}`：用户实机已确认国服自定义海克斯大乱斗从 Lobby 到 InProgress 使用 3270；2400 作为既有模式 ID 继续保留。国服正式匹配是否同样使用 3270 尚未实机确认，不得只凭自定义局外推。选人阶段展示当前英雄和备战席英雄的 Tier / 胜率；对局中本地识别实际出现的三张海克斯并给出相对推荐。
 
 不可突破的边界：
 
@@ -64,7 +64,7 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 
 同步契约：WAMP WebSocket 订阅 `OnJsonApiEvent`，同时保留 1 秒轮询兜底；401、超时或连接错误使凭据失效并触发重新发现。不得将 token 或带凭据 URL 写入日志。
 
-统一输出 `ChampSelectSnapshot`：`phase`、`locale`、`queueId`、`modeActive`、`currentChampionId`、去重后的 `benchChampionIds`、`benchEnabled`、`updatedAt`。`modeActive` 当且仅当 `queueId===2400`。`carryForwardMatchContext()` 只在 `GameStart / InProgress / Reconnect` 中携带上一阶段已确认的 2400 队列和英雄；进入结束阶段、其他队列或新非比赛上下文时不得继续携带。
+统一输出 `ChampSelectSnapshot`：`phase`、`locale`、`queueId`、`modeActive`、`currentChampionId`、去重后的 `benchChampionIds`、`benchEnabled`、`updatedAt`。当前契约中 `modeActive` 当且仅当 `queueId ∈ {2400, 3270}`。`carryForwardMatchContext()` 只在 `GameStart / InProgress / Reconnect` 中携带上一阶段已确认的受支持队列与英雄；进入结束阶段、其他队列或新非比赛上下文时不得继续携带。
 
 ### 3.2 上游 API 契约
 
@@ -150,7 +150,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 先对三块裁切做低成本灰度信号门控，至少两块命中才启动 OCR。
 - 三块按左 / 中 / 右串行识别，中文标准化后精确或模糊匹配；置信度阈值不得低于 90%。
 - 三张全部可靠识别才自动展示；组合去重；连续 3 次丢失后隐藏。F8 只强制重新截图 / 识别，不发送键鼠事件。
-- 自动扫描只在 LCU 已连接且 `InProgress + queueId=2400` 时运行；断线 / 离局立即停表。在途扫描结束后必须再次检查连接和阶段，不能让旧结果重新显示浮窗。
+- 自动扫描只在 LCU 已连接且 `InProgress + queueId ∈ {2400, 3270}` 时运行；断线 / 离局立即停表。在途扫描结束后必须再次检查连接和阶段，不能让旧结果重新显示浮窗。
 - 当前英雄变化时应先立即同步 snapshot / 候选 UI，再在后台非阻塞补齐英雄详情；详情返回后仅在 `championId + requestSequence + dataVersion` 仍匹配时二次同步，不能让上游请求阻塞 1.5 秒界面刷新目标。
 - 游戏要求无边框模式；独占全屏不在 V1 保证范围。
 
@@ -362,7 +362,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 用户症状：选人阶段结束后，当前英雄等信息直接消失；进入游戏后没有对局信息，后续功能尤其 OCR 和海克斯推荐失败。
 - 确定根因：LCU 的 gameflow phase 与 champ-select / current-champion 端点不是原子快照；离开 `ChampSelect` 时选人端点可能先 404 或瞬态 `None`。旧流程把该空值写入相邻 snapshot，级联清除当前英雄、详情和 OCR / 推荐上下文，导致进入游戏后功能停用。
 - 代码修复：新增独立 `MatchContextTracker`，不再让单次非原子 endpoint 空值直接清除本局上下文；HB-020 又将原短 grace 强化为 `selecting / launching / active + generation` 状态机。`None` / 未知 phase / transport handoff 使用不续期的 10 分钟 launching 租约，可靠进局证据升级为 12 小时 active 上限；明确 terminal phase、异队列或下一 `ChampSelect` 清理 / 换代；非 `ChampSelect` 阶段只清 bench，不清当前英雄 / 详情 / 推荐。断线后直接进入同 queue 的第二局也按新 generation 替换，避免复用上一局。
-- 跨阶段上下文契约：在已确认 `queueId=2400` 的 `ChampSelect` 中，最后有效的 `currentChampionId`、英雄详情及其 `dataVersion`、可派生的英雄专属海克斯推荐上下文，必须跨 `ChampSelect → GameStart → InProgress → Reconnect` 保留。阶段切换时即使 champ-select session / current-champion 端点暂时为空，也不得以空 snapshot 覆盖已确认的本局上下文；详情异步返回仍必须遵守 `championId + requestSequence + dataVersion` 一致性守卫，不能把上一局或错误英雄详情带入本局。
+- 跨阶段上下文契约：在已确认 `queueId ∈ {2400, 3270}` 的 `ChampSelect` 中，最后有效的 `currentChampionId`、英雄详情及其 `dataVersion`、可派生的英雄专属海克斯推荐上下文，必须跨 `ChampSelect → GameStart → InProgress → Reconnect` 保留。阶段切换时即使 champ-select session / current-champion 端点暂时为空，也不得以空 snapshot 覆盖已确认的本局上下文；详情异步返回仍必须遵守 `championId + requestSequence + dataVersion` 一致性守卫，不能把上一局或错误英雄详情带入本局。
 - 清理边界：只有进入明确结束阶段（如 `EndOfGame`）、确认切换到其他队列 / 新比赛上下文、或 LCU 证据表明当前局已失效时，才清理携带的英雄、详情、推荐和 OCR 组合状态。普通 `GameStart` / `InProgress` 短暂空 session、WebSocket 重连或 token / 端口轮换不得提前清空；第二局开始时必须替换而非复用上一局上下文。
 - OCR / 浮窗验收：真实国服 WeGame 无边框对局中，进入 launching / active 上下文后应继续显示本局英雄 / 数据版本，自动 OCR 守卫为启用状态；三卡稳定出现后约 1 秒内识别并基于本局英雄详情生成推荐浮窗，F8 可手动重试。选人→游戏过程中不得因 LCU transport 交接而出现上下文闪空、扫描停表或浮窗永久缺失；只有本局上下文明确定义为结束 / 换代时才停用并清除，同局 LCU 重连不得破坏当前 generation。
 - 自动化证据：`v0.1.6` 预发布与正式 tag Windows workflows 均以 12 test files / 72 tests 通过，覆盖 10 分钟不续期 handoff 租约、active 上限 / 独立确认、phase-before-aux、旧 generation 拒绝、游戏进程解析、OCR 与 Renderer 交接状态；lint、typecheck、packaged UI / bridge 等完整门禁同样通过。真实国服 LCU / 进程时序、OCR 和浮窗仍未实机验证，因此不能标记 `VERIFIED`。
@@ -392,9 +392,10 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-020 WeGame 选人到游戏客户端交接期上下文丢失
 
 - 严重度：阻断性（交接后本局英雄 / 详情、OCR 和海克斯推荐可能不可用）
-- 状态：`IN PROGRESS`（已确认迟到空 ChampSelect 的 P1 根因；修复候选尚待 Windows / 用户同机验证）
-- 最新用户实机症状：用户再次报告，在选人阶段结束进入最后等待、LeagueClientUx 交接到另一个游戏客户端启动之前，HexBridge 仍读取不到或丢失当前英雄信息。早先截图明确显示 `v0.1.5`，但本次重新报告未附版本截图与完整脱敏时间线；不得把用户已安装某个更新版当作已知事实。
+- 状态：`IN PROGRESS`（既有迟到空 ChampSelect P1 与本轮确定的 3270 队列拒绝均已定位；共享队列修正尚待最终审查 / 全量 / Windows / 用户同机验证）
+- 最新用户实机证据：用户 v0.1.10 同机日志完整覆盖自定义海克斯大乱斗 Lobby→Matchmaking→ChampSelect→InProgress，实际 queue 始终为 3270。ChampSelect 已有有效英雄，但旧代码只接受 2400，因此 match context 从未建立；InProgress 选人 endpoint skipped 后英雄为 null。这已直接解释本次“选人有英雄但进局丢上下文”，不再把它归因于未确认的游戏进程名或单纯 transport 断线。
 - 已确认 P1 根因：最后有效选人快照后，transport failure 将 tracker 切到 `launching`；LCU 短暂恢复时可返回迟到的 `phase=ChampSelect`，同时 champ-select session / current 已 404。旧 reducer 仅因 `launching→ChampSelect` 就将其当作下一局并先清 confirmed，10 分钟交接租约根本无机会执行；旧测试还将这一错误行为固化成预期。
+- 新增确定根因：v0.1.10 的目标模式判定仅接受 2400，真实自定义局的 3270 因而在有效 ChampSelect 阶段仍得到 `modeActive=false / matchStage=none / generation=0`。当前修正必须让 2400 / 3270 共用同一目标队列判定，而不是在 LCU client、tracker、Runtime、Renderer 或 OCR 各自硬编码；正式匹配实际 queue ID 仍待实机确认。
 - `v0.1.8` 候选修复：reducer 显式接收 endpoint `ok/empty/error/skipped`、可用的 `gameId` 身份与 destructive / partial 证据；partial poll 只允许 `GameStart/InProgress/Reconnect` 等非破坏性阶段单调推进，不得用局部 terminal / queue / new-select 清空上下文。迟到空 session、同 gameId 或无 ID 同英雄的 outgoing observation 保留旧上下文但不续租；异队列、不同英雄、不同 gameId 和真实终局仍清理 / 换代。日志只写 phase、队列 / 英雄 ID、endpoint 状态与受控 `lastDecision`，不写完整 session、token、PUUID 或路径。
 - 既有尝试性实现：`MatchContextTracker` 使用 `selecting / launching / active` 与 generation，`None` / unknown / transport handoff 使用不续期租约；GameStart / InProgress / Reconnect、`League of Legends.exe` 进程证据或首次可靠三卡可尝试确认 active，terminal / 异队列 / 下一 ChampSelect 清理。`applyLcuPollResults` 先提交 phase 再处理 auxiliary failure；OCR 不依赖 `lcu.connected`，迟到结果以 generation + champion 守卫。上述代码存在且受单元测试覆盖，但真实报告证明它们尚未形成有效实机闭环。
 - Renderer 状态：LCU transport 已断开但本局 context 仍在时，界面明确显示“LCU 已交接”和“游戏客户端接管中 · 本局信息已保留”，不再把该状态呈现成普通“等待客户端”。
@@ -403,7 +404,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 实机证据入口：`docs/WEGAME_HANDOFF_RUNBOOK.md` 固化同机验收的前置条件、selecting→launching→active→terminal→第二局状态不变量、明确失败判据、脱敏报告模板和状态升级规则。只允许从诊断页提供受控 `LCU match context transitioned` 行；不得索取 lockfile、token、完整 session、PUUID、API Key、用户名或本地路径。以后不得在没有按该清单复测的情况下关闭 HB-020。
 - Windows 真实进程检测窄范围证据：tag 后 commit `4d03f948cd611b1ea60121506367cd0e4083e7da` 新增 Windows-only 集成测试，将实际 Node executable 复制为 `League of Legends.exe`，启动这一真实 Windows 进程，再由 production `isLeagueGameProcessRunning()` 经 `tasklist` 检测。post-release run [31617314812](https://github.com/RocXOvO/HexBridge/actions/runs/31617314812) / job [94183257885](https://github.com/RocXOvO/HexBridge/actions/runs/31617314812/job/94183257885) 中 `tests/game-process` 两项均通过，集成检测用时约 928ms。因此仅“预期映像名的真实 Windows 进程 → tasklist → production 检测函数”可标窄范围 `VERIFIED`。
 - 窄范围限制：上述测试使用重命名后的 Node，不是国服 WeGame 实际启动的游戏进程；它不证明国服进程名确为 `League of Legends.exe`，也不触发 LeagueClientUx 退出、LCU 凭据 / 端口消失、match context 保留、英雄详情、OCR、终局或第二局。其“进程名→tasklist→生产检测函数”局部结果可保留为窄范围证据，但 HB-020 总体已回到 `IN PROGRESS`。
-- 交接期契约：从 `ChampSelect` 最后有效快照开始，即使出现 LeagueClientUx 进程退出、LCU 凭据失效、端口消失、`GameStart` 前 phase / endpoint 空窗或游戏客户端尚未完全启动，也不得仅因这些暂态事件清除本局已确认的 `queueId=2400`、当前英雄、匹配的英雄详情 / `dataVersion`、推荐上下文和 OCR 启用前提。游戏客户端启动并进入 `GameStart` / `InProgress` 后应继续同一局上下文，且不得短暂回显上一局或其他队列数据。
+- 交接期契约：从 `ChampSelect` 最后有效快照开始，即使出现 LeagueClientUx 进程退出、LCU 凭据失效、端口消失、`GameStart` 前 phase / endpoint 空窗或游戏客户端尚未完全启动，也不得仅因这些暂态事件清除本局已确认的受支持队列（2400 或 3270）、当前英雄、匹配的英雄详情 / `dataVersion`、推荐上下文和 OCR 启用前提。游戏客户端启动并进入 `GameStart` / `InProgress` 后应继续同一局上下文，且不得短暂回显上一局或其他队列数据。
 - 必须采集的脱敏证据：按时间顺序记录 phase、LCU 连接状态、发现来源类别、凭据 / 端口是否可用、LeagueClientUx 与游戏客户端是否存在、match-context generation、是否携带英雄 / 详情以及每次保留或清理的原因码。不得记录 token、API Key、PUUID、完整 session、带凭据 URL 或未裁切截图。
 - 防再犯与验收门禁：下一轮定位必须取得同一台真实 Windows + 国服 WeGame 的交接录制与脱敏状态链，或由该状态链生成可回放 fixture；内容覆盖最后一次有效 `ChampSelect` 英雄、最后等待、LeagueClientUx 退出 / 凭据或端口失效、`GameStart` 前空窗、实际游戏客户端进程启动及进入对局，全程断言英雄、详情、数据版本、推荐与 OCR 资格不丢失。没有这份真实状态证据时，任何代码修改和单元 / packaged 测试最多只能维持 `IN PROGRESS`。
 - 状态升级规则：必须由报告问题的用户在同机、同 WeGame 环境复验交接全程成功，HB-020 才可升级为 `FIXED / UNVERIFIED`；至少再完成一整局（三卡 OCR / 推荐可用、终局正确清理）并进入第二局验证新英雄替换、不串局后，才可标为 `VERIFIED`。在此之前不得用模拟测试、CI 或其他机器的成功结果代替用户同机复验。
@@ -423,20 +424,26 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-022 国服选人阶段当前英雄与选人浮窗不显示
 
 - 严重度：阻断性（选人阶段核心英雄信息与紧凑浮窗不可用）
-- 状态：`IN PROGRESS`（authority 修复已随 `v0.1.10` 发布，等待报告用户同机真实 WeGame 复测）
-- 用户实机症状：用户报告进入国服 / WeGame 选人界面后，HexBridge 的当前英雄信息和选人浮窗直接不显示。报告所用 HexBridge 精确版本仍待用户确认；HB-022 不得与 HB-020 的交接期 P1 自动合并。
+- 状态：`IN PROGRESS`（用户 v0.1.10 日志已确定“3270 未被支持”的主根因；`v0.1.11` 本地候选已通过终审 / 全量 / 交叉打包，尚待 Windows / 同机复测）
+- 用户实机症状：用户在 v0.1.10、国服 / WeGame 自定义海克斯大乱斗中报告当前英雄、选人浮窗和进局上下文不显示。该问题与 HB-020 的跨阶段上下文直接相关，但两个缺陷状态仍分别维护，均不得提前关闭。
 - 用户脱敏证据：LCU 发现阶段出现多个 candidate，最终选择的 source 为 `log`；credentials 已验证，随后应用只呈现 transport-connected / 旧版 raw 连接状态，没有周期 heartbeat，snapshot 持续为 phase `None`、queue 与 champion 均为 `null`，与选人界面不显示吻合。诊断时间后缀 `Z` 表示 UTC，用户按本地时间理解时产生困惑；本文件不记录任何端口值。
 - 本轮用户日志事实：诊断中的 `Z` 确认为 UTC；当前 logger 已改成本地时间并附 UTC offset。真实日志显示 `candidateCount=2`，但最终仍选择 `source=log`；transport-connected 后 raw / normalized phase 都持续为 `None`。这进一步提示错误 candidate 或错误 authority 粘滞的高风险，但尚未通过用户同机验证确认唯一根因。本文件不记录日志中的端口、token、路径、进程身份或对局身份具体值。
+- v0.1.10 确定根因证据：用户同机日志显示实际自定义海克斯大乱斗从 Lobby、Matchmaking、ChampSelect 到 InProgress 全程 `queueId=3270`。ChampSelect endpoint 已给出有效当前英雄，但旧代码仅把 2400 视为目标模式，因此 tracker 始终为 `matchStage=none`、generation 0、context decision none；进入 InProgress 后选人 endpoint 按阶段 skipped，英雄随即回到 null，主窗口重新显示“等待选择英雄”。这条完整链已经证明“未接受 3270”是本次上下文丢失的直接根因；authority 风险仍作为独立加固背景保留，但不是本次已证实的主因。
+- 游戏进程证据边界：任务管理器 Processes 页首项显示 `League of Legends (TM) Client`，但该显示名称不是可用于 tasklist 匹配的可执行文件镜像名，且不是本次丢上下文主因。实际 EXE image name 仍需用户在 Details 页确认，不得从 Processes 显示名推断。
+- 首次英雄延迟观察：用户主观观察首次选择约 2～3 秒；日志从 ChampSelect 空状态到出现有效英雄约 3.7 秒，但用户实际点击时点未知，因此当前不能据此断定 UI、LCU endpoint 或轮询存在确定的额外延迟缺陷。后续验收须以带本地 offset 的点击 / endpoint / snapshot 时间链测量。
 - 代码审计判断：高概率主因是连接器接受首个“可鉴权”candidate 后长期粘滞，即使该 candidate 只返回 `None` / 空 endpoint，也没有在有界时间内对其他候选重新仲裁。审计还发现两个可能的遮蔽路径：fresh partial observation 可能覆盖已有正向字段，空英雄 catalog 可能让已取得的 champion ID 在 Renderer 中表现为无可展示英雄。以上是代码审计的高概率判断和次级风险，不是已经由用户同机证明的最终根因。
 - `v0.1.9` 正式实现：candidate target 评分只有在 phase 明确为 `ChampSelect` 时才允许给当前选人证据加权；已知 terminal phase 的残留 queue / hero 不得被推断为活动选人，也不得触发 candidate 切换。仅 raw phase 为 `None` / unknown 时，才允许依据 `queueId=2400` 与正英雄等正向 endpoint 证据推断选人目标。候选池每 10 秒刷新，已连接空 candidate 使用 2 秒有界备选重探；所有 request 都有 hard timeout，机会性 probe 失败不得破坏当前有效连接。fresh partial 合并时保留已有正向字段，并增加只读 lobby GET 作为队列识别 fallback。
 - `v0.1.10` authority 候选实现：LCU credentials 在 Main 内部保留进程身份与进程启动时刻，用于区分 authority 世代，但这些字段绝不进入日志、诊断页、Renderer 或 IPC 业务状态。新增 `LcuAuthorityRegistry`，以 endpoint alias 以及进程身份 / 启动时刻 / 路径形成强 alias：同 endpoint 的 log→process 发现、同一进程的 endpoint / 凭据轮换可绑定为同一 authority；进程标识复用但启动时刻不同必须隔离为新 authority。`ensure` 与 `promote` 共用 `retainedPriority`，避免两条路径对保留候选给出不一致优先级。
 - `v0.1.10` match / transport 边界：transport authority 与 match lease 分离；来自外部 authority 的 Lobby、terminal 或完整 `queueId=2400` ChampSelect 都不能覆盖现有本局，只有相同 match identity 才允许重绑。current endpoint 为空时，可信 `GAME_STARTING` 或 `gameClient.running` 证据可推进交接；同局最后一次换英雄必须先采纳新英雄再进入交接。active 后出现同英雄且无 identity 的新 ChampSelect 必须开启新 generation，不能复用上一局；真实 terminal 与真实新局仍是明确清理 / 换代边界。
+- `v0.1.11` 本地候选：共享目标队列集合统一为 `{2400, 3270}`，所有 mode activation、candidate scoring、match tracker、Runtime 与 OCR 资格引用同一判定；2400 继续保留，国服正式匹配是否也使用 3270 尚未实机确认。current-champion endpoint 为空时，actions fallback 只接受按本地时间顺序最新的有效 pick：`pick=0` 明确屏蔽更旧 pick / intent，ban 动作始终忽略，可靠 current / myTeam 英雄优先于 actions。对只有 WAMP event、没有常规 poll 的更新安排一次有界去重 trailing poll；事件风暴期间只补一次。
+- `v0.1.11` production 回放：3270 路径覆盖空英雄→actions 英雄→Runtime `selecting / generation 1`→detail / overlay→InProgress `active` 且 generation 不变。transport 路径覆盖 `ECONNREFUSED` detach 后出现双 candidate：外部进程的 Lobby 450 与 live log（无进程身份）可凭同 match identity 重绑，随后进入 InProgress；第二局必须生成 generation 2。该回放也断言 event-only trailing-poll 风暴只产生一次补拉。
+- `v0.1.11` 当前验证：最终只读复审未发现运行时代码 P0 / P1。clean `npm ci`、audit 0、OCR、16 test files / 139 passed + 1 Windows-only skipped、lint、typecheck、source bridge / UI、`git diff --check` 全部通过。macOS `pack:win`、metadata verifier 与 checksums exit 0；交叉候选 EXE 198,535,816 bytes，SHA-256 已知前缀 `be176766…`；ZIP 274,102,235 bytes，SHA-256 已知前缀 `e807bc…`。这些截短摘要与 macOS 交叉构建都不是正式 Release 资产。Windows Actions 尚未运行，候选尚未 commit / push / tag / Release，不能升级 HB-020 / HB-022 状态。
 - 诊断与目录行为：诊断页每 15 秒刷新一次脱敏 heartbeat，时间显示为本地时区并带 UTC offset；面向用户的候选 / 连接诊断不再记录端口。英雄 catalog 为空时显式提示“目录不可用 / 已识别 ID 暂无法解析”，不得把已识别 champion 静默表现成未识别。
 - 当前审查与验证：实现已完成最终只读审查，未发现 P0 / P1；本地 113 tests passed + 1 个 Windows-only skipped，source bridge / UI smokes、lint、typecheck、`git diff --check` 全部通过。候选 commit `68f3822665d7de02f3555d0e8becae04f7b65d05` 的 Windows workflow_dispatch run [31662678891](https://github.com/RocXOvO/HexBridge/actions/runs/31662678891) / job [94330609527](https://github.com/RocXOvO/HexBridge/actions/runs/31662678891/job/94330609527) 通过预发布门禁。正式产品 / tag commit 为 `8a6e6d20791f0596274b79704d229642b99a7a12`；tag run [31663071062](https://github.com/RocXOvO/HexBridge/actions/runs/31663071062) / job [94331796412](https://github.com/RocXOvO/HexBridge/actions/runs/31663071062/job/94331796412) 于 2026-08-13T03:09:58Z～03:15:40Z 成功，用时约 5m42s。113 passed + 1 Windows skip、packaged UI / bridge、synthetic updater、public channel 和正式发布步骤全部成功。该结果不运行真实 WeGame；报告用户同机选人仍未复验，HB-022 继续 `IN PROGRESS`。
 - `v0.1.10` 当前验证：新增 production `LcuClient → HexBridgeRuntime` 回放，覆盖 authority alias / rotation、外部 authority 干扰、可信交接推进、同局最后换英雄、active 后同英雄无 identity 的第二局以及终局 / 新局边界。独立审查无 P0 / P1。candidate commit `cb2098c79842f61447ab933766b42ff45c1604c5` 的 Windows workflow_dispatch run [31665154616](https://github.com/RocXOvO/HexBridge/actions/runs/31665154616) / job [94338020977](https://github.com/RocXOvO/HexBridge/actions/runs/31665154616/job/94338020977) 通过候选门禁。正式 annotated tag / 产品 / 记忆提交为 `345c0d5443760a9dcc6717a96a6068b6101b16d1`；tag run [31665517026](https://github.com/RocXOvO/HexBridge/actions/runs/31665517026) / job [94339115148](https://github.com/RocXOvO/HexBridge/actions/runs/31665517026/job/94339115148) 成功，用时约 5m23s。132 tests、packaged UI / bridge、synthetic updater、public update check、Release、channel 写入与旧 Release cleanup 全部通过。该结果不运行真实 WeGame；报告用户同机复测前 HB-022 继续 `IN PROGRESS`。
 - 既有证据边界：`v0.1.8` Windows 预发布 / tag CI、packaged UI / bridge smokes、reducer 单测和 post-tag Runtime handoff 模拟回放均未连接真实国服 WeGame，也未读取用户实际 `ChampSelect` session。它们不能证明真实国服选人阶段能获得当前英雄或显示浮窗，不能支持“已覆盖”“已修复”或用户环境异常等结论。
 - 定位所需证据：仍须确认设置 / 关于页显示的完整应用版本；由诊断页导出带本地时区 offset 的候选发现、仲裁 / 重探、连接、heartbeat、queue / phase、session / current-champion endpoint 受控状态、snapshot 正向字段、catalog 状态、Runtime 提交和 champ-select 浮窗显隐决定。还需要将用户真实 session 的结构制作成字段级脱敏 fixture，只保留复现解析分支所需的结构、类型和匿名 / 合成 ID；不得索取或记录端口值、token、API Key、PUUID、用户名、安装 / 游戏路径、带凭据 URL、完整原始 session 或未裁切截图。
-- 验收标准：Windows workflow / packaged 验证通过后，仍必须在报告问题的同一台 Windows + 国服 WeGame 上确认精确版本并真实进入 `queueId=2400` 的 `ChampSelect`；authority 应正确绑定同一进程的多来源 / 轮换并隔离进程复用，仲裁应脱离长期空 candidate，外部 authority 与 known terminal 残留不得误切换或覆盖本局。当前英雄一经客户端可靠确认，主界面与紧凑选人浮窗应显示同一英雄；最后换英雄、进入 GAME_STARTING / 游戏进程接管、active、终局与第二局都要保持正确 generation、清理和换代。只有同机诊断链证明该问题关闭后才可标为 `FIXED / UNVERIFIED`；再覆盖完整一局和第二局后才可考虑 `VERIFIED`。仅凭 CI、production 回放或其他机器成功不得升级状态。
+- 验收标准：Windows workflow / packaged 验证通过后，仍必须在报告问题的同一台 Windows + 国服 WeGame 上真实进入已确认的 3270 自定义 ChampSelect，并另行确认正式匹配实际 queue ID；2400 路径也必须保留回归。authority 应正确绑定同一进程的多来源 / 轮换并隔离进程复用，仲裁应脱离长期空 candidate，外部 authority 与 known terminal 残留不得误切换或覆盖本局。当前英雄一经可靠确认，主界面与紧凑选人浮窗应显示同一英雄；actions fallback、event-only trailing poll、最后换英雄、进入 GAME_STARTING / 游戏进程接管、active、终局与第二局都要保持正确 generation、清理和换代。只有报告用户同机状态链证明问题关闭后才可标为 `FIXED / UNVERIFIED`；再覆盖完整一局和第二局后才可考虑 `VERIFIED`。仅凭局部 tests、CI、production 回放或其他机器成功不得升级状态。
 
 ### HB-013～HB-017 的 v0.1.3 packaged smoke 边界
 
@@ -515,9 +522,9 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - HB-017：未连接空状态在电影 / 均衡 / 省电、reduced-motion、InProgress 和窗口不可见条件下的视觉与渲染暂停行为。
 - HB-018：自动化已覆盖 tracker 序列；仍需真实 `ChampSelect → GameStart → InProgress → Reconnect → EndOfGame` 中英雄 / 详情 / 推荐上下文、OCR、推荐浮窗、第二局替换与离局清理。
 - HB-019：Windows packaged `v0.1.6→synthetic 0.1.7` local-feed check / download、SHA-512、隔离 cache 已验证，真实 GitHub `v0.1.6` 更新目标也已发布；仍需 packaged `v0.1.5` 对真实 GitHub 执行 check / download、显式确认安装、`quitAndInstall`、UAC / SmartScreen、实际替换 / 重启后版本和取消 / 错误全链路。`v0.1.3` 不含更新器，必须先手动安装 `v0.1.5` 或更新正式版一次。
-- HB-020：当前为 `IN PROGRESS（迟到空 ChampSelect P1 根因已确认）`，此前“修复已随 v0.1.6 发布”的结论撤回。必须取得真实交接录制 / 脱敏状态链或可回放 fixture，覆盖最后有效 ChampSelect 英雄到实际游戏客户端启动的全程；用户同机复验前任何代码和模拟测试都不得升级为 FIXED，一整局 + 终局 + 第二局通过前不得 VERIFIED。
+- HB-020：当前为 `IN PROGRESS`。除既有迟到空 ChampSelect P1 外，用户 v0.1.10 日志已确定 3270 未被目标队列集合接受是本次自定义局上下文未建立 / 进局丢失的直接根因。`v0.1.11` 候选已统一 `{2400,3270}`，收紧 actions hero fallback，增加 event-only WAMP trailing poll，并以 production 回放覆盖 generation 1→active、transport detach / 双 candidate same-match 重绑和第二局 generation 2；终审无运行时 P0 / P1，clean 全量 139 passed + 1 skipped 与交叉打包通过。Windows Actions 和用户同机完整一局 / 终局 / 第二局前不得升级状态。
 - HB-021：当前 `IN PROGRESS`。`v0.1.10` 延续 raw stable channel、GitHub fallback、官方资产 allowlist、错误分类、provider 结果绑定、单调 / 并发保护，public channel 和 packaged public smoke 已通过；仍缺 installed 旧版本真实 check / download / `quitAndInstall` / UAC / 实际替换链。旧版本用户此次建议从当前 Release 页手动覆盖安装 v0.1.10。
-- HB-022：当前 `IN PROGRESS`。v0.1.9 发布后用户日志仍显示两个 candidate 中选中 log source 且 transport-connected 后 raw / normalized phase 长期 `None`，authority 绑定风险未完成实机闭环。`v0.1.10` 正式版新增 authority alias / 世代隔离、统一 retained priority、transport / match lease 分离、外部 authority 防覆盖、可信交接推进、最后换英雄优先采纳及第二局 / 终局 generation 边界；独立审查、Windows 候选与正式 tag workflow 的 132 tests、packaged UI / bridge / updater / public update check 均通过。真实 WeGame 报告用户同机复测仍未完成，发布成功不能把状态升级为 FIXED / VERIFIED。
+- HB-022：当前 `IN PROGRESS`。用户 v0.1.10 同机日志已确定自定义局 queue 3270 被旧 2400-only 判定拒绝，导致有效英雄不进入 match context；authority 绑定仍是加固背景而非本次主根因。`v0.1.11` 本地候选已统一 `{2400,3270}`，actions 仅取最新有效本地 pick（pick=0 屏蔽旧 pick / intent、ban 忽略、current / myTeam 优先），event-only WAMP 风暴只补一次 trailing poll；3270 与 transport 双候选生产回放、终审、clean 全量和 macOS 交叉打包通过。Windows Actions、正式匹配 queue ID 和报告用户同机复测仍缺失，不能标 FIXED / VERIFIED。
 - 无边框游戏下真实三卡：稳定出现后约 1 秒展示，刷新动画期间不误识别，连续丢失正确隐藏，F8 重试。
 - 1080p / 2K / 4K、100% / 125% / 150% DPI、多显示器、非主显示器、显示器热插拔和手动拖框校准。
 - 单卡 / 双卡、长中文名、OCR 错字、缺图、相同组合、并列、无详情 / 旧详情。
@@ -526,7 +533,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 九、发布与 GitHub 状态
 
-- 当前 Git / 版本：公开最新且唯一保留的 Release 为 `v0.1.10`，annotated tag / 产品 / 记忆提交为 `345c0d5443760a9dcc6717a96a6068b6101b16d1`。Release 公开、非 draft、非 prerelease；`v0.1.9` Release / assets 已清理，但远端 `v0.1.0` 至 `v0.1.10` Git tags 和源码历史全部原位保留，`v0.1.4` 从未有 Release。后续记忆提交可推进 main，不得移动或改写产品 tag。
+- 当前 Git / 版本：公开最新且唯一保留的 Release 为 `v0.1.10`，annotated tag / 产品 / 记忆提交为 `345c0d5443760a9dcc6717a96a6068b6101b16d1`。Release 公开、非 draft、非 prerelease；`v0.1.9` Release / assets 已清理，但远端 `v0.1.0` 至 `v0.1.10` Git tags 和源码历史全部原位保留，`v0.1.4` 从未有 Release。当前本地已升 `v0.1.11` 候选并完成终审 / clean 全量 / macOS 交叉打包，但尚未 commit / push / Windows Actions / tag / Release；不得描述为公开版本或预写未来结果，既有产品 tag 不得移动或改写。
 - GitHub CLI 已登录用户 `RocXOvO`，用户已补充授权 GitHub Actions workflow 所需 scope。不得在本文件记录任何认证 token。
 - GitHub 公开仓库：[RocXOvO/HexBridge](https://github.com/RocXOvO/HexBridge)，visibility 为 `PUBLIC`；本地 `origin` 已配置为该仓库的 HTTPS 地址。远端 `main` 已包含源码、测试、文档和 `.github/workflows/release.yml`。
 - `.gitignore` 排除 `release/`、`dist/`、`dist-electron/`、`node_modules/` 和 OCR `.onnx/.txt`，因此源码 push 不包含本地二进制或模型。
@@ -650,3 +657,5 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-13 | HB-022 / v0.1.10 authority 与 match lease 本地候选 | IN PROGRESS（状态不升级） | 用户日志显示两个 candidate 中最终仍选 log source，transport-connected 后 raw / normalized None；候选新增内部进程世代 identity、endpoint / 强 alias registry、统一 retainedPriority、transport / match lease 分离、外部 authority 防覆盖、same-match 重绑、可信交接推进、最后换英雄、active 后同英雄无 identity 新 generation 及终局 / 新局边界；身份字段绝不输出日志 / Renderer | production LcuClient→Runtime 回放新增；本地 15 files / 131 passed + 1 Windows-only skipped，typecheck/lint/diff、source bridge/UI通过；独立审查无P0/P1并批准Windows候选 | Windows workflow、真实WeGame同机选人/交接、完整一局与第二局均未验；不得记录任何用户端口/token/path/进程或对局身份具体值 | 本地版本0.1.10，尚未commit/push/tag/release；公开最新仍v0.1.9，不得FIXED/VERIFIED
 - 2026-08-13 | HB-022 / v0.1.10 Windows 候选验证 | IN PROGRESS（状态不升级） | candidate commit `cb2098c79842f61447ab933766b42ff45c1604c5` 已 push main；workflow_dispatch 仅运行候选门禁，tag-only Release / channel / cleanup 按预期 skip | run31665154616/job94338020977 success约5m2s；clean npm ci/hydrate/audit0/public0.1.9/OCR、Windows15 files/132 tests、lint/typecheck、pack EXE199028315、metadata、packaged UI 1024×768、bridge含LCU discovery策略、synthetic0.1.11 downloaded/metadata1/installer1/isolatedCache、checksums/artifact全过 | Windows runner与受控smokes不运行真实WeGame同机选人/交接，HB-022不得FIXED/VERIFIED；不记录敏感字段 | 尚未tag/release，公开Latest/channel仍v0.1.9，不预写正式结果
 - 2026-08-13 | v0.1.10 / 正式发布与 HB-022 边界 | Release 已发布；HB-022 保持 IN PROGRESS | annotated tag / 产品 / 记忆提交 `345c0d5443760a9dcc6717a96a6068b6101b16d1`；正式 workflow 完成132 tests、packaged UI/bridge、synthetic updater、public update check、Release/channel/cleanup | run31665517026/job94339115148 success约5m23s；v0.1.10为公开non-draft/non-prerelease唯一Latest；五项资产和public channel version/path/size/SHA-512一致性已记录，v0.1.9 Release/assets已删、v0.1.0～v0.1.10 tags保留 | 不运行报告用户同机真实WeGame选人/交接，发布成功不能关闭HB-022；无商业签名，Node20 deprecated annotation非阻断 | Release notes含修复边界、手动覆盖安装、未签名与真实WeGame待验；HB-022不得FIXED/VERIFIED
+- 2026-08-13 | HB-020 / HB-022 / 国服自定义 queue 3270 实机根因与本地草案 | IN PROGRESS（状态不升级） | 用户 v0.1.10 日志确认 Lobby/Matchmaking/ChampSelect/InProgress 全程 queue3270，ChampSelect有英雄但旧2400-only判定使matchStage none/gen0，InProgress endpoint skipped后英雄null；本地草案统一支持2400/3270，增加actions英雄fallback与event-only WAMP trailing poll | 新增3270 production LcuClient→Runtime真实时序回放；当前相关4 files/85 tests、typecheck/lint/diff通过 | 最终独审、全量、Windows、报告用户同机复测未完成；正式匹配是否也用3270未知；Processes页显示名不等于EXE image name且非本次主因 | 公开Latest仍v0.1.10；本地草案尚无新commit/push/tag/release，不得FIXED/VERIFIED
+- 2026-08-13 | HB-020 / HB-022 / v0.1.11 本地候选收敛 | IN PROGRESS（状态不升级） | actions仅认最新本地pick，pick=0屏蔽旧pick/intent、ban忽略、current/myTeam优先；3270回放覆盖actions英雄→selecting gen1→detail/overlay→active同gen，transport回放覆盖ECONNREFUSED detach→双candidate same-game重绑→InProgress及第二局gen2；event-only风暴仅补一次trailing poll | 最终只读复审无运行时代码P0/P1；clean npm ci/audit0/OCR、16 files/139 pass+1 Windows skip、lint/typecheck/source bridge/UI/diff全过；macOS cross pack/metadata/checksums exit0，候选EXE198535816/SHA前缀be176766…，ZIP274102235/e807bc… | Windows Actions、正式匹配queue、报告用户同机完整一局/终局/第二局未验；交叉构建与截短摘要非正式资产 | 本地v0.1.11尚未commit/push/tag/release；公开Latest仍v0.1.10，不得FIXED/VERIFIED

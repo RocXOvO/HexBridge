@@ -3,6 +3,7 @@ import https from 'node:https'
 import path from 'node:path'
 import WebSocket from 'ws'
 import type { ChampSelectSnapshot, GameflowPhase, LcuConnectionState } from '../../shared/contracts.js'
+import { isAramMayhemQueueId } from '../../shared/mayhem-queues.js'
 import { logger } from '../logger.js'
 import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
 import {
@@ -163,7 +164,7 @@ export function shouldSwitchLcuCredential(
     candidate &&
     (sameMatchAuthority || (
       probe?.phase === 'ChampSelect' &&
-      probe?.queueId === 2400 &&
+      isAramMayhemQueueId(probe?.queueId) &&
       probe.currentChampionId != null
     )) &&
     (candidate.port !== current.port || candidate.token !== current.token),
@@ -202,9 +203,9 @@ export async function selectReachableLcuCredentials(
     }
   }))
   const probePriority = (probe: LcuCredentialProbeResult): number => {
-    if (probe.phase === 'ChampSelect' && probe.queueId === 2400 && probe.currentChampionId != null) return 100
+    if (probe.phase === 'ChampSelect' && isAramMayhemQueueId(probe.queueId) && probe.currentChampionId != null) return 100
     if (probe.phase === 'ChampSelect' && probe.currentChampionId != null) return 80
-    if (probe.phase === 'ChampSelect' && probe.queueId === 2400) return 70
+    if (probe.phase === 'ChampSelect' && isAramMayhemQueueId(probe.queueId)) return 70
     if (probe.phase === 'ChampSelect') return 60
     if (probe.phase === 'GameStart' || probe.phase === 'InProgress' || probe.phase === 'Reconnect') return 50
     return 0
@@ -374,6 +375,7 @@ export class LcuClient extends EventEmitter {
   private socket: WebSocket | null = null
   private nextDiscoveryAt = 0
   private tickInFlight: Promise<void> | null = null
+  private eventTickPending = false
   private readonly matchContext = new MatchContextTracker()
   private candidatePool: LcuCredentials[] = []
   private nextAlternativeProbeAt = 0
@@ -419,14 +421,14 @@ export class LcuClient extends EventEmitter {
 
   start(): void {
     if (this.pollTimer) return
-    this.pollTimer = setInterval(() => void this.tick(), 1000)
-    void this.tick()
+    this.pollTimer = setInterval(() => void this.tick('timer'), 1000)
+    void this.tick('timer')
   }
 
   async rediscoverNow(): Promise<LcuConnectionState> {
     if (this.tickInFlight) await this.tickInFlight
     this.invalidate('正在重新检测英雄联盟客户端', true)
-    await this.tick()
+    await this.tick('manual')
     return this.getState()
   }
 
@@ -435,11 +437,12 @@ export class LcuClient extends EventEmitter {
     this.pollTimer = null
     this.socket?.close()
     this.socket = null
+    this.eventTickPending = false
   }
 
   /** Runs one production poll without starting timers; used by deterministic hand-off replay tests. */
   pollOnce(): Promise<void> {
-    return this.tick()
+    return this.tick('manual')
   }
 
   private invalidate(
@@ -628,10 +631,27 @@ export class LcuClient extends EventEmitter {
     }
   }
 
-  private tick(): Promise<void> {
-    if (this.tickInFlight) return this.tickInFlight
-    const operation = this.tickInternal().finally(() => {
+  private tick(trigger: 'timer' | 'event' | 'manual'): Promise<void> {
+    if (this.tickInFlight) {
+      if (trigger === 'event') this.eventTickPending = true
+      return this.tickInFlight
+    }
+    const operation = (async () => {
+      // Coalesce an event received during a poll into one immediate follow-up.
+      // Previously the WAMP notification returned the in-flight promise and
+      // the newly selected champion could wait for the next 1s timer tick.
+      this.eventTickPending = false
+      await this.tickInternal()
+      if (this.eventTickPending) {
+        this.eventTickPending = false
+        await this.tickInternal()
+      }
+    })().finally(() => {
       if (this.tickInFlight === operation) this.tickInFlight = null
+      if (this.eventTickPending) {
+        this.eventTickPending = false
+        setImmediate(() => void this.tick('event'))
+      }
     })
     this.tickInFlight = operation
     return operation
@@ -805,7 +825,7 @@ export class LcuClient extends EventEmitter {
           const message = JSON.parse(payload.toString()) as any[]
           const event = message[2]
           if (message[0] === 8 && event?.uri && String(event.uri).startsWith('/lol-')) {
-            void this.tick()
+            if (this.socket === socket) void this.tick('event')
           }
         } catch {
           // Ignore malformed push events; polling remains active.
