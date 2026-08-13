@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import https from 'node:https'
+import path from 'node:path'
 import WebSocket from 'ws'
 import type { ChampSelectSnapshot, GameflowPhase, LcuConnectionState } from '../../shared/contracts.js'
 import { logger } from '../logger.js'
@@ -38,6 +39,63 @@ const KNOWN_GAMEFLOW_PHASES = new Set<GameflowPhase>([
   'FailedToLaunch', 'TerminatedInError',
 ])
 
+const AUTHORITY_ALIAS_TTL_MS = 24 * 60 * 60 * 1_000
+
+type AuthorityAliasEntry = {
+  epoch: number
+  lastSeenAt: number
+}
+
+/**
+ * Binds credentials that belong to the same League client instance without
+ * trusting a reusable PID on its own. Tokens remain in Main-process memory and
+ * are never returned to Renderer or written to diagnostics.
+ */
+export class LcuAuthorityRegistry {
+  private readonly aliases = new Map<string, AuthorityAliasEntry>()
+  private nextEpoch = 0
+
+  authorityFor(credentials: LcuCredentials, now = Date.now()): number {
+    this.prune(now)
+    const aliases = this.aliasesFor(credentials)
+    const existingEpochs = [...new Set(
+      aliases.flatMap((alias) => {
+        const entry = this.aliases.get(alias)
+        return entry ? [entry.epoch] : []
+      }),
+    )]
+    const epoch = existingEpochs.length ? Math.min(...existingEpochs) : ++this.nextEpoch
+
+    if (existingEpochs.some((value) => value !== epoch)) {
+      const mergedEpochs = new Set(existingEpochs)
+      for (const [alias, entry] of this.aliases) {
+        if (mergedEpochs.has(entry.epoch)) this.aliases.set(alias, { epoch, lastSeenAt: now })
+      }
+    }
+    for (const alias of aliases) this.aliases.set(alias, { epoch, lastSeenAt: now })
+    return epoch
+  }
+
+  private aliasesFor(credentials: LcuCredentials): string[] {
+    const aliases = [`endpoint:${credentials.port}:${credentials.token}`]
+    const processId = Number(credentials.processId)
+    const startedAt = credentials.processStartedAt?.trim()
+    if (Number.isInteger(processId) && processId > 0 && startedAt) {
+      const executable = credentials.executablePath
+        ? path.resolve(credentials.executablePath).replaceAll('\\', '/').toLowerCase()
+        : ''
+      aliases.push(`process:${processId}:${startedAt.toLowerCase()}:${executable}`)
+    }
+    return aliases
+  }
+
+  private prune(now: number): void {
+    for (const [alias, entry] of this.aliases) {
+      if (now - entry.lastSeenAt > AUTHORITY_ALIAS_TTL_MS) this.aliases.delete(alias)
+    }
+  }
+}
+
 export function isChampSelectSessionPayload(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   const session = value as Record<string, unknown>
@@ -66,26 +124,48 @@ export interface LcuCredentialProbeResult {
   phase: GameflowPhase
   queueId: number | null
   currentChampionId: number | null
+  matchIdentity?: string | null
+  gameClientRunning?: boolean
 }
 
 type LcuCredentialProbeOutput = GameflowPhase | null | void | LcuCredentialProbeResult
 
+export interface LcuClientDependencies {
+  discover?: typeof discoverLcuCredentials
+  request?: (
+    endpoint: string,
+    credentials: LcuCredentials,
+    timeoutMs: number,
+  ) => Promise<unknown | null>
+  disableWebSocket?: boolean
+}
+
 const normalizeCredentialProbe = (output: LcuCredentialProbeOutput): LcuCredentialProbeResult => {
   if (typeof output === 'object' && output != null) return output
   const phase = typeof output === 'string' ? output : 'None'
-  return { rawPhase: phase, phase, queueId: null, currentChampionId: null }
+  return {
+    rawPhase: phase,
+    phase,
+    queueId: null,
+    currentChampionId: null,
+    matchIdentity: null,
+    gameClientRunning: false,
+  }
 }
 
 export function shouldSwitchLcuCredential(
   current: LcuCredentials,
   candidate: LcuCredentials | null,
   probe: LcuCredentialProbeResult | null,
+  sameMatchAuthority = false,
 ): candidate is LcuCredentials {
   return Boolean(
     candidate &&
-    probe?.phase === 'ChampSelect' &&
-    probe?.queueId === 2400 &&
-    probe.currentChampionId != null &&
+    (sameMatchAuthority || (
+      probe?.phase === 'ChampSelect' &&
+      probe?.queueId === 2400 &&
+      probe.currentChampionId != null
+    )) &&
     (candidate.port !== current.port || candidate.token !== current.token),
   )
 }
@@ -99,6 +179,10 @@ export function hasConfirmedTargetContext(snapshot: ChampSelectSnapshot): boolea
 export async function selectReachableLcuCredentials(
   candidates: LcuCredentials[],
   probe: (candidate: LcuCredentials) => Promise<LcuCredentialProbeOutput>,
+  retainedPriority: (
+    candidate: LcuCredentials,
+    probe: LcuCredentialProbeResult,
+  ) => number = () => 0,
 ): Promise<{
   credentials: LcuCredentials | null
   probe: LcuCredentialProbeResult | null
@@ -130,6 +214,7 @@ export async function selectReachableLcuCredentials(
   const reachable = attempts
     .filter((attempt): attempt is typeof attempt & { candidate: LcuCredentials } => attempt.candidate != null)
     .sort((left, right) =>
+      retainedPriority(right.candidate, right.probe) - retainedPriority(left.candidate, left.probe) ||
       probePriority(right.probe) - probePriority(left.probe) ||
       sourcePriority(right.candidate.source) - sourcePriority(left.candidate.source),
     )[0] ?? null
@@ -191,6 +276,16 @@ export function extractLcuMatchIdentity(
   return gameflowId ? `game:${gameflowId}` : null
 }
 
+export function extractChampSelectTimerPhase(champSelectSession: any): string | null {
+  const value = champSelectSession?.timer?.phase
+  return typeof value === 'string' && value.trim() ? value.trim().toUpperCase() : null
+}
+
+export function extractGameClientRunning(gameflowSession: any): boolean {
+  return gameflowSession?.gameClient?.running === true ||
+    String(gameflowSession?.gameClient?.clientState ?? '').toLowerCase() === 'running'
+}
+
 export function summarizeLcuAuxiliaryResults(
   phase: GameflowPhase,
   results: PromiseSettledResult<unknown>[],
@@ -216,6 +311,7 @@ export function applyLcuPollResults(
   phase: GameflowPhase,
   results: PromiseSettledResult<unknown>[],
   now = Date.now(),
+  authorityEpoch: number | null = 0,
 ): { snapshot: ChampSelectSnapshot; failure: unknown | null } {
   const resolved = resolveLcuAuxiliaryResults(results)
   const normalized = normalizeChampSelectSnapshot({
@@ -242,6 +338,9 @@ export function applyLcuPollResults(
       resolved.gameflowSession,
       resolved.champSelectSession,
     ),
+    authorityEpoch,
+    champSelectTimerPhase: extractChampSelectTimerPhase(resolved.champSelectSession),
+    gameClientRunning: extractGameClientRunning(resolved.gameflowSession),
   })
   return {
     snapshot: observed,
@@ -280,12 +379,18 @@ export class LcuClient extends EventEmitter {
   private nextAlternativeProbeAt = 0
   private nextCandidateRefreshAt = 0
   private candidateRefreshInFlight: Promise<void> | null = null
+  private readonly authorityRegistry = new LcuAuthorityRegistry()
+  private activeAuthorityEpoch: number | null = null
+  private transportEpoch = 0
   private lastRawPhase: GameflowPhase = 'None'
   private lastHeartbeatAt = 0
   private lastContextSignature = ''
   private lastObservation: LcuObservationSummary | null = null
 
-  constructor(private readonly getManualDirectory: () => string) {
+  constructor(
+    private readonly getManualDirectory: () => string,
+    private readonly dependencies: LcuClientDependencies = {},
+  ) {
     super()
   }
 
@@ -332,12 +437,18 @@ export class LcuClient extends EventEmitter {
     this.socket = null
   }
 
+  /** Runs one production poll without starting timers; used by deterministic hand-off replay tests. */
+  pollOnce(): Promise<void> {
+    return this.tick()
+  }
+
   private invalidate(
     reason: string,
     immediate = false,
     observation: LcuObservationSummary | null = null,
   ): void {
     this.credentials = null
+    this.activeAuthorityEpoch = null
     this.candidatePool = []
     this.nextCandidateRefreshAt = 0
     this.socket?.close()
@@ -352,7 +463,9 @@ export class LcuClient extends EventEmitter {
     if (this.credentials) return true
     if (Date.now() < this.nextDiscoveryAt) return false
     this.nextDiscoveryAt = Date.now() + 5000
-    const discovery = await discoverLcuCredentials(this.getManualDirectory())
+    const discovery = await (this.dependencies.discover ?? discoverLcuCredentials)(
+      this.getManualDirectory(),
+    )
     this.candidatePool = discovery.candidates
     this.nextCandidateRefreshAt = Date.now() + 10_000
     if (!discovery.candidates.length) {
@@ -362,10 +475,13 @@ export class LcuClient extends EventEmitter {
     const selection = await selectReachableLcuCredentials(
       discovery.candidates,
       (candidate) => this.probeCandidateContext(candidate, 1_000),
+      (candidate, probe) => this.retainedCandidatePriority(candidate, probe),
     )
     if (selection.credentials) {
       const credentials = selection.credentials
       this.credentials = credentials
+      this.activeAuthorityEpoch = this.authorityEpochFor(credentials)
+      this.transportEpoch += 1
       this.lastObservation = null
       this.state = {
         connected: true,
@@ -376,6 +492,7 @@ export class LcuClient extends EventEmitter {
       logger.info('LCU credentials verified', {
         source: credentials.source,
         candidateCount: this.candidatePool.length,
+        transportEpoch: this.transportEpoch,
       })
       this.connectSocket(credentials)
       this.publishUpdate('transport-connected')
@@ -406,6 +523,9 @@ export class LcuClient extends EventEmitter {
   ): Promise<T | null> {
     if (!READ_ONLY_ENDPOINTS.has(endpoint)) {
       return Promise.reject(new Error(`Blocked non-whitelisted LCU endpoint: ${endpoint}`))
+    }
+    if (this.dependencies.request) {
+      return this.dependencies.request(endpoint, credentials, timeoutMs) as Promise<T | null>
     }
     const authorization = Buffer.from(`riot:${credentials.token}`).toString('base64')
 
@@ -503,6 +623,8 @@ export class LcuClient extends EventEmitter {
       phase,
       queueId: normalized.queueId,
       currentChampionId: normalized.currentChampionId,
+      matchIdentity: extractLcuMatchIdentity(gameflowSession, champSelectSession),
+      gameClientRunning: extractGameClientRunning(gameflowSession),
     }
   }
 
@@ -549,7 +671,14 @@ export class LcuClient extends EventEmitter {
       )
       this.lastObservation = summarizeLcuAuxiliaryResults(phase, auxiliary, probeChampSelect)
       const reductionResults = prepareLcuReductionResults(rawPhase, phase, auxiliary)
-      const reduced = applyLcuPollResults(this.matchContext, this.snapshot, phase, reductionResults)
+      const reduced = applyLcuPollResults(
+        this.matchContext,
+        this.snapshot,
+        phase,
+        reductionResults,
+        Date.now(),
+        this.activeAuthorityEpoch,
+      )
       this.snapshot = reduced.snapshot
       if (reduced.failure) {
         const message = reduced.failure instanceof Error
@@ -579,7 +708,8 @@ export class LcuClient extends EventEmitter {
   ): Promise<GameflowPhase> {
     this.refreshCandidatePoolInBackground()
     if (
-      hasConfirmedTargetContext(this.snapshot) ||
+      (hasConfirmedTargetContext(this.snapshot) &&
+        this.matchContext.isAuthorityTrusted(this.activeAuthorityEpoch)) ||
       !this.credentials ||
       this.candidatePool.length < 2 ||
       Date.now() < this.nextAlternativeProbeAt
@@ -587,18 +717,33 @@ export class LcuClient extends EventEmitter {
       return currentPhase
     }
     this.nextAlternativeProbeAt = Date.now() + 2_000
+    const binding = this.matchContext.getBinding()
     const selection = await selectReachableLcuCredentials(
       this.candidatePool,
       (candidate) => this.probeCandidateContext(candidate, 800),
+      (candidate, probe) => this.retainedCandidatePriority(candidate, probe),
     )
     const next = selection.credentials
-    if (!shouldSwitchLcuCredential(this.credentials, next, selection.probe)) {
+    const nextAuthorityEpoch = next ? this.authorityEpochFor(next) : null
+    const sameMatchAuthority = this.matchContext.isAuthorityTrusted(nextAuthorityEpoch) || Boolean(
+      binding?.matchIdentity &&
+      selection.probe?.matchIdentity &&
+      selection.probe.matchIdentity === binding.matchIdentity,
+    )
+    if (!shouldSwitchLcuCredential(
+      this.credentials,
+      next,
+      selection.probe,
+      sameMatchAuthority,
+    )) {
       return currentPhase
     }
     const selectedProbe = selection.probe as LcuCredentialProbeResult
 
     const previousSource = this.credentials.source
     this.credentials = next
+    this.activeAuthorityEpoch = nextAuthorityEpoch
+    this.transportEpoch += 1
     this.socket?.close()
     this.socket = null
     this.state = { ...this.state, connected: true, source: next.source, lastError: null }
@@ -607,6 +752,8 @@ export class LcuClient extends EventEmitter {
       toSource: next.source,
       phase: selectedProbe.phase,
       candidateCount: this.candidatePool.length,
+      transportEpoch: this.transportEpoch,
+      retainedAuthority: sameMatchAuthority,
     })
     this.connectSocket(next)
     return selectedProbe.rawPhase
@@ -614,7 +761,8 @@ export class LcuClient extends EventEmitter {
 
   private refreshCandidatePoolInBackground(): void {
     if (
-      hasConfirmedTargetContext(this.snapshot) ||
+      (hasConfirmedTargetContext(this.snapshot) &&
+        this.matchContext.isAuthorityTrusted(this.activeAuthorityEpoch)) ||
       !this.credentials ||
       Date.now() < this.nextCandidateRefreshAt ||
       this.candidateRefreshInFlight
@@ -623,7 +771,9 @@ export class LcuClient extends EventEmitter {
     }
     this.nextCandidateRefreshAt = Date.now() + 10_000
     const activeCredentials = this.credentials
-    const operation = discoverLcuCredentials(this.getManualDirectory())
+    const operation = (this.dependencies.discover ?? discoverLcuCredentials)(
+      this.getManualDirectory(),
+    )
       .then((discovery) => {
         if (this.credentials === activeCredentials && discovery.candidates.length) {
           this.candidatePool = discovery.candidates
@@ -641,6 +791,7 @@ export class LcuClient extends EventEmitter {
   }
 
   private connectSocket(credentials: LcuCredentials): void {
+    if (this.dependencies.disableWebSocket) return
     const authorization = Buffer.from(`riot:${credentials.token}`).toString('base64')
     try {
       const socket = new WebSocket(`wss://127.0.0.1:${credentials.port}/`, 'wamp', {
@@ -680,6 +831,7 @@ export class LcuClient extends EventEmitter {
       this.snapshot.currentChampionId ?? 0,
       contextDecision,
       this.lastRawPhase,
+      this.transportEpoch,
     ].join(':')
     if (signature !== this.lastContextSignature) {
       this.lastContextSignature = signature
@@ -694,6 +846,8 @@ export class LcuClient extends EventEmitter {
         championId: this.snapshot.currentChampionId,
         contextDecision,
         endpointStatus: this.lastObservation,
+        transportEpoch: this.transportEpoch,
+        retainedAuthority: this.matchContext.isAuthorityTrusted(this.activeAuthorityEpoch),
       })
     }
     this.emit('update', this.getSnapshot(), this.getState())
@@ -713,8 +867,29 @@ export class LcuClient extends EventEmitter {
       championId: this.snapshot.currentChampionId,
       endpointStatus: this.lastObservation,
       candidateCount: this.candidatePool.length,
+      transportEpoch: this.transportEpoch,
+      retainedAuthority: this.matchContext.isAuthorityTrusted(this.activeAuthorityEpoch),
     })
     this.emit('diagnostic')
+  }
+
+  private authorityEpochFor(credentials: LcuCredentials): number {
+    return this.authorityRegistry.authorityFor(credentials)
+  }
+
+  private retainedCandidatePriority(
+    candidate: LcuCredentials,
+    probe: LcuCredentialProbeResult,
+  ): number {
+    const binding = this.matchContext.getBinding()
+    const authorityEpoch = this.authorityEpochFor(candidate)
+    if (this.matchContext.isAuthorityTrusted(authorityEpoch)) return 1_000
+    if (
+      binding?.matchIdentity &&
+      probe.matchIdentity &&
+      probe.matchIdentity === binding.matchIdentity
+    ) return 900
+    return 0
   }
 }
 

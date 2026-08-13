@@ -19,6 +19,10 @@ export interface LcuCredentials {
   token: string
   source: 'process' | 'lockfile' | 'log' | 'manual'
   executablePath: string
+  /** Internal client-instance hint. Never expose this value to Renderer or logs. */
+  processId?: number | null
+  /** Internal process creation hint used with PID to avoid PID-reuse collisions. */
+  processStartedAt?: string | null
 }
 
 interface ProcessRecord {
@@ -26,6 +30,7 @@ interface ProcessRecord {
   ProcessId?: number | null
   CommandLine?: string | null
   ExecutablePath?: string | null
+  ProcessStartedAt?: string | null
 }
 
 export interface LcuDiscoveryResult {
@@ -58,11 +63,16 @@ function commandLineArgument(commandLine: string, name: string): string | null {
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? null
 }
 
-function parseCommandLine(commandLine: string, executablePath = ''): LcuCredentials | null {
+function parseCommandLine(
+  commandLine: string,
+  executablePath = '',
+  processId: number | null = null,
+  processStartedAt: string | null = null,
+): LcuCredentials | null {
   const port = validPort(commandLineArgument(commandLine, 'app-port') ?? undefined)
   const token = commandLineArgument(commandLine, 'remoting-auth-token')?.trim()
   if (!port || !token) return null
-  return { port, token, source: 'process', executablePath }
+  return { port, token, source: 'process', executablePath, processId, processStartedAt }
 }
 
 function parseLockfile(
@@ -75,7 +85,13 @@ function parseLockfile(
   const port = validPort(parts[2])
   const token = parts[3]?.trim()
   if (!port || !token) return null
-  return { port, token, source, executablePath }
+  const processId = positiveProcessId(parts[1])
+  return { port, token, source, executablePath, processId, processStartedAt: null }
+}
+
+function positiveProcessId(value: unknown): number | null {
+  const processId = Number(value)
+  return Number.isInteger(processId) && processId > 0 ? processId : null
 }
 
 function parseLog(content: string, executablePath = ''): LcuCredentials | null {
@@ -85,7 +101,14 @@ function parseLog(content: string, executablePath = ''): LcuCredentials | null {
     const latestUrl = urls.at(-1)
     const urlPort = validPort(latestUrl?.[2])
     if (latestUrl?.[1] && urlPort) {
-      return { port: urlPort, token: latestUrl[1], source: 'log', executablePath }
+      return {
+        port: urlPort,
+        token: latestUrl[1],
+        source: 'log',
+        executablePath,
+        processId: null,
+        processStartedAt: null,
+      }
     }
     const command = parseCommandLine(line, executablePath)
     if (command) return { ...command, source: 'log' }
@@ -129,13 +152,13 @@ export async function queryLeagueClientProcessesWithRunner(
     ...encodingScript,
     "$ErrorActionPreference='Stop'",
     "$p = Get-CimInstance Win32_Process -Filter \"Name='LeagueClientUx.exe' OR Name='LeagueClient.exe'\"",
-    '$p | Select-Object Name,ProcessId,CommandLine,ExecutablePath | ConvertTo-Json -Compress',
+    "$p | Select-Object Name,ProcessId,CommandLine,ExecutablePath,@{Name='ProcessStartedAt';Expression={if ($_.CreationDate) { ([DateTime]$_.CreationDate).ToUniversalTime().ToString('o') } else { $null }}} | ConvertTo-Json -Compress",
   ].join('; ')
   const processScript = [
     `${encodingScript.join('; ')};`,
     "$ErrorActionPreference='SilentlyContinue';",
     '@(Get-Process -Name LeagueClientUx,LeagueClient -ErrorAction SilentlyContinue)',
-    "| Select-Object @{Name='Name';Expression={$_.ProcessName + '.exe'}},@{Name='ProcessId';Expression={$_.Id}},@{Name='ExecutablePath';Expression={$_.Path}},@{Name='CommandLine';Expression={$null}}",
+    "| Select-Object @{Name='Name';Expression={$_.ProcessName + '.exe'}},@{Name='ProcessId';Expression={$_.Id}},@{Name='ExecutablePath';Expression={$_.Path}},@{Name='CommandLine';Expression={$null}},@{Name='ProcessStartedAt';Expression={if ($_.StartTime) { $_.StartTime.ToUniversalTime().ToString('o') } else { $null }}}",
     '| ConvertTo-Json -Compress',
     '; exit 0',
   ].join(' ')
@@ -179,6 +202,7 @@ export async function queryLeagueClientProcessesWithRunner(
       ProcessId: record.ProcessId ?? previous?.ProcessId,
       CommandLine: record.CommandLine || previous?.CommandLine,
       ExecutablePath: record.ExecutablePath || previous?.ExecutablePath,
+      ProcessStartedAt: record.ProcessStartedAt || previous?.ProcessStartedAt,
     })
   }
   return { records: [...merged.values()], summary: statuses.join('；'), strategies }
@@ -391,6 +415,8 @@ export async function discoverLcuCredentials(manualDirectory: string): Promise<L
         const fromCommand = parseCommandLine(
           processInfo.CommandLine ?? '',
           processInfo.ExecutablePath ?? '',
+          positiveProcessId(processInfo.ProcessId),
+          processInfo.ProcessStartedAt ?? null,
         )
         if (fromCommand) all.push(fromCommand)
         if (processInfo.ExecutablePath) {
