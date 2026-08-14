@@ -18,14 +18,65 @@ export function isPuuid(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{20,120}$/.test(value)
 }
 
-const visibleIdentity = (player: any): OpponentIdentity | null => {
+type IdentityVisibilityPolicy = 'champ-select' | 'active-game'
+
+export type OpponentIdentityDecisionReason =
+  | 'ready'
+  | 'current-summoner-unavailable'
+  | 'self-team-ambiguous'
+  | 'opponent-team-incomplete'
+  | 'opponent-identity-invalid'
+  | 'opponent-visibility-rejected'
+
+export interface OpponentIdentityDecision {
+  identities: OpponentIdentity[]
+  reason: OpponentIdentityDecisionReason
+  source: IdentityVisibilityPolicy
+  selfMatches: number
+  opponentCount: number
+  validIdentityCount: number
+  visibilityCounts: Record<'visible' | 'empty' | 'missing' | 'hidden' | 'other', number>
+}
+
+const visibilityBucket = (
+  value: unknown,
+): keyof OpponentIdentityDecision['visibilityCounts'] => {
+  if (value === undefined || value === null) return 'missing'
+  if (typeof value !== 'string') return 'other'
+  const normalized = value.trim().toUpperCase()
+  if (normalized === 'VISIBLE') return 'visible'
+  if (normalized === 'HIDDEN') return 'hidden'
+  if (!normalized) return 'empty'
+  return 'other'
+}
+
+const visibleIdentity = (
+  player: any,
+  policy: IdentityVisibilityPolicy,
+): OpponentIdentity | null => {
   if (!isPuuid(player?.puuid)) return null
-  const visibility = String(player?.nameVisibilityType ?? '').trim().toUpperCase()
-  if (visibility && visibility !== 'VISIBLE') return null
-  // A PUUID being present in an internal payload is not evidence that Riot
-  // intended the identity to be visible. Only the explicit LCU visibility
-  // marker is accepted; public-looking names alone are not enough.
-  if (visibility !== 'VISIBLE') return null
+  const rawVisibility = player?.nameVisibilityType
+  const markerAbsent = rawVisibility === undefined || rawVisibility === null
+  const visibility = typeof rawVisibility === 'string'
+    ? rawVisibility.trim().toUpperCase()
+    : markerAbsent
+      ? null
+      : 'INVALID'
+  if (policy === 'champ-select') {
+    // Tencent/Riot champ-select payloads use both VISIBLE and an explicit
+    // empty string for identities the client is allowed to show. A missing
+    // marker is still rejected before the game starts.
+    if (visibility !== 'VISIBLE' && visibility !== '') return null
+  } else if (visibility !== null && visibility !== 'VISIBLE') {
+    // Active gameflow commonly omits the field. If it is present, however,
+    // only explicit VISIBLE is accepted; blank/unknown/hidden markers fail
+    // closed instead of being silently treated as public.
+    return null
+  }
+  // Once the match is active, gameflow often omits nameVisibilityType
+  // entirely. At that point the scoreboard already exposes participants, so
+  // accept a complete team only when the marker is absent or explicitly
+  // VISIBLE.
   return {
     puuid: player.puuid,
     championId: positiveInteger(
@@ -34,22 +85,72 @@ const visibleIdentity = (player: any): OpponentIdentity | null => {
   }
 }
 
-const uniqueIdentities = (players: any[]): OpponentIdentity[] => {
+const inspectTeam = (
+  players: any[],
+  policy: IdentityVisibilityPolicy,
+): Pick<OpponentIdentityDecision, 'identities' | 'reason' | 'opponentCount' | 'validIdentityCount' | 'visibilityCounts'> => {
+  const visibilityCounts = { visible: 0, empty: 0, missing: 0, hidden: 0, other: 0 }
+  for (const player of players) visibilityCounts[visibilityBucket(player?.nameVisibilityType)] += 1
+  const visibilityRejected = players.some((player) => {
+    const visibility = visibilityBucket(player?.nameVisibilityType)
+    return policy === 'champ-select'
+      ? visibility === 'missing' || visibility === 'hidden' || visibility === 'other'
+      : visibility === 'empty' || visibility === 'hidden' || visibility === 'other'
+  })
+  if (visibilityRejected) {
+    return {
+      identities: [], reason: 'opponent-visibility-rejected', opponentCount: players.length,
+      validIdentityCount: 0, visibilityCounts,
+    }
+  }
+  if (players.length !== 5) {
+    return {
+      identities: [], reason: 'opponent-team-incomplete', opponentCount: players.length,
+      validIdentityCount: 0, visibilityCounts,
+    }
+  }
   const seen = new Set<string>()
   const result: OpponentIdentity[] = []
   for (const player of players) {
-    const identity = visibleIdentity(player)
-    if (!identity || seen.has(identity.puuid)) continue
+    if (!isPuuid(player?.puuid)) {
+      const rawPuuid = player?.puuid
+      const identityStillLoading = rawPuuid === undefined || rawPuuid === null || rawPuuid === ''
+      return {
+        identities: [],
+        reason: identityStillLoading ? 'opponent-team-incomplete' : 'opponent-identity-invalid',
+        opponentCount: players.length,
+        validIdentityCount: result.length,
+        visibilityCounts,
+      }
+    }
+    const identity = visibleIdentity(player, policy)
+    if (!identity) {
+      const visibility = visibilityBucket(player?.nameVisibilityType)
+      return {
+        identities: [],
+        reason: visibility === 'hidden' || visibility === 'empty' || visibility === 'other' || (
+          policy === 'champ-select' && visibility === 'missing'
+        )
+          ? 'opponent-visibility-rejected'
+          : 'opponent-identity-invalid',
+        opponentCount: players.length,
+        validIdentityCount: result.length,
+        visibilityCounts,
+      }
+    }
+    if (seen.has(identity.puuid)) {
+      return {
+        identities: [], reason: 'opponent-identity-invalid', opponentCount: players.length,
+        validIdentityCount: result.length, visibilityCounts,
+      }
+    }
     seen.add(identity.puuid)
     result.push(identity)
   }
-  return result
-}
-
-const completeVisibleTeam = (players: any[]): OpponentIdentity[] => {
-  if (players.length !== 5) return []
-  const identities = uniqueIdentities(players)
-  return identities.length === 5 ? identities : []
+  return {
+    identities: result, reason: 'ready', opponentCount: players.length,
+    validIdentityCount: result.length, visibilityCounts,
+  }
 }
 
 /**
@@ -57,33 +158,61 @@ const completeVisibleTeam = (players: any[]): OpponentIdentity[] => {
  * explicit teams. Hidden/obfuscated identities and spectator-like payloads
  * fail closed. PUUIDs stay inside Main and are never part of RuntimeState.
  */
+export function inspectVisibleOpponentIdentities(input: {
+  currentSummoner: unknown
+  gameflowSession: unknown
+  champSelectSession: unknown
+  matchStage: MatchContextStage
+}): OpponentIdentityDecision {
+  const currentPuuid = (input.currentSummoner as any)?.puuid
+  const source: IdentityVisibilityPolicy = input.matchStage === 'active' ? 'active-game' : 'champ-select'
+  const emptyDecision = (
+    reason: OpponentIdentityDecisionReason,
+    selfMatches = 0,
+  ): OpponentIdentityDecision => ({
+    identities: [], reason, source, selfMatches, opponentCount: 0, validIdentityCount: 0,
+    visibilityCounts: { visible: 0, empty: 0, missing: 0, hidden: 0, other: 0 },
+  })
+  if (!isPuuid(currentPuuid)) return emptyDecision('current-summoner-unavailable')
+
+  if (input.matchStage === 'active') {
+    const gameData = (input.gameflowSession as any)?.gameData
+    const teamOne = Array.isArray(gameData?.teamOne) ? gameData.teamOne : []
+    const teamTwo = Array.isArray(gameData?.teamTwo) ? gameData.teamTwo : []
+    const teamOneSelfCount = teamOne.filter((player: any) => player?.puuid === currentPuuid).length
+    const teamTwoSelfCount = teamTwo.filter((player: any) => player?.puuid === currentPuuid).length
+    const selfMatches = teamOneSelfCount + teamTwoSelfCount
+    if (selfMatches === 0 && (teamOne.length < 5 || teamTwo.length < 5)) {
+      return emptyDecision('opponent-team-incomplete')
+    }
+    if (selfMatches !== 1) return emptyDecision('self-team-ambiguous', selfMatches)
+    const team = inspectTeam(teamOneSelfCount === 1 ? teamTwo : teamOne, 'active-game')
+    return { ...team, source, selfMatches }
+  }
+
+  const session = input.champSelectSession as any
+  const myTeam = Array.isArray(session?.myTeam) ? session.myTeam : []
+  const theirTeam = Array.isArray(session?.theirTeam) ? session.theirTeam : []
+  const myTeamSelfCount = myTeam.filter((player: any) => player?.puuid === currentPuuid).length
+  const theirTeamSelfCount = theirTeam.filter((player: any) => player?.puuid === currentPuuid).length
+  const selfMatches = myTeamSelfCount + theirTeamSelfCount
+  if (myTeam.length === 0 || theirTeam.length < 5) {
+    return emptyDecision('opponent-team-incomplete', selfMatches)
+  }
+  if (myTeamSelfCount !== 1 || theirTeamSelfCount !== 0) {
+    return emptyDecision('self-team-ambiguous', selfMatches)
+  }
+  const team = inspectTeam(theirTeam, 'champ-select')
+  return { ...team, source, selfMatches }
+}
+
 export function extractVisibleOpponentIdentities(input: {
   currentSummoner: unknown
   gameflowSession: unknown
   champSelectSession: unknown
   matchStage: MatchContextStage
 }): OpponentIdentity[] {
-  const currentPuuid = (input.currentSummoner as any)?.puuid
-  if (!isPuuid(currentPuuid)) return []
-
-  const gameData = (input.gameflowSession as any)?.gameData
-  const teamOne = Array.isArray(gameData?.teamOne) ? gameData.teamOne : []
-  const teamTwo = Array.isArray(gameData?.teamTwo) ? gameData.teamTwo : []
-  const inTeamOne = teamOne.some((player: any) => player?.puuid === currentPuuid)
-  const inTeamTwo = teamTwo.some((player: any) => player?.puuid === currentPuuid)
-  const gameflowOpponents = inTeamOne !== inTeamTwo
-    ? completeVisibleTeam(inTeamOne ? teamTwo : teamOne)
-    : []
-  if (input.matchStage === 'active') return gameflowOpponents
-
-  const session = input.champSelectSession as any
-  const myTeam = Array.isArray(session?.myTeam) ? session.myTeam : []
-  const theirTeam = Array.isArray(session?.theirTeam) ? session.theirTeam : []
-  if (myTeam.some((player: any) => player?.puuid === currentPuuid)) {
-    const champSelectOpponents = completeVisibleTeam(theirTeam)
-    if (champSelectOpponents.length) return champSelectOpponents
-  }
-  return []
+  return inspectVisibleOpponentIdentities(input).identities
 }
 
 type MatchSample = {
@@ -104,16 +233,30 @@ const participantForPlayer = (game: any, targetPuuid?: string): any | null => {
   const identities = Array.isArray(game?.participantIdentities)
     ? game.participantIdentities
     : []
-  if (!identities.length) return participants.length === 1 ? participants[0] : null
-  if (!targetPuuid || !participants.length) return null
-  const identity = identities.find((entry: any) => {
+  if (!participants.length) return null
+  const explicitPuuidValues = identities.flatMap((entry: any) => {
+    const value = entry?.player?.puuid ?? entry?.puuid
+    return value === undefined || value === null ? [] : [value]
+  })
+  if (explicitPuuidValues.some((value: unknown) => !isPuuid(value))) return null
+  const identitiesWithPuuid = identities.filter((entry: any) =>
+    isPuuid(entry?.player?.puuid ?? entry?.puuid),
+  )
+  if (!identitiesWithPuuid.length) return participants.length === 1 ? participants[0] : null
+  const targetIdentities = identitiesWithPuuid.filter((entry: any) => {
     const puuid = entry?.player?.puuid ?? entry?.puuid
     return puuid === targetPuuid
   })
+  if (targetIdentities.length !== 1) return null
+  const identity = targetIdentities[0]
   const participantId = positiveInteger(identity?.participantId)
   if (!participantId) return null
-  return participants.find((participant: any) =>
-    positiveInteger(participant?.participantId) === participantId) ?? null
+  const identityMappings = identitiesWithPuuid.filter((entry: any) =>
+    positiveInteger(entry?.participantId) === participantId)
+  if (identityMappings.length !== 1) return null
+  const matchingParticipants = participants.filter((participant: any) =>
+    positiveInteger(participant?.participantId) === participantId)
+  return matchingParticipants.length === 1 ? matchingParticipants[0] : null
 }
 
 export function extractRecentMatchSamples(payload: unknown, targetPuuid?: string): MatchSample[] {

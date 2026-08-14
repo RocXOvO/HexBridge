@@ -69,6 +69,7 @@ const unavailableState: RuntimeState = {
   currentBuild: null,
   opponentScout: {
     status: 'disabled',
+    reason: 'disabled',
     matchGeneration: null,
     opponents: [],
     sampledAt: null,

@@ -12,7 +12,7 @@ import type {
 import { isAramMayhemQueueId } from '../../shared/mayhem-queues.js'
 import { logger } from '../logger.js'
 import {
-  extractVisibleOpponentIdentities,
+  inspectVisibleOpponentIdentities,
   summarizeOpponentHistory,
 } from '../opponent-scout.js'
 import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
@@ -58,6 +58,58 @@ export function isLcuReadOnlyEndpoint(endpoint: string): boolean {
 const abortError = (): Error => Object.assign(new Error('Operation aborted'), { name: 'AbortError' })
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && error.name === 'AbortError'
+
+type OpponentRequestFailureClass =
+  | 'timeout'
+  | 'rate-limited'
+  | 'server'
+  | 'not-found'
+  | 'response-too-large'
+  | 'network'
+  | 'other'
+
+const classifyOpponentRequestFailure = (error: unknown): OpponentRequestFailureClass => {
+  const message = error instanceof Error ? error.message : ''
+  if (/timeout/i.test(message)) return 'timeout'
+  if (/HTTP 429/i.test(message)) return 'rate-limited'
+  if (/HTTP 5\d\d/i.test(message)) return 'server'
+  if (/HTTP 404/i.test(message)) return 'not-found'
+  if (/safe size limit/i.test(message)) return 'response-too-large'
+  if (/ECONN|socket|network/i.test(message)) return 'network'
+  return 'other'
+}
+
+const transientOpponentRequestFailure = (error: unknown): boolean =>
+  ['timeout', 'rate-limited', 'server', 'network'].includes(classifyOpponentRequestFailure(error))
+
+const opponentPayloadFailure = (value: unknown): Error | null => {
+  if (!value || typeof value !== 'object') return null
+  const payload = value as Record<string, unknown>
+  const status = payload.httpStatus
+  if (
+    payload.errorCode &&
+    typeof status === 'number' &&
+    Number.isInteger(status) &&
+    status >= 400
+  ) {
+    return new Error(`LCU HTTP ${status}`)
+  }
+  return null
+}
+
+const waitForOpponentRetry = (signal: AbortSignal, delayMs = 250): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(abortError())
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, delayMs)
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      reject(abortError())
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 
 const KNOWN_GAMEFLOW_PHASES = new Set<GameflowPhase>([
   'None', 'Lobby', 'Matchmaking', 'ReadyCheck', 'ChampSelect', 'GameStart',
@@ -477,8 +529,12 @@ export class LcuClient extends EventEmitter {
   ): Promise<OpponentScoutState> {
     const sampledAt = Date.now()
     const credentials = this.credentials
-    const unavailable = (message: string): OpponentScoutState => ({
+    const unavailable = (
+      message: string,
+      reason: OpponentScoutState['reason'],
+    ): OpponentScoutState => ({
       status: 'unavailable',
+      reason,
       matchGeneration: expectedGeneration,
       opponents: [],
       sampledAt,
@@ -486,47 +542,117 @@ export class LcuClient extends EventEmitter {
       message,
     })
     if (!credentials || !this.state.connected) {
-      return unavailable('当前 LCU 已交接或不可用，无法读取对手近期战绩')
+      return unavailable('当前 LCU 已交接或不可用，无法读取对手近期战绩', 'identity-source-unavailable')
     }
     if (
       this.snapshot.matchGeneration !== expectedGeneration ||
       this.snapshot.matchStage === 'none' ||
       !this.snapshot.modeActive
     ) {
-      return unavailable('当前没有可查询的海克斯大乱斗对局')
+      return unavailable('当前没有可查询的海克斯大乱斗对局', 'waiting-context')
     }
 
     if (signal?.aborted) throw abortError()
-    const [currentSummonerResult, gameflowResult, champSelectResult] = await Promise.allSettled([
+    const activeStage = this.snapshot.matchStage === 'active'
+    const identityEndpoint = activeStage
+      ? '/lol-gameflow/v1/session'
+      : '/lol-champ-select/v1/session'
+    const [currentSummonerResult, identitySourceResult] = await Promise.allSettled([
       this.requestWithCredentials<unknown>(
         '/lol-summoner/v1/current-summoner',
         credentials,
         2_000,
         signal,
       ),
-      this.requestWithCredentials<unknown>('/lol-gameflow/v1/session', credentials, 2_000, signal),
-      this.requestWithCredentials<unknown>('/lol-champ-select/v1/session', credentials, 2_000, signal),
+      this.requestWithCredentials<unknown>(identityEndpoint, credentials, 2_000, signal),
     ])
+    if (signal?.aborted) throw abortError()
+    const currentSummonerFailure = currentSummonerResult.status === 'rejected'
+      ? currentSummonerResult.reason
+      : currentSummonerResult.value == null
+        ? new Error('LCU endpoint unavailable')
+        : opponentPayloadFailure(currentSummonerResult.value)
+    if (currentSummonerFailure) {
+      logger.debug('Opponent identity source unavailable', {
+        matchStage: this.snapshot.matchStage,
+        reason: 'current-summoner-request-failed',
+        failureClass: classifyOpponentRequestFailure(currentSummonerFailure),
+      })
+      return unavailable('当前账号身份暂不可用；稍后将自动重试', 'identity-source-unavailable')
+    }
+    const identitySourceFailure = identitySourceResult.status === 'rejected'
+      ? identitySourceResult.reason
+      : identitySourceResult.value == null
+        ? new Error('LCU endpoint unavailable')
+        : opponentPayloadFailure(identitySourceResult.value)
+    if (identitySourceFailure) {
+      logger.debug('Opponent identity source unavailable', {
+        matchStage: this.snapshot.matchStage,
+        reason: activeStage ? 'gameflow-request-failed' : 'champ-select-request-failed',
+        failureClass: classifyOpponentRequestFailure(identitySourceFailure),
+      })
+      return unavailable(
+        activeStage
+          ? '游戏内队伍信息暂不可用；稍后将自动重试'
+          : '选人阶段尚未公开完整对手身份；进入游戏后自动读取',
+        'identity-source-unavailable',
+      )
+    }
     const currentSummoner = currentSummonerResult.status === 'fulfilled'
       ? currentSummonerResult.value
       : null
-    if (signal?.aborted) throw abortError()
-    const gameflowSession = gameflowResult.status === 'fulfilled' ? gameflowResult.value : null
-    const champSelectSession = champSelectResult.status === 'fulfilled' ? champSelectResult.value : null
-    const identities = extractVisibleOpponentIdentities({
+    const identitySource = identitySourceResult.status === 'fulfilled'
+      ? identitySourceResult.value
+      : null
+    const gameflowSession = activeStage ? identitySource : null
+    const champSelectSession = activeStage ? null : identitySource
+    const identityDecision = inspectVisibleOpponentIdentities({
       currentSummoner,
       gameflowSession,
       champSelectSession,
       matchStage: this.snapshot.matchStage,
     })
+    const identities = identityDecision.identities
     if (!identities.length) {
-      return unavailable('当前阶段没有公开、可验证的对手身份；不会反查或猜测')
+      const retryable = identityDecision.reason === 'current-summoner-unavailable' ||
+        identityDecision.reason === 'opponent-team-incomplete'
+      const reason: OpponentScoutState['reason'] = retryable
+        ? identityDecision.reason === 'opponent-team-incomplete'
+          ? 'identity-team-incomplete'
+          : 'identity-source-unavailable'
+        : identityDecision.reason === 'opponent-visibility-rejected'
+          ? 'identity-visibility-rejected'
+          : 'identity-ambiguous'
+      logger.debug('Opponent identity gate unavailable', {
+        matchStage: this.snapshot.matchStage,
+        identitySource: identityDecision.source,
+        reason: identityDecision.reason,
+        selfMatches: identityDecision.selfMatches,
+        opponentCount: identityDecision.opponentCount,
+        validIdentityCount: identityDecision.validIdentityCount,
+        visibilityCounts: identityDecision.visibilityCounts,
+      })
+      const message = retryable
+        ? this.snapshot.matchStage === 'active'
+          ? '游戏内尚未取得完整的 5 人对手身份；稍后将自动重试'
+          : this.snapshot.matchStage === 'launching'
+            ? '正在等待游戏客户端公开完整对手身份；进入游戏后自动读取'
+            : '选人阶段尚未公开完整对手身份；进入游戏后自动读取'
+        : identityDecision.reason === 'opponent-visibility-rejected'
+          ? '对手身份未明确公开，本局不会查询近期战绩'
+          : '无法唯一确认本方与对方阵营，本局不会猜测或查询'
+      return unavailable(message, reason)
     }
     if (identities.length !== 5) {
-      return unavailable(`仅确认 ${identities.length}/5 位公开身份；为避免补猜或混用隐藏身份，本轮不查询`)
+      return unavailable(
+        `仅确认 ${identities.length}/5 位公开身份；为避免补猜或混用隐藏身份，本轮不查询`,
+        'identity-team-incomplete',
+      )
     }
 
     const opponents: OpponentFormSummary[] = new Array(identities.length)
+    const historyFailures = new Map<OpponentRequestFailureClass, number>()
+    let emptyHistoryCount = 0
     let cursor = 0
     const worker = async (): Promise<void> => {
       while (cursor < identities.length) {
@@ -536,12 +662,28 @@ export class LcuClient extends EventEmitter {
         const identity = identities[index]
         if (!identity) continue
         try {
-          const history = await this.requestWithCredentials<unknown>(
-            `/lol-match-history/v1/products/lol/${identity.puuid}/matches?begIndex=0&endIndex=9`,
-            credentials,
-            3_000,
-            signal,
-          )
+          const endpoint = `/lol-match-history/v1/products/lol/${identity.puuid}/matches?begIndex=0&endIndex=9`
+          const fetchHistory = async (timeoutMs: number): Promise<unknown | null> => {
+            const value = await this.requestWithCredentials<unknown>(
+              endpoint,
+              credentials,
+              timeoutMs,
+              signal,
+            )
+            const payloadFailure = opponentPayloadFailure(value)
+            if (payloadFailure) throw payloadFailure
+            return value
+          }
+          let history: unknown | null
+          try {
+            history = await fetchHistory(3_500)
+          } catch (error) {
+            if (isAbortError(error)) throw error
+            if (!transientOpponentRequestFailure(error)) throw error
+            await waitForOpponentRetry(signal)
+            history = await fetchHistory(5_000)
+          }
+          if (history == null) emptyHistoryCount += 1
           opponents[index] = summarizeOpponentHistory(
             history,
             index + 1,
@@ -550,6 +692,8 @@ export class LcuClient extends EventEmitter {
           )
         } catch (error) {
           if (isAbortError(error)) throw error
+          const failureClass = classifyOpponentRequestFailure(error)
+          historyFailures.set(failureClass, (historyFailures.get(failureClass) ?? 0) + 1)
           opponents[index] = summarizeOpponentHistory(null, index + 1, identity.championId)
         }
       }
@@ -562,7 +706,7 @@ export class LcuClient extends EventEmitter {
       currentSnapshot.matchGeneration !== expectedGeneration ||
       currentSnapshot.matchStage === 'none'
     ) {
-      return unavailable('对局已切换，上一局的查询结果已丢弃')
+      return unavailable('对局已切换，上一局的查询结果已丢弃', 'waiting-context')
     }
     const availableCount = opponents.filter((entry) => entry?.status === 'ready').length
     const status = identities.length === 5 && availableCount === identities.length
@@ -574,10 +718,13 @@ export class LcuClient extends EventEmitter {
       matchGeneration: expectedGeneration,
       opponentCount: opponents.length,
       availableCount,
+      emptyHistoryCount,
+      historyFailures: Object.fromEntries(historyFailures),
       durationMs: Date.now() - sampledAt,
     })
     return {
       status,
+      reason: status === 'ready' ? 'ready' : status === 'partial' ? 'partial' : 'history-unavailable',
       matchGeneration: expectedGeneration,
       opponents,
       sampledAt: Date.now(),
@@ -585,8 +732,8 @@ export class LcuClient extends EventEmitter {
       message: status === 'ready'
         ? '已本地汇总 5 位对手的近期可用对局'
         : status === 'partial'
-          ? `仅取得 ${identities.length}/5 位公开身份，或部分近期战绩不可用`
-          : '当前客户端未返回可用的对手战绩',
+          ? '已确认 5 位对手，部分近期战绩暂不可用'
+          : '已确认 5 位对手，但国服历史接口暂未返回可用样本，可手动重试',
     }
   }
 

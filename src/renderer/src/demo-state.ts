@@ -119,6 +119,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     opponentScout: {
       status: 'ready',
+      reason: 'ready',
       matchGeneration: 1,
       sampledAt: Date.now(),
       source: 'local-lcu',

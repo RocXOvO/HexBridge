@@ -70,6 +70,7 @@ const EMPTY_OVERLAY: AugmentOverlayState = {
 
 const DISABLED_OPPONENT_SCOUT: OpponentScoutState = {
   status: 'disabled',
+  reason: 'disabled',
   matchGeneration: null,
   opponents: [],
   sampledAt: null,
@@ -90,6 +91,7 @@ const AUTO_OCR_CHANGE_CONFIRM_MS = 280
 const AUTO_OCR_UNRELIABLE_RETRY_LIMIT = 4
 const MANUAL_OVERLAY_PROBE_MS = 1_000
 const MANUAL_OVERLAY_MONITOR_MAX_MS = 45_000
+const OPPONENT_SCOUT_ACTIVE_RETRY_MS = [3_000, 5_000, 10_000, 15_000, 15_000] as const
 
 export class HexBridgeRuntime {
   private readonly config = new ConfigStore(app.getVersion())
@@ -105,6 +107,8 @@ export class HexBridgeRuntime {
   private opponentScoutSequence = 0
   private opponentScoutAttemptKey: string | null = null
   private opponentScoutAbort: AbortController | null = null
+  private opponentScoutRetryTimer: NodeJS.Timeout | null = null
+  private opponentScoutRetryAttempt = 0
   private detail: ChampionAugmentData | null = null
   private scanTimer: NodeJS.Timeout | null = null
   private automaticScanPhase: 'waiting' | 'recognizing' | 'latched' = 'waiting'
@@ -549,6 +553,7 @@ export class HexBridgeRuntime {
         ? {
             ...DISABLED_OPPONENT_SCOUT,
             status: 'idle',
+            reason: 'waiting-context',
             message: '等待可查询的对手身份',
           }
         : { ...DISABLED_OPPONENT_SCOUT }
@@ -570,6 +575,7 @@ export class HexBridgeRuntime {
       this.opponentScout = {
         ...DISABLED_OPPONENT_SCOUT,
         status: 'idle',
+        reason: 'waiting-context',
         message: '等待可查询的对手身份',
       }
       return
@@ -582,13 +588,16 @@ export class HexBridgeRuntime {
       (this.opponentScout.status === 'ready' || this.opponentScout.status === 'partial')
     ) return
     if (!force && this.opponentScoutAttemptKey === attemptKey) return
-    this.cancelOpponentScoutRequest()
+    this.opponentScoutAbort?.abort()
+    this.opponentScoutAbort = null
+    this.clearOpponentScoutRetry(force)
     this.opponentScoutAttemptKey = attemptKey
     const sequence = ++this.opponentScoutSequence
     const controller = new AbortController()
     this.opponentScoutAbort = controller
     this.opponentScout = {
       status: 'loading',
+      reason: 'loading',
       matchGeneration: generation,
       opponents: [],
       sampledAt: null,
@@ -603,24 +612,50 @@ export class HexBridgeRuntime {
         !this.config.getSettings().opponentScouting
       ) return
       this.opponentScout = result
+      const retryableIdentityMiss =
+        result.reason === 'identity-source-unavailable' ||
+        result.reason === 'identity-team-incomplete'
+      if (
+        result.status === 'unavailable' &&
+        result.source === null &&
+        this.snapshot.matchStage === 'active' &&
+        retryableIdentityMiss
+      ) {
+        const scheduled = this.scheduleOpponentScoutRetry(generation)
+        this.opponentScout = {
+          ...result,
+          message: scheduled
+            ? result.message
+            : '游戏内仍未取得完整的 5 人对手身份，可点击“重新读取”再试',
+        }
+      } else {
+        this.clearOpponentScoutRetry()
+      }
       this.sync()
     }).catch((error) => {
       if (sequence !== this.opponentScoutSequence) return
       if (error instanceof Error && error.name === 'AbortError') {
         this.opponentScoutAttemptKey = null
+        const scheduled = this.snapshot.matchStage === 'active' &&
+          this.snapshot.matchGeneration === generation &&
+          this.scheduleOpponentScoutRetry(generation)
         this.opponentScout = {
           status: 'idle',
+          reason: 'transport-switched',
           matchGeneration: generation,
           opponents: [],
           sampledAt: null,
           source: null,
-          message: 'LCU 连接已切换，等待重新查询',
+          message: scheduled
+            ? 'LCU 连接已切换，稍后自动重新查询'
+            : 'LCU 连接已切换，可手动重新查询',
         }
         this.sync()
         return
       }
       this.opponentScout = {
         status: 'error',
+        reason: 'unexpected-error',
         matchGeneration: generation,
         opponents: [],
         sampledAt: Date.now(),
@@ -640,6 +675,32 @@ export class HexBridgeRuntime {
   private cancelOpponentScoutRequest(): void {
     this.opponentScoutAbort?.abort()
     this.opponentScoutAbort = null
+    this.clearOpponentScoutRetry()
+  }
+
+  private clearOpponentScoutRetry(resetAttempts = true): void {
+    if (this.opponentScoutRetryTimer) clearTimeout(this.opponentScoutRetryTimer)
+    this.opponentScoutRetryTimer = null
+    if (resetAttempts) this.opponentScoutRetryAttempt = 0
+  }
+
+  private scheduleOpponentScoutRetry(generation: number): boolean {
+    this.clearOpponentScoutRetry(false)
+    const delay = OPPONENT_SCOUT_ACTIVE_RETRY_MS[this.opponentScoutRetryAttempt]
+    if (delay == null || this.stopping) return false
+    this.opponentScoutRetryAttempt += 1
+    this.opponentScoutRetryTimer = setTimeout(() => {
+      this.opponentScoutRetryTimer = null
+      if (
+        this.stopping ||
+        !this.config.getSettings().opponentScouting ||
+        this.snapshot.matchGeneration !== generation ||
+        this.snapshot.matchStage !== 'active'
+      ) return
+      this.opponentScoutAttemptKey = null
+      void this.updateOpponentScout()
+    }, delay)
+    return true
   }
 
   private async refreshCurrentDetail(championId: number, sequence: number): Promise<void> {

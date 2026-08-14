@@ -209,10 +209,18 @@ export function leagueWindowObserverRetryDelay(failures: number): number {
 }
 
 function nativeHandle(window: BrowserWindow): string | null {
-  const buffer = window.getNativeWindowHandle()
-  if (buffer.length >= 8) return buffer.readBigUInt64LE().toString()
-  if (buffer.length >= 4) return String(buffer.readUInt32LE())
-  return null
+  try {
+    if (typeof window.getNativeWindowHandle !== 'function') return null
+    const buffer = window.getNativeWindowHandle()
+    if (!Buffer.isBuffer(buffer)) return null
+    if (buffer.length >= 8) return buffer.readBigUInt64LE().toString()
+    if (buffer.length >= 4) return String(buffer.readUInt32LE())
+    return null
+  } catch {
+    // A window can be destroyed between the caller's liveness check and the
+    // native handle read. Missing/invalid handles simply disable observation.
+    return null
+  }
 }
 
 function powershellExecutable(): { executable: string; environment: NodeJS.ProcessEnv } {

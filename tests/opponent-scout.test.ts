@@ -3,6 +3,7 @@ import {
   classifyOpponentForm,
   extractRecentMatchSamples,
   extractVisibleOpponentIdentities,
+  inspectVisibleOpponentIdentities,
   summarizeOpponentHistory,
 } from '../src/main/opponent-scout.js'
 import { isLcuReadOnlyEndpoint, LcuClient } from '../src/main/lcu/client.js'
@@ -48,6 +49,154 @@ describe('local opponent form experiment', () => {
       { puuid: ENEMY_FOUR, championId: 22 },
       { puuid: ENEMY_FIVE, championId: 99 },
     ])
+  })
+
+  it('accepts a complete active-game team when gameflow omits visibility markers', () => {
+    expect(extractVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: {
+        gameData: {
+          teamOne: [{ puuid: SELF, championId: 103 }],
+          teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+            .map((puuid, index) => ({ puuid, championId: 20 + index })),
+        },
+      },
+      champSelectSession: null,
+      matchStage: 'active',
+    })).toHaveLength(5)
+  })
+
+  it('accepts an explicit blank champ-select visibility marker but never a missing or hidden one', () => {
+    const opponents = [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+    const extract = (theirTeam: Array<Record<string, unknown>>) => extractVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: null,
+      champSelectSession: { myTeam: [{ puuid: SELF }], theirTeam },
+      matchStage: 'selecting',
+    })
+    expect(extract(opponents.map((puuid) => ({ puuid, nameVisibilityType: '' })))).toHaveLength(5)
+    expect(extract(opponents.map((puuid) => ({ puuid })))).toEqual([])
+    expect(extract(opponents.map((puuid, index) => ({
+      puuid,
+      nameVisibilityType: index === 2 ? 'HIDDEN' : 'VISIBLE',
+    })))).toEqual([])
+  })
+
+  it.each(['HIDDEN', '', 'UNKNOWN'])(
+    'rejects an active team when an opponent has the explicit %j visibility marker',
+    (nameVisibilityType) => {
+      const opponents = [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+        .map((puuid, index) => ({
+          puuid,
+          championId: 20 + index,
+          ...(index === 3 ? { nameVisibilityType } : {}),
+        }))
+      expect(extractVisibleOpponentIdentities({
+        currentSummoner: { puuid: SELF },
+        gameflowSession: { gameData: { teamOne: [{ puuid: SELF }], teamTwo: opponents } },
+        champSelectSession: null,
+        matchStage: 'active',
+      })).toEqual([])
+    },
+  )
+
+  it('fails closed for duplicate self placement and non-string visibility markers', () => {
+    const activeTeam = [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+      .map((puuid, index) => ({
+        puuid,
+        ...(index === 1 ? { nameVisibilityType: 42 } : {}),
+      }))
+    expect(inspectVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: {
+        gameData: {
+          teamOne: [{ puuid: SELF }, { puuid: SELF }],
+          teamTwo: activeTeam,
+        },
+      },
+      champSelectSession: null,
+      matchStage: 'active',
+    })).toMatchObject({ identities: [], reason: 'self-team-ambiguous', selfMatches: 2 })
+
+    expect(inspectVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: {
+        gameData: { teamOne: [{ puuid: SELF }], teamTwo: activeTeam },
+      },
+      champSelectSession: null,
+      matchStage: 'active',
+    })).toMatchObject({ identities: [], reason: 'opponent-visibility-rejected' })
+
+    expect(inspectVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: null,
+      champSelectSession: {
+        myTeam: [{ puuid: SELF }],
+        theirTeam: [{ puuid: SELF }, ...activeTeam.map((player) => ({
+          ...player,
+          nameVisibilityType: 'VISIBLE',
+        }))],
+      },
+      matchStage: 'selecting',
+    })).toMatchObject({ identities: [], reason: 'self-team-ambiguous', selfMatches: 2 })
+  })
+
+  it('treats an active five-player roster with a missing PUUID as incomplete and retryable', () => {
+    const opponents: Array<Record<string, unknown>> = [
+      { puuid: ENEMY_ONE },
+      { puuid: ENEMY_TWO },
+      { puuid: ENEMY_THREE },
+      { puuid: ENEMY_FOUR },
+      { puuid: ENEMY_FIVE },
+    ]
+    delete opponents[2]?.puuid
+    expect(inspectVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: {
+        gameData: { teamOne: [{ puuid: SELF }], teamTwo: opponents },
+      },
+      champSelectSession: null,
+      matchStage: 'active',
+    })).toMatchObject({ identities: [], reason: 'opponent-team-incomplete' })
+  })
+
+  it('treats present but empty or partial stage rosters as incomplete rather than ambiguous', () => {
+    expect(inspectVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: { gameData: { teamOne: [], teamTwo: [] } },
+      champSelectSession: null,
+      matchStage: 'active',
+    })).toMatchObject({ identities: [], reason: 'opponent-team-incomplete' })
+
+    expect(inspectVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: null,
+      champSelectSession: {
+        myTeam: [{ puuid: SELF }],
+        theirTeam: [{ puuid: ENEMY_ONE, nameVisibilityType: 'VISIBLE' }],
+      },
+      matchStage: 'selecting',
+    })).toMatchObject({ identities: [], reason: 'opponent-team-incomplete' })
+  })
+
+  it('prioritizes an explicit hidden marker over an incomplete active roster', () => {
+    const inspect = (teamTwo: Array<Record<string, unknown>>) => inspectVisibleOpponentIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: { gameData: { teamOne: [{ puuid: SELF }], teamTwo } },
+      champSelectSession: null,
+      matchStage: 'active',
+    })
+    expect(inspect([
+      { puuid: null, nameVisibilityType: 'HIDDEN' },
+      { puuid: ENEMY_TWO },
+      { puuid: ENEMY_THREE },
+      { puuid: ENEMY_FOUR },
+      { puuid: ENEMY_FIVE },
+    ])).toMatchObject({ identities: [], reason: 'opponent-visibility-rejected' })
+    expect(inspect([
+      { puuid: ENEMY_ONE },
+      { puuid: null, nameVisibilityType: 'HIDDEN' },
+    ])).toMatchObject({ identities: [], reason: 'opponent-visibility-rejected' })
   })
 
   it('uses visible champ-select identities but rejects hidden, malformed and spectator-like payloads', () => {
@@ -210,12 +359,91 @@ describe('local opponent form experiment', () => {
     expect(extractRecentMatchSamples(payload, ENEMY_TWO)).toEqual([])
   })
 
+  it('accepts a target-scoped legacy history item only when it has one participant and no PUUID identities', () => {
+    const scoped = {
+      games: { games: [{
+        gameDuration: 900,
+        participantIdentities: [{ participantId: 1, player: { summonerName: 'redacted' } }],
+        participants: [{
+          participantId: 1,
+          stats: { win: true, kills: 7, deaths: 2, assists: 11 },
+        }],
+      }] },
+    }
+    expect(extractRecentMatchSamples(scoped, ENEMY_ONE)).toEqual([
+      { win: true, kills: 7, deaths: 2, assists: 11 },
+    ])
+
+    const ambiguous = structuredClone(scoped)
+    ambiguous.games.games[0]?.participants.push({
+      participantId: 2,
+      stats: { win: false, kills: 1, deaths: 8, assists: 2 },
+    })
+    expect(extractRecentMatchSamples(ambiguous, ENEMY_ONE)).toEqual([])
+  })
+
   it('rejects a single participant when an explicit identity maps to someone else', () => {
     const payload = {
       games: { games: [{
         gameDuration: 900,
         participantIdentities: [{ participantId: 1, player: { puuid: SELF } }],
         participants: [{ participantId: 1, stats: { win: true, kills: 9, deaths: 1, assists: 7 } }],
+      }] },
+    }
+    expect(extractRecentMatchSamples(payload, ENEMY_ONE)).toEqual([])
+  })
+
+  it('rejects duplicate target identity and participant mappings instead of picking the first one', () => {
+    const baseStats = { win: true, kills: 9, deaths: 1, assists: 7 }
+    const duplicateIdentity = {
+      games: { games: [{
+        gameDuration: 900,
+        participantIdentities: [
+          { participantId: 1, player: { puuid: ENEMY_ONE } },
+          { participantId: 2, player: { puuid: ENEMY_ONE } },
+        ],
+        participants: [
+          { participantId: 1, stats: baseStats },
+          { participantId: 2, stats: baseStats },
+        ],
+      }] },
+    }
+    expect(extractRecentMatchSamples(duplicateIdentity, ENEMY_ONE)).toEqual([])
+
+    const duplicateParticipant = {
+      games: { games: [{
+        gameDuration: 900,
+        participantIdentities: [{ participantId: 1, player: { puuid: ENEMY_ONE } }],
+        participants: [
+          { participantId: 1, stats: baseStats },
+          { participantId: 1, stats: baseStats },
+        ],
+      }] },
+    }
+    expect(extractRecentMatchSamples(duplicateParticipant, ENEMY_ONE)).toEqual([])
+
+    const sharedParticipantMapping = {
+      games: { games: [{
+        gameDuration: 900,
+        participantIdentities: [
+          { participantId: 1, player: { puuid: ENEMY_ONE } },
+          { participantId: 1, player: { puuid: ENEMY_TWO } },
+        ],
+        participants: [{ participantId: 1, stats: baseStats }],
+      }] },
+    }
+    expect(extractRecentMatchSamples(sharedParticipantMapping, ENEMY_ONE)).toEqual([])
+  })
+
+  it('rejects the scoped single-participant fallback when an explicit PUUID field is malformed', () => {
+    const payload = {
+      games: { games: [{
+        gameDuration: 900,
+        participantIdentities: [{ participantId: 1, player: { puuid: 'not-a-valid-puuid' } }],
+        participants: [{
+          participantId: 1,
+          stats: { win: true, kills: 9, deaths: 1, assists: 7 },
+        }],
       }] },
     }
     expect(extractRecentMatchSamples(payload, ENEMY_ONE)).toEqual([])
@@ -258,11 +486,11 @@ describe('local opponent form experiment', () => {
             gameData: {
               teamOne: [{ puuid: SELF, championId: 103 }],
               teamTwo: [
-                { puuid: ENEMY_ONE, championId: 63, nameVisibilityType: 'VISIBLE' },
-                { puuid: ENEMY_TWO, championId: 89, nameVisibilityType: 'VISIBLE' },
-                { puuid: ENEMY_THREE, championId: 81, nameVisibilityType: 'VISIBLE' },
-                { puuid: ENEMY_FOUR, championId: 22, nameVisibilityType: 'VISIBLE' },
-                { puuid: ENEMY_FIVE, championId: 99, nameVisibilityType: 'VISIBLE' },
+                { puuid: ENEMY_ONE, championId: 63 },
+                { puuid: ENEMY_TWO, championId: 89 },
+                { puuid: ENEMY_THREE, championId: 81 },
+                { puuid: ENEMY_FOUR, championId: 22 },
+                { puuid: ENEMY_FIVE, championId: 99 },
               ],
             },
           }
@@ -271,7 +499,7 @@ describe('local opponent form experiment', () => {
         if (endpoint.includes(ENEMY_ONE)) {
           return { games: { games: Array.from({ length: 8 }, () => game(true, 5, 2, 8)) } }
         }
-        if (endpoint.includes(ENEMY_TWO)) throw new Error('LCU HTTP 404')
+        if (endpoint.includes(ENEMY_TWO)) return { errorCode: 'NOT_FOUND', httpStatus: 404 }
         return null
       }),
     }) as any
@@ -294,6 +522,66 @@ describe('local opponent form experiment', () => {
     expect(JSON.stringify(result)).not.toContain(ENEMY_ONE)
     expect(JSON.stringify(result)).not.toContain('secret-not-rendered')
     expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(5)
+    expect(requests).toContain('/lol-gameflow/v1/session')
+    expect(requests).not.toContain('/lol-champ-select/v1/session')
+    expect(requests.filter((endpoint) => endpoint.includes(ENEMY_TWO))).toHaveLength(1)
+  })
+
+  it('retries a transient history request once but does not expose the requested identity', async () => {
+    vi.useFakeTimers()
+    try {
+      const attempts = new Map<string, number>()
+      const client = new LcuClient(() => '', {
+        disableWebSocket: true,
+        request: vi.fn(async (endpoint: string) => {
+          if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+          if (endpoint === '/lol-gameflow/v1/session') {
+            return {
+              gameData: {
+                teamOne: [{ puuid: SELF }],
+                teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+                  .map((puuid) => ({ puuid })),
+              },
+            }
+          }
+          if (endpoint.includes('/matches?')) {
+            const count = (attempts.get(endpoint) ?? 0) + 1
+            attempts.set(endpoint, count)
+            if (endpoint.includes(ENEMY_ONE) && count === 1) {
+              return { errorCode: 'RPC_ERROR', httpStatus: 500 }
+            }
+            return { games: { games: [game(true, 4, 2, 7)] } }
+          }
+          return null
+        }),
+      }) as any
+      client.credentials = { port: 2999, token: 'secret', source: 'process' }
+      client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+      client.snapshot = {
+        phase: 'InProgress', locale: 'zh_CN', queueId: 3270, modeActive: true,
+        matchStage: 'active', matchGeneration: 8, currentChampionId: 103,
+        benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+      }
+
+      const operation = client.scoutOpponents(8)
+      await vi.advanceTimersByTimeAsync(250)
+      const result = await operation
+
+      const retriedEndpoint = [...attempts.keys()].find((endpoint) => endpoint.includes(ENEMY_ONE))
+      expect(retriedEndpoint).toBeTruthy()
+      expect(attempts.get(retriedEndpoint as string)).toBe(2)
+      expect([...attempts.entries()].filter(([endpoint]) => !endpoint.includes(ENEMY_ONE)))
+        .toEqual(expect.arrayContaining([
+          [expect.stringContaining(ENEMY_TWO), 1],
+          [expect.stringContaining(ENEMY_THREE), 1],
+          [expect.stringContaining(ENEMY_FOUR), 1],
+          [expect.stringContaining(ENEMY_FIVE), 1],
+        ]))
+      expect(result).toMatchObject({ status: 'ready', reason: 'ready', source: 'local-lcu' })
+      expect(JSON.stringify(result)).not.toContain(ENEMY_ONE)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not query any history unless all five opponent identities are explicitly visible', async () => {
@@ -303,15 +591,16 @@ describe('local opponent form experiment', () => {
       request: vi.fn(async (endpoint: string) => {
         requests.push(endpoint)
         if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
-        if (endpoint === '/lol-gameflow/v1/session') {
+        if (endpoint === '/lol-champ-select/v1/session') {
           return {
-            gameData: {
-              teamOne: [{ puuid: SELF }],
-              teamTwo: [
+            myTeam: [{ puuid: SELF }],
+            theirTeam: [
                 { puuid: ENEMY_ONE, nameVisibilityType: 'VISIBLE' },
                 { puuid: ENEMY_TWO, nameVisibilityType: 'HIDDEN' },
-              ],
-            },
+                { puuid: ENEMY_THREE, nameVisibilityType: 'VISIBLE' },
+                { puuid: ENEMY_FOUR, nameVisibilityType: 'VISIBLE' },
+                { puuid: ENEMY_FIVE, nameVisibilityType: 'VISIBLE' },
+            ],
           }
         }
         return null
@@ -325,7 +614,37 @@ describe('local opponent form experiment', () => {
       benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
     }
     const result = await client.scoutOpponents(4)
-    expect(result).toMatchObject({ status: 'unavailable', opponents: [] })
+    expect(result).toMatchObject({
+      status: 'unavailable', reason: 'identity-visibility-rejected', opponents: [],
+    })
+    expect(requests.some((endpoint) => endpoint.includes('/matches?'))).toBe(false)
+    expect(requests).toContain('/lol-champ-select/v1/session')
+    expect(requests).not.toContain('/lol-gameflow/v1/session')
+  })
+
+  it('classifies a fulfilled-null active identity payload as a retryable source miss', async () => {
+    const requests: string[] = []
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        requests.push(endpoint)
+        if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+        if (endpoint === '/lol-gameflow/v1/session') return null
+        return null
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    client.snapshot = {
+      phase: 'InProgress', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'active', matchGeneration: 10, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+
+    const result = await client.scoutOpponents(10)
+    expect(result).toMatchObject({
+      status: 'unavailable', reason: 'identity-source-unavailable', opponents: [],
+    })
     expect(requests.some((endpoint) => endpoint.includes('/matches?'))).toBe(false)
   })
 

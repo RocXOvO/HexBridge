@@ -202,8 +202,23 @@ export interface OpponentFormSummary {
   streak: number
 }
 
+export type OpponentScoutReason =
+  | 'disabled'
+  | 'waiting-context'
+  | 'loading'
+  | 'identity-source-unavailable'
+  | 'identity-team-incomplete'
+  | 'identity-visibility-rejected'
+  | 'identity-ambiguous'
+  | 'history-unavailable'
+  | 'ready'
+  | 'partial'
+  | 'transport-switched'
+  | 'unexpected-error'
+
 export interface OpponentScoutState {
   status: 'disabled' | 'idle' | 'loading' | 'ready' | 'partial' | 'unavailable' | 'error'
+  reason: OpponentScoutReason
   matchGeneration: number | null
   opponents: OpponentFormSummary[]
   sampledAt: number | null

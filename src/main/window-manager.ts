@@ -293,6 +293,7 @@ export class WindowManager {
                 ...state,
                 opponentScout: {
                   status: 'disabled',
+                  reason: 'disabled',
                   matchGeneration: null,
                   opponents: [],
                   sampledAt: null,
