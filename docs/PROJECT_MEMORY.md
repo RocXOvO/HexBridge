@@ -2,7 +2,7 @@
 
 > 最后更新：2026-08-15
 > 当前正式版：[v0.1.25](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.25)，public / Latest / non-draft / non-prerelease；产品 commit `3aeb522745bb16949e886aeecca66fcf213aea3c`，Release ID `370680494`。HB-060 已正式发布但真实 installed Windows 启动自动检查仍未由用户验证，保持 `FIXED / UNVERIFIED`。
-> 当前未发布候选：本地 `v0.1.26` 包含 HB-061～063 与 HB-050 / 052 / 055 的 96px 生命周期增量；尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.25。最终审查 P0 / P1 = 0；最终策略修正定向 4 files / 17 tests 通过，随后完整重跑 39 files / 397 passed + 1 skipped、typecheck、lint、rolling retention、public v2 0.1.25 与 diff-check 全过；此前 audit 0、OCR synthetic、真实 4K 192ms、icon、source bridge / UI 证据继续有效。Windows 和真实 WeGame 均未跑，远端 15 个 Releases 仍未 prune。
+> 当前未发布候选：`v0.1.26` commit / HEAD / origin main `7646270aa74b7de2ffb72100520beb567eaa9d33` 已通过 Windows workflow_dispatch run `31821155726` / job `94834419314`（`2026-08-14T16:49:58Z`～`16:55:29Z`，5m31s）。Windows 39 files / 398 passed（无 skip）、audit 0、OCR synthetic、真实 4K 270ms、lint、typecheck、retention、pack / metadata、packaged UI / bridge、differential、checksums全过。尚无 tag / Release / prune，公开 Latest 仍为 v0.1.25、远端仍 15 个 Releases；真实 WeGame 未验，本地 release 仍为空。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -126,7 +126,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 - stable channel 为 `update-channel/v2/latest.yml`。旧 root channel 不能继续冻结 0.1.14：v0.1.26 候选发布时必须镜像 v2，否则删除 v0.1.14 Release / assets 会产生死 URL。
 - `pack:win --publish never` 只构建；tag 与 package 版本必须一致。正式 workflow 在全部检查后才发布 EXE、blockmap、ZIP、latest.yml、SHA256SUMS。
 - 旧“v0.1.11 起所有 Releases 永久保留”已被用户新决策取代：GitHub 滚动只保留最新 5 个严格 semver、non-draft / non-prerelease 正式 Release 及资产；清理只能在新 Release、v2 + root channel 与 public packaged 全验证后执行，并须在首次 delete 前拿齐并验证本轮全部目标 Release ID。所有 Git tags 与源码永久保留；超出五版差分窗口可安全回退 full installer。远端当前仍有 15 个 Release，自动 prune 尚未执行，禁止预写删除成功。
-- 本地 `clean:release` 每次打包前清空仓库根下精确 `release/`，只保留当前构建；仍拒绝 symlink / 越界且不触碰 Downloads / installed / GitHub。已清掉 7 个旧 v0.1.24 本地条目，可由重打包或 Release 下载恢复。
+- 本地 `clean:release` 每次打包前清空仓库根下精确 `release/`，只保留当前构建；仍拒绝 symlink / 越界且不触碰 Downloads / installed / GitHub。已清掉 7 个旧 v0.1.24 本地条目，可由重打包或 Release 下载恢复；当前本地 release 为空。
 - 跨版本升级说明旧实现只取 `currentVersion`。v0.1.26 候选让客户端和 GitHub Release publisher 共用逐版本清单 `0.1.1～0.1.26`，都按 `previous < entry <= current` 累计；previous stable 不相邻时，`0.1.23→0.1.26` 必须包含 0.1.24 / 0.1.25 / 0.1.26。publisher 同源生成“相较上一正式版”，长清单滚动显示。
 - Windows hosted Actions / synthetic updater 不等于真实 installed N→N+1；真实差分仍需 Range / 206、网络字节、fallback、安装、重启和 UAC / SmartScreen 证据。
 
@@ -142,7 +142,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 9. 当前优先级
 
-1. v0.1.26 候选：本地完整链已过，仍须 commit / push、Windows 与发布前审计；HB-061～063 与 96px 增量保持 `IN PROGRESS / UNVERIFIED`，远端不得 prune。
+1. v0.1.26 候选：commit 已 push 且 Windows 候选全链通过；仍须 tag / Release / channel / public packaged 后才可 prune，HB-061～063 与 96px 增量保持 `IN PROGRESS / UNVERIFIED`。
 2. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
 3. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
 4. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
