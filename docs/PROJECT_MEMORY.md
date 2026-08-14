@@ -4,7 +4,7 @@
 > 当前正式版：[v0.1.27](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.27)，唯一 public Latest / non-draft / non-prerelease；Release ID `370730395`，publishedAt `2026-08-14T17:42:24Z`。annotated tag object `af7ad65267425c3c5b38bc560ee36ca5bd19de41` 解引用产品 commit `e845709735a644f39815a5ec505acf19e33d0e43`。
 > 正式边界：attempt 2 已通过 39 files / 399 passed + 1 skipped、双通道、public packaged 与五版滚动清理。HB-061 fresh PUT 权威 poll 已真实通过并升为 `VERIFIED`；HB-056 仍为 `IN PROGRESS / UNVERIFIED`，真实亮暗原画、长中文、DPI 与性能待用户同机。
 > 当前未发布 main：HB-064 commit `5aac5e3d8463c401d1ce5a5ee4573f89dab31148` 已 push main，并通过最终审查 / 本地门禁；尚无 Windows / 下一次真实 first-attempt publish，状态为 `FIXED / UNVERIFIED`。公开 Latest 仍为 v0.1.27，不预写未来版本或发布结果。
-> 当前 v0.1.28 候选：commit `2334be441227f99d65e7ef18353436e7eaedbd7d` 已 push main；workflow_dispatch run `31829405268` / job `94861207078` 在 Windows npm test 出现唯一失败，因此 lint / typecheck / build / pack / assets / Release 均未运行。原因是旧 RuntimeState 缺 `lobbyBackground` 时，win32 资格 `&&` 链返回 `undefined`，而 macOS 因平台短路为 `false`。本地 dirty fix 用外层 `Boolean` 令 `shouldDiscoverLobbyBackground` 严格 fail closed 并补缺 setting 回归；修后 41 files / 437 passed + 1 skipped、typecheck、lint、diff-check 通过，快速审查 P0 / P1 = 0 并批准 commit + Windows retry，仍待 commit / push / retry。HB-059 保持 `IN PROGRESS / UNVERIFIED`，公开 Latest 仍为 v0.1.27。
+> 当前 v0.1.28 候选：首跑 run `31829405268` / job `94861207078` 因旧 RuntimeState 缺 `lobbyBackground` 时 win32 资格链返回 `undefined` 而在 npm test 失败，后续构建 / 发布未运行；该事实保留。fail-closed 修复后的 HEAD / candidate `ddec807e630f0c9d7a07913ad6b6a83473047201` 已 push，第二次 run `31829675620` / job `94862106446` 于 `2026-08-14T18:39:36Z`～`18:45:02Z` success（约 5m26s）。Windows 41 files / 438 passed（无 skip）、真实 4K 271ms、完整候选门禁通过；尚无 tag / Release，公开 Latest 仍为 v0.1.27。HB-059 保持 `IN PROGRESS / UNVERIFIED`。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -142,7 +142,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 9. 当前优先级
 
-1. HB-059 / v0.1.28：Windows 首跑在 npm test 失败；本地 fail-closed 修复审查通过，仍待 commit / push 和 Windows retry，随后仍须真实 WeGame Chromium / DPI / 性能验收。
+1. HB-059 / v0.1.28：fail-closed 修复已 push 且第二次 Windows 候选全链成功；仍须正式 tag / Release 与真实 WeGame Chromium / DPI / 性能验收。
 2. HB-064：实现已 commit / push main，仍须 Windows 和下一次真实 first-attempt publish 验证；保持 `FIXED / UNVERIFIED`。
 3. HB-056：v0.1.27 已发布，仍须真实亮暗原画、长中文、100% / 125% / 150% DPI、CPU / GPU / 帧时间验收。
 4. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
