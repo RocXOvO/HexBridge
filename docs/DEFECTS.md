@@ -67,14 +67,15 @@
 | HB-053 | 对局中途启动恢复英雄 | IN PROGRESS / UNVERIFIED |
 | HB-054 | 队友 + 对手总览 / 头像详情 | IN PROGRESS / UNVERIFIED；政策 ACCEPTED RISK |
 | HB-055 | 真实对局 96px 提示缺失 | IN PROGRESS / UNVERIFIED |
-| HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 Windows 候选已过） |
+| HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 已发布） |
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS（已登记、未实现） |
 | HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
-| HB-061 | 发布 channel 传播检查假阴性 | FIXED / UNVERIFIED（下一次全新 PUT 待验） |
+| HB-061 | 发布 channel 传播检查假阴性 | VERIFIED（v0.1.27 fresh PUT） |
 | HB-062 | GitHub Release 滚动保留与双通道 | VERIFIED（v0.1.26 实际执行） |
 | HB-063 | 跨版本升级 / Release 说明 | VERIFIED（v0.1.26 正式说明） |
+| HB-064 | Electron public packaged CDN 假阴性 | IN PROGRESS |
 
 ## 当前重点验收
 
@@ -95,12 +96,11 @@
 ### HB-061：发布 channel 传播检查假阴性
 
 - v0.1.25 tag run attempt 1 已成功创建 Release / assets 并 PUT channel，但仅约 16s raw 传播检查造成假阴性；attempt 2 preflight 显示 Release / channel 均已存在并幂等跳过，随后 public v2 `0.1.25 / 199258069` 和 packaged `updateAvailable=false` 通过。不得移动 tag、重建 / 覆盖 Release 或回滚 v0.1.25；这是基础设施 P1，不是产品 P0。
-- v0.1.26 attempt 1 已发布 Release / assets 并 PUT channel，但立即 Contents API 回读旧缓存而失败。main `1713ccb5a951439cdcb1c77abd2561649761b16c` 改为有界 authenticated Contents / ref poll；重跑从 published Release 取得 immutable T1，同步 v2 / root 并校验 blob / ref，missing / draft 仍按 local T2 fail closed。定向 5 tests、typecheck / lint / diff-check与审查 P0 / P1 = 0 通过。
-- attempt 2 / job `94838957698` success，39 files / 398 passed、4K 276ms、双通道和 packaged public 全过；但重跑 preflight 跳过新 PUT，修复仍需下一次正式版全新 PUT 验证，状态为 `FIXED / UNVERIFIED`。这不是产品 P0；Node 20 annotation 非阻断。
+- v0.1.26 后的有界 authenticated Contents / ref poll 已在 v0.1.27 fresh PUT 权威回读中真实通过；v2 / root 精确同步并校验 blob / ref，HB-061 升为 `VERIFIED`。随后 public packaged 的 CDN 假阴性由 HB-064 单独跟踪；Node 20 annotation 非阻断。
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.26 在 Release、v2 / root、public packaged 全验证并预取全部目标 ID 后，已删除 v0.1.11～v0.1.21 Releases / assets；这些远端对象不可恢复，除非依保留 tags 重建。最终仅 v0.1.22～v0.1.26 五个 public stable Releases，27 个 tags（v0.1.0～v0.1.26）与源码全部保留；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.27 全验证并预取目标 ID 后删除 v0.1.22 Release、保留 tag；当前仅 v0.1.23～v0.1.27 五个 public stable Releases，28 个 tags（v0.1.0～v0.1.27）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；此前删除的本地旧构建仍可重打包 / 下载恢复，与已删除的远端 Release / assets 恢复边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
@@ -138,9 +138,13 @@
 ### HB-056：背景清晰度
 
 - v0.1.27 本地候选：cinematic blur `3→1.5`、opacity `.58→.66` 并减轻 scrim；balanced 使用 blur `1`、opacity `.56` 和独立 scrim；eco 明确无 filter / transform 且恢复旧 scrim。launching / active / hidden 等仍由 Main policy 强制 eco；没有新增持续任务或捕获。
-- commit / HEAD / origin main `b6fcb8f77cea2f6a52e1f598838c70d09a37316f` 已 push；run `31824132991` / job `94844117145` 于 `2026-08-14T17:28:15Z`～`17:34:11Z` success（约 5m56s）。Windows clean npm ci、audit 0、OCR synthetic / 真实 4K 251ms、Test Files 39（基线 399 passed + 1 Windows skip）、lint / typecheck / retention、EXE `199259511`、metadata、packaged UI（augment `960x96`、校准 `1024x768`）/ bridge、checksums 全过。
-- synthetic 0.1.28 differential downloaded=true，old / new blockmap 各 1、Range 10、传输 `1289157 / 199259511`、isolatedCache=true；artifact `9228280209` / `473467076` bytes / digest 摘要 `cc24376c…59b7`。tag-only publish / channel / public / prune 按预期 skip；无 v0.1.27 tag / Release，Latest 仍 v0.1.26。Node 20 annotation 非阻断。
+- v0.1.27 正式 run attempt 2 通过 39 files / 399 passed + 1 skipped、真实 4K 260ms 与完整门禁；Release ID `370730395` 为唯一 Latest，五资产、v2 / root、public packaged 和五版滚动均通过。正式发布仍不能替代真实原画 / DPI / 性能验收；Node 20 annotation 非阻断。
 - 状态保持 `IN PROGRESS / UNVERIFIED`：仍须真实亮 / 暗原画、长中文、100% / 125% / 150% DPI、Windows cinematic / balanced / eco 截图与 CPU / GPU / 帧时间；不得用自动化外推视觉或性能完成。
+
+### HB-064：Electron public packaged CDN 假阴性
+
+- v0.1.27 attempt 1 在 Release / channel 成功后，Electron public packaged one-shot 于约 15s 仍读到 CDN 缓存的 0.1.26 而失败；未 prune，attempt 2 后读取 0.1.27 / `updateAvailable=false` 并成功。这与 HB-061 的权威 Contents / ref poll 不同。
+- 下一版前改为总预算 100s 的有界多进程重试，只对 version mismatch 重试，其他错误 fail closed；不得移动 tag、重建 / 覆盖 Release / assets。完成实现、审查、自动化和 fresh publish 前保持 `IN PROGRESS`。
 
 ### HB-057：Wallpaper Engine
 
