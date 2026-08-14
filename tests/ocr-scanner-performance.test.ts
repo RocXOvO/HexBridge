@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +11,7 @@ vi.mock('../src/main/logger.js', () => ({
 }))
 
 import { AugmentScanner, augmentScannerDefaults } from '../src/main/ocr/scanner.js'
+import { fingerprintDistance } from '../src/main/runtime-guards.js'
 
 const temporaryDirectories: string[] = []
 afterEach(async () => {
@@ -58,16 +59,16 @@ async function scannerFixture() {
 describe('low-cost OCR capture plan', () => {
   it('does not request an OCR frame when the automatic thumbnail gate misses', async () => {
     const { scanner, widths } = await scannerFixture()
-    vi.spyOn(scanner as unknown as { hasInterfaceSignal(crop: Buffer): Promise<boolean> }, 'hasInterfaceSignal')
-      .mockResolvedValue(false)
+    vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')
+      .mockResolvedValue({ detected: false, fingerprint: '0000' })
     expect((await scanner.scan(augments, false)).status).toBe('not-detected')
     expect(widths).toEqual([augmentScannerDefaults.automaticGateWidth])
   })
 
   it('uses one bounded thumbnail and one bounded OCR frame after an automatic hit', async () => {
     const { scanner, widths } = await scannerFixture()
-    vi.spyOn(scanner as unknown as { hasInterfaceSignal(crop: Buffer): Promise<boolean> }, 'hasInterfaceSignal')
-      .mockResolvedValue(true)
+    vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')
+      .mockResolvedValue({ detected: true, fingerprint: '1111' })
     expect((await scanner.scan(augments, false)).status).toBe('matched')
     expect(widths).toEqual([
       augmentScannerDefaults.automaticGateWidth,
@@ -77,17 +78,62 @@ describe('low-cost OCR capture plan', () => {
 
   it('manual recognition skips polling and captures only one bounded OCR frame', async () => {
     const { scanner, widths } = await scannerFixture()
-    vi.spyOn(scanner as unknown as { hasInterfaceSignal(crop: Buffer): Promise<boolean> }, 'hasInterfaceSignal')
-      .mockResolvedValue(true)
-    expect((await scanner.scan(augments, true)).status).toBe('matched')
+    vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')
+      .mockResolvedValue({ detected: true, fingerprint: '1111' })
+    const result = await scanner.scan(augments, true)
+    expect(result.status).toBe('matched')
+    expect(result.fingerprints).toHaveLength(3)
+    expect(result.fingerprints.every((fingerprint) => fingerprint.length > 0)).toBe(true)
     expect(widths).toEqual([augmentScannerDefaults.ocrCaptureWidth])
     expect(augmentScannerDefaults.ocrCaptureWidth).toBe(1_440)
   })
 
+  it('keeps manual and cheap-probe fingerprints aligned through the full 4K capture path', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'hexbridge-scanner-scale-'))
+    temporaryDirectories.push(directory)
+    const rects = [
+      { x: .245, y: .37, width: .134, height: .085, name: '4k-left.png' },
+      { x: .436, y: .37, width: .137, height: .085, name: '4k-center.png' },
+      { x: .629, y: .37, width: .136, height: .085, name: '4k-right.png' },
+    ]
+    const composites = await Promise.all(rects.map(async (rect) => ({
+      input: await sharp(await readFile(new URL(`./fixtures/ocr/${rect.name}`, import.meta.url)))
+        .resize({ width: Math.round(rect.width * 3_840), height: Math.round(rect.height * 2_160), fit: 'fill' })
+        .png()
+        .toBuffer(),
+      left: Math.round(rect.x * 3_840),
+      top: Math.round(rect.y * 2_160),
+    })))
+    const fullFrame = await sharp({
+      create: { width: 3_840, height: 2_160, channels: 3, background: '#10151b' },
+    }).composite(composites).png().toBuffer()
+    const widths: number[] = []
+    const scanner = new AugmentScanner(settings, directory, {
+      resolveDisplay: () => ({ id: 1, bounds: { x: 0, y: 0, width: 3_840, height: 2_160 }, scaleFactor: 1 } as Electron.Display),
+      captureDisplay: async (_display, maximumWidth) => {
+        widths.push(maximumWidth)
+        return sharp(fullFrame).resize({ width: maximumWidth }).png().toBuffer()
+      },
+    })
+    vi.spyOn(scanner.engine, 'initialize').mockResolvedValue()
+    vi.spyOn(scanner.engine, 'recognize')
+      .mockResolvedValueOnce('由心及物')
+      .mockResolvedValueOnce('冰寒')
+      .mockResolvedValueOnce('虹吸')
+
+    const manual = await scanner.scan(augments, true)
+    const probe = await scanner.probeInterface()
+
+    expect(manual.status).toBe('matched')
+    expect(probe.status).toBe('detected')
+    expect(widths).toEqual([1_440, 960])
+    expect(fingerprintDistance(manual.fingerprints, probe.fingerprints)).toBeLessThan(.08)
+  })
+
   it('releases hidden windows immediately after capture and before OCR inference', async () => {
     const { scanner } = await scannerFixture()
-    vi.spyOn(scanner as unknown as { hasInterfaceSignal(crop: Buffer): Promise<boolean> }, 'hasInterfaceSignal')
-      .mockResolvedValue(true)
+    vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')
+      .mockResolvedValue({ detected: true, fingerprint: '1111' })
     const order: string[] = []
     vi.mocked(scanner.engine.recognize)
       .mockReset()

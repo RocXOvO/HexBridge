@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { renderStableReleaseNotes } from './release-notes.mjs'
 
 const repository = process.env.GITHUB_REPOSITORY
 const token = process.env.GITHUB_TOKEN
@@ -48,6 +49,7 @@ for (let page = 1; page <= 10; page += 1) {
   if (page === 10) throw new Error('GitHub Release list exceeds the bounded publisher')
 }
 let release = releases.find((candidate) => candidate?.tag_name === tag) ?? null
+const releaseBody = renderStableReleaseNotes({ repository, version, releases })
 if (!release) {
   release = await api(`https://api.github.com/repos/${repository}/releases`, {
     method: 'POST',
@@ -56,7 +58,7 @@ if (!release) {
       name: tag,
       draft: true,
       prerelease: false,
-      generate_release_notes: true,
+      body: releaseBody,
     }),
   }).then((response) => response.json())
 }
@@ -107,7 +109,7 @@ for (const name of assetNames) {
 if (release.draft) {
   release = await api(`https://api.github.com/repos/${repository}/releases/${release.id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ draft: false, prerelease: false, make_latest: 'true' }),
+    body: JSON.stringify({ body: releaseBody, draft: false, prerelease: false, make_latest: 'true' }),
   }).then((response) => response.json())
 }
 if (release.draft || release.prerelease) throw new Error('Stable Release was not published')

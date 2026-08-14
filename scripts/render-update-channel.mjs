@@ -38,7 +38,8 @@ const output = [
   '',
 ].join('\n')
 
-const outputDirectory = path.join(root, 'release', 'update-channel', 'v2')
-await mkdir(outputDirectory, { recursive: true })
+const outputDirectory = path.join(root, 'release', 'update-channel')
+await mkdir(path.join(outputDirectory, 'v2'), { recursive: true })
+await writeFile(path.join(outputDirectory, 'v2', 'latest.yml'), output, 'utf8')
 await writeFile(path.join(outputDirectory, 'latest.yml'), output, 'utf8')
 console.log(`Rendered stable update channel for ${version}`)

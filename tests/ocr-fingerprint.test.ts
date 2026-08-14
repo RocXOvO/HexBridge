@@ -34,4 +34,23 @@ describe('low-cost augment title fingerprints', () => {
       [brighterFingerprint.fingerprint, originalFingerprint.fingerprint, originalFingerprint.fingerprint],
     )).toBeLessThan(.08)
   })
+
+  it('keeps the same fingerprint across the manual and cheap-probe capture scales', async () => {
+    const left = await fixture('4k-left.png')
+    const metadata = await sharp(left).metadata()
+    const cheapProbeScale = await sharp(left)
+      .resize({ width: Math.max(1, Math.round((metadata.width ?? 1) * 2 / 3)) })
+      .png()
+      .toBuffer()
+    const [manual, probe] = await Promise.all([
+      analyzeAugmentTitleCrop(left),
+      analyzeAugmentTitleCrop(cheapProbeScale),
+    ])
+    expect(manual.detected).toBe(true)
+    expect(probe.detected).toBe(true)
+    expect(fingerprintDistance(
+      [manual.fingerprint, manual.fingerprint, manual.fingerprint],
+      [probe.fingerprint, manual.fingerprint, manual.fingerprint],
+    )).toBeLessThan(.08)
+  })
 })

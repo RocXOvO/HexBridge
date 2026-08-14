@@ -53,7 +53,7 @@ export function migrateSettingsForRevision(
   }
   if (nextRevision < 4) {
     // The retired full-screen overlay preference must stay ignored. This is a
-    // new, bounded and click-through recommendation strip below the cards.
+    // new, bounded and click-through recommendation strip above the cards.
     next = { ...next, showInGameRecommendations: true }
     nextRevision = 4
   }

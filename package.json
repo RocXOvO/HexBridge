@@ -1,6 +1,6 @@
 {
   "name": "hexbridge",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "description": "A read-only ARAM Mayhem companion for League of Legends.",
   "author": "HexBridge contributors",
   "license": "SEE LICENSE IN LICENSE.md",
@@ -33,6 +33,7 @@
     "render:update-channel": "node scripts/render-update-channel.mjs",
     "preflight:release": "node scripts/preflight-stable-release.mjs",
     "publish:release": "node scripts/publish-stable-release.mjs",
+    "prune:releases": "node scripts/prune-stable-releases.mjs",
     "publish:update-channel": "node scripts/publish-update-channel.mjs",
     "verify:preload": "node scripts/verify-preload-bundle.mjs",
     "clean:release": "node scripts/clean-local-release.mjs",
@@ -99,8 +100,7 @@
       "dist/**/*",
       "dist-electron/**/*",
       "package.json",
-      "LICENSE.md",
-      "NOTICE.md"
+      "LICENSE.md"
     ],
     "extraResources": [
       {

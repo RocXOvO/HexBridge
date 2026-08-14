@@ -241,11 +241,11 @@ button.primary { color: #0b1514; font-weight: 650; border-color: var(--teal); ba
 .panel-window > footer { height: 42px; color: #929d9a; font-size: 14px; }
 
 .release-highlights-backdrop { position:fixed; z-index:120; inset:0; display:grid; place-items:center; padding:24px; background:rgba(4,6,10,.66); backdrop-filter:blur(8px); }
-.release-highlights-dialog { width:min(440px,100%); padding:28px; border:1px solid rgba(112,214,198,.27); border-radius:18px; background:linear-gradient(145deg,#171b23,#101319); box-shadow:0 34px 100px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.05); }
+.release-highlights-dialog { width:min(520px,100%); max-height:calc(100vh - 48px); padding:28px; display:flex; flex-direction:column; border:1px solid rgba(112,214,198,.27); border-radius:18px; background:linear-gradient(145deg,#171b23,#101319); box-shadow:0 34px 100px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.05); }
 .release-highlights-dialog > small { color:var(--teal); font-size:12px; letter-spacing:.16em; }
 .release-highlights-dialog h2 { margin:8px 0 2px; font-size:26px; }
 .release-highlights-dialog > p { margin:0; color:var(--muted); font-size:13px; }
-.release-highlights-dialog ul { margin:20px 0; padding-left:20px; display:grid; gap:10px; color:#d9dfdd; font-size:14px; line-height:1.55; }
+.release-highlights-dialog ul { margin:20px 0; padding:0 10px 0 20px; display:grid; gap:10px; min-height:0; overflow:auto; color:#d9dfdd; font-size:14px; line-height:1.55; }
 .release-highlights-dialog button { width:100%; }
 .release-highlights-enter-active,.release-highlights-leave-active { transition:opacity .2s ease; }
 .release-highlights-enter-active .release-highlights-dialog,.release-highlights-leave-active .release-highlights-dialog { transition:transform .24s cubic-bezier(.2,.75,.25,1),opacity .2s ease; }

@@ -1,12 +1,24 @@
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { pollText } from './update-channel-poll.mjs'
+
 const expectedVersion = (process.env.HEXBRIDGE_EXPECTED_UPDATE_VERSION || process.argv[2] || '').replace(/^v/, '')
-const versionedUrl = `https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/latest.yml?noCache=${Date.now()}`
-const legacyUrl = `https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/latest.yml?noCache=${Date.now()}`
-let response = await fetch(versionedUrl, { cache: 'no-store' })
-if (!response.ok && response.status === 404 && !expectedVersion) {
-  response = await fetch(legacyUrl, { cache: 'no-store' })
+const versionedUrl = 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/latest.yml'
+let exactContent = null
+if (expectedVersion) {
+  exactContent = await readFile(
+    path.join(process.cwd(), 'release', 'update-channel', 'v2', 'latest.yml'),
+    'utf8',
+  ).catch(() => null)
 }
-if (!response.ok) throw new Error(`Stable update channel returned HTTP ${response.status}`)
-const metadata = await response.text()
+const versionFrom = (metadata) => metadata.match(/^version:\s*(\d+\.\d+\.\d+)\s*$/m)?.[1] ?? null
+const result = await pollText({
+  url: versionedUrl,
+  acceptText: (metadata) => exactContent !== null
+    ? metadata === exactContent
+    : Boolean(versionFrom(metadata) && (!expectedVersion || versionFrom(metadata) === expectedVersion)),
+})
+const metadata = result.text
 const value = (pattern, label) => {
   const match = metadata.match(pattern)
   if (!match?.[1]) throw new Error(`Stable update channel missing ${label}`)
@@ -28,4 +40,4 @@ if (installerUrl !== expectedUrl || legacyPath !== expectedUrl) {
 if (!/^[A-Za-z0-9+/]{80,}={0,2}$/.test(sha512) || !Number.isSafeInteger(size) || size < 1) {
   throw new Error('Stable update channel checksum or size is invalid')
 }
-console.log(`Verified public stable update channel ${version} (${size} bytes)`)
+console.log(`Verified public stable update channel ${version} (${size} bytes, ${result.attempts} attempt(s))`)

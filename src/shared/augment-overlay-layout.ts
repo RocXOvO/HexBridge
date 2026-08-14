@@ -71,7 +71,7 @@ export function calculateAugmentOverlayBounds(
   const width = clamp(desiredWidth, minimumWidth, maximumWidth)
   const safeHeight = clamp(Math.round(height), 1, Math.max(1, Math.round(workArea.height)))
   const desiredX = displayBounds.x + Math.round(cards.x * displayBounds.width)
-  const desiredY = displayBounds.y + Math.round((cards.y + cards.height) * displayBounds.height) + gap
+  const desiredY = displayBounds.y + Math.round(cards.y * displayBounds.height) - safeHeight - gap
   return {
     x: clamp(desiredX, workArea.x, workArea.x + workArea.width - width),
     y: clamp(desiredY, workArea.y, workArea.y + workArea.height - safeHeight),

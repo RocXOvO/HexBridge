@@ -3,11 +3,10 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import path from 'node:path'
 import {
-  compareVersions,
   higherStableReleaseTags,
-  versionParts,
 } from './stable-release-policy.mjs'
 import { classifyTaggedRelease, publicationActions } from './release-preflight-policy.mjs'
+import { canonicalUpdateChannelContent, planUpdateChannels } from './update-channel-policy.mjs'
 
 const repository = process.env.GITHUB_REPOSITORY
 const token = process.env.GITHUB_TOKEN
@@ -50,21 +49,24 @@ const renderChannelMetadata = (metadata, installerUrl) => [
   '',
 ].join('\n')
 
-const contentsUrl = `https://api.github.com/repos/${repository}/contents/v2/latest.yml?ref=update-channel`
-const currentResponse = await fetch(contentsUrl, { headers })
-if (!currentResponse.ok && currentResponse.status !== 404) {
-  throw new Error(`Unable to inspect stable channel: HTTP ${currentResponse.status}`)
-}
-const current = currentResponse.ok ? await currentResponse.json() : null
-const currentContent = typeof current?.content === 'string'
-  ? Buffer.from(current.content.replace(/\s+/g, ''), 'base64').toString('utf8')
-  : null
-const currentMetadata = currentContent ? parseMetadata(currentContent) : null
-const comparison = currentMetadata
-  ? compareVersions(versionParts(version), versionParts(currentMetadata.version))
-  : 1
-if (comparison < 0) throw new Error('Refusing to publish a release older than the stable channel')
+const releaseDirectory = path.join(process.cwd(), 'release')
+const localChannelContent = await readFile(path.join(releaseDirectory, 'update-channel', 'v2', 'latest.yml'), 'utf8')
 
+const channelPaths = ['v2/latest.yml', 'latest.yml']
+const currentChannels = await Promise.all(channelPaths.map(async (channelPath) => {
+  const response = await fetch(
+    `https://api.github.com/repos/${repository}/contents/${channelPath}?ref=update-channel`,
+    { headers },
+  )
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Unable to inspect ${channelPath}: HTTP ${response.status}`)
+  }
+  const value = response.ok ? await response.json() : null
+  const content = typeof value?.content === 'string'
+    ? Buffer.from(value.content.replace(/\s+/g, ''), 'base64').toString('utf8')
+    : null
+  return { channelPath, content, metadata: content ? parseMetadata(content) : null }
+}))
 const publishedReleases = []
 let releasePageComplete = false
 for (let page = 1; page <= 10; page += 1) {
@@ -95,9 +97,7 @@ const requiredAssetNames = [
   'latest.yml',
   'SHA256SUMS.txt',
 ]
-const releaseDirectory = path.join(process.cwd(), 'release')
 const localReleaseContent = await readFile(path.join(releaseDirectory, 'latest.yml'), 'utf8')
-const localChannelContent = await readFile(path.join(releaseDirectory, 'update-channel', 'v2', 'latest.yml'), 'utf8')
 const localReleaseMetadata = parseMetadata(localReleaseContent)
 const localChannelMetadata = parseMetadata(localChannelContent)
 const matchingReleases = publishedReleases.filter((candidate) => candidate?.tag_name === tag)
@@ -189,31 +189,39 @@ const verifyExistingRelease = async () => {
   return renderChannelMetadata(releaseMetadata, officialUrl)
 }
 
-let { shouldPublishRelease, shouldPublishChannel } = publicationActions(releaseClassification.kind, comparison)
-if (comparison === 0) {
-  if (!currentContent || !release) {
-    throw new Error('Stable channel version exists without a matching published release')
-  }
-  const releaseChannelContent = await verifyExistingRelease()
-  if (currentContent !== releaseChannelContent) throw new Error('Existing stable channel differs from its published release')
-  shouldPublishRelease = false
-  shouldPublishChannel = false
-} else if (releaseClassification.kind === 'published') {
+let publishedChannelContent = null
+if (releaseClassification.kind === 'published') {
   // A previous run may have uploaded and published all immutable assets before
-  // the update-channel write failed. Verify every remote asset against this
-  // exact build, then allow the retry to publish only the missing channel.
-  const releaseChannelContent = await verifyExistingRelease()
-  await writeFile(path.join(releaseDirectory, 'update-channel', 'v2', 'latest.yml'), releaseChannelContent, 'utf8')
-  shouldPublishRelease = false
-  shouldPublishChannel = true
+  // one or both update-channel writes completed. Rebuilds can have a different
+  // releaseDate, so the immutable published metadata is the canonical retry
+  // content rather than this run's newly rendered local file.
+  publishedChannelContent = await verifyExistingRelease()
 } else if (releaseClassification.kind === 'matching-draft') {
   assertLocalMetadataConsistent()
   console.log(`Resuming matching draft Release; missing ${releaseClassification.missing.length} asset(s)`)
-}
-
-if (!release) {
+} else {
   assertLocalMetadataConsistent()
 }
+
+const canonicalChannelContent = canonicalUpdateChannelContent(
+  releaseClassification.kind,
+  localChannelContent,
+  publishedChannelContent,
+)
+if (releaseClassification.kind === 'published') {
+  await writeFile(path.join(releaseDirectory, 'update-channel', 'v2', 'latest.yml'), canonicalChannelContent, 'utf8')
+  await writeFile(path.join(releaseDirectory, 'update-channel', 'latest.yml'), canonicalChannelContent, 'utf8')
+}
+
+const channelPlan = planUpdateChannels(
+  currentChannels.map((channel) => channel.content),
+  canonicalChannelContent,
+)
+const comparison = channelPlan.shouldPublish ? 1 : 0
+const { shouldPublishRelease, shouldPublishChannel } = publicationActions(
+  releaseClassification.kind,
+  comparison,
+)
 
 await appendFile(outputFile, `should_publish=${shouldPublishRelease}\n`, 'utf8')
 await appendFile(outputFile, `should_publish_release=${shouldPublishRelease}\n`, 'utf8')

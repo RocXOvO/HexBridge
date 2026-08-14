@@ -7,16 +7,30 @@ import {
 } from '../src/shared/augment-overlay-layout.js'
 
 describe('augment recommendation overlay layout', () => {
-  it('places the strip below the default three-card area', () => {
+  it('places the strip above the default three-card area', () => {
     const bounds = calculateAugmentOverlayBounds(
       null,
       { x: 0, y: 0, width: 1920, height: 1080 },
       { x: 0, y: 0, width: 1920, height: 1040 },
     )
     expect(bounds.x).toBeGreaterThan(400)
-    expect(bounds.y).toBeGreaterThan(700)
+    const cardTop = Math.round(DEFAULT_AUGMENT_CARD_RECTS.left.y * 1080)
+    expect(bounds.y + bounds.height).toBeLessThan(cardTop)
     expect(bounds.width).toBeGreaterThan(900)
     expect(bounds.height).toBe(96)
+  })
+
+  it.each([
+    { width: 2560, height: 1440 },
+    { width: 3840, height: 2160 },
+  ])('keeps an eight-pixel gap above the cards at $width×$height', ({ width, height }) => {
+    const bounds = calculateAugmentOverlayBounds(
+      DEFAULT_AUGMENT_CARD_RECTS,
+      { x: 0, y: 0, width, height },
+      { x: 0, y: 0, width, height },
+    )
+    const cardTop = Math.round(DEFAULT_AUGMENT_CARD_RECTS.left.y * height)
+    expect(bounds.y + bounds.height + 8).toBeLessThanOrEqual(cardTop)
   })
 
   it('uses calibrated card bodies and clamps to a negative-coordinate work area', () => {
@@ -43,7 +57,8 @@ describe('augment recommendation overlay layout', () => {
       { x: 0, y: 0, width: 1920, height: 1080 },
       { x: 0, y: 0, width: 1920, height: 1040 },
     )
-    expect(bounds.y).toBeGreaterThan(700)
+    const cardTop = Math.round(DEFAULT_AUGMENT_CARD_RECTS.left.y * 1080)
+    expect(bounds.y + bounds.height).toBeLessThan(cardTop)
     expect(resolveAugmentCardRects(legacy)).toBe(DEFAULT_AUGMENT_CARD_RECTS)
   })
 

@@ -91,6 +91,7 @@ const AUTO_OCR_WAIT_MS = 2_000
 const AUTO_OCR_VISIBLE_MS = 700
 const AUTO_OCR_CHANGE_CONFIRM_MS = 280
 const AUTO_OCR_UNRELIABLE_RETRY_LIMIT = 4
+const MANUAL_OVERLAY_FIRST_PROBE_MS = 500
 const MANUAL_OVERLAY_PROBE_MS = 1_000
 const MANUAL_OVERLAY_MONITOR_MAX_MS = 45_000
 const OPPONENT_SCOUT_ACTIVE_RETRY_MS = [3_000, 5_000, 10_000, 15_000, 15_000] as const
@@ -126,6 +127,7 @@ export class HexBridgeRuntime {
   private manualScanInFlight = false
   private manualOverlayMonitorDeadlineAt: number | null = null
   private manualOverlayExpiryTimer: NodeJS.Timeout | null = null
+  private manualSurfaceFirstProbePending = false
   private stopping = false
   private gameProcessTimer: NodeJS.Timeout | null = null
   private gameProcessPollMs: number | null = null
@@ -805,7 +807,9 @@ export class HexBridgeRuntime {
     const manualSurfaceVisible = !this.config.getSettings().autoOcr &&
       this.overlay.visible && this.overlay.slots.length === 3
     this.scheduleAutomaticScan(
-      this.automaticScanPhase === 'latched'
+      manualSurfaceVisible && this.manualSurfaceFirstProbePending
+        ? MANUAL_OVERLAY_FIRST_PROBE_MS
+        : this.automaticScanPhase === 'latched'
         ? this.visibleSurfaceProbeDelay()
         : manualSurfaceVisible
           ? MANUAL_OVERLAY_PROBE_MS
@@ -833,6 +837,7 @@ export class HexBridgeRuntime {
     const generation = this.snapshot.matchGeneration
     const championId = this.snapshot.currentChampionId
     this.automaticScanInFlightEpoch = epoch
+    this.manualSurfaceFirstProbePending = false
     let nextDelay = this.automaticScanPhase === 'latched'
       ? this.visibleSurfaceProbeDelay()
       : AUTO_OCR_WAIT_MS
@@ -842,6 +847,22 @@ export class HexBridgeRuntime {
       if (probe.status === 'error') {
         this.automaticScanErrors = Math.min(3, this.automaticScanErrors + 1)
         nextDelay = automaticOcrErrorDelay(this.automaticScanErrors - 1)
+        if (this.overlay.visible && this.automaticScanErrors >= 2) {
+          this.getAugmentRound().beginNextRound()
+          this.setManualOverlayMonitorDeadline(null)
+          this.automaticScanPhase = 'waiting'
+          this.automaticScanAbsences = 0
+          this.automaticFullAttempts = 0
+          this.automaticFingerprint = null
+          this.automaticFingerprintCandidate = null
+          this.automaticFingerprintSamples = 0
+          this.overlay = {
+            ...this.overlay,
+            visible: false,
+            message: '卡牌界面监测异常，已撤下游戏内提示',
+          }
+          this.sync()
+        }
       } else if (probe.status === 'not-detected') {
         this.getAugmentRound().observe('not-detected')
         this.automaticScanErrors = 0
@@ -903,7 +924,9 @@ export class HexBridgeRuntime {
                 ...this.overlay,
                 visible: false,
                 championId: this.snapshot.currentChampionId,
-                message: '检测到卡牌刷新，正在识别新一轮',
+                message: automaticRecognitionEnabled
+                  ? '检测到卡牌刷新，正在识别新一轮'
+                  : '卡牌画面已变化，已撤下游戏内提示',
               }
               this.sync()
             }
@@ -1053,6 +1076,7 @@ export class HexBridgeRuntime {
     this.automaticFingerprint = null
     this.automaticFingerprintCandidate = null
     this.automaticFingerprintSamples = 0
+    this.manualSurfaceFirstProbePending = false
   }
 
   private async runScan(
@@ -1100,6 +1124,15 @@ export class HexBridgeRuntime {
       })
       if (decision.commitMatched) {
         const ranked = rankAugmentSlots(result.slots, detailRanks, augments)
+        if (manual && result.fingerprints?.length === 3) {
+          this.automaticScanContextKey = `${scanGeneration}:${scanChampionId}`
+          this.automaticScanPhase = 'latched'
+          this.automaticScanAbsences = 0
+          this.automaticFingerprint = [...result.fingerprints]
+          this.automaticFingerprintCandidate = null
+          this.automaticFingerprintSamples = 0
+          this.manualSurfaceFirstProbePending = !this.config.getSettings().autoOcr
+        }
         this.setManualOverlayMonitorDeadline(manual && !this.config.getSettings().autoOcr
           ? Date.now() + MANUAL_OVERLAY_MONITOR_MAX_MS
           : null)

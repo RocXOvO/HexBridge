@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest'
+// @ts-expect-error Executable release helper intentionally has no TypeScript declaration file.
+import { previousStableReleaseTag, renderStableReleaseNotes } from '../scripts/release-notes.mjs'
+
+describe('stable Release notes', () => {
+  const releases = [
+    { tag_name: 'v0.1.25', draft: false, prerelease: false },
+    { tag_name: 'v0.1.24', draft: false, prerelease: false },
+    { tag_name: 'v0.1.99', draft: true, prerelease: false },
+    { tag_name: 'v0.1.98', draft: false, prerelease: true },
+    { tag_name: 'not-semver', draft: false, prerelease: false },
+  ]
+
+  it('selects the immediately preceding public stable version', () => {
+    expect(previousStableReleaseTag(releases, '0.1.26')).toBe('v0.1.25')
+  })
+
+  it('renders curated changes relative to the previous stable Release', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.26',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.25 的更新')
+    expect(body).toContain('游戏内三卡推荐条改到卡片上方')
+    expect(body).toContain('/compare/v0.1.25...v0.1.26')
+    expect(body).not.toContain('v0.1.24：')
+  })
+
+  it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.26',
+      releases: [{ tag_name: 'v0.1.23', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.23 的更新')
+    expect(body).toContain('v0.1.24：')
+    expect(body).toContain('v0.1.25：')
+    expect(body).toContain('v0.1.26：')
+  })
+
+  it('fails closed when a version has no curated notes', () => {
+    expect(() => renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '9.9.9',
+      releases,
+    })).toThrow(/No curated Release notes/)
+  })
+})

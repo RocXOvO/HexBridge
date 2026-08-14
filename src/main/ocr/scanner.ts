@@ -28,6 +28,7 @@ const OCR_CAPTURE_WIDTH = 1_440
 export interface ScanResult {
   status: 'matched' | 'not-detected' | 'unreliable' | 'busy' | 'error'
   slots: OcrSlotResult[]
+  fingerprints: string[]
   durationMs: number
   error: string | null
 }
@@ -41,6 +42,11 @@ export interface InterfaceProbeResult {
 export interface AugmentScannerDependencies {
   resolveDisplay?(displayId: string): Electron.Display
   captureDisplay?(display: Electron.Display, maximumWidth: number): Promise<Buffer>
+}
+
+interface CapturedTitleCrops {
+  ocr: Buffer[]
+  probe: Buffer[]
 }
 
 export async function analyzeAugmentTitleCrop(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> {
@@ -142,7 +148,7 @@ export class AugmentScanner {
     afterCapture?: () => void,
     interfaceAlreadyDetected = false,
   ): Promise<ScanResult> {
-    if (this.busy) return { status: 'busy', slots: [], durationMs: 0, error: null }
+    if (this.busy) return { status: 'busy', slots: [], fingerprints: [], durationMs: 0, error: null }
     this.busy = true
     const startedAt = Date.now()
     try {
@@ -154,19 +160,20 @@ export class AugmentScanner {
       // frame is requested only after at least two title slots look active.
       if (!manual && !interfaceAlreadyDetected) {
         const gateCrops = await this.captureTitleCrops(display, AUTO_GATE_WIDTH, rects, false)
-        const gates = await Promise.all(gateCrops.map((crop) => this.hasInterfaceSignal(crop)))
-        if (gates.filter(Boolean).length < 2) {
-          return this.finish('not-detected', [], startedAt, null)
+        const gates = await Promise.all(gateCrops.probe.map((crop) => this.analyzeInterfaceSignal(crop)))
+        if (gates.filter((analysis) => analysis.detected).length < 2) {
+          return this.finish('not-detected', [], [], startedAt, null)
         }
       }
 
-      const crops = await this.captureTitleCrops(display, OCR_CAPTURE_WIDTH, rects, true, afterCapture)
+      const captured = await this.captureTitleCrops(display, OCR_CAPTURE_WIDTH, rects, true, afterCapture)
+      const analyses = await Promise.all(captured.probe.map((crop) => this.analyzeInterfaceSignal(crop)))
 
       if (manual) await this.engine.initialize(true)
 
       if (settings.diagnosticsScreenshots && manual) {
         try {
-          await this.saveDiagnosticCrops(crops)
+          await this.saveDiagnosticCrops(captured.ocr)
         } catch (error) {
           logger.warn('Unable to save OCR diagnostic crops', {
             errorName: error instanceof Error ? error.name : 'Error',
@@ -175,26 +182,28 @@ export class AugmentScanner {
       }
 
       if (manual) {
-        const gates = await Promise.all(crops.map((crop) => this.hasInterfaceSignal(crop)))
-        if (gates.filter(Boolean).length < 2) {
-          return this.finish('not-detected', [], startedAt, null)
+        if (analyses.filter((analysis) => analysis.detected).length < 2) {
+          return this.finish('not-detected', [], [], startedAt, null)
         }
       }
 
       const recognized: OcrSlotResult[] = []
-      for (let index = 0; index < crops.length; index += 1) {
-        const rawText = await this.engine.recognize(crops[index] as Buffer)
+      for (let index = 0; index < captured.ocr.length; index += 1) {
+        const rawText = await this.engine.recognize(captured.ocr[index] as Buffer)
         recognized.push(matchAugmentText(SLOTS[index] as AugmentSlot, rawText, augments, 0.9))
       }
 
       const allReliable = recognized.length === 3 && recognized.every((slot) => slot.augmentId != null)
-      return this.finish(allReliable ? 'matched' : 'unreliable', recognized, startedAt, null)
+      const fingerprints = allReliable
+        ? analyses.map((analysis) => analysis.fingerprint)
+        : []
+      return this.finish(allReliable ? 'matched' : 'unreliable', recognized, fingerprints, startedAt, null)
     } catch (error) {
       const message = 'OCR 截图或识别失败'
       logger.warn('OCR scan failed', {
         errorName: error instanceof Error ? error.name : 'Error',
       })
-      return this.finish('error', [], startedAt, message)
+      return this.finish('error', [], [], startedAt, message)
     } finally {
       this.releaseIdleWaiters()
     }
@@ -209,7 +218,7 @@ export class AugmentScanner {
       const display = this.resolveDisplay(settings.displayId)
       const rects = settings.calibration ?? DEFAULT_RECTS
       const gateCrops = await this.captureTitleCrops(display, AUTO_GATE_WIDTH, rects, false)
-      const analyses = await Promise.all(gateCrops.map(analyzeAugmentTitleCrop))
+      const analyses = await Promise.all(gateCrops.probe.map((crop) => this.analyzeInterfaceSignal(crop)))
       return {
         status: analyses.filter((item) => item.detected).length >= 2 ? 'detected' : 'not-detected',
         durationMs: Date.now() - startedAt,
@@ -261,13 +270,14 @@ export class AugmentScanner {
   private finish(
     status: ScanResult['status'],
     slots: OcrSlotResult[],
+    fingerprints: string[],
     startedAt: number,
     error: string | null,
   ): ScanResult {
     const durationMs = Date.now() - startedAt
     this.lastDurationMs = durationMs
     this.lastError = error
-    return { status, slots, durationMs, error }
+    return { status, slots, fingerprints, durationMs, error }
   }
 
   private releaseIdleWaiters(): void {
@@ -289,11 +299,15 @@ export class AugmentScanner {
     rects: CalibrationRects,
     prepareForOcr: boolean,
     afterCapture?: () => void,
-  ): Promise<Buffer[]> {
+  ): Promise<CapturedTitleCrops> {
     if (this.dependencies.captureDisplay) {
       const screenshot = await this.dependencies.captureDisplay(display, maximumWidth)
       afterCapture?.()
-      return this.cropTitles(screenshot, rects, prepareForOcr)
+      const probe = await this.cropTitles(screenshot, rects, false)
+      return {
+        probe,
+        ocr: prepareForOcr ? await this.prepareTitleCrops(probe) : probe,
+      }
     }
     const physicalWidth = Math.max(1, Math.round(display.bounds.width * display.scaleFactor))
     const physicalHeight = Math.max(1, Math.round(display.bounds.height * display.scaleFactor))
@@ -310,15 +324,11 @@ export class AugmentScanner {
     if (!source || source.thumbnail.isEmpty()) throw new Error('无法捕获目标显示器')
     const croppedImages = cropNativeImageTitles(source.thumbnail, rects)
     afterCapture?.()
-    const encodedCrops = croppedImages.map((crop) => crop.toPNG())
-    return Promise.all(encodedCrops.map(async (encodedCrop) => {
-      if (!prepareForOcr) return encodedCrop
-      return sharp(encodedCrop)
-        .resize({ height: 180, fit: 'inside', withoutEnlargement: false })
-        .sharpen()
-        .png()
-        .toBuffer()
-    }))
+    const probe = croppedImages.map((crop) => crop.toPNG())
+    return {
+      probe,
+      ocr: prepareForOcr ? await this.prepareTitleCrops(probe) : probe,
+    }
   }
 
   private async cropTitles(
@@ -340,8 +350,16 @@ export class AugmentScanner {
     }))
   }
 
-  private async hasInterfaceSignal(crop: Buffer): Promise<boolean> {
-    return (await analyzeAugmentTitleCrop(crop)).detected
+  private prepareTitleCrops(crops: Buffer[]): Promise<Buffer[]> {
+    return Promise.all(crops.map((crop) => sharp(crop)
+      .resize({ height: 180, fit: 'inside', withoutEnlargement: false })
+      .sharpen()
+      .png()
+      .toBuffer()))
+  }
+
+  private analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> {
+    return analyzeAugmentTitleCrop(crop)
   }
 
   private async saveDiagnosticCrops(crops: Buffer[]): Promise<void> {

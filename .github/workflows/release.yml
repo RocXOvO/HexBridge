@@ -40,7 +40,6 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run verify:release-retention
-      - run: npm run test:update:legacy
       - run: npm run pack:win
       - run: npm run verify:update-metadata
       - run: npm run test:ui:packaged
@@ -83,6 +82,14 @@ jobs:
         env:
           HEXBRIDGE_EXPECTED_UPDATE_VERSION: ${{ github.ref_name }}
         run: npm run test:update:public
+      - name: Verify mirrored root update channel
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm run test:update:legacy
       - name: Run packaged public update check
         if: startsWith(github.ref, 'refs/tags/v')
         run: npm run test:update:public:packaged
+      - name: Retain latest five stable Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run prune:releases

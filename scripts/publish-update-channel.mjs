@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { fetchWithTimeout, pollExactText } from './update-channel-poll.mjs'
+import { classifyUpdateChannelContent } from './update-channel-policy.mjs'
 
 const repository = process.env.GITHUB_REPOSITORY
 const token = process.env.GITHUB_TOKEN
@@ -13,19 +15,6 @@ if (tag !== `v${version}`) throw new Error(`Stable channel tag ${tag} does not m
 const content = await readFile(path.join(process.cwd(), 'release', 'update-channel', 'v2', 'latest.yml'), 'utf8')
 if (!content.startsWith(`version: ${version}\n`)) throw new Error('Stable channel content version mismatch')
 
-const parseStableVersion = (value) => {
-  const parsed = value.match(/^version:\s*(\d+)\.(\d+)\.(\d+)\s*$/m)
-  if (!parsed) throw new Error('Existing stable channel version is invalid')
-  return parsed.slice(1).map(Number)
-}
-const compareVersions = (left, right) => {
-  for (let index = 0; index < 3; index += 1) {
-    if (left[index] !== right[index]) return left[index] - right[index]
-  }
-  return 0
-}
-
-const apiUrl = `https://api.github.com/repos/${repository}/contents/v2/latest.yml`
 const headers = {
   Accept: 'application/vnd.github+json',
   Authorization: `Bearer ${token}`,
@@ -33,10 +22,12 @@ const headers = {
   'User-Agent': 'HexBridge-release-workflow',
   'X-GitHub-Api-Version': '2022-11-28',
 }
-const releaseResponse = await fetch(
-  `https://api.github.com/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`,
-  { headers },
-)
+const api = (url, options = {}) => fetchWithTimeout(url, {
+  ...options,
+  headers: { ...headers, ...options.headers },
+}, { timeoutMs: 10_000 })
+
+const releaseResponse = await api(`https://api.github.com/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`)
 if (!releaseResponse.ok) throw new Error(`Unable to verify published release: HTTP ${releaseResponse.status}`)
 const release = await releaseResponse.json()
 const expectedInstaller = `HexBridge-${version}-x64.exe`
@@ -50,45 +41,61 @@ if (release?.draft || release?.prerelease || installerAsset?.size !== expectedSi
 if (!release.assets.some((asset) => asset?.name === 'latest.yml')) {
   throw new Error('Published release is missing latest.yml')
 }
-const currentResponse = await fetch(`${apiUrl}?ref=update-channel`, { headers })
-if (!currentResponse.ok && currentResponse.status !== 404) {
-  throw new Error(`Unable to inspect stable channel: HTTP ${currentResponse.status}`)
-}
-const current = currentResponse.ok ? await currentResponse.json() : null
-const currentContent = typeof current?.content === 'string'
-  ? Buffer.from(current.content.replace(/\s+/g, ''), 'base64').toString('utf8')
-  : null
-let shouldPublish = true
-if (currentResponse.ok) {
-  if (!currentContent) throw new Error('Existing stable channel content is unavailable')
-  const comparison = compareVersions(parseStableVersion(currentContent), parseStableVersion(content))
-  if (comparison > 0) throw new Error('Refusing to roll back the stable update channel')
-  if (comparison === 0) {
-    if (currentContent !== content) throw new Error('Stable channel version already exists with different content')
-    shouldPublish = false
+
+const branch = 'update-channel'
+const publishPath = async (channelPath) => {
+  const apiUrl = `https://api.github.com/repos/${repository}/contents/${channelPath}`
+  const currentResponse = await api(`${apiUrl}?ref=${branch}`)
+  if (!currentResponse.ok && currentResponse.status !== 404) {
+    throw new Error(`Unable to inspect ${channelPath}: HTTP ${currentResponse.status}`)
   }
-}
-const body = {
-  message: `Publish HexBridge stable channel v${version}`,
-  content: Buffer.from(content).toString('base64'),
-  branch: 'update-channel',
-  ...(typeof current?.sha === 'string' ? { sha: current.sha } : {}),
-}
-if (shouldPublish) {
-  const updateResponse = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) })
-  if (!updateResponse.ok) throw new Error(`Unable to publish stable channel: HTTP ${updateResponse.status}`)
+  const current = currentResponse.ok ? await currentResponse.json() : null
+  const currentContent = typeof current?.content === 'string'
+    ? Buffer.from(current.content.replace(/\s+/g, ''), 'base64').toString('utf8')
+    : null
+  if (currentResponse.ok && !currentContent) throw new Error(`Existing ${channelPath} content is unavailable`)
+  if (classifyUpdateChannelContent(currentContent, content) === 'current') return false
+  const updateResponse = await api(apiUrl, {
+    method: 'PUT',
+    body: JSON.stringify({
+      message: `Publish HexBridge stable channel v${version} (${channelPath})`,
+      content: Buffer.from(content).toString('base64'),
+      branch,
+      ...(typeof current?.sha === 'string' ? { sha: current.sha } : {}),
+    }),
+  })
+  if (!updateResponse.ok) throw new Error(`Unable to publish ${channelPath}: HTTP ${updateResponse.status}`)
+  const published = await updateResponse.json()
+  const expectedBlobSha = published?.content?.sha
+  const expectedCommitSha = published?.commit?.sha
+  if (typeof expectedBlobSha !== 'string' || typeof expectedCommitSha !== 'string') {
+    throw new Error(`${channelPath} publish response is incomplete`)
+  }
+  const readbackResponse = await api(`${apiUrl}?ref=${branch}`)
+  if (!readbackResponse.ok) throw new Error(`Unable to read back ${channelPath}: HTTP ${readbackResponse.status}`)
+  const readback = await readbackResponse.json()
+  const readbackContent = typeof readback?.content === 'string'
+    ? Buffer.from(readback.content.replace(/\s+/g, ''), 'base64').toString('utf8')
+    : null
+  if (readback?.sha !== expectedBlobSha || readbackContent !== content) {
+    throw new Error(`${channelPath} authoritative readback differs from the published content`)
+  }
+  const refResponse = await api(`https://api.github.com/repos/${repository}/git/ref/heads/${branch}`)
+  if (!refResponse.ok) throw new Error(`Unable to verify ${branch} commit: HTTP ${refResponse.status}`)
+  const ref = await refResponse.json()
+  if (ref?.object?.sha !== expectedCommitSha) {
+    throw new Error(`${channelPath} branch commit did not match the publish result`)
+  }
+  return true
 }
 
-const rawUrl = 'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/latest.yml'
-let verified = false
-for (let attempt = 0; attempt < 8; attempt += 1) {
-  const response = await fetch(`${rawUrl}?noCache=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
-  const remote = response?.ok ? await response.text() : ''
-  if (remote === content) {
-    verified = true
-    break
-  }
-  await new Promise((resolve) => setTimeout(resolve, 2_000))
+await publishPath('v2/latest.yml')
+await publishPath('latest.yml')
+
+for (const rawUrl of [
+  'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/v2/latest.yml',
+  'https://raw.githubusercontent.com/RocXOvO/HexBridge/update-channel/latest.yml',
+]) {
+  await pollExactText({ url: rawUrl, expectedText: content })
 }
-if (!verified) throw new Error('Published stable channel did not become readable')
-console.log(`Published and verified stable update channel ${version}`)
+console.log(`Published and verified stable update channels ${version}`)

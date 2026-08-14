@@ -16,6 +16,7 @@ vi.mock('../src/main/logger.js', () => ({
 vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 
 import { HexBridgeRuntime } from '../src/main/runtime.js'
+import { AugmentRoundTracker } from '../src/main/augment-round.js'
 
 const activeSnapshot = {
   phase: 'InProgress',
@@ -41,6 +42,7 @@ function initializeAutomaticState(runtime: any): void {
   runtime.manualScanInFlight = false
   runtime.manualOverlayMonitorDeadlineAt = null
   runtime.manualOverlayExpiryTimer = null
+  runtime.manualSurfaceFirstProbePending = false
   runtime.stopping = false
   runtime.overlay = { visible: false, championId: 103, slots: [], detectedAt: null, message: '' }
   runtime.sync = vi.fn()
@@ -235,6 +237,216 @@ describe('runtime performance scheduling', () => {
     expect(runtime.automaticScanPhase).toBe('latched')
     await vi.advanceTimersByTimeAsync(10_000)
     expect(runtime.runScan).toHaveBeenCalledTimes(4)
+    runtime.stopScanLoop()
+  })
+
+  it('seeds the manual card fingerprint immediately and hides a post-selection frame before it can become the baseline', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    const settings = { autoOcr: false, showInGameRecommendations: true }
+    const augments = [1, 2, 3].map((id) => ({
+      id,
+      name: `海克斯${id}`,
+      iconUrl: '',
+      rarity: 1,
+      rarityName: '白银',
+      description: '',
+      globalTier: id,
+    }))
+    runtime.config = { getSettings: () => settings }
+    runtime.data = {
+      getAugments: () => augments,
+      getState: () => ({ dataVersion: 'fixture' }),
+    }
+    runtime.detail = null
+    runtime.lcu = { confirmGameActive: vi.fn() }
+    let gameForeground = false
+    runtime.windows = {
+      getMainActivity: () => ({ visible: false, focused: false, minimized: false }),
+      isLeagueGameForeground: () => gameForeground,
+    }
+    runtime.augmentRound.observe.mockReturnValue({ commitMatched: true, clearPrevious: false })
+    runtime.scanner = {
+      scan: vi.fn(async () => ({
+        status: 'matched',
+        slots: [
+          { slot: 'left', rawText: '海克斯1', augmentId: 1, name: '海克斯1', confidence: 1 },
+          { slot: 'center', rawText: '海克斯2', augmentId: 2, name: '海克斯2', confidence: 1 },
+          { slot: 'right', rawText: '海克斯3', augmentId: 3, name: '海克斯3', confidence: 1 },
+        ],
+        fingerprints: ['aaaa', 'bbbb', 'cccc'],
+        durationMs: 30,
+        error: null,
+      })),
+      probeInterface: vi.fn(async () => ({
+        status: 'detected',
+        durationMs: 10,
+        fingerprints: ['dddd', 'eeee', 'ffff'],
+      })),
+    }
+
+    await expect(runtime.runScan(true)).resolves.toMatchObject({ ok: true, code: 'MATCHED' })
+    expect(runtime.automaticScanContextKey).toBe('1:103')
+    expect(runtime.automaticScanPhase).toBe('latched')
+    expect(runtime.automaticFingerprint).toEqual(['aaaa', 'bbbb', 'cccc'])
+    expect(runtime.manualSurfaceFirstProbePending).toBe(true)
+
+    runtime.updateScanLoop()
+    expect(runtime.scanTimer).toBeNull()
+    expect(runtime.automaticFingerprint).toEqual(['aaaa', 'bbbb', 'cccc'])
+    expect(runtime.manualSurfaceFirstProbePending).toBe(true)
+    gameForeground = true
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(runtime.overlay.visible).toBe(true)
+    await vi.advanceTimersByTimeAsync(280)
+
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.overlay.slots).toHaveLength(3)
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
+    expect(runtime.augmentRound.beginNextRound).toHaveBeenCalledOnce()
+    runtime.stopScanLoop()
+  })
+
+  it('recovers the same automatic recommendation after two probe errors withdraw the compact surface', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    const settings = { autoOcr: true, showInGameRecommendations: true }
+    const augments = [1, 2, 3].map((id) => ({
+      id,
+      name: `海克斯${id}`,
+      iconUrl: '',
+      rarity: 1,
+      rarityName: '白银',
+      description: '',
+      globalTier: id,
+    }))
+    runtime.config = { getSettings: () => settings }
+    runtime.data = {
+      getAugments: () => augments,
+      getState: () => ({ dataVersion: 'fixture' }),
+    }
+    runtime.detail = null
+    runtime.lcu = { confirmGameActive: vi.fn() }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.augmentRound = new AugmentRoundTracker()
+    runtime.augmentRound.observe('matched', { combination: '1:2:3', manual: true })
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '推荐已更新',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.scanner = {
+      probeInterface: vi.fn()
+        .mockResolvedValueOnce({ status: 'error', durationMs: 10, fingerprints: [] })
+        .mockResolvedValueOnce({ status: 'error', durationMs: 10, fingerprints: [] })
+        .mockResolvedValue({ status: 'detected', durationMs: 10, fingerprints: ['aaaa', 'bbbb', 'cccc'] }),
+      scan: vi.fn(async () => ({
+        status: 'matched',
+        slots: [
+          { slot: 'left', rawText: '海克斯1', augmentId: 1, name: '海克斯1', confidence: 1 },
+          { slot: 'center', rawText: '海克斯2', augmentId: 2, name: '海克斯2', confidence: 1 },
+          { slot: 'right', rawText: '海克斯3', augmentId: 3, name: '海克斯3', confidence: 1 },
+        ],
+        fingerprints: ['aaaa', 'bbbb', 'cccc'],
+        durationMs: 30,
+        error: null,
+      })),
+    }
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(700 + 4_000)
+    expect(runtime.overlay.visible).toBe(false)
+    await vi.advanceTimersByTimeAsync(8_000)
+
+    expect(runtime.scanner.scan).toHaveBeenCalledTimes(1)
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.overlay.slots).toHaveLength(3)
+    expect(runtime.automaticScanPhase).toBe('latched')
+    runtime.stopScanLoop()
+  })
+
+  it('withdraws a retained compact surface after two probe errors but tolerates one transient error', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: false, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: false, focused: false, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '推荐已更新',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.scanner = { probeInterface: vi.fn(async () => ({ status: 'error', durationMs: 10, fingerprints: [] })) }
+    runtime.setManualOverlayMonitorDeadline(Date.now() + 45_000)
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(runtime.overlay.visible).toBe(true)
+    await vi.advanceTimersByTimeAsync(4_000)
+
+    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.overlay.slots).toHaveLength(3)
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
+    expect(runtime.overlay.message).toContain('监测异常')
+    runtime.stopScanLoop()
+  })
+
+  it('keeps the compact surface after one absence when the same cards return', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: false, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: false, focused: false, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '推荐已更新',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.scanner = { probeInterface: vi.fn()
+      .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10, fingerprints: [] })
+      .mockResolvedValueOnce({ status: 'detected', durationMs: 10, fingerprints: ['aaaa', 'bbbb', 'cccc'] }) }
+    runtime.setManualOverlayMonitorDeadline(Date.now() + 45_000)
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(1_000 + 280)
+
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.automaticScanAbsences).toBe(0)
+    expect(runtime.manualOverlayMonitorDeadlineAt).not.toBeNull()
+    runtime.setManualOverlayMonitorDeadline(null)
     runtime.stopScanLoop()
   })
 

@@ -2,7 +2,7 @@
 
 > 最后更新：2026-08-15
 > 当前正式版：[v0.1.25](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.25)，public / Latest / non-draft / non-prerelease；产品 commit `3aeb522745bb16949e886aeecca66fcf213aea3c`，Release ID `370680494`。HB-060 已正式发布但真实 installed Windows 启动自动检查仍未由用户验证，保持 `FIXED / UNVERIFIED`。
-> 当前基础设施缺陷：HB-061 为 `IN PROGRESS`。v0.1.25 首次 tag run 已发布 Release / assets / channel，但约 16s raw 传播检查误报失败；重跑以幂等 preflight 跳过既有发布并成功。不得移动 tag、重建 / 覆盖 Release 或回滚 v0.1.25；这不是产品 P0。
+> 当前未发布候选：本地 `v0.1.26` 包含 HB-061～063 与 HB-050 / 052 / 055 的 96px 生命周期增量；尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.25。最终审查 P0 / P1 = 0；最终策略修正定向 4 files / 17 tests 通过，随后完整重跑 39 files / 397 passed + 1 skipped、typecheck、lint、rolling retention、public v2 0.1.25 与 diff-check 全过；此前 audit 0、OCR synthetic、真实 4K 192ms、icon、source bridge / UI 证据继续有效。Windows 和真实 WeGame 均未跑，远端 15 个 Releases 仍未 prune。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -99,7 +99,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 - 自动 OCR 默认关闭；手动单帧。自动路径仅 active + eligible 时运行，低分辨率 gate 后才做完整 OCR，single-flight、退避、同一卡面锁存。
 - 捕获必须先裁标题 ROI，模型限制线程；窗口隐藏 / 最小化 / 退出 / generation 变化使旧任务失效。
-- 96px compact 透明、点击穿透、不聚焦；只在可靠 3/3、游戏前台和卡面存在时显示。前台丢失只 pause / hide，回前台 cheap probe；两次 absence、刷新、禁用、终局或 45 秒 expiry 清除。
+- 96px compact 透明、点击穿透、不聚焦；只在可靠 3/3、游戏前台和卡面存在时显示。v0.1.26 dirty 候选改为卡面上方定位并记录 matched frame 指纹；检测到变化后经 500ms + 280ms 稳定确认先撤旧条，两次 probe error 通过 `beginNextRound` 恢复。前台丢失仍只 pause / hide，回前台 cheap probe；两次 absence、刷新、禁用、终局或 45 秒 expiry 清除。
 - 选人伴随窗绑定权威 LeagueClientUx PID，Win32 / DWM bounds 跟随；synthetic fake 不是实际 WeGame / DPI / 多屏证据。
 - 主窗背景、页面动效与轨道球必须服从 Main 自动 visual policy、eco、hidden / minimized / unfocused、InProgress 和 reduced-motion；不得持续粒子或全屏高频重绘。
 
@@ -122,11 +122,12 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 ## 7. 更新与发布
 
 - HB-060 的启动检查只适用于受支持打包版：adapter ready 后 Main 调度一次 `check(false)`，不等待 6h 首轮；既有 6h 周期继续。异步 `adapterLoader` 可能在 `stop()` 后才 resolve，`stopped` 门禁阻止迟到 adapter 安装、启动检查与周期计时器。此链只读且不改变用户点击下载 / 安装及对局 fail-closed 契约。
-- HB-061 发布基础设施 P1：channel PUT 后先用 GitHub Contents API 权威回读，再由 publish 与 public verifier 共用 exact-content raw poll；raw 总预算 90～120s、单次 8～10s Abort，429 尊重 `Retry-After`。必须覆盖 late propagation、API mismatch、raw 旧内容 / 404 / 429 / 5xx / hang 与幂等重跑；失败不得移动 tag、重建 / 覆盖已存在 Release。这不改变 v0.1.25 产品状态。
-- stable channel：`update-channel/v2/latest.yml`；legacy 根 channel 固定 0.1.14，仅兼容旧客户端。
+- HB-061 dirty 候选：channel PUT 后以 GitHub Contents API 的 content / blob 与 branch commit 做权威回读，再由 publisher / public verifier 共享 exact-content raw poll；raw 总预算 100s、单次 10s Abort，429 尊重 `Retry-After`。重跑 preflight 先验证 published Release 并取得 immutable canonical `releaseDate=T1`，以 T1 覆盖本地 v2 / root 后再 strict plan；missing / draft 才沿用 local `T2` 并 fail closed，禁止因 T1 / T2 不同误判。双通道还必须覆盖 late propagation、API mismatch、raw 旧内容 / 404 / 429 / 5xx / hang 与幂等重跑；失败不得移动 tag、重建 / 覆盖既有 Release。
+- stable channel 为 `update-channel/v2/latest.yml`。旧 root channel 不能继续冻结 0.1.14：v0.1.26 候选发布时必须镜像 v2，否则删除 v0.1.14 Release / assets 会产生死 URL。
 - `pack:win --publish never` 只构建；tag 与 package 版本必须一致。正式 workflow 在全部检查后才发布 EXE、blockmap、ZIP、latest.yml、SHA256SUMS。
-- v0.1.11 起所有正式 Releases、五项 assets、blockmap 和 tags 永久保留；workflow 禁止远端删除。差分依赖旧 / 新 blockmap 与本地旧 installer cache。
-- 本地 `clean:release` 只清仓库根下精确 `release/`，拒绝 symlink / 越界；不触碰 Downloads、已安装版本或 GitHub。
+- 旧“v0.1.11 起所有 Releases 永久保留”已被用户新决策取代：GitHub 滚动只保留最新 5 个严格 semver、non-draft / non-prerelease 正式 Release 及资产；清理只能在新 Release、v2 + root channel 与 public packaged 全验证后执行，并须在首次 delete 前拿齐并验证本轮全部目标 Release ID。所有 Git tags 与源码永久保留；超出五版差分窗口可安全回退 full installer。远端当前仍有 15 个 Release，自动 prune 尚未执行，禁止预写删除成功。
+- 本地 `clean:release` 每次打包前清空仓库根下精确 `release/`，只保留当前构建；仍拒绝 symlink / 越界且不触碰 Downloads / installed / GitHub。已清掉 7 个旧 v0.1.24 本地条目，可由重打包或 Release 下载恢复。
+- 跨版本升级说明旧实现只取 `currentVersion`。v0.1.26 候选让客户端和 GitHub Release publisher 共用逐版本清单 `0.1.1～0.1.26`，都按 `previous < entry <= current` 累计；previous stable 不相邻时，`0.1.23→0.1.26` 必须包含 0.1.24 / 0.1.25 / 0.1.26。publisher 同源生成“相较上一正式版”，长清单滚动显示。
 - Windows hosted Actions / synthetic updater 不等于真实 installed N→N+1；真实差分仍需 Range / 206、网络字节、fallback、安装、重启和 UAC / SmartScreen 证据。
 
 ## 8. v0.1.25 正式基线
@@ -136,12 +137,12 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 - attempt 2：Windows 36 files / 373 tests，audit、OCR / 真实 fixture 355ms、lint、typecheck、retention / legacy、pack / metadata、packaged UI / bridge、checksums 全过。artifact `9225713001` / `473462731` bytes / SHA-256 `ee9e21ba73c04a06699c6f4652d5294dab41fa37ba957b55c163208fde43bf24`。
 - Synthetic 0.1.26 差分：metadata 1、old / new blockmap 各 1、Range 10、redirect 3、传输 `1180243 / 199258008` bytes、previous `0.1.24`、isolatedCache=true。
 - 正式资产：EXE `199258069` / `44d7440cffb44c58e62c1b803917dd72f33ed917c212623208fd6fd1055f68b2`；blockmap `201282` / `830ad368dfe3c5bc18ab390c1b59af706fe60fd5d9f267fc644d000b06a8d341`；ZIP `274416329` / `5cd4c268cda7bcc87e21a1164367a7b6dd0804a86ad2835f41cc31882c5cc97d`；latest.yml `346` / `971a2adfc8e9340c86d721f1bd0e9ff7a486afaca79a466ac724019e3b4e961d`；SHA256SUMS `182` / `0d79eec545f71d4ccbac1c15715fbbaefff0f9554c6068e25bbcaee4a5e4943d`。
-- Public v2：version `0.1.25`、size `199258069`、SHA-512 `I53PkEsGXVkX/B1wlF/PItaVqw834Mo1x6ZHMx06jVd/K3NxOqubWqIwiWwv/JQQm/M+S5c1WIcs/VmTX95rIQ==`、releaseDate `2026-08-14T15:59:30.994Z`；packaged public `updateAvailable=false`。v0.1.11～v0.1.25 Releases 均保留；Node 20 annotation 非阻断。
+- Public v2：version `0.1.25`、size `199258069`、SHA-512 `I53PkEsGXVkX/B1wlF/PItaVqw834Mo1x6ZHMx06jVd/K3NxOqubWqIwiWwv/JQQm/M+S5c1WIcs/VmTX95rIQ==`、releaseDate `2026-08-14T15:59:30.994Z`；packaged public `updateAvailable=false`。当时 v0.1.11～v0.1.25 Releases 均保留；后续保留策略已由上方“最新 5 个”新决策取代。Node 20 annotation 非阻断。
 - 正式发布不等于真实 installed Windows 启动自动 check 已验；HB-060 保持 `FIXED / UNVERIFIED`。HB-061 是发布验证传播逻辑 P1，不是产品 P0，也不要求回滚 v0.1.25。
 
 ## 9. 当前优先级
 
-1. HB-061：修复发布 channel 的权威回读与共享传播轮询，并覆盖超时 / 限流 / 幂等矩阵；不改写 v0.1.25。
+1. v0.1.26 候选：本地完整链已过，仍须 commit / push、Windows 与发布前审计；HB-061～063 与 96px 增量保持 `IN PROGRESS / UNVERIFIED`，远端不得 prune。
 2. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
 3. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
 4. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
