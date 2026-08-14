@@ -2,7 +2,8 @@
 
 > 最后更新：2026-08-15
 > 当前正式版：[v0.1.27](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.27)，唯一 public Latest / non-draft / non-prerelease；Release ID `370730395`，publishedAt `2026-08-14T17:42:24Z`。annotated tag object `af7ad65267425c3c5b38bc560ee36ca5bd19de41` 解引用产品 commit `e845709735a644f39815a5ec505acf19e33d0e43`。
-> 正式边界：attempt 2 已通过 39 files / 399 passed + 1 skipped、双通道、public packaged 与五版滚动清理。HB-061 fresh PUT 权威 poll 已真实通过并升为 `VERIFIED`；HB-056 仍为 `IN PROGRESS / UNVERIFIED`，真实亮暗原画、长中文、DPI 与性能待用户同机。新增 HB-064 为 `IN PROGRESS`，跟踪发布后 Electron public packaged 的 CDN 传播假阴性。
+> 正式边界：attempt 2 已通过 39 files / 399 passed + 1 skipped、双通道、public packaged 与五版滚动清理。HB-061 fresh PUT 权威 poll 已真实通过并升为 `VERIFIED`；HB-056 仍为 `IN PROGRESS / UNVERIFIED`，真实亮暗原画、长中文、DPI 与性能待用户同机。
+> 当前未发布工作树：HB-064 的有界 public packaged 重试已实现并通过最终审查 / 本地门禁，但尚未 commit / push / Windows / 下一次真实 first-attempt publish，状态为 `FIXED / UNVERIFIED`。公开 Latest 仍为 v0.1.27，不预写未来版本或发布结果。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -124,7 +125,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 - HB-060 的启动检查只适用于受支持打包版：adapter ready 后 Main 调度一次 `check(false)`，不等待 6h 首轮；既有 6h 周期继续。异步 `adapterLoader` 可能在 `stop()` 后才 resolve，`stopped` 门禁阻止迟到 adapter 安装、启动检查与周期计时器。此链只读且不改变用户点击下载 / 安装及对局 fail-closed 契约。
 - authenticated Contents / ref poll 在 v0.1.27 fresh PUT 后权威回读成功，v2 / root 均精确指向 0.1.27，HB-061 为 `VERIFIED`。attempt 1 随后的 Electron public packaged one-shot 仍在约 15s 读到 CDN 缓存的 0.1.26 而失败；未 prune、未移动 tag、未重建 / 覆盖 Release / assets。
-- HB-064 要求下一版把 Electron public packaged 检查改为总预算 100s 的有界多进程重试，只对 version mismatch 重试；其他错误 fail closed，且不得借重试移动 tag 或覆盖既有资产。
+- HB-064 dirty 实现只在子进程以非 0 整数退出且稳定错误码严格为 `HB_PUBLIC_UPDATE_SMOKE_VERSION_MISMATCH` 时重试；每次使用 fresh temp / userData。全链 100s absolute deadline、单次 20s、预留 8s cleanup，带 PID 门禁和 `finally` 清理。exit 0 异常 JSON、signal / null、timeout、spawn 失败或预算耗尽均 fail closed；失败发生在 prune 前，不能移动 tag 或改写 Release / assets。
 - `pack:win --publish never` 只构建；tag 与 package 版本必须一致。正式 workflow 在全部检查后才发布 EXE、blockmap、ZIP、latest.yml、SHA256SUMS。
 - GitHub 滚动只保留最新 5 个严格 semver 正式 Release / assets；v0.1.27 全验证后删除 v0.1.22 Release 并保留 tag，当前仅 v0.1.23～v0.1.27 五个 Releases，28 个 tags（v0.1.0～v0.1.27）全部保留。被删 Release / assets 不可恢复，除非依 tag 重建；超窗升级安全回退 full installer。
 - 本地 `clean:release` 每次打包前清空仓库根下精确 `release/`，只保留当前构建；仍拒绝 symlink / 越界且不触碰 Downloads / installed / GitHub。已清掉 7 个旧 v0.1.24 本地条目，可由重打包或 Release 下载恢复；当前本地 release 为空。
@@ -140,7 +141,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 9. 当前优先级
 
-1. HB-064：下一正式版验证 Electron public packaged 的 100s 有界 version-mismatch 重试；不得移动 tag 或覆盖资产。
+1. HB-064：本地实现 / 审查已过，仍须 commit / push、Windows 和下一次真实 first-attempt publish 验证；保持 `FIXED / UNVERIFIED`。
 2. HB-056：v0.1.27 已发布，仍须真实亮暗原画、长中文、100% / 125% / 150% DPI、CPU / GPU / 帧时间验收。
 3. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
 4. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
