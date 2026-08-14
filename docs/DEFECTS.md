@@ -70,7 +70,7 @@
 | HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 已发布） |
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
-| HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS / UNVERIFIED（第二次 Windows 候选已过） |
+| HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS / UNVERIFIED（v0.1.28 已发布） |
 | HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
 | HB-061 | 发布 channel 传播检查假阴性 | VERIFIED（v0.1.27 fresh PUT） |
 | HB-062 | GitHub Release 滚动保留与双通道 | VERIFIED（v0.1.26 实际执行） |
@@ -97,15 +97,16 @@
 
 - v0.1.25 tag run attempt 1 已成功创建 Release / assets 并 PUT channel，但仅约 16s raw 传播检查造成假阴性；attempt 2 preflight 显示 Release / channel 均已存在并幂等跳过，随后 public v2 `0.1.25 / 199258069` 和 packaged `updateAvailable=false` 通过。不得移动 tag、重建 / 覆盖 Release 或回滚 v0.1.25；这是基础设施 P1，不是产品 P0。
 - v0.1.26 后的有界 authenticated Contents / ref poll 已在 v0.1.27 fresh PUT 权威回读中真实通过；v2 / root 精确同步并校验 blob / ref，HB-061 升为 `VERIFIED`。随后 public packaged 的 CDN 假阴性由 HB-064 单独跟踪；Node 20 annotation 非阻断。
+- v0.1.28 attempt 1 的 raw exact poll 在 100000ms 超时后 fail closed；稍后 Contents API / raw 双通道均精确为 0.1.28，attempt 2 按 canonical 现状成功。HB-061 状态不变。
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.27 全验证并预取目标 ID 后删除 v0.1.22 Release、保留 tag；当前仅 v0.1.23～v0.1.27 五个 public stable Releases，28 个 tags（v0.1.0～v0.1.27）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
-- 本地 release 为空；此前删除的本地旧构建仍可重打包 / 下载恢复，与已删除的远端 Release / assets 恢复边界不同。
+- v0.1.28 全验证后删除 v0.1.23 Release / assets、保留 tag；当前仅 v0.1.24～v0.1.28 五个 public stable Releases，29 个 tags（v0.1.0～v0.1.28）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；非相邻 `0.1.23→0.1.26` 自动化覆盖 0.1.24 / 0.1.25 / 0.1.26。v0.1.26 正式 Release 说明已正确列出“相较 v0.1.25”的五项变化，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.28 正式 highlights 为两项且累计链延伸至 0.1.28，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -145,7 +146,8 @@
 
 - v0.1.27 attempt 1 在 Release / channel 成功后，Electron public packaged one-shot 于约 15s 仍读到 CDN 缓存的 0.1.26 而失败；未 prune，attempt 2 后读取 0.1.27 / `updateAvailable=false` 并成功。这与 HB-061 的权威 Contents / ref poll 不同。
 - main commit `5aac5e3d8463c401d1ce5a5ee4573f89dab31148` 的实现仅在子进程以非 0 整数退出且稳定码为 `HB_PUBLIC_UPDATE_SMOKE_VERSION_MISMATCH` 时重试；每次 fresh temp / userData，100s absolute deadline、20s attempt、8s cleanup reserve、PID 门禁与 `finally` 清理。exit 0 异常 JSON、signal / null、timeout、spawn 或预算耗尽均 fail closed；失败在 prune 前终止且不移动 tag、不改写 Release / assets。
-- commit 已 push main；最终审查无 P0 / P1，node-check、target 5、40 files / 404 passed + 1 skipped、typecheck / lint / diff-check 通过。尚无 Windows / 下一次真实 first-attempt publish，状态为 `FIXED / UNVERIFIED`，不得预写未来结果。
+- commit 已 push main；最终审查无 P0 / P1，node-check、target 5、40 files / 404 passed + 1 skipped、typecheck / lint / diff-check 通过。后续 Windows 正式链已运行，但尚无下一次真实 first-attempt packaged public smoke，状态仍为 `FIXED / UNVERIFIED`。
+- v0.1.28 attempt 1 在 stable raw poll 超时后即终止，未到 Electron packaged public smoke；attempt 2 的 one-shot 成功但不是 first-attempt 传播验证。HB-064 不升级。
 
 ### HB-057：Wallpaper Engine
 
@@ -163,13 +165,11 @@
 
 ### HB-059：Lobby 客户端画面背景
 
-- v0.1.28 本地候选默认关闭；仅 win32 + LCU connected + `matchStage=none` + Lobby / Matchmaking / ReadyCheck + Main live 页可见 / 聚焦 / 非最小化 + 非 reduced-motion + 非 eco + authority PID / HWND 唯一时，每 5s PrintWindow 精确截权威 LeagueClientUx。不得整屏捕获、SetWindowPos 或注入。
+- v0.1.28 正式版默认关闭；仅 win32 + LCU connected + `matchStage=none` + Lobby / Matchmaking / ReadyCheck + Main live 页可见 / 聚焦 / 非最小化 + 非 reduced-motion + 非 eco + authority PID / HWND 唯一时，每 5s PrintWindow 精确截权威 LeagueClientUx。不得整屏捕获、SetWindowPos 或注入。
 - Main 限 `16,777,216` 像素、缩至 `<=960x540`、强模糊 / 暗化、JPEG `<=500KB`；Main-only IPC 只传 sanitized bytes，raw / frames 不进 RuntimeState / 日志 / 磁盘 / 伴随窗。切页 / 失焦 / 最小化 / eco / 选人 / launching / active / capture 事务 / 失败 / 退出立即停清。
 - controller 为 child + epoch、3s sanitize timeout、9s watchdog、single-flight；Sharp 未 settle 不开第二任务，迟到 drop，15 / 30 / 60s 退避，重启可恢复同一 raw。最终审查 P0 / P1 = 0；audit 0、OCR synthetic、真实 4K 160ms、41 files / 436 passed + 1 skipped、typecheck / lint / icon / rolling retention / source bridge / UI / diff-check 全过；版本 / release / lobby 定向 5 files / 55 tests 通过。
-- candidate commit `2334be441227f99d65e7ef18353436e7eaedbd7d` 已 push；run `31829405268` / job `94861207078` 在 Windows npm test 唯一失败：旧 RuntimeState 缺 `lobbyBackground` 时，win32 资格 `&&` 链返回 `undefined`，macOS 则平台短路为 `false`。失败后 lint / typecheck / build / pack / assets / Release 均未运行。
-- fail-closed 修复后的 HEAD / candidate `ddec807e630f0c9d7a07913ad6b6a83473047201` 已 push；第二次 run `31829675620` / job `94862106446` 于 `2026-08-14T18:39:36Z`～`18:45:02Z` success（约 5m26s）。Windows 41 files / 438 passed（无 skip）、audit、public 0.1.27、models、OCR synthetic / 真实 4K 271ms、lint / typecheck / retention、EXE `199264046`、packaged UI、packaged bridge 全过；bridge 包含 wrong-PID 拒绝与 authority HWND PrintWindow / sanitize。
-- synthetic 0.1.29 差分成功：metadata 1、old / new blockmap 各 1、Range 10、redirect 3、传输 `1201428 / 199264046`、isolated cache。checksums 与 artifact `9230321125` / `473478660` bytes / SHA-256 `dd93902bddc822adf334f9f46afb9e703d525353e4d287efd5711070beb72ca3` 全过；tag-only publish / channel / public / prune 按预期 skip。
-- fake WinForms 不等于真实 WeGame Chromium；尚无 v0.1.28 tag / Release，Latest 仍 v0.1.27，HB-059 保持 `IN PROGRESS / UNVERIFIED`。
+- Windows candidate 首跑因缺 `lobbyBackground` 返回 `undefined` 而在 npm test 失败；fail-closed 修复后的第二次 candidate 全链成功。v0.1.28 正式 attempt 2 又通过 Windows 41 files / 438 tests、真实 4K 266ms、packaged UI / bridge 与完整发布门禁；Release ID `370764802` 为 Latest，v2 / root / public packaged 和五版滚动均通过。
+- fake WinForms 不等于真实 WeGame Chromium；仍须真实画面 / DPI / 性能验证，HB-059 保持 `IN PROGRESS / UNVERIFIED`。
 
 ## 追溯
 

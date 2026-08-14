@@ -1,10 +1,8 @@
 # HexBridge 项目记忆（精简版）
 
 > 最后更新：2026-08-15
-> 当前正式版：[v0.1.27](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.27)，唯一 public Latest / non-draft / non-prerelease；Release ID `370730395`，publishedAt `2026-08-14T17:42:24Z`。annotated tag object `af7ad65267425c3c5b38bc560ee36ca5bd19de41` 解引用产品 commit `e845709735a644f39815a5ec505acf19e33d0e43`。
-> 正式边界：attempt 2 已通过 39 files / 399 passed + 1 skipped、双通道、public packaged 与五版滚动清理。HB-061 fresh PUT 权威 poll 已真实通过并升为 `VERIFIED`；HB-056 仍为 `IN PROGRESS / UNVERIFIED`，真实亮暗原画、长中文、DPI 与性能待用户同机。
-> 当前未发布 main：HB-064 commit `5aac5e3d8463c401d1ce5a5ee4573f89dab31148` 已 push main，并通过最终审查 / 本地门禁；尚无 Windows / 下一次真实 first-attempt publish，状态为 `FIXED / UNVERIFIED`。公开 Latest 仍为 v0.1.27，不预写未来版本或发布结果。
-> 当前 v0.1.28 候选：首跑 run `31829405268` / job `94861207078` 因旧 RuntimeState 缺 `lobbyBackground` 时 win32 资格链返回 `undefined` 而在 npm test 失败，后续构建 / 发布未运行；该事实保留。fail-closed 修复后的 HEAD / candidate `ddec807e630f0c9d7a07913ad6b6a83473047201` 已 push，第二次 run `31829675620` / job `94862106446` 于 `2026-08-14T18:39:36Z`～`18:45:02Z` success（约 5m26s）。Windows 41 files / 438 passed（无 skip）、真实 4K 271ms、完整候选门禁通过；尚无 tag / Release，公开 Latest 仍为 v0.1.27。HB-059 保持 `IN PROGRESS / UNVERIFIED`。
+> 当前正式版：[v0.1.28](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.28)，public Latest / non-draft / non-prerelease；Release ID `370764802`，publishedAt `2026-08-14T18:53:56Z`。annotated tag object `8abc88949462b787f59a29db84f3a74127d0139b` 解引用产品 / 记忆 commit `deb8b573f96cc60d2c63a316a5e3b740e50df998`。
+> 正式边界：run `31830322299` attempt 2 已通过 41 files / 438 tests、public v2 / root、packaged public 与五版滚动。HB-059 仍为 `IN PROGRESS / UNVERIFIED`，fake bridge 不等于真实 WeGame；HB-064 仍为 `FIXED / UNVERIFIED`，因为 attempt 1 未到 packaged public smoke。当前本地 release 为空，Node 20 annotation 非阻断。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -104,14 +102,14 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 - 96px compact 透明、点击穿透、不聚焦；只在可靠 3/3、游戏前台和卡面存在时显示。v0.1.26 正式版改为卡面上方定位并记录 matched frame 指纹；检测到变化后经 500ms + 280ms 稳定确认先撤旧条，两次 probe error 通过 `beginNextRound` 恢复。前台丢失仍只 pause / hide，回前台 cheap probe；两次 absence、刷新、禁用、终局或 45 秒 expiry 清除。
 - 选人伴随窗绑定权威 LeagueClientUx PID，Win32 / DWM bounds 跟随；synthetic fake 不是实际 WeGame / DPI / 多屏证据。
 - 主窗背景、页面动效与轨道球必须服从 Main 自动 visual policy、eco、hidden / minimized / unfocused、InProgress 和 reduced-motion；不得持续粒子或全屏高频重绘。
-- v0.1.27 本地候选只调整静态英雄背景：cinematic blur `3→1.5`、opacity `.58→.66` 并减轻 scrim；balanced 使用 blur `1`、opacity `.56` 和独立 scrim；eco 明确无 filter / transform 并恢复原有 scrim。launching / active / hidden 等状态仍由 Main policy 强制 eco；候选不新增持续任务、截图或捕获。
+- v0.1.27 正式版只调整静态英雄背景：cinematic blur `3→1.5`、opacity `.58→.66` 并减轻 scrim；balanced 使用 blur `1`、opacity `.56` 和独立 scrim；eco 明确无 filter / transform 并恢复原有 scrim。launching / active / hidden 等状态仍由 Main policy 强制 eco；不新增持续任务、截图或捕获。
 
-### 5.1 Lobby 画面作为 HexBridge 背景（HB-059，v0.1.28 本地候选）
+### 5.1 Lobby 画面作为 HexBridge 背景（HB-059，v0.1.28 已发布）
 
 - 默认关闭。只在 win32、LCU connected、`matchStage=none`、Lobby / Matchmaking / ReadyCheck、Main live 页可见 / 聚焦 / 非最小化、非 reduced-motion、`activeVisualMode!=eco`，且 authority PID / HWND 唯一时，每 5s 用 PrintWindow 精确截取权威 LeagueClientUx；不得整屏捕获、SetWindowPos 或注入。
 - Main 先拒绝超过 `16,777,216` 像素的输入，降至不超过 `960x540`，强模糊 / 暗化并编码 JPEG `<=500KB`；专用 Main-only IPC 只传 sanitized bytes。raw / frames 不进 RuntimeState、日志、磁盘或伴随窗。
 - controller 使用 child + epoch、3s sanitize timeout、9s watchdog 与 single-flight；底层 Sharp 未 settle 不启动第二任务，迟到结果丢弃，失败按 15 / 30 / 60s 退避，同一 raw 在 controller 重启后可恢复。切页、失焦、最小化、eco、选人 / launching / active、capture 事务、失败或退出立即停清。
-- Windows bridge smoke 计划用 fake LeagueClientUx 权威 HWND 实跑 PrintWindow + sanitize 并拒绝错误 PID；尚未执行，fake 也不等于真实 WeGame Chromium。仍须真实 1080p～4K、100%～150% DPI、多屏、窗口移动、隐私和 CPU / GPU / frametime 验收。
+- Windows packaged bridge 已用 fake LeagueClientUx 权威 HWND 实跑 PrintWindow + sanitize 并拒绝错误 PID；fake 不等于真实 WeGame Chromium。仍须真实 1080p～4K、100%～150% DPI、多屏、窗口移动、隐私和 CPU / GPU / frametime 验收。
 
 ## 6. 安全、缓存与日志
 
@@ -125,25 +123,26 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 ## 7. 更新与发布
 
 - HB-060 的启动检查只适用于受支持打包版：adapter ready 后 Main 调度一次 `check(false)`，不等待 6h 首轮；既有 6h 周期继续。异步 `adapterLoader` 可能在 `stop()` 后才 resolve，`stopped` 门禁阻止迟到 adapter 安装、启动检查与周期计时器。此链只读且不改变用户点击下载 / 安装及对局 fail-closed 契约。
-- authenticated Contents / ref poll 在 v0.1.27 fresh PUT 后权威回读成功，v2 / root 均精确指向 0.1.27，HB-061 为 `VERIFIED`。attempt 1 随后的 Electron public packaged one-shot 仍在约 15s 读到 CDN 缓存的 0.1.26 而失败；未 prune、未移动 tag、未重建 / 覆盖 Release / assets。
+- v0.1.28 attempt 1 发布 Release / assets 后，stable raw exact poll 在 100000ms 预算内超时并 fail closed；public / prune 未运行，未移动 tag 或覆盖资产。稍后 Contents API 与 raw v2 / root 均精确读到 0.1.28，attempt 2 按 canonical 现状幂等跳过 publish 并完成 public / prune。HB-061 保持 `VERIFIED`。
 - HB-064 main 实现只在子进程以非 0 整数退出且稳定错误码严格为 `HB_PUBLIC_UPDATE_SMOKE_VERSION_MISMATCH` 时重试；每次使用 fresh temp / userData。全链 100s absolute deadline、单次 20s、预留 8s cleanup，带 PID 门禁和 `finally` 清理。exit 0 异常 JSON、signal / null、timeout、spawn 失败或预算耗尽均 fail closed；失败发生在 prune 前，不能移动 tag 或改写 Release / assets。
 - `pack:win --publish never` 只构建；tag 与 package 版本必须一致。正式 workflow 在全部检查后才发布 EXE、blockmap、ZIP、latest.yml、SHA256SUMS。
-- GitHub 滚动只保留最新 5 个严格 semver 正式 Release / assets；v0.1.27 全验证后删除 v0.1.22 Release 并保留 tag，当前仅 v0.1.23～v0.1.27 五个 Releases，28 个 tags（v0.1.0～v0.1.27）全部保留。被删 Release / assets 不可恢复，除非依 tag 重建；超窗升级安全回退 full installer。
-- 本地 `clean:release` 每次打包前清空仓库根下精确 `release/`，只保留当前构建；仍拒绝 symlink / 越界且不触碰 Downloads / installed / GitHub。已清掉 7 个旧 v0.1.24 本地条目，可由重打包或 Release 下载恢复；当前本地 release 为空。
-- 客户端与 GitHub Release publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.28 候选 release highlights 为两项且跨版本累计链已延伸至 0.1.28。非相邻版本累计与长清单滚动由自动化覆盖。
+- GitHub 滚动只保留最新 5 个严格 semver 正式 Release / assets；v0.1.28 全验证后删除 v0.1.23 Release / assets 并保留 tag，当前仅 v0.1.24～v0.1.28 五个 Releases，29 个 tags（v0.1.0～v0.1.28）全部保留。被删 Release / assets 不可恢复，除非依 tag 重建；超窗升级安全回退 full installer。
+- 本地 `clean:release` 每次打包前清空仓库根下精确 `release/`；当前本地 release 为空。
+- 客户端与 GitHub Release publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.28 正式 release highlights 为两项且跨版本累计链已延伸至 0.1.28。非相邻版本累计与长清单滚动由自动化覆盖。
 - Windows hosted Actions / synthetic updater 不等于真实 installed N→N+1；真实差分仍需 Range / 206、网络字节、fallback、安装、重启和 UAC / SmartScreen 证据。
 
-## 8. v0.1.27 正式基线
+## 8. v0.1.28 正式基线
 
-- run `31824779397` attempt 1 / job `94846203797` 已发布 Release / channel，但 Electron public packaged 在约 15s 仍读取 0.1.26 而失败，未 prune。attempt 2 / job `94848032259` 于 `2026-08-14T17:43:58Z`～`17:49:26Z` success（约 5m28s），preflight `shouldPublishRelease=false / shouldPublishChannel=false` 幂等复用既有资产。
-- attempt 2：39 files / 399 passed + 1 skipped、真实 4K 260ms及完整门禁通过；public packaged `channel=0.1.27 / updateAvailable=false`，v2 / root 均为 0.1.27、size `199259433`、SHA-512 一致。synthetic 0.1.28 差分 Range 9、传输 `1187244 / 199259432`。artifact `9228717900` / `473466978` bytes / digest 摘要 `ea4734f…3cbd`。
-- 正式资产：EXE `199259433` / `c5dad62ad56d767a13a4820057b23ea9602110662618755e9f0fd2c2c3609b5b`；blockmap `201154` / `eb2c43fa0daaba5a59b8067e266ad1b92d7b35c0c14f78db087a4d07dd11fe59`；ZIP `274419034` / `07f55df4863bdc484b965cd9d215f941058db88a4553bf13d7829c177126e8a3`；latest.yml `346` / `e189b63c935dac62751316672c39593cffee9fa4b0953dee225eca2b3cb7d8ef`；SHA256SUMS `182` / `4d7252778184ce69c02150fba39390c0264b5ecfbc0c719a22782990f6ae8585`。
-- v0.1.23～v0.1.27 五个 Releases 与 28 个 tags 保留；本地 release 为空。Node 20 annotation 非阻断。正式发布不能替代真实 installed / WeGame、视觉、DPI或性能证据。
+- run `31830322299` attempt 1 / job `94864196982` 发布 Release / 五资产后，stable raw poll 100000ms 超时失败，public / prune 未运行。attempt 2 / job `94866416667` 于 `2026-08-14T18:56:39Z`～`19:02:06Z` success（约 5m27s），Release / channel 按 canonical 现状 skip，public / prune 成功。
+- attempt 2：Windows 41 files / 438 tests、audit、真实 4K 266ms、lint、typecheck、retention、packaged UI / bridge、diff 全过；public v2 / root 均为 0.1.28、size `199264048`、SHA-512 `SNY7Oh9zYRWebTv5Plzf9WfxARoA2JiAMcA0VLr4wL/i0jvVRawPFJ9HuS4Mdv5jqifiPRMwulo5Iiu8f9xasg==`、releaseDate `2026-08-14T18:52:41.784Z`，packaged public 一次即返回 `updateAvailable=false`。
+- 正式差分 synthetic 0.1.29：Range 10、redirect 3、传输 `1201429 / 199264047`。artifact `9230807456` / `473478611` bytes / SHA-256 `8f2c7d26717454debe44d3f5de6c523177a4b3d9f2cf9799829e5f60f6fb222b`。
+- 正式资产：EXE `199264048` / `03ddd051bd688198a56487f9139a117b04148923f2aae6da89e8771517d38684`；blockmap `201462` / `2d8705a96912c6c4e3f9ed102ec938b8a4aff267cb495631fe26d063f10b6e5b`；ZIP `274424490` / `5e78d3ff7a285775a42861892f2b4949e790f6e0c8d4f99c6cadc830c74a8591`；latest.yml `346` / `8c71e40fc0ca9e56fc86b771df7c0cbaf97b5345719316a17a9d0ff697090cc2`；SHA256SUMS `182` / `ca90d8447a9ede03f9c403fe221e655ce8a789e3f5ccbb9d72633dcfd4a9392d`。
+- 当前仅 v0.1.24～v0.1.28 五个 Releases，29 个 tags 全部保留；本地 release 为空。Node 20 annotation 非阻断。正式发布不能替代真实 WeGame / DPI / 性能证据。
 
 ## 9. 当前优先级
 
-1. HB-059 / v0.1.28：fail-closed 修复已 push 且第二次 Windows 候选全链成功；仍须正式 tag / Release 与真实 WeGame Chromium / DPI / 性能验收。
-2. HB-064：实现已 commit / push main，仍须 Windows 和下一次真实 first-attempt publish 验证；保持 `FIXED / UNVERIFIED`。
+1. HB-059：v0.1.28 已发布，仍须真实 WeGame Chromium / DPI / 性能验收；保持 `IN PROGRESS / UNVERIFIED`。
+2. HB-064：v0.1.28 attempt 1 未到 packaged public smoke，仍须下一次真实 first-attempt publish 验证；保持 `FIXED / UNVERIFIED`。
 3. HB-056：v0.1.27 已发布，仍须真实亮暗原画、长中文、100% / 125% / 150% DPI、CPU / GPU / 帧时间验收。
 4. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
 5. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
