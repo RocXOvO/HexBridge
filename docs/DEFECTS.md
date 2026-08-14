@@ -75,7 +75,7 @@
 | HB-061 | 发布 channel 传播检查假阴性 | VERIFIED（v0.1.27 fresh PUT） |
 | HB-062 | GitHub Release 滚动保留与双通道 | VERIFIED（v0.1.26 实际执行） |
 | HB-063 | 跨版本升级 / Release 说明 | VERIFIED（v0.1.26 正式说明） |
-| HB-064 | Electron public packaged CDN 假阴性 | FIXED / UNVERIFIED（dirty） |
+| HB-064 | Electron public packaged CDN 假阴性 | FIXED / UNVERIFIED（main 已 push） |
 
 ## 当前重点验收
 
@@ -144,8 +144,8 @@
 ### HB-064：Electron public packaged CDN 假阴性
 
 - v0.1.27 attempt 1 在 Release / channel 成功后，Electron public packaged one-shot 于约 15s 仍读到 CDN 缓存的 0.1.26 而失败；未 prune，attempt 2 后读取 0.1.27 / `updateAvailable=false` 并成功。这与 HB-061 的权威 Contents / ref poll 不同。
-- dirty 实现仅在子进程以非 0 整数退出且稳定码为 `HB_PUBLIC_UPDATE_SMOKE_VERSION_MISMATCH` 时重试；每次 fresh temp / userData，100s absolute deadline、20s attempt、8s cleanup reserve、PID 门禁与 `finally` 清理。exit 0 异常 JSON、signal / null、timeout、spawn 或预算耗尽均 fail closed；失败在 prune 前终止且不移动 tag、不改写 Release / assets。
-- 最终审查无 P0 / P1；node-check、target 5、40 files / 404 passed + 1 skipped、typecheck / lint / diff-check 通过。尚未 commit / push / Windows / 下一次真实 first-attempt publish，状态为 `FIXED / UNVERIFIED`，不得预写未来结果。
+- main commit `5aac5e3d8463c401d1ce5a5ee4573f89dab31148` 的实现仅在子进程以非 0 整数退出且稳定码为 `HB_PUBLIC_UPDATE_SMOKE_VERSION_MISMATCH` 时重试；每次 fresh temp / userData，100s absolute deadline、20s attempt、8s cleanup reserve、PID 门禁与 `finally` 清理。exit 0 异常 JSON、signal / null、timeout、spawn 或预算耗尽均 fail closed；失败在 prune 前终止且不移动 tag、不改写 Release / assets。
+- commit 已 push main；最终审查无 P0 / P1，node-check、target 5、40 files / 404 passed + 1 skipped、typecheck / lint / diff-check 通过。尚无 Windows / 下一次真实 first-attempt publish，状态为 `FIXED / UNVERIFIED`，不得预写未来结果。
 
 ### HB-057：Wallpaper Engine
 
