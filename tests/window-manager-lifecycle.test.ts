@@ -173,6 +173,12 @@ describe('WindowManager shutdown lifecycle', () => {
 
   it('keeps a manually closed champion companion hidden for the current match only', () => {
     const manager = new WindowManager({} as any)
+    const leagueWindows = (manager as any).leagueWindows
+    // Isolate dismissal semantics from the Windows-only native placement gate.
+    vi.spyOn(leagueWindows, 'setEnabled').mockImplementation(() => {})
+    vi.spyOn(leagueWindows, 'hasObservation').mockReturnValue(true)
+    vi.spyOn(leagueWindows, 'isClientVisible').mockReturnValue(true)
+    vi.spyOn(leagueWindows, 'isTargetPlaced').mockReturnValue(true)
     const sender = { isDestroyed: () => false, send: vi.fn() }
     const champion = {
       ...fakeWindow({ visible: false, focused: false }),
