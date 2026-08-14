@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const appSource = readFileSync(new URL('../src/renderer/src/App.vue', import.meta.url), 'utf8')
+const stylesSource = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8')
 const rendererEntry = readFileSync(new URL('../src/renderer/src/main.ts', import.meta.url), 'utf8')
 const windowManager = readFileSync(new URL('../src/main/window-manager.ts', import.meta.url), 'utf8')
 const mainProcess = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8')
@@ -45,6 +46,7 @@ describe('main-window recommendation presentation', () => {
 
   it('exposes one compact update intent without a separate update page or confirmation copy', () => {
     expect(appSource).toContain('class="title-update-action"')
+    expect(appSource).toContain('shouldShowUpdateAction(state.value.update.status)')
     expect(appSource).toContain('api.applyUpdate()')
     expect(appSource).not.toContain("page === 'updates'")
     expect(appSource).not.toContain('确认下载')
@@ -53,11 +55,37 @@ describe('main-window recommendation presentation', () => {
 
   it('renders user-facing update and diagnostic status in Chinese', () => {
     expect(appSource).toContain("MATCHED: '识别完成'")
-    expect(appSource).toContain("ready: '已就绪'")
+    expect(appSource).toContain("ready: '连接正常'")
     expect(appSource).not.toContain('{{ state.api.status }}')
     expect(appSource).not.toContain('{{ state.diagnostics.manualOcrCode }}')
     expect(appSource).not.toContain('CHAMPION DETECTED')
     expect(appSource).not.toContain('LCU CONNECTED')
     expect(appSource).not.toContain('SEARCHING FOR LCU')
+  })
+
+  it('presents the API service progressively without exposing the stored secret', () => {
+    expect(appSource).toContain("'api-service-card'")
+    expect(appSource).toContain("'api-health-badge'")
+    expect(appSource).toContain('<label for="api-key-input">API Key</label>')
+    expect(appSource).toContain('aria-describedby="api-service-status api-key-feedback"')
+    expect(appSource).toContain('v-if="apiKeyFormVisible"')
+    expect(appSource).toContain("state.api.configured && state.api.status !== 'unauthorized'")
+    expect(appSource).toContain('更换 Key')
+    expect(appSource).not.toContain('state.api.apiKey')
+  })
+
+  it('guards live-assistant motion when the window is inactive or in eco mode', () => {
+    expect(appSource).toContain('name="hero-backdrop-fade"')
+    expect(appSource).toContain('name="hero-presence"')
+    expect(appSource).toContain('name="assistant-reveal"')
+    expect(appSource).toContain('name="augment-card"')
+    expect(appSource).toContain('class="live-atmosphere"')
+    expect(stylesSource).toContain('.animations-paused *')
+    expect(stylesSource).toContain('transition-duration:.001ms!important')
+    expect(stylesSource).toContain('.animations-paused .hero-presence-enter-active .build-recommendation')
+    expect(stylesSource).toContain('animation-play-state:paused!important')
+    expect(stylesSource).toContain('[data-performance="eco"] .live-atmosphere { display:none; }')
+    expect(stylesSource).toContain('[data-performance="eco"] .hero-presence-enter-active .build-recommendation { animation:none!important; }')
+    expect(stylesSource).toContain('@media (prefers-reduced-motion: reduce)')
   })
 })

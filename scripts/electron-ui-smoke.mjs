@@ -280,6 +280,25 @@ try {
       })()`),
       'the API Key submit button to recover after validation',
     )
+    const apiServiceUi = await mainCdp.evaluate(`(() => {
+      const input = document.querySelector('#api-key-input')
+      const label = document.querySelector('label[for="api-key-input"]')
+      const status = document.querySelector('#api-service-status[role="status"]')
+      return {
+        card: Boolean(document.querySelector('.api-service-card')),
+        label: label?.textContent.trim(),
+        describedBy: input?.getAttribute('aria-describedby'),
+        status: Boolean(status),
+      }
+    })()`)
+    if (
+      !apiServiceUi?.card ||
+      apiServiceUi.label !== 'API Key' ||
+      apiServiceUi.describedBy !== 'api-service-status api-key-feedback' ||
+      !apiServiceUi.status
+    ) {
+      throw new Error(`API service UI accessibility failed: ${JSON.stringify(apiServiceUi)}`)
+    }
 
     const updaterUi = await mainCdp.evaluate(`(() => ({
       bridge: ['applyUpdate', 'openDeveloperPage', 'dismissReleaseHighlights']
@@ -328,7 +347,7 @@ try {
       features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
     })
     const reducedMotion = await mainCdp.evaluate(`(() => {
-      const selectors = ['.connection-stage', '.connection-ring', '.connection-path i']
+      const selectors = ['.connection-stage', '.connection-ring', '.connection-path i', '.aura-one', '.aura-two']
       const animations = Object.fromEntries(selectors.map((selector) => {
         const style = getComputedStyle(document.querySelector(selector))
         return [selector, { name: style.animationName, iterations: style.animationIterationCount }]
@@ -338,11 +357,12 @@ try {
     const reducedAnimations = Object.values(reducedMotion?.animations ?? {})
     if (
       !reducedMotion?.matches ||
-      reducedAnimations.length !== 3 ||
+      reducedAnimations.length !== 5 ||
       reducedAnimations.some((animation) => animation.name !== 'none' || Number(animation.iterations) > 1)
     ) {
       throw new Error(`Reduced-motion guard failed: ${JSON.stringify(reducedMotion)}`)
     }
+    await mainCdp.call('Emulation.setEmulatedMedia', { features: [] })
 
     let calibration = null
     if (process.platform === 'win32' || process.env.HEXBRIDGE_SMOKE_CALIBRATION === 'true') {
@@ -402,12 +422,14 @@ try {
       const hiddenPause = await mainCdp.evaluate(`({
         hidden: document.hidden,
         paused: document.querySelector('.app-shell')?.classList.contains('animations-paused'),
+        contentAnimation: getComputedStyle(document.querySelector('.connection-stage')).animationName,
+        contentOpacity: Number(getComputedStyle(document.querySelector('.connection-stage')).opacity),
       })`)
       // Hosted Windows runners do not guarantee that a BrowserWindow can ever
       // become foreground-visible, so document.hidden is not a reliable proxy
       // for BrowserWindow.hide() there. The product invariant is that the
       // background renderer is paused while calibration owns the interaction.
-      if (!hiddenPause?.paused) {
+      if (!hiddenPause?.paused || hiddenPause.contentAnimation !== 'none' || hiddenPause.contentOpacity <= 0) {
         throw new Error(`Background main window did not pause animations: ${JSON.stringify(hiddenPause)}`)
       }
       await calibrationCdp.call('Page.bringToFront')
@@ -430,7 +452,8 @@ try {
           const hidden = document.hidden
           const focused = document.hasFocus()
           const paused = document.querySelector('.app-shell')?.classList.contains('animations-paused') === true
-          return hidden ? null : { hidden, focused, paused }
+          const content = getComputedStyle(document.querySelector('.connection-stage'))
+          return hidden ? null : { hidden, focused, paused, contentAnimation: content.animationName, contentOpacity: Number(content.opacity) }
         })()`),
         'the main window to restore after calibration',
       )
@@ -438,13 +461,13 @@ try {
       // restored but unfocused window must remain paused; if focus is granted,
       // its animations must resume. This verifies both visibility and the
       // performance guard without conflating OS focus policy with restoration.
-      if (restoredMain.paused === restoredMain.focused) {
+      if (restoredMain.paused === restoredMain.focused || restoredMain.contentAnimation !== 'none' || restoredMain.contentOpacity <= 0) {
         throw new Error(`Restored main animation state is inconsistent: ${JSON.stringify(restoredMain)}`)
       }
       calibration.restoredMain = restoredMain
     }
 
-    return { keyFeedback, keyIdle, updaterUi, typography, reducedMotion, calibrationIsolation, calibration }
+    return { keyFeedback, keyIdle, apiServiceUi, updaterUi, typography, reducedMotion, calibrationIsolation, calibration }
   }
 
   const hardStop = new Promise((_, reject) => {

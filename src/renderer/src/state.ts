@@ -47,7 +47,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.18',
+    currentVersion: '0.1.19',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',

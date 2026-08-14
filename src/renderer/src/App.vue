@@ -5,6 +5,7 @@ import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
 import { matchesChampionSearch } from '../../shared/champion-search'
+import { describeUpdateAction, shouldShowUpdateAction } from '../../shared/update-presentation'
 
 type Page = 'live' | 'ranking' | 'settings' | 'diagnostics'
 const { state, isPreview, bridgeError } = useRuntime()
@@ -18,6 +19,7 @@ const toastIsError = ref(false)
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 const busy = ref(false)
 const keyBusy = ref(false)
+const apiKeyEditing = ref(false)
 const keyFeedback = ref<{ kind: 'idle' | 'progress' | 'success' | 'error'; message: string }>({ kind: 'idle', message: '' })
 const calibrationBusy = ref(false)
 const updateBusy = ref(false)
@@ -28,28 +30,35 @@ const hotkeyFeedback = ref('')
 const matchStatus = computed(() => describeMatchStatus(state.value.snapshot, state.value.lcu.connected))
 const retainedMatch = computed(() => matchStatus.value.retained)
 const updateBlocked = computed(() => state.value.snapshot.matchStage !== 'none')
-const updatePercent = computed(() => Math.max(0, Math.min(100, state.value.update.percent ?? 0)))
-const updateActionVisible = computed(() => state.value.update.status !== 'unsupported')
-const updateActionLabel = computed(() => {
-  if (updateBlocked.value) return '对局后更新'
-  if (state.value.update.status === 'checking') return '检查中…'
-  if (state.value.update.status === 'downloading') return `${updatePercent.value.toFixed(0)}%`
-  if (state.value.update.status === 'downloaded') return '重启更新'
-  if (state.value.update.status === 'installing') return '更新中…'
-  if (state.value.update.status === 'up-to-date') return '已是最新'
-  if (state.value.update.status === 'error') return '重试更新'
-  return '一键更新'
-})
+const updateActionVisible = computed(() => shouldShowUpdateAction(state.value.update.status))
+const updateActionLabel = computed(() => describeUpdateAction(state.value.update, updateBlocked.value))
 
 const apiStatusText: Record<ApiConnectionState['status'], string> = {
   missing: '未配置',
-  ready: '已就绪',
+  ready: '连接正常',
   stale: '使用缓存数据',
   unauthorized: '密钥无效',
   limited: '请求受限',
   offline: '网络离线',
   error: '服务异常',
 }
+
+const apiVisualStatus = computed<ApiConnectionState['status']>(() =>
+  state.value.api.configured ? state.value.api.status : 'missing',
+)
+const apiKeyFormVisible = computed(() =>
+  apiKeyEditing.value || !state.value.api.configured || state.value.api.status === 'unauthorized',
+)
+const apiStatusDetail = computed(() => {
+  if (state.value.api.lastError && state.value.api.status !== 'ready') return state.value.api.lastError
+  if (state.value.api.status === 'ready') return `数据版本 ${state.value.api.dataVersion || '已同步'}`
+  if (state.value.api.status === 'stale') return '本地缓存仍可使用'
+  if (state.value.api.status === 'limited') return '请求受限，稍后自动恢复'
+  if (state.value.api.status === 'offline') return '离线状态，本地缓存仍可使用'
+  if (state.value.api.status === 'unauthorized') return '请重新填写有效密钥'
+  if (state.value.api.status === 'error') return '数据服务暂不可用'
+  return '填写密钥后启用英雄与海克斯数据'
+})
 
 const manualOcrCodeText: Record<RuntimeDiagnostics['manualOcrCode'], string> = {
   IDLE: '尚未识别',
@@ -155,7 +164,10 @@ async function validateKey(): Promise<void> {
     const result = await api.validateAndSaveApiKey(apiKey.value)
     keyFeedback.value = { kind: result.ok ? 'success' : 'error', message: result.message }
     showToast(result.message, !result.ok)
-    if (result.ok) apiKey.value = ''
+    if (result.ok) {
+      apiKey.value = ''
+      apiKeyEditing.value = false
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'API Key 验证失败，请稍后重试'
     keyFeedback.value = { kind: 'error', message }
@@ -169,10 +181,22 @@ async function clearKey(): Promise<void> {
   try {
     await api.clearApiKey()
     apiKey.value = ''
+    apiKeyEditing.value = false
     keyFeedback.value = { kind: 'idle', message: '已清除本机保存的 API Key' }
   } catch (error) {
     keyFeedback.value = { kind: 'error', message: error instanceof Error ? error.message : '清除失败' }
   }
+}
+
+function editApiKey(): void {
+  apiKeyEditing.value = true
+  keyFeedback.value = { kind: 'idle', message: '' }
+}
+
+function cancelApiKeyEdit(): void {
+  apiKeyEditing.value = false
+  apiKey.value = ''
+  keyFeedback.value = { kind: 'idle', message: '' }
 }
 
 async function refresh(): Promise<void> {
@@ -341,8 +365,11 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       </div>
       <Transition name="page-flow" mode="out-in">
         <section v-if="page === 'live'" :key="'live'" class="live-page">
-          <div class="hero-backdrop" :style="heroStyle" />
+          <Transition name="hero-backdrop-fade">
+            <div :key="current?.id ?? 'empty'" class="hero-backdrop" :style="heroStyle" />
+          </Transition>
           <div class="hero-scrim" />
+          <div class="live-atmosphere" aria-hidden="true"><i class="aura aura-one" /><i class="aura aura-two" /><span /></div>
           <div class="page-content live-content">
             <div class="eyebrow-row">
               <span class="eyebrow"><i />{{ statusLabel }}</span>
@@ -351,62 +378,68 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
               </span>
             </div>
 
-            <div class="current-hero" v-if="current">
-              <img :src="current.iconUrl" :alt="championAlt(current)" />
-              <div class="hero-name"><small>当前英雄</small><h1>{{ current.name }}</h1><p>{{ current.title || '海克斯大乱斗' }}</p></div>
-              <div class="hero-metrics">
-                <div><small>Tier</small><b class="tier-value">{{ tier(current.tier) }}</b></div>
-                <div><small>胜率</small><b>{{ winRate(current.winRate) }}</b></div>
+            <Transition name="hero-presence" mode="out-in">
+              <div v-if="current" :key="current.id" class="hero-presence">
+                <div class="current-hero">
+                  <img :src="current.iconUrl" :alt="championAlt(current)" />
+                  <div class="hero-name"><small>当前英雄</small><h1>{{ current.name }}</h1><p>{{ current.title || '海克斯大乱斗' }}</p></div>
+                  <div class="hero-metrics">
+                    <div><small>Tier</small><b class="tier-value">{{ tier(current.tier) }}</b></div>
+                    <div><small>胜率</small><b>{{ winRate(current.winRate) }}</b></div>
+                  </div>
+                  <span v-if="current.isBest" class="best-badge">首选</span>
+                </div>
+                <section class="build-recommendation" aria-live="polite">
+                  <header>
+                    <div><small>当前英雄</small><h2>大乱斗出装参考</h2></div>
+                    <span v-if="state.currentBuild">{{ state.currentBuild.label }} · iesdev · {{ state.currentBuild.patch || state.api.gamePatch || '补丁未标注' }}</span>
+                  </header>
+                  <div v-if="state.currentBuild" class="build-groups">
+                    <div><small>出门装</small><div v-if="state.currentBuild.startingItems.length" class="build-items"><span v-for="item in state.currentBuild.startingItems" :key="`start-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+                    <div><small>核心装</small><div v-if="state.currentBuild.coreItems.length" class="build-items"><span v-for="item in state.currentBuild.coreItems" :key="`core-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+                    <div><small>情境装备</small><div v-if="state.currentBuild.situationalItems.length" class="build-items compact"><span v-for="item in state.currentBuild.situationalItems" :key="`situational-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+                  </div>
+                  <p v-else>暂无该英雄的出装数据；英雄详情就绪后会自动显示。</p>
+                </section>
               </div>
-              <span v-if="current.isBest" class="best-badge">首选</span>
-            </div>
-            <section v-if="current" class="build-recommendation" aria-live="polite">
-              <header>
-                <div><small>当前英雄</small><h2>大乱斗出装参考</h2></div>
-                <span v-if="state.currentBuild">{{ state.currentBuild.label }} · iesdev · {{ state.currentBuild.patch || state.api.gamePatch || '补丁未标注' }}</span>
-              </header>
-              <div v-if="state.currentBuild" class="build-groups">
-                <div><small>出门装</small><div v-if="state.currentBuild.startingItems.length" class="build-items"><span v-for="item in state.currentBuild.startingItems" :key="`start-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
-                <div><small>核心装</small><div v-if="state.currentBuild.coreItems.length" class="build-items"><span v-for="item in state.currentBuild.coreItems" :key="`core-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
-                <div><small>情境装备</small><div v-if="state.currentBuild.situationalItems.length" class="build-items compact"><span v-for="item in state.currentBuild.situationalItems" :key="`situational-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+              <div v-else :key="'empty'" class="empty-hero">
+                <div class="connection-stage" aria-hidden="true">
+                  <div class="connection-ring ring-one" />
+                  <div class="connection-ring ring-two" />
+                  <div class="connection-path"><i /><i /><i /></div>
+                  <LogoMark />
+                </div>
+                <div class="empty-copy">
+                  <small>{{ recognizedChampionMissingData ? '已识别英雄' : state.lcu.connected ? '客户端已连接' : '正在检测客户端' }}</small>
+                  <h2>{{ recognizedChampionMissingData ? `已识别英雄 #${recognizedChampionId}` : state.lcu.connected ? '等待选择英雄' : '英雄联盟客户端未启动或未发现' }}</h2>
+                  <p v-if="recognizedChampionMissingData || state.lcu.connected">{{ recognizedChampionMissingData ? 'LCU 读取正常，但英雄数据目录尚未就绪或缺少该英雄；请刷新数据。' : '进入海克斯大乱斗选人阶段后会自动显示英雄。' }}</p>
+                </div>
               </div>
-              <p v-else>暂无该英雄的出装数据；英雄详情就绪后会自动显示。</p>
-            </section>
-            <div v-else class="empty-hero">
-              <div class="connection-stage" aria-hidden="true">
-                <div class="connection-ring ring-one" />
-                <div class="connection-ring ring-two" />
-                <div class="connection-path"><i /><i /><i /></div>
-                <LogoMark />
-              </div>
-              <div class="empty-copy">
-                <small>{{ recognizedChampionMissingData ? '已识别英雄' : state.lcu.connected ? '客户端已连接' : '正在检测客户端' }}</small>
-                <h2>{{ recognizedChampionMissingData ? `已识别英雄 #${recognizedChampionId}` : state.lcu.connected ? '等待选择英雄' : '英雄联盟客户端未启动或未发现' }}</h2>
-                <p v-if="recognizedChampionMissingData || state.lcu.connected">{{ recognizedChampionMissingData ? 'LCU 读取正常，但英雄数据目录尚未就绪或缺少该英雄；请刷新数据。' : '进入海克斯大乱斗选人阶段后会自动显示英雄。' }}</p>
-              </div>
-            </div>
+            </Transition>
 
-            <section v-if="augmentAssistantVisible" class="augment-assistant" aria-live="polite">
-              <header>
-                <div><small>实时推荐</small><h2>海克斯推荐</h2><p>优先采用上游提供的英雄专属推荐顺序；选取率仅作参考。data.dtodo 单英雄统计 · {{ state.api.gamePatch || '补丁未标注' }} · {{ state.api.dataVersion || '数据未就绪' }}<template v-if="['stale','limited','offline'].includes(state.api.status)"> · 已过期</template></p></div>
-                <button class="ghost" :disabled="state.diagnostics.ocrBusy" @click="triggerOcr">
-                  {{ state.diagnostics.ocrBusy ? '识别中…' : (state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别') }}
-                </button>
-              </header>
-              <p :class="['manual-ocr-state', state.diagnostics.manualOcrStatus]">{{ state.diagnostics.manualOcrMessage }}</p>
-              <div v-if="state.overlay.visible && state.overlay.slots.length" class="augment-live-grid">
-                <article v-for="slot in state.overlay.slots" :key="slot.slot" :class="[`place-${slot.position ?? 0}`, { tied: slot.tied, unknown: !slot.augmentId }]">
-                  <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
-                  <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />
-                  <span v-else class="augment-icon" aria-hidden="true">◇</span>
-                  <div class="augment-card-copy"><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? augmentReason(slot.reason) : '该位置尚未可靠识别' }}</p></div>
-                  <div class="augment-pick-rate" :title="`data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>该英雄选取率 · {{ augmentStatsScope(slot) }}</small><b>{{ augmentPickRate(slot.pickRate) }}</b></div>
-                </article>
-              </div>
-              <div v-else class="augment-waiting">
-                <span>◇</span><div><b>等待三张海克斯</b><p>停在三卡界面后按 {{ state.settings.hotkey || '主窗口按钮' }}，识别完成后将在此排序。</p></div>
-              </div>
-            </section>
+            <Transition name="assistant-reveal">
+              <section v-if="augmentAssistantVisible" class="augment-assistant" aria-live="polite">
+                <header>
+                  <div><small>实时推荐</small><h2>海克斯推荐</h2><p>优先采用上游提供的英雄专属推荐顺序；选取率仅作参考。data.dtodo 单英雄统计 · {{ state.api.gamePatch || '补丁未标注' }} · {{ state.api.dataVersion || '数据未就绪' }}<template v-if="['stale','limited','offline'].includes(state.api.status)"> · 已过期</template></p></div>
+                  <button class="ghost" :disabled="state.diagnostics.ocrBusy" @click="triggerOcr">
+                    {{ state.diagnostics.ocrBusy ? '识别中…' : (state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别') }}
+                  </button>
+                </header>
+                <p :class="['manual-ocr-state', state.diagnostics.manualOcrStatus]">{{ state.diagnostics.manualOcrMessage }}</p>
+                <TransitionGroup v-if="state.overlay.visible && state.overlay.slots.length" name="augment-card" tag="div" class="augment-live-grid" appear>
+                  <article v-for="slot in state.overlay.slots" :key="slot.slot" :class="[`place-${slot.position ?? 0}`, { tied: slot.tied, unknown: !slot.augmentId }]">
+                    <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
+                    <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />
+                    <span v-else class="augment-icon" aria-hidden="true">◇</span>
+                    <div class="augment-card-copy"><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? augmentReason(slot.reason) : '该位置尚未可靠识别' }}</p></div>
+                    <div class="augment-pick-rate" :title="`data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>该英雄选取率 · {{ augmentStatsScope(slot) }}</small><b>{{ augmentPickRate(slot.pickRate) }}</b></div>
+                  </article>
+                </TransitionGroup>
+                <div v-else class="augment-waiting">
+                  <span>◇</span><div><b>等待三张海克斯</b><p>停在三卡界面后按 {{ state.settings.hotkey || '主窗口按钮' }}，识别完成后将在此排序。</p></div>
+                </div>
+              </section>
+            </Transition>
 
             <template v-if="selecting">
               <div class="bench-head"><div><small>可用英雄</small><h2>备战席</h2></div><span>{{ bench.length }} 位可选英雄</span></div>
@@ -436,7 +469,35 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
         <section v-else-if="page === 'settings'" :key="'settings'" class="page-content standard-page settings-page">
           <div class="page-heading"><div><small>本地偏好</small><h1>设置</h1></div></div>
           <div class="settings-grid">
-            <article class="settings-card wide"><header><div><h3>数据服务</h3></div><span :class="['connection-pill', state.api.status]">{{ state.api.configured ? apiStatusText[state.api.status] : '未配置' }}</span></header><div class="key-row"><input v-model="apiKey" type="password" autocomplete="off" placeholder="hx_live_••••••••" @keyup.enter="validateKey" /><button class="primary" :disabled="keyBusy || !apiKey.trim()" :aria-busy="keyBusy" @click="validateKey">{{ keyBusy ? '正在验证…' : '验证并保存' }}</button><button class="ghost" :disabled="keyBusy" @click="clearKey">清除</button></div><p v-if="keyFeedback.message" :class="['inline-feedback', keyFeedback.kind]" aria-live="polite">{{ keyFeedback.message }}</p><button class="ghost api-key-apply" @click="openDeveloperPage">申请 API Key</button></article>
+            <article :class="['settings-card', 'wide', 'api-service-card', `state-${apiVisualStatus}`]">
+              <header class="api-service-header">
+                <div class="api-service-identity">
+                  <span class="api-service-mark" aria-hidden="true"><i /></span>
+                  <div><small>DATA API</small><h3>数据服务</h3></div>
+                </div>
+                <div id="api-service-status" :class="['api-health-badge', apiVisualStatus]" role="status" aria-live="polite">
+                  <span class="api-health-dot" aria-hidden="true" />
+                  <div><small>API KEY</small><b>{{ state.api.configured ? apiStatusText[state.api.status] : '等待配置' }}</b></div>
+                </div>
+              </header>
+              <p class="api-status-detail">{{ apiStatusDetail }}</p>
+              <div v-if="apiKeyFormVisible" class="api-key-editor">
+                <label for="api-key-input">API Key</label>
+                <div class="key-row">
+                  <input id="api-key-input" v-model="apiKey" type="password" autocomplete="off" placeholder="hx_live_••••••••" aria-describedby="api-service-status api-key-feedback" @keyup.enter="validateKey" />
+                  <button class="primary" :disabled="keyBusy || !apiKey.trim()" :aria-busy="keyBusy" @click="validateKey">{{ keyBusy ? '正在验证…' : '验证并保存' }}</button>
+                  <button v-if="state.api.configured && state.api.status !== 'unauthorized'" class="ghost" :disabled="keyBusy" @click="cancelApiKeyEdit">取消</button>
+                </div>
+                <p v-if="keyFeedback.message" id="api-key-feedback" :class="['inline-feedback', keyFeedback.kind]" aria-live="polite">{{ keyFeedback.message }}</p>
+                <span v-else id="api-key-feedback" class="api-key-hint">密钥仅由主进程读取，并使用 Windows safeStorage 加密保存。</span>
+              </div>
+              <div v-else class="api-service-actions">
+                <button class="primary" @click="editApiKey">更换 Key</button>
+                <button v-if="['stale','limited','offline','error'].includes(state.api.status)" class="ghost" :disabled="busy" @click="refresh">{{ busy ? '刷新中…' : '刷新数据' }}</button>
+                <button class="ghost" @click="clearKey">清除</button>
+              </div>
+              <button class="api-key-apply" @click="openDeveloperPage">申请 API Key <span aria-hidden="true">↗</span></button>
+            </article>
             <article class="settings-card"><h3>目标显示器</h3><p>三卡位置不准时再校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">依次框住左、中、右整张卡片。</small></article>
             <article class="settings-card"><h3>识别快捷键</h3><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? 'Esc 取消录制。' : '快捷键不可用，请重新录制。') }}</small></article>
             <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>仅在对局中且主窗口可见时运行</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>进入对局后自动隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label></article>
