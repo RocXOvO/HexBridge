@@ -2,7 +2,7 @@
 
 > 最后更新：2026-08-14
 > 当前基线：公开最新正式 Release 为 [v0.1.18](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.18)，publishedAt `2026-08-13T18:32:55Z`，为 Latest、non-draft、non-prerelease。annotated tag object `c7f7025accd2e6e9a1325d08a3c80e3c466f2e77` 指向产品 / 候选记忆 commit `2ca71e217ca93c24f1f00aa68c272475df76b884`；main 可包含 tag 后的本次记忆提交并领先 tag，但 Release 产品源码固定为该 tag 指向。正式 run `31730817286` / job `94550598423` success，约 5m34s；Windows 30 files / 264 passed + 1 Windows skip、packaged UI / calibration / bridge、差分 updater、Release / channel / public packaged check 与完整门禁全通过。v0.1.17 的五项资产仍保留，Release 列表 v0.1.11～v0.1.18 保留；真实 installed 更新、用户视觉、UAC / SmartScreen 仍未验，不得写 `VERIFIED`。
-> 当前本地候选：版本已升至 `v0.1.19`，HB-041～HB-043 已进入实现但仍为 `IN PROGRESS`。最终独立审查无已知 P0 / P1；本地 `npm audit` 0、OCR synthetic、真实 4K fixture 136ms、31 test files / 277 passed + 1 macOS 上 Windows-only skipped，lint、typecheck、diff-check、source UI / bridge、preload 全通过；浏览器预览确认 ready 卡片 editor collapsed、`updateAction=false` 及 hero / cards 正常。当前尚未 commit / push、Windows workflow、tag 或 Release；公开 Latest 仍为 v0.1.18，Windows 与用户同机性能不得写 `VERIFIED`。
+> 当前候选：v0.1.19 产品 HEAD / origin main 为 `748eaab42cd11644b26c75f044335d5ad2ce5da3`。前两次 workflow_dispatch 分别因设置页校准 smoke 错读不存在的 `connection-stage`、慢 runner 两次 1.8 秒 `Get-Process` 不可用而失败；修复 smoke 等待与 CI 外层 deadline 后，run `31771597588` / job `94678512664` success，约 4m23s，Windows 31 files / 279 tests、packaged UI / calibration / bridge、差分 updater 与完整候选门禁全通过。HB-041～043 仍为 `IN PROGRESS`；尚未 tag / Release，公开 Latest 仍为 v0.1.18，用户视觉 / 真实性能不得写 `VERIFIED`。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -707,20 +707,20 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-041 最新版本仍显示右上角更新按钮
 
 - 严重度：中（常驻入口会把“检查更新”误读为“已有更新”，削弱状态可信度）
-- 状态：`IN PROGRESS`（v0.1.19 本地候选已实现，尚未 Windows / 用户验收）
+- 状态：`IN PROGRESS`（v0.1.19 Windows 候选已通过，尚未用户验收）
 - 目标：只有 Main 已确认存在高于当前版本、符合 stable channel / 资产 allowlist 的正式可用更新时，右上角更新按钮才显示。已是最新版、未检查、检查中、离线、错误或远端结果不可信时隐藏按钮；可操作错误可在受控状态 / toast 中表达，但不能伪装成可应用更新。
 - 接口与安全边界：Renderer 只消费 Main 提供的有限更新状态并通过 sender 受限无参 `applyUpdate()` 发起操作，不得自行查询版本、传 URL、选择 Release、指定下载 / 安装参数或绕过三处对局守卫。隐藏按钮不能删除 Main 的受控检查状态或自动触发安装。
 - v0.1.19 本地实现：纯函数状态矩阵决定标题更新动作；`up-to-date / unsupported` 明确隐藏，其余状态按可操作性映射，Renderer 不自行比较版本。浏览器预览确认 `updateAction=false` 的最新状态不显示动作。
-- 验收标准：覆盖当前版=public latest、发现更高 stable、prerelease / draft / downgrade、检查中、离线 / 403 / 404 / TLS、metadata 无效和更新被对局阻止；source / packaged UI 均断言只有可应用更新状态显示按钮，键盘焦点与无障碍名称随显隐正确。当前已有本地测试 / 预览证据，但没有 commit、Windows 或 Release，不能标 `FIXED` / `VERIFIED`。
+- 验收标准：覆盖当前版=public latest、发现更高 stable、prerelease / draft / downgrade、检查中、离线 / 403 / 404 / TLS、metadata 无效和更新被对局阻止；source / packaged UI 均断言只有可应用更新状态显示按钮，键盘焦点与无障碍名称随显隐正确。当前已有本地测试、预览与 Windows packaged UI 证据，但没有用户验收或 Release，不能标 `FIXED` / `VERIFIED`。
 
 ### HB-042 设置页 API Key ready 状态视觉不足
 
 - 严重度：中（Key 已可用时仍像待填写 / 故障表单，用户难以确认当前安全状态）
-- 状态：`IN PROGRESS`（v0.1.19 本地候选已实现，尚未 Windows / 用户验收）
+- 状态：`IN PROGRESS`（v0.1.19 Windows 候选已通过，尚未用户验收）
 - 目标：为 `ready` 状态设计独立、简洁的完成态卡片，明确“已验证并安全保存”、当前数据可用与可执行的替换 / 清除操作；`stale / unauthorized / limited / offline / error` 继续使用各自准确文案和颜色，不得把 stale 伪装 ready，也不得用纯颜色作为唯一状态提示。
 - 安全边界：Renderer 不得读取或回显明文 Key；Main 继续负责 HEAD 验证、safeStorage 与失败保留旧 Key。申请入口保持 sender 受限无参 IPC，并且只由 Main 打开固定 `https://data.dtodo.cn/developer.html`；Renderer 不能传入 URL，外链失败须给脱敏反馈。
 - v0.1.19 本地实现：`ready` 使用渐进式完成态卡片，默认折叠编辑区；用户明确编辑时才展开。`unauthorized` 不显示无效的取消操作；输入、按钮和状态补全 label / aria 语义。浏览器预览确认 ready 卡片 editor collapsed。
-- 验收标准：视觉快照覆盖 missing / validating / ready / stale / unauthorized / limited / offline / error、长中文、100%～150% DPI、键盘操作与 reduced-motion；真实 packaged 需验证 ready、替换失败仍保留旧 Key、清除和固定外链。当前已有本地测试 / 预览证据，但没有 commit、Windows 或 Release，不能标 `FIXED` / `VERIFIED`。
+- 验收标准：视觉快照覆盖 missing / validating / ready / stale / unauthorized / limited / offline / error、长中文、100%～150% DPI、键盘操作与 reduced-motion；真实 packaged 需验证 ready、替换失败仍保留旧 Key、清除和固定外链。当前已有本地测试 / 预览与 Windows packaged UI 证据，但没有真实 Key / 用户验收或 Release，不能标 `FIXED` / `VERIFIED`。
 
 ### HB-043 实时助手动效层次不足且需严格性能守卫
 
@@ -729,7 +729,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 目标：在不改变信息优先级的前提下，为实时助手增加克制的英雄背景、连接 / 等待、数据进入与卡片重排动效；可以评估新技术，但必须先证明现有 CSS / Vue / Chromium 能力不足，禁止为炫技增加不必要依赖、持续粒子、3D 舞台、全屏高频滤镜或与 OCR / 捕获耦合的负担。
 - 性能契约：`cinematic` 允许完整但低频的环境动效，`balanced` 只保留低成本过渡；`eco`、Main hidden / minimized / unfocused、`InProgress` 和 `prefers-reduced-motion` 必须暂停 timer / RAF / observer 或静态降级。恢复时不得补播长队列、重复注册 observer 或造成布局抖动；动效不能改变 OCR 调度、截图频率、LCU 轮询或数据请求。
 - v0.1.19 本地实现：英雄背景 crossfade；hero / build 区块与 augment `TransitionGroup`、bench 重排增加克制动效。只有 active cinematic 运行持续 ambient；inactive 时 Vue enter 瞬间完成并暂停持续动画，`eco / InProgress / reduced-motion` 为静态。浏览器预览确认 hero / cards 正常。
-- 验收标准：source / packaged 视觉快照覆盖三档、focus / visibility、InProgress 和 reduced-motion；真实 4K Windows 游戏对照记录 HexBridge CPU / GPU、FPS / frametime、长任务、RAF / timer / observer 数量与窗口切换恢复。没有用户同机性能证据前不得写 `FIXED` / `VERIFIED`；当前没有 commit、Windows 或 Release 证据。
+- 验收标准：source / packaged 视觉快照覆盖三档、focus / visibility、InProgress 和 reduced-motion；真实 4K Windows 游戏对照记录 HexBridge CPU / GPU、FPS / frametime、长任务、RAF / timer / observer 数量与窗口切换恢复。Windows runner 已通过功能烟测，但没有用户同机性能或 Release 证据，仍不得写 `FIXED` / `VERIFIED`。
 
 ### HB-013～HB-017 的 v0.1.3 packaged smoke 边界
 
@@ -744,13 +744,17 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 ## 七、当前自动化验证基线
 
-2026-08-14 `v0.1.19` 本地候选基线（未 commit / push / Windows / tag / Release）：
+2026-08-14 `v0.1.19` Windows 候选基线（已 push，未 tag / Release）：
 
 - HB-041 的纯函数矩阵在 `up-to-date / unsupported` 隐藏标题更新动作，其余更新状态按可操作性映射；HB-042 使用渐进式 ready 卡片、默认折叠编辑区、清理 unauthorized 无效取消，并补全 label / aria；HB-043 增加英雄背景 crossfade、hero / build、augment `TransitionGroup` 与 bench 动效。
 - 持续 ambient 只在 active cinematic 运行；inactive 时 Vue enter 瞬间完成且持续动画暂停，`eco / InProgress / reduced-motion` 静态降级。候选没有引入为炫技服务的新依赖，也不得改变 OCR、LCU 或数据请求调度。
 - 最终独立审查无已知 P0 / P1。本地 `npm audit` 0、OCR synthetic、真实 4K fixture 136ms、31 test files / 277 passed + 1 macOS 上 Windows-only skipped，lint、typecheck、`git diff --check`、source UI / Electron bridge、preload 全通过。
 - 浏览器预览确认 ready 卡片 editor collapsed、`updateAction=false`，hero / cards 正常。该预览不是 Windows packaged 或游戏性能验收。
-- 当前版本为 v0.1.19，尚未 commit / push，未运行 Windows workflow，也未创建 tag / Release；公开 Latest 仍为 v0.1.18。HB-041～043 均保持 `IN PROGRESS`，不得写 `FIXED` / `VERIFIED`。
+- 产品 HEAD / origin main 为 `748eaab42cd11644b26c75f044335d5ad2ce5da3`。首次候选 run `31770633134` 因设置页校准 smoke 错读已不存在的 `connection-stage` 失败，修复为永存 stage；第二次 run `31770956164` 在慢 runner 上两次 1.8 秒 `Get-Process` 不可用，随后把产品 1.8 秒预算与 CI 8 秒同生产脚本验证拆开，并增加从入口起 24 秒绝对 deadline 与外层 30 秒清理余量。两次均为候选门禁问题，不得写成产品已发布失败。
+- 第三次 workflow_dispatch run `31771597588` / job `94678512664` 于 2026-08-14T04:59:54Z～05:04:17Z success，约 4m23s：clean `npm ci`、audit 0、public 0.1.18、OCR synthetic、真实 4K fixture 202ms（由心及物 / 冰寒 / 虹吸）、Windows 31 files / 279 tests、lint、typecheck、retention / legacy channel、pack、metadata、packaged UI / calibration、packaged bridge、synthetic differential updater、checksums 与五文件 artifact 全通过。
+- packaged UI 证据：`titleHasVersion=false`、`updateNavigation=false`；校准截图 1024×768；恢复状态 `hidden=false / focused=false / paused=true`。候选 EXE 为 199,239,210 bytes。
+- synthetic updater 从 previous 0.1.18 到 0.1.20：`differential=true`、metadata 1、old / new blockmap 各1、Range 11、redirect 3、传输 1,117,915 / 199,239,210 bytes、`isolatedCache=true`。五文件 Actions artifact ID `9208397307`。
+- tag-only 发布步骤按预期 skip；尚未 tag / Release，公开 Latest 仍为 v0.1.18。HB-041～043 均保持 `IN PROGRESS`，Windows runner 不替代用户视觉或真实 4K 游戏性能，不能写 `FIXED` / `VERIFIED`。
 
 2026-08-14 `v0.1.18` Windows 候选基线（已 push，未 tag / Release）：
 
@@ -980,7 +984,7 @@ v0.1.16 Windows 候选与正式发布基线：
 - HB-032 当前为 `FIXED / UNVERIFIED`。v0.1.14 tag / 产品提交 `5bd64052ec9262f38bbea0351e28c889d69009e3` 已正式发布；tag run `31697626369` / job `94438937472` 通过 25 files / 219 passed + 1 skip、真实 4K OCR、packaged UI / bridge `shutdownLifecycle`、updater / public check、metadata / checksums 与 Release 全链。但尚无报告用户同机系统托盘右键退出复测，不能标 `VERIFIED`。
 - HB-033～HB-038 当前均为 `IN PROGRESS`。v0.1.15～v0.1.17 的 Windows 差分烟测均在受控 cache 前置条件下验证 Range / blockmap 与显著低于完整 EXE 的传输量；但用户 v0.1.14→v0.1.15 仍看到 / 可能下载约 200 MB，尚无网络字节证据区分 metadata 展示与 full fallback。必须由 installed 客户端对 v0.1.17 或后续正式版复验；Windows 图标、合成器隐藏截图恢复，以及报告用户同机多轮三卡 / 中文依据 / toast 也仍未验。公开 Latest 为 v0.1.17。
 - HB-039 / HB-040 当前为 `FIXED / UNVERIFIED`：v0.1.17 本地候选已删除实时助手未连接空态说明 / 按钮并保留后台发现 / 诊断 retry，且用既有单英雄详情请求展示 `builds[0]` 同一路线出装、`iesdev` / 补丁与严格装备字段清洗，缓存升至 v3。仍需 Windows packaged 空态快照、无客户端→WeGame 自动恢复、真实 Key / 上游 builds、缺图缺名 / stale 以及用户同机视觉验收，不能标 `VERIFIED`。
-- HB-041～HB-043 当前均为 `IN PROGRESS`：v0.1.19 本地候选已实现更新动作纯函数显隐、Key ready 渐进式卡片和实时助手 crossfade / TransitionGroup / bench 动效，并通过本地 277+1、source / preload 与浏览器预览。仍无 commit、Windows packaged、用户视觉或真实 4K 游戏性能证据，不得写 `FIXED` / `VERIFIED`。
+- HB-041～HB-043 当前均为 `IN PROGRESS`：v0.1.19 Windows 候选已实现更新动作纯函数显隐、Key ready 渐进式卡片和实时助手 crossfade / TransitionGroup / bench 动效；run `31771597588` 通过 279 tests、packaged UI / calibration / bridge 与差分门禁。仍无用户视觉、真实 Key 或真实 4K 游戏性能证据，也尚未 Release，不得写 `FIXED` / `VERIFIED`。
 - 界面长期契约：验证降低原画模糊 / 遮罩后英雄仍清晰可辨且文字对比合格；更新入口只在 Main 确认可用更新时显示；普通设置中无游戏目录 UI，同时底层 fallback 的保留 / 删除有审计结论；等待英雄轨道球在 balanced / cinematic 可见并在 eco / InProgress / hidden / reduced-motion 静止；英雄榜职业全中文、无冗余角色列 / 筛选，Tier 背景条同时保留准确 Tier 文本 / 无障碍语义且不得用“强度顶尖”替代；选中行轻微悬浮与极光在 eco / InProgress / hidden / reduced-motion 停止；搜索覆盖正式中文名、称号、alias 与可审计常用别名；Windows EXE / 任务栏 / 托盘 / 安装器图标均非空且非默认；侧栏无独立 LCU 状态，普通未连接状态统一合并到实时助手；新配色为独立实现且无第三方代码 / 素材复制。以上均须视觉快照、键盘 / 搜索回归、Windows packaged 图标 / 可读性和渲染性能证据，当前不得预写完成。
 - 无边框游戏下真实三卡：默认关闭自动 OCR 时，按钮 / 当前配置快捷键应完成一次有界识别；显式开启自动 OCR 后按 2 秒门控周期工作，需记录三卡稳定出现到展示的真实延迟，刷新动画期间不误识别，连续丢失正确隐藏。
 - 1080p / 2K / 4K、100% / 125% / 150% DPI、多显示器、非主显示器、显示器热插拔和手动拖框校准。
@@ -990,7 +994,7 @@ v0.1.16 Windows 候选与正式发布基线：
 
 ## 九、发布与 GitHub 状态
 
-- v0.1.19 候选状态：本地版本已升至 v0.1.19；最终独立审查无已知 P0 / P1，本地 audit 0、真实 4K fixture 136ms、31 files / 277 passed + 1 Windows-only skip、lint / typecheck / diff-check、source UI / bridge / preload 与浏览器预览全通过。尚未 commit / push、Windows workflow、tag 或 Release，不得预写提交、Actions 或资产结果；公开 Latest 仍为 v0.1.18。
+- v0.1.19 候选状态：产品 HEAD / origin main `748eaab42cd11644b26c75f044335d5ad2ce5da3`。前两次 run `31770633134` / `31770956164` 分别暴露 UI smoke 旧选择器与慢 runner `Get-Process` 时序问题；修正后 run `31771597588` / job `94678512664` success，Windows 31 files / 279 tests、packaged UI / calibration / bridge、differential updater 与完整候选门禁全通过。tag-only 按预期 skip；尚未 tag / Release，公开 Latest 仍为 v0.1.18，不得预写正式 Actions 或资产结果。
 - v0.1.18 发布状态：annotated tag object `c7f7025accd2e6e9a1325d08a3c80e3c466f2e77` 指向产品 / 候选记忆 commit `2ca71e217ca93c24f1f00aa68c272475df76b884`；正式 run `31730817286` / job `94550598423` success，约 5m34s。Release [v0.1.18](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.18) publishedAt `2026-08-13T18:32:55Z`，为 Latest、non-draft、non-prerelease；完整门禁和 public packaged check 全通过。
 - v0.1.18 正式资产：EXE / blockmap / ZIP / `latest.yml` / `SHA256SUMS.txt` 五项大小和 SHA-256 见第七节。v0.1.17 五项资产仍保留，远端公开 Releases v0.1.11～v0.1.18 继续并存。
 - 当前 Git / 版本：main 在本次记忆更新提交后可领先 v0.1.18 tag，不在该提交内预写自身未知 hash；Release 产品源码固定为 tag 指向的 `2ca71e217ca93c24f1f00aa68c272475df76b884`。历史正式 Releases / assets / tags 保留契约不变；不得移动、改写或删除任何已发布产品 tag / 正式 Release assets。
@@ -1177,3 +1181,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-14 | v0.1.18 / 正式 Release | Release SUCCESS；相关 HB 状态不升级 | annotated tag object `c7f7025accd2e6e9a1325d08a3c80e3c466f2e77` 指向产品/候选记忆 commit `2ca71e217ca93c24f1f00aa68c272475df76b884`；单入口更新、curated改进列表、导航转场与固定Key外链正式发布 | run31730817286/job94550598423 success约5m34s；30 files264 pass+1 skip、UI/calibration/bridge/differential updater、Release/channel/public packaged check与全部门禁通过；五资产摘要已记录 | 真实installed更新、跨版本弹窗、用户视觉/UAC/SmartScreen/替换重启仍未验，不得VERIFIED | Release v0.1.18为Latest/non-draft/non-prerelease；v0.1.17五资产及v0.1.11～v0.1.18 Releases保留；main后续记忆提交可领先tag，不预写未知hash
 - 2026-08-14 | HB-041～HB-043 / 更新入口、Key ready视觉、实时助手动效 | OPEN（目标登记，未实现 / 验证） | 最新版本隐藏右上角更新按钮；Key ready重做为清晰完成态且申请链接继续Main固定URL+受限无参IPC；实时助手增加克制动效并受cinematic/balanced/eco、hidden/unfocused/InProgress/reduced-motion性能守卫，可评估新技术但不得为炫技增加依赖/对局负担 | 无实现、测试或自动化证据，不预写结果 | 需Windows packaged状态显隐/Key视觉、用户视觉与真实4K性能对照；不得由既有v0.1.18门禁外推 | 仅更新项目记忆；无代码、commit、Windows、tag或Release变更
 - 2026-08-14 | HB-041～HB-043 / v0.1.19 本地候选 | OPEN→IN PROGRESS；不得FIXED/VERIFIED | 更新动作纯函数矩阵隐藏up-to-date/unsupported；Key ready渐进卡片+折叠编辑、unauthorized清理与label/aria；live hero crossfade、hero/build、augment TransitionGroup、bench动效，只有active cinematic持续ambient，inactive/eco/InProgress/reduced-motion暂停或静态 | 最终独审无P0/P1；npm audit0、OCR synthetic、真实4K fixture136ms、31 files277 pass+1 macOS Windows-only skip、lint/typecheck/diff/source UI+bridge/preload全过；浏览器预览ready editor collapsed、updateAction false、hero/cards正常 | 尚无Windows packaged、用户视觉或真实游戏CPU/GPU/FPS/frametime证据 | 本地v0.1.19未commit/push/Windows/tag/Release；公开Latest仍v0.1.18
+- 2026-08-14 | v0.1.19 / Windows 候选 | workflow_dispatch SUCCESS；HB-041～043保持IN PROGRESS | 产品HEAD/origin main `748eaab42cd11644b26c75f044335d5ad2ce5da3`；run31770633134修正旧connection-stage smoke，run31770956164拆分产品1.8s与CI 8s Get-Process并加24s/30s deadline | run31771597588/job94678512664 success约4m23s；audit0/public0.1.18/OCR真实4K202ms/Windows31 files279 tests/lint/typecheck/retention/legacy/pack EXE199239210/metadata/UI+calibration/bridge/synthetic0.1.20差分/checksums/artifact全过；差分传输1,117,915/199,239,210、Range11、blockmap各1、isolated cache；artifact ID9208397307 | Windows runner不替代用户视觉、真实Key、4K游戏CPU/GPU/FPS/frametime或installed更新；不得FIXED/VERIFIED | tag-only按预期skip；尚未tag/Release，公开Latest仍v0.1.18
