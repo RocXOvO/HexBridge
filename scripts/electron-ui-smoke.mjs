@@ -333,13 +333,12 @@ try {
       updateButton: Boolean(document.querySelector('.title-update-action')),
       oldUpdatePage: Boolean(document.querySelector('.update-surface')),
     }))()`)
-    const shouldHaveUpdateButton = process.platform === 'win32'
     if (
       !updaterUi?.bridge ||
       updaterUi.titleHasVersion ||
       updaterUi.updateNavigation ||
       updaterUi.oldUpdatePage ||
-      (shouldHaveUpdateButton && !updaterUi.updateButton)
+      updaterUi.updateButton
     ) {
       throw new Error(`Updater UI/bridge smoke failed: ${JSON.stringify(updaterUi)}`)
     }
