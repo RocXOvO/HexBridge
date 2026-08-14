@@ -422,8 +422,8 @@ try {
       const hiddenPause = await mainCdp.evaluate(`({
         hidden: document.hidden,
         paused: document.querySelector('.app-shell')?.classList.contains('animations-paused'),
-        contentAnimation: getComputedStyle(document.querySelector('.connection-stage')).animationName,
-        contentOpacity: Number(getComputedStyle(document.querySelector('.connection-stage')).opacity),
+        contentAnimation: getComputedStyle(document.querySelector('.stage')).animationName,
+        contentOpacity: Number(getComputedStyle(document.querySelector('.stage')).opacity),
       })`)
       // Hosted Windows runners do not guarantee that a BrowserWindow can ever
       // become foreground-visible, so document.hidden is not a reliable proxy
@@ -452,7 +452,7 @@ try {
           const hidden = document.hidden
           const focused = document.hasFocus()
           const paused = document.querySelector('.app-shell')?.classList.contains('animations-paused') === true
-          const content = getComputedStyle(document.querySelector('.connection-stage'))
+          const content = getComputedStyle(document.querySelector('.stage'))
           return hidden ? null : { hidden, focused, paused, contentAnimation: content.animationName, contentOpacity: Number(content.opacity) }
         })()`),
         'the main window to restore after calibration',
