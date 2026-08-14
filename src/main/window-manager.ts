@@ -295,6 +295,7 @@ export class WindowManager {
                   status: 'disabled',
                   reason: 'disabled',
                   matchGeneration: null,
+                  allies: [],
                   opponents: [],
                   sampledAt: null,
                   source: null,

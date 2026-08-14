@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { ApiConnectionState, ChampionSummary, OpponentFormSummary, RankedAugmentSlot, RuntimeDiagnostics } from '../../shared/contracts'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { ApiConnectionState, ChampionSummary, OpponentFormSummary, RankedAugmentSlot, RuntimeDiagnostics, ScoutPlayerDetails } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -27,6 +27,13 @@ const pageVisible = ref(!document.hidden)
 const windowFocused = ref(document.hasFocus())
 const recordingHotkey = ref(false)
 const hotkeyFeedback = ref('')
+const scoutDetails = ref<ScoutPlayerDetails | null>(null)
+const scoutDetailsBusy = ref(false)
+const scoutDetailsMessage = ref('')
+const scoutDetailsDialog = ref<HTMLElement | null>(null)
+const scoutDetailsCloseButton = ref<HTMLButtonElement | null>(null)
+let scoutDetailsTrigger: HTMLElement | null = null
+let scoutDetailsSequence = 0
 const matchStatus = computed(() => describeMatchStatus(state.value.snapshot, state.value.lcu.connected))
 const retainedMatch = computed(() => matchStatus.value.retained)
 const updateBlocked = computed(() => state.value.snapshot.matchStage !== 'none')
@@ -145,6 +152,12 @@ function opponentChampion(opponent: OpponentFormSummary): ChampionSummary | null
   return opponent.championId == null
     ? null
     : state.value.champions.find((champion) => champion.id === opponent.championId) ?? null
+}
+
+function championById(championId: number | null): ChampionSummary | null {
+  return championId == null
+    ? null
+    : state.value.champions.find((champion) => champion.id === championId) ?? null
 }
 
 function opponentStreak(value: number): string {
@@ -275,7 +288,81 @@ async function retryOpponentScout(): Promise<void> {
     const result = await api.retryOpponentScout()
     showToast(result.message, !result.ok)
   } catch (error) {
-    showToast(error instanceof Error ? error.message : '对手近期状态查询失败', true)
+    showToast(error instanceof Error ? error.message : '队伍近期状态查询失败', true)
+  }
+}
+
+async function openScoutDetails(player: OpponentFormSummary, event?: Event): Promise<void> {
+  if (!player.opaqueKey || state.value.opponentScout.matchGeneration == null || scoutDetailsBusy.value) return
+  scoutDetailsTrigger = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const sequence = ++scoutDetailsSequence
+  scoutDetailsBusy.value = true
+  scoutDetailsMessage.value = '正在读取本机缓存明细…'
+  await nextTick()
+  scoutDetailsCloseButton.value?.focus()
+  try {
+    const result = await api.getScoutPlayerDetails(
+      player.opaqueKey,
+      state.value.opponentScout.matchGeneration,
+    )
+    if (sequence !== scoutDetailsSequence) return
+    if (!result.ok || !result.details) {
+      showToast(result.message, true)
+      closeScoutDetails()
+      return
+    }
+    scoutDetails.value = result.details
+    scoutDetailsMessage.value = result.message
+  } catch (error) {
+    if (sequence !== scoutDetailsSequence) return
+    const message = error instanceof Error ? error.message : '近期明细已过期'
+    showToast(message, true)
+    closeScoutDetails()
+  } finally {
+    if (sequence === scoutDetailsSequence) scoutDetailsBusy.value = false
+  }
+}
+
+function closeScoutDetails(): void {
+  const trigger = scoutDetailsTrigger
+  scoutDetailsTrigger = null
+  scoutDetailsSequence += 1
+  scoutDetails.value = null
+  scoutDetailsBusy.value = false
+  scoutDetailsMessage.value = ''
+  void nextTick(() => {
+    if (trigger?.isConnected) trigger.focus()
+  })
+}
+
+function handleScoutDialogKey(event: KeyboardEvent): void {
+  const dialogOpen = scoutDetails.value != null || scoutDetailsBusy.value
+  if (!dialogOpen) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeScoutDetails()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const dialog = scoutDetailsDialog.value
+  if (!dialog) return
+  const focusable = [...dialog.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )]
+  if (!focusable.length) {
+    event.preventDefault()
+    dialog.focus()
+    return
+  }
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  const active = document.activeElement
+  if (event.shiftKey && (active === dialog || active === first || !dialog.contains(active))) {
+    event.preventDefault()
+    last?.focus()
+  } else if (!event.shiftKey && (active === dialog || active === last || !dialog.contains(active))) {
+    event.preventDefault()
+    first?.focus()
   }
 }
 
@@ -340,6 +427,7 @@ onMounted(() => {
   window.addEventListener('focus', focusChanged)
   window.addEventListener('blur', focusChanged)
   window.addEventListener('keydown', recordHotkey, true)
+  window.addEventListener('keydown', handleScoutDialogKey)
 })
 onBeforeUnmount(() => {
   dismissToast()
@@ -347,7 +435,20 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', focusChanged)
   window.removeEventListener('blur', focusChanged)
   window.removeEventListener('keydown', recordHotkey, true)
+  window.removeEventListener('keydown', handleScoutDialogKey)
 })
+
+watch(
+  () => [
+    state.value.opponentScout.matchGeneration,
+    state.value.opponentScout.sampledAt,
+    state.value.snapshot.matchStage,
+    state.value.settings.opponentScouting,
+    state.value.lcu.connected,
+    state.value.lcu.lastConnectedAt,
+  ],
+  () => closeScoutDetails(),
+)
 
 const championAlt = (champion: ChampionSummary | null) => champion ? `${champion.name}头像` : ''
 </script>
@@ -444,30 +545,52 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <Transition name="assistant-reveal">
               <section v-if="opponentAssistantVisible" class="opponent-scout" aria-live="polite">
                 <header>
-                  <div><small>默认关闭 · 本地实验</small><h2>对手近期状态</h2><p>只在客户端明确公开身份时，汇总最近 10 场可用 LoL 对局；不限定海克斯队列，评分不代表官方段位。</p></div>
+                  <div><small>默认关闭 · 本地实验</small><h2>队友与对手近期状态</h2><p>只在客户端明确公开身份时，汇总最近 20 场可用 LoL 对局；至少 12 场才给出分档，评分不代表官方段位。</p></div>
                   <button class="ghost" :disabled="state.opponentScout.status === 'loading'" @click="retryOpponentScout">
                     {{ state.opponentScout.status === 'loading' ? '读取中…' : '重新读取' }}
                   </button>
                 </header>
                 <p :class="['opponent-scout-message', `state-${state.opponentScout.status}`]">{{ state.opponentScout.message }}</p>
-                <div v-if="state.opponentScout.opponents.length" class="opponent-grid">
-                  <article v-for="opponent in state.opponentScout.opponents" :key="opponent.slot" :class="[`tier-${opponent.tier || 'unknown'}`, { unavailable: opponent.status === 'unavailable' }]">
-                    <div class="opponent-identity">
-                      <img v-if="opponentChampion(opponent)?.iconUrl" :src="opponentChampion(opponent)?.iconUrl" :alt="opponentChampion(opponent)?.name || ''" />
-                      <span v-else aria-hidden="true">◇</span>
-                      <div><small>对手 {{ opponent.slot }}</small><b>{{ opponentChampion(opponent)?.name || (opponent.championId ? `英雄 #${opponent.championId}` : '身份已公开') }}</b></div>
+                <div v-if="state.opponentScout.allies.length || state.opponentScout.opponents.length" class="scout-groups">
+                  <section
+                    v-for="group in [
+                      { key: 'ally', label: '队友', expected: 4, players: state.opponentScout.allies },
+                      { key: 'opponent', label: '对手', expected: 5, players: state.opponentScout.opponents },
+                    ]"
+                    :key="group.key"
+                    class="scout-group"
+                  >
+                    <h3>{{ group.label }} <small>{{ group.players.length }}/{{ group.expected }}</small></h3>
+                    <div v-if="group.players.length" class="opponent-grid">
+                      <button
+                        v-for="player in group.players"
+                        :key="`${group.key}-${player.slot}`"
+                        type="button"
+                        :disabled="!player.opaqueKey"
+                        :class="[`tier-${player.tier || 'unknown'}`, { unavailable: player.status === 'unavailable' }]"
+                        :aria-label="`${group.label} ${player.slot} ${opponentChampion(player)?.name || '英雄未知'}，${player.opaqueKey ? '查看近期明细' : '暂无明细'}`"
+                        @click="openScoutDetails(player, $event)"
+                      >
+                        <div class="opponent-identity">
+                          <img v-if="opponentChampion(player)?.iconUrl" :src="opponentChampion(player)?.iconUrl" :alt="opponentChampion(player)?.name || ''" />
+                          <span v-else aria-hidden="true">◇</span>
+                          <div><small>{{ group.label }} {{ player.slot }}</small><b>{{ opponentChampion(player)?.name || (player.championId ? `英雄 #${player.championId}` : '身份已公开') }}</b></div>
+                        </div>
+                        <div v-if="player.status === 'ready'" class="opponent-rating">
+                          <span>{{ player.tier || '样本不足' }}</span><b>{{ player.rating ?? '—' }}</b><small>/ 100</small>
+                        </div>
+                        <div v-else class="opponent-rating"><span>暂无数据</span><b>—</b></div>
+                        <dl>
+                          <div><dt>胜率</dt><dd>{{ winRate(player.winRate) }}</dd></div>
+                          <div><dt>KDA</dt><dd>{{ player.kda == null ? '—' : player.kda.toFixed(2) }}</dd></div>
+                          <div><dt>连续战绩</dt><dd>{{ opponentStreak(player.streak) }}</dd></div>
+                          <div><dt>样本</dt><dd>{{ player.sampleSize }} 场</dd></div>
+                        </dl>
+                        <small class="scout-detail-hint">{{ player.opaqueKey ? '点击查看近期明细' : '暂无可用明细' }}</small>
+                      </button>
                     </div>
-                    <div v-if="opponent.status === 'ready'" class="opponent-rating">
-                      <span>{{ opponent.tier || '样本不足' }}</span><b>{{ opponent.rating ?? '—' }}</b><small>/ 100</small>
-                    </div>
-                    <div v-else class="opponent-rating"><span>暂无数据</span><b>—</b></div>
-                    <dl>
-                      <div><dt>胜率</dt><dd>{{ winRate(opponent.winRate) }}</dd></div>
-                      <div><dt>KDA</dt><dd>{{ opponent.kda == null ? '—' : opponent.kda.toFixed(2) }}</dd></div>
-                      <div><dt>连续战绩</dt><dd>{{ opponentStreak(opponent.streak) }}</dd></div>
-                      <div><dt>样本</dt><dd>{{ opponent.sampleSize }} 场</dd></div>
-                    </dl>
-                  </article>
+                    <p v-else class="scout-group-empty">该分组身份未完整公开，本轮不查询。</p>
+                  </section>
                 </div>
                 <p class="opponent-privacy">不上传、不落盘、不向界面暴露 PUUID 或原始战绩；身份隐藏时保持不可用。</p>
               </section>
@@ -556,7 +679,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             </article>
             <article class="settings-card"><h3>目标显示器</h3><p>三卡位置不准时再校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">依次框住左、中、右整张卡片。</small></article>
             <article class="settings-card"><h3>识别快捷键</h3><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? 'Esc 取消录制。' : '快捷键不可用，请重新录制。') }}</small></article>
-            <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>只在海克斯对局且游戏或主窗口可见时低频识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人期间跟随英雄联盟客户端，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>三卡下方推荐</b><small>识别成功后显示点击穿透小窗，切屏时自动隐藏</small></div><input type="checkbox" :checked="state.settings.showInGameRecommendations" @change="updateSettings({ showInGameRecommendations: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>对手近期状态（本地实验）</b><small>默认关闭。仅身份明确公开时读取本机 LCU；近期样本不限定队列，可能违反 Riot 分发政策，不上传、不持久化。</small></div><input type="checkbox" :checked="state.settings.opponentScouting" @change="updateSettings({ opponentScouting: ($event.target as HTMLInputElement).checked })" /></label></article>
+            <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>只在海克斯对局且游戏或主窗口可见时低频识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人期间跟随英雄联盟客户端，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>三卡下方推荐</b><small>识别成功后显示点击穿透小窗，切屏时自动隐藏</small></div><input type="checkbox" :checked="state.settings.showInGameRecommendations" @change="updateSettings({ showInGameRecommendations: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>队友与对手近期状态（本地实验）</b><small>默认关闭。仅身份明确公开时读取本机 LCU；近期样本不限定队列，可能违反 Riot 分发政策，不上传、不持久化。</small></div><input type="checkbox" :checked="state.settings.opponentScouting" @change="updateSettings({ opponentScouting: ($event.target as HTMLInputElement).checked })" /></label></article>
           </div>
         </section>
 
@@ -569,6 +692,31 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
         </section>
       </Transition>
     </main>
+    <Transition name="release-highlights">
+      <div v-if="scoutDetails || scoutDetailsBusy" class="scout-details-backdrop" role="presentation" @click.self="closeScoutDetails">
+        <section ref="scoutDetailsDialog" class="scout-details-dialog" role="dialog" aria-modal="true" aria-labelledby="scout-details-title" tabindex="-1">
+          <header>
+            <div>
+              <small>{{ scoutDetails?.relation === 'ally' ? '队友' : '对手' }} {{ scoutDetails?.slot || '' }} · 本机缓存</small>
+              <h2 id="scout-details-title">{{ championById(scoutDetails?.championId ?? null)?.name || '近期对局明细' }}</h2>
+            </div>
+            <button ref="scoutDetailsCloseButton" class="ghost" type="button" aria-label="关闭近期明细" @click="closeScoutDetails">关闭</button>
+          </header>
+          <p v-if="scoutDetailsBusy">{{ scoutDetailsMessage }}</p>
+          <div v-else-if="scoutDetails?.matches.length" class="scout-match-list">
+            <article v-for="(match, index) in scoutDetails.matches" :key="index" :class="{ win: match.win, loss: !match.win }">
+              <img v-if="championById(match.championId)?.iconUrl" :src="championById(match.championId)?.iconUrl" :alt="championById(match.championId)?.name || ''" />
+              <span v-else class="scout-match-icon" aria-hidden="true">◇</span>
+              <div><b>{{ match.win ? '胜利' : '失败' }}</b><small>{{ championById(match.championId)?.name || '英雄未知' }}</small></div>
+              <strong>{{ match.kills }} / {{ match.deaths }} / {{ match.assists }}</strong>
+              <small>{{ match.durationMinutes }} 分钟</small>
+            </article>
+          </div>
+          <p v-else>{{ scoutDetailsMessage || '暂无可用明细' }}</p>
+          <footer>仅显示英雄、胜负、K/D/A 和时长；不显示玩家名、PUUID、对局 ID 或原始载荷。</footer>
+        </section>
+      </div>
+    </Transition>
     <Transition name="release-highlights">
       <div
         v-if="state.releaseHighlights"

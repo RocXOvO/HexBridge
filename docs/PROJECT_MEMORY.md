@@ -3,6 +3,7 @@
 > 最后更新：2026-08-14
 > 当前基线：公开最新正式 Release 为 [v0.1.23](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.23)，Release ID `370625932`，publishedAt `2026-08-14T14:25:52Z`，public、Latest、non-draft、non-prerelease。annotated tag object `e53cb90a02c43010c6cfee68758d525a91b108b6` 解引用到产品 / 标签提交 `06ca3f5307133c86bc0f8b5c5cbc8eed76c16d7d`；tag run `31808909709` / job `94794460360` 于 `2026-08-14T14:19:13Z`～`14:26:03Z` success，约 6m50s。Windows 36 files / 359 passed 及全部候选、正式 Release / channel / public 门禁通过；public v2 channel 已独立核验 `version=0.1.23`、EXE size `199254309`，public packaged check 返回 `channelVersion=0.1.23 / updateAvailable=false`。v0.1.11～v0.1.23 各保留五项正式资产，legacy 根 channel 仍冻结为 0.1.14。
 > 当前验证边界：HB-047～HB-057 均未完成真实 WeGame / 用户同机闭环，HB-047 与新增战绩扩展目标的政策 / 自定义分发继续 `ACCEPTED RISK`；正式发布和 Windows runner 不能替代真实身份 / history endpoint、DPI、多屏、点击穿透、游戏性能或用户同机证据。用户要求修复而非删除战绩功能的决策、Main-only / PUUID 隐私和其他产品边界不变。Windows 产物未商业代码签名，SmartScreen 风险与 Node 20 action 非阻断 annotation 继续保留。
+> 当前未发布工作树：在公开 Latest v0.1.23 之上，package / package-lock / README / bridge / state / demo / releaseHighlights 已正式提升为本地 `v0.1.24` dirty 候选，仅实现 HB-054“队友 + 对手近期状态与点击头像脱敏明细”。尚未 commit / push / Windows / tag / Release；最终审查与同步 README 均无 P0 / P1，本地 36 files / 369 passed + 1 skipped、typecheck、lint、source bridge / UI 与 diff-check 通过。真实 WeGame / 用户同机仍未验证，HB-047 / HB-054 继续 `IN PROGRESS / UNVERIFIED`，政策 / 自定义分发继续 `ACCEPTED RISK`；不得预写未来结果。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -27,7 +28,7 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 - 默认不保存截图；诊断模式也只能保存三张海克斯标题裁切区，绝不能保存完整屏幕。
 - 定位为个人实验工具。Riot 当前政策对强化胜率展示、替玩家决策类产品存在风险；扩大分发前必须重新评估政策和数据授权。
 - 交付节奏：用户要求每完成一项独立目标就逐项发布一个小版本。只有该项目标完成对应审查、自动化与必要 Windows 候选门禁后才可进入发布流程；不得预先分配版本号、捆绑宣称未完成目标、跳过验证或预写 tag / Release 结果。
-- 具体对手近期战绩与“上等马 / 中等马 / 下等马”只允许作为默认关闭、仅本机、受支持海克斯队列 `{2400, 3270}` 的个人实验，其中明确允许用户实际使用的自定义 3270。身份来源必须随阶段收口：`selecting / launching` 只读 champ-select，且每个对手只接受显式 `VISIBLE` 或显式空字符串，字段缺失、`HIDDEN` 或未知值一律拒绝；`active` 只读 gameflow，必须唯一定位本方并取得对方恰好 5 个唯一合法 PUUID，此阶段允许 `nameVisibilityType` 缺失 / `null` 或显式 `VISIBLE`，显式空字符串、`HIDDEN`、`UNKNOWN` 或其他未知值一律拒绝。不得隐藏身份绕过、LCU 写入、注入、上传、记录或持久化 PUUID / 原始响应 / 完整战绩；样本不足或来源不成立时必须显示不可用而不是伪造评分。该窄实现不表示 Riot 官方支持，也不表示可安全公开分发；自定义对局历史、竞争优势与玩家价值分档的政策风险由 HB-047 按 `ACCEPTED RISK` 明示保留。
+- 队友 / 对手近期状态与“上等马 / 中等马 / 下等马”只允许作为默认关闭、仅本机的个人实验；当前 dirty 候选不再把历史样本限定为 Mayhem，但只有 HexBridge 已建立有效比赛上下文时才能进入。身份来源随阶段收口：`selecting / launching` 只信 champ-select，`active` 只信 gameflow；本方必须唯一、两组身份必须跨组唯一，任一原始 team 超过 5 人时全局 fail closed。4 位队友和 5 位对手各自 all-or-nothing，单组失败只禁用该组，组间允许 partial。不得隐藏身份绕过、LCU 写入、注入、上传、记录或持久化 PUUID / 原始响应 / 完整战绩；少于 12 个有效样本不得评分 / 分档，来源不成立时保持不可用。该实现不表示 Riot 官方支持或适合公开分发；身份可见性、竞争优势、自定义对局历史与玩家价值分档继续由 HB-047 / HB-054 按 `ACCEPTED RISK` 明示保留。
 - 许可为 PolyForm Noncommercial 1.0.0（source-available，非 OSI 开源）。Mineradio 仅是视觉理念参考，不复制其 GPL 代码、素材、品牌或原创视觉表达。
 
 ### 1.1 界面与视觉长期契约（目标与 v0.1.12 / v0.1.13 实现边界，尚未完整用户同机验证）
@@ -91,9 +92,9 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 - `/lol-champ-select/v1/current-champion`
 - `/riotclient/region-locale`
 - `/lol-summoner/v1/current-summoner`（仅限 Main 内 HB-047 本机实验与 HB-053 中途启动英雄恢复）
-- `/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex=9`（仅接受 `[A-Za-z0-9_-]{20,120}` 的 PUUID 路径段和这一固定 query）
+- `/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex=19`（仅接受 `[A-Za-z0-9_-]{20,120}` 的 PUUID 路径段和这一固定 query）
 
-HB-047 对 allowlist 的扩展只适用于默认关闭、仅本机、受支持海克斯队列 `{2400, 3270}`（明确包含用户实际使用的自定义 3270）的个人实验。进入历史请求前必须满足阶段化来源：`selecting / launching` 使用 champ-select，五个对手均须带显式 `VISIBLE` 或显式空字符串，字段缺失、`HIDDEN` 或未知值即拒绝；`active` 使用 gameflow，必须把本方唯一定位到一侧，并且另一侧恰好包含 5 个唯一合法 PUUID，此阶段可接受 `nameVisibilityType` 缺失 / `null` 或显式 `VISIBLE`，显式空字符串、`HIDDEN`、`UNKNOWN` 或其他未知值即拒绝。否则不得发出任何逐 PUUID 历史请求。Main 先读取固定 current-summoner，再以最多并发 2 请求上述固定 `begIndex=0&endIndex=9` 历史端点；单个 LCU 响应硬上限 2 MiB，调用支持 Abort / timeout，换局、禁用或世代变化必须取消或丢弃旧结果。不得接受任意 endpoint、query、索引范围或 Renderer 提供的 PUUID，不得用屏幕抓取、客户端注入或不明第三方接口补齐身份；所有请求继续为 `GET`，不得新增 LCU 写调用。
+HB-047 / HB-054 对 allowlist 的扩展只适用于默认关闭、仅本机的 `ACCEPTED RISK` 个人实验。进入历史请求前必须满足阶段化来源：`selecting / launching` 只使用 champ-select，显式 `VISIBLE` 或显式空字符串可接受，字段缺失、`HIDDEN` 或未知值拒绝；`active` 只使用 gameflow，可见性缺失 / `null` / `VISIBLE` 可接受，显式空字符串、`HIDDEN`、`UNKNOWN` 或其他未知值拒绝。本方身份与归组必须恰好唯一，队友 / 对手必须跨组唯一，任一原始 team 超过 5 人时全局 fail closed；4 位队友与 5 位对手分别 all-or-nothing，单组失败只禁用该组，因此组间可以 partial。Main 先读取固定 current-summoner，再对合格身份调用固定 `begIndex=0&endIndex=19` 历史端点；最多取 20 场，少于 12 个有效样本不评分 / 分档。跨旧批次的全局历史请求并发最多 2，单响应硬上限 2 MiB，支持 timeout / Abort，瞬态失败最多重试一次；禁用、换局、transport / credential 变化、退出或新批次取代旧批次时必须取消请求并清空明细缓存。不得接受任意 endpoint、query、索引范围或 Renderer 提供的 PUUID，不得用屏幕抓取、客户端注入或不明第三方接口补齐身份；所有请求继续为 `GET`，不得新增 LCU 写调用。
 
 HB-053 只复用固定 current-summoner GET，并且只在 `active` 阶段于 Main 内把其 PUUID 与 gameflow team 做唯一匹配以恢复本英雄；匹配不唯一或来源不成立时不得猜测 champion。失败后的重试边界固定为 5000ms：4999ms 不得重试，达到 5000ms 才可再次请求。该路径不得调用逐 PUUID match-history、不得把 PUUID 加入 `ChampSelectSnapshot` / Renderer / IPC 状态或日志 / 磁盘；目标回归同时要求 snapshot 与 logger 均不含 PUUID。
 
@@ -143,10 +144,10 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 3. **Riot Data Dragon（当前静态资产源）**
    - 用于英雄、物品、版本信息、头像和原画等 Riot 静态资产。
    - 不包含 ARAM Mayhem 聚合统计或三张海克斯推荐数据，不能作为本模式的统计源。
-4. **本地 LCU Match History（默认关闭的 HB-047 个人实验，v0.1.20 已接入）**
-   - 固定只读 GET 为 `/lol-summoner/v1/current-summoner` 与 `/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex=9`；后者只在受支持海克斯队列 `{2400, 3270}`（含用户实际使用的自定义 3270）满足 HB-047 阶段化身份门禁时调用：选人 / 启动阶段使用 champ-select 的显式 `VISIBLE` / 显式空字符串，active 使用 gameflow 中唯一定位本方后的恰好 5 个唯一合法对手 PUUID，并只接受可见性缺失 / `null` / `VISIBLE`。Main 内最多并发 2、单响应 2 MiB 上限并支持 Abort / timeout。
+4. **本地 LCU Match History（默认关闭的 HB-047 / HB-054 个人实验，v0.1.20 首次接入，当前 dirty 候选已扩展）**
+   - 固定只读 GET 为 `/lol-summoner/v1/current-summoner` 与 `/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex=19`。选人 / 启动阶段只使用 champ-select，active 只使用 gameflow；唯一 self、跨组唯一和 team 上限先做全局门禁，再让 4 位队友 / 5 位对手分别 all-or-nothing、组间可 partial。Main 内跨旧 / 新批次的历史请求总并发最多 2，单响应 2 MiB 上限并支持 Abort / timeout，瞬态失败最多重试一次。
    - 这是未受 Riot 官方支持、可能随客户端变化的 LCU 接口，不得冒充可靠官方历史源。Lytical 等旧项目仅作为历史研究证据，其代码和宽松调用方式没有复制进 HexBridge；当前窄实现也不证明该 endpoint 在国服真实 WeGame 可用。
-   - 只在 Main 内存中把最近可用 LoL 对局归一化为有限样本，不限定 Mayhem；少于 8 个有效样本不计算 rating / 三档。PUUID、原始响应和完整历史不得进入 Renderer、日志、缓存、磁盘、遥测、上传或跨设备同步，关闭实验、离局、换代或请求失败后不得持久保留。
+   - 只在 Main 内存中把最近最多 20 场可用 LoL 对局归一化，不限定 Mayhem；少于 12 个有效样本不计算 rating / 三档。PUUID、玩家名、participant、gameId、原始响应、逐局时间戳与完整历史不得进入 Renderer、日志、磁盘、遥测、上传或跨设备同步；关闭实验、离局、transport / credential 变化、换代、退出或请求失败后不得持久保留。
 5. **Live Client Data API（可选对局上下文，未接入）**
    - 本地 `127.0.0.1:2999` 可补充对局中的玩家、英雄、事件等上下文。
    - 不提供海克斯界面的三张候选卡，也不提供国服聚合胜率 / Tier，因此不能替代 OCR 或主统计源；即使未来使用，也只能消费当前局已公开且不形成对手历史画像的最小字段。
@@ -163,7 +164,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
    - 对 OP.GG、U.GG、MetaSRC、PlayARAM、arammeta 等未发现可依赖的文档化公共 API。
    - 不把站点私有 XHR、逆向接口、Selenium / 浏览器抓取当作稳定生产上游；除稳定性外还涉及授权、反爬、字段漂移和再分发风险。
 
-审计后的整合原则：聚合统计继续来自文档化且获授权的数据接口；静态海克斯元数据可评估 pin patch 的 CommunityDragon；Riot / Meraki 只补静态资产。LCU Match History 只允许 HB-047 当前这条默认关闭、本机、受支持海克斯队列 `{2400, 3270}`（含自定义 3270）、身份明确可见、严格限流且不持久化的 `ACCEPTED RISK` 个人实验；它不能被描述为官方数据能力、生产稳定源或公开分发已获批准。Live Client Data API 若接入仍只限当前局已公开最小字段；Wiki 只在满足 CC BY-SA 许可隔离时用于交叉校验；不使用私有网页抓取填补数据空缺。
+审计后的整合原则：聚合统计继续来自文档化且获授权的数据接口；静态海克斯元数据可评估 pin patch 的 CommunityDragon；Riot / Meraki 只补静态资产。LCU Match History 只允许 HB-047 / HB-054 当前这条默认关闭、本机、身份明确可见、严格限流且不持久化的 `ACCEPTED RISK` 个人实验；样本可来自最近可用 LoL 对局而不限定 Mayhem，但查询资格仍依赖当前有效比赛上下文和上述阶段 / 分组门禁。它不能被描述为官方数据能力、生产稳定源或公开分发已获批准。Live Client Data API 若接入仍只限当前局已公开最小字段；Wiki 只在满足 CC BY-SA 许可隔离时用于交叉校验；不使用私有网页抓取填补数据空缺。
 
 ### 3.3 IPC 契约
 
@@ -171,12 +172,13 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 允许的业务调用：
 
-- `getState()` / `onStateChanged(callback)`：只有 Main sender 可取得经聚合的 `opponentScout` DTO；选人伴随窗、augment、校准等非 Main 状态必须剥离该字段或返回 disabled / empty，任何 Renderer 都不得取得 PUUID、原始历史或可重放查询参数。
+- `getState()` / `onStateChanged(callback)`：只有 Main sender 可取得经聚合的队友 / 对手 summary DTO；选人伴随窗、augment、校准等非 Main 状态必须剥离该字段或返回 disabled / empty。summary 只含 relation、slot、championId、清洗后的样本 / 评分以及 generation 绑定的随机 24 字符 opaqueKey；任何 Renderer 都不得取得 PUUID、玩家名、participant、gameId、原始历史、逐局时间戳、路径或可重放查询参数。
 - augment BrowserWindow 通过受控 `additionalArguments` 标识 renderer route；该 preload 只暴露独立 `hexbridgeOverlay.onChanged(callback)`，接收 Main 单向发送的 compact `slots + layout + message` DTO。单纯修改 URL hash 不能取得主 `window.hexbridge` 业务桥；overlay 不暴露完整 RuntimeState、LCU 凭据、API Key、文件系统、网络能力或任意 invoke。
 - `updateSettings(patch)`：当前实现只允许视觉模式、自动 OCR、两个浮窗开关、热键、游戏目录、显示器、校准区域、诊断截图开关，以及布尔型 `opponentScouting`。对手实验默认 `false`，且更新设置只接受 Main sender；Renderer 不能提交 endpoint、PUUID、索引范围或任意查询参数。长期界面契约要求删除普通设置页的游戏目录 UI；Main / IPC 中手动目录 fallback 是否继续保留须经主线审计后决定。若保留，只能是严格路径校验、明确诊断用途的受控 fallback，不能重新成为普通用户必填项或任意文件系统入口。
 - `validateAndSaveApiKey(key)` / `clearApiKey()`
 - `refreshData()` / `triggerOcr()`
-- `retryOpponentScout()`：无参数、只允许 Main sender；只重新触发 Main 内相同的 queue / stage / `VISIBLE` / generation 门禁，不能绕过资格条件或由 Renderer 指定玩家。
+- `retryOpponentScout()`：无参数、只允许 Main sender；只重新触发 Main 内相同的 stage / visibility / self / team / generation 门禁，不能绕过资格条件或由 Renderer 指定玩家。
+- `getScoutPlayerDetails(opaqueKey, matchGeneration)`：只允许 Main sender；opaqueKey 必须是 24 字符 allowlist 格式，并同时命中当前 generation、当前 summary membership 与 Main 内存缓存，否则 fail closed。Renderer 不能提交 PUUID、endpoint 或 query；成功 DTO 只含 relation / slot、championId，以及最多 20 场清洗后的英雄、胜负、K / D / A 和分钟数。
 - `clearDiagnosticScreenshots()`
 - `startCalibration()` / `completeCalibration(rects)` / `cancelCalibration()`
 - `windowAction(minimize|maximize|close|quit)`
@@ -781,16 +783,17 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-047 实验性本地只读对手战绩与分档评分
 
 - 严重度：高（涉及玩家身份、战绩隐私、未文档化端点稳定性和 Riot 产品政策；错误评分会直接误导）
-- 状态：`IN PROGRESS / UNVERIFIED`（v0.1.21 已正式发布并通过 tag workflow 全链；真实国服 WeGame、真实身份 / 历史端点与用户同机仍未验证，发布不自动升级状态）
+- 状态：`IN PROGRESS / UNVERIFIED`。v0.1.21 的仅对手版本已正式发布；当前本地 v0.1.24 dirty 候选已扩展为队友 + 对手分组和点击头像脱敏明细，最终审查无 P0 / P1，但尚未 commit / push / Windows / tag / Release，真实国服 WeGame、身份 / 历史端点与用户同机仍未验证。
 - 用户决策：用户已澄清“对手战绩无用”是要求修复现有功能，而不是移除功能；此前任何删除 / 移除对手战绩的方向均已完整撤回，默认关闭、本机实验入口、Main-only 查询和隐私边界继续保留。
-- 政策 / 分发边界：`ACCEPTED RISK`。用户明确选择保留默认关闭、仅本机、受支持海克斯队列 `{2400, 3270}` 的个人实验，包含其实际使用的自定义 3270；这不构成 Riot 批准。Riot General Policies 2025-03-11 与 LoL policies 对不公平优势、替代官方技能评级、去匿名化隐藏玩家及未经 opt-in 展示自定义对局历史仍构成明确风险，因此不得据本地实现宣称适合公开或商业分发。
-- 启用与身份门禁：设置默认 `opponentScouting=false`，迁移也保持关闭。只有本局属于受支持海克斯队列 `{2400, 3270}` 才可进入。`selecting / launching` 只从 champ-select 取对手，五个身份均须带显式 `VISIBLE` 或显式空字符串；缺字段、`HIDDEN`、未知值、缺一人或重复均拒绝，隐藏选人身份时不得轮询历史。`active` 只从 gameflow 取对手，本方身份与 team 归属都必须恰好唯一，并从另一侧得到恰好 5 个唯一合法 PUUID；此阶段允许 `nameVisibilityType` 缺失 / `null` 或显式 `VISIBLE`，但显式空字符串、`HIDDEN`、`UNKNOWN` 或其他未知值均拒绝。明确的 visibility 拒绝必须优先于 incomplete 分类，不能把隐藏 / 歧义身份降级成可重试的“不完整”。不得用 OCR、进程注入、内存读取、权限绕过或私有第三方服务补齐身份。
-- LCU 与资源边界：Main 先调用固定 `/lol-summoner/v1/current-summoner`，再对已通过门禁的 5 人调用严格 `/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex=9`。PUUID 路径段有固定格式校验，Renderer 不能传 endpoint、PUUID 或 query；单响应最多 2 MiB、历史请求并发最多 2，并有 timeout / Abort。fulfilled `null` 与结构化 error envelope 必须分类为明确不可用 / 可重试状态，不能当正常数据；单个历史请求仅对瞬态 HTTP 500 / 429 自动重试一次，404、schema / 结构错误与其他非瞬态失败不得自动重试。关闭设置、transport 断开、阶段 / generation 变化或新请求取代旧请求时必须取消或丢弃旧结果；不得引入任何 LCU 写请求。
-- 样本与评分口径：只消费端点返回的最近可用 LoL 对局，不要求限定 Mayhem；过滤无效、过短或缺关键统计的对局，最多取有限近期样本。目标玩家必须在 identity 与 participant 两侧分别唯一后才可 join；缺 PUUID 的 legacy identity 只允许在单 participant 时采用有界 fallback，畸形、重复、歧义或多 participant 无法唯一关联时一律 fail closed。有效样本少于 8 局时不得计算 rating 或“上 / 中 / 下等马”分档，也不得以 0、默认档或猜测补齐；可用结果必须明确样本数与不可用原因。
-- 隐私 / IPC 边界：PUUID、current-summoner 原始载荷、逐玩家历史响应和完整历史只存在于 Main 的有界内存，不得写日志、缓存、配置、磁盘、截图、遥测或上传。Main RuntimeState 只向主窗口提供去身份化聚合 DTO，所有非 Main state 必须剥离 `opponentScout`；`updateSettings` 与 `retryOpponentScout` 都只接受 Main sender。窗口、Preload 或 Renderer 不得获得可重放查询数据。
-- active 重试契约：首个 active 身份尚未就绪时，不得让 generation / stage `attemptKey` 永久锁死查询。仅 `source / team incomplete` 或 transport Abort 可按 3 / 5 / 10 / 15 / 15 秒做最多五次有界自动重试；hidden、ambiguous、visibility 拒绝、404、schema 错误或其他确定性失败不得进入该轮询。成功、partial / ready、离局、禁用、generation / stage 变化或停止后必须停止 / 清理；次数耗尽后提示用户手动“重新读取”。选人阶段的隐藏 / 不完整身份不得启动历史轮询，且 visibility 拒绝原因必须优先于泛化的 incomplete 分类，避免把明确隐藏误判为可重试。
-- 当前实现与验证：v0.1.21 已实现上述阶段化可见性、唯一关联、错误分类、历史瞬态重试与 Runtime 有界重试；最终审查无 P0 / P1，本地完整 36 files / 350 passed + 1 skipped 及 source / OCR / icon / retention / diff 门禁全过。tag `v0.1.21` 解引用提交 `24e6d708671fbd1807ab1c973e01e6b40de43245`，正式 run `31803207522` / job `94775818465` 又通过 Windows 36 files / 350 passed + 1 skipped 与 packaged UI / bridge、differential updater、Release / channel / public smoke 全链，但 runner 不连接真实 WeGame。真实身份 / history endpoint 和用户同机均未完成，因此仍不得写 `FIXED` / `VERIFIED`。历史端点、并发 2、2 MiB、Abort、Main-only 与 PUUID 不出 Main / 不日志 / 不进状态 / 不落盘边界未改变。
-- 剩余验收：Windows packaged / 真实 WeGame 分别验证 2400 和自定义 3270 的 selecting→launching→active 阶段载荷、champ-select 显式空字符串 / `VISIBLE`、active gameflow 缺失可见性字段、显式隐藏拒绝、current-summoner / history endpoint 可用性、3 / 5 / 10 / 15 / 15 秒重试停止条件、2 MiB 拒绝、并发 2、timeout / Abort、换局与禁用取消、少于 8 局不分档、断网 / 401 / endpoint 漂移、Main / 非 Main IPC 隔离、日志 / 磁盘 / 网络无 PUUID 与历史泄漏，以及 CPU / LCU 请求频率。任何扩大分发前还必须重新做 Riot 政策与玩家 opt-in 审计；未完成前不得标 `VERIFIED`。
+- 政策 / 分发边界：`ACCEPTED RISK`。用户明确选择保留默认关闭、仅本机、当前受支持海克斯比赛上下文 `{2400, 3270}` 的个人实验；历史样本可取最近可用 LoL 对局而不限定 Mayhem。这不构成 Riot 批准。Riot General Policies 2025-03-11 与 LoL policies 对不公平优势、替代官方技能评级、去匿名化隐藏玩家及未经 opt-in 展示自定义对局历史仍构成明确风险，因此不得据本地实现宣称适合公开或商业分发。
+- 启用与身份门禁：设置默认 `opponentScouting=false`，迁移也保持关闭。`selecting / launching` 只信 champ-select；`active` 只信 gameflow。current-summoner 必须唯一落入一个 team，所有有效身份必须跨两组唯一，任一原始 team 超过 5 人立即全局 fail closed。去掉 self 后，4 位队友与 5 位对手分别 all-or-nothing；一组不可见 / 不完整只禁用该组，另一组合格时允许 partial。champ-select 仅接受显式 `VISIBLE` / 显式空字符串，active 接受可见性字段缺失 / `null` / `VISIBLE`；其他标记拒绝。不得用 OCR、进程注入、内存读取、权限绕过或私有第三方服务补齐身份。
+- LCU 与资源边界：Main 只调用固定 `/lol-summoner/v1/current-summoner` 和 `/lol-match-history/v1/products/lol/{puuid}/matches?begIndex=0&endIndex=19`。PUUID 路径段固定校验，Renderer 不能传 endpoint、PUUID 或 query。跨被取消旧批次与新批次的全局历史请求并发始终最多 2；单响应 2 MiB 上限，支持 timeout / Abort，瞬态失败最多自动重试一次，404、schema / 结构错误和其他确定性失败不重试。禁用、换局、transport / credential 变化、退出或新批次取代旧批次时必须取消请求并清空 summary 明细缓存；不得引入 LCU 写请求。
+- 样本与评分口径：每位玩家最多消费 20 场最近可用 LoL 对局，不限定 Mayhem；过滤无效、过短或缺关键统计的对局。目标玩家必须在 identity 与 participant 两侧唯一 join；缺 PUUID 的 legacy identity 只允许单 participant 有界 fallback，畸形、重复或歧义 fail closed。有效样本少于 12 局不得计算 rating 或“上 / 中 / 下等马”，不得以 0、默认档或猜测补齐。
+- 隐私 / IPC 边界：PUUID、玩家名、participant、gameId、current-summoner / history 原始载荷、逐局时间戳、路径和完整历史只可在 Main 有界请求处理中短暂存在，不得进入 Renderer、日志、配置、磁盘、截图、遥测或上传。每个可用玩家只向主窗口发 generation 绑定的随机 24 字符 opaqueKey 与脱敏 summary；点击头像只允许 Main sender，并同时校验 key 格式、当前 generation 和 current membership。Main 返回的明细只含英雄、胜负、K / D / A 与分钟数；非 Main state 必须剥离整个 scout DTO。
+- 生命周期 / 交互契约：禁用、generation / stage 换代、transport / credential 变化、退出和新批次开始必须 Abort 并清空请求 / opaqueKey / 明细缓存；selecting / launching 的 partial 进入 active 后必须改用 gameflow 重新查询。头像明细对话框必须初始聚焦、Tab / Shift+Tab 焦点陷阱、Escape / 背景 / 关闭按钮退出，并在关闭或请求失败后把焦点恢复到仍存在的触发头像。
+- active 重试契约：首个 active 身份尚未就绪时，不得让 generation / stage `attemptKey` 永久锁死查询。仅 source / team incomplete 或 transport Abort 可按既有 3 / 5 / 10 / 15 / 15 秒做最多五次有界自动重试；hidden、ambiguous、visibility 拒绝、404、schema 错误或其他确定性失败不得轮询。成功、partial / ready、离局、禁用、generation / stage 变化或停止后必须停止 / 清理；选人阶段的 partial 不轮询历史，进入 active 后按新来源重查。
+- 当前实现与验证：当前本地 v0.1.24 dirty 候选实现以上队友 / 对手、partial、20 场 / 12 样本、跨批次并发、opaqueKey 明细与焦点管理；README 已同步，终审无 P0 / P1。本地最终 36 files / 369 passed + 1 skipped、typecheck、lint、source bridge / UI、diff-check 全过。尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.23；真实 WeGame、LCU 历史端点和用户同机未验证，因此不得写 `FIXED / VERIFIED`。
+- 剩余验收：Windows packaged / 真实 WeGame 覆盖 2400 和自定义 3270 的 selecting→launching→active、两组完整 / 单组 partial / 全局歧义、raw team >5、跨组重复、所有 visibility 组合、partial→active 重查、2 MiB / 并发 2 / timeout / Abort / 瞬态重试、禁用 / 换局 / transport / credential / 退出清理、少于 12 局不分档、点击明细焦点与失效 key，以及 Renderer / 日志 / 磁盘无身份 / 原始历史泄漏。扩大分发前仍须重新做 Riot 政策与玩家 opt-in 审计。
 
 ### HB-048 自定义 3270 退出后比赛上下文和选人伴随窗未清理
 
@@ -845,10 +848,11 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-054 队友与对手战绩总览及头像详情
 
 - 严重度：中高（属于用户明确提出的战绩能力扩展，同时涉及身份可见性、隐私与自定义分发政策风险）
-- 状态：`IN PROGRESS（REPORTED / UNDIAGNOSED）`；仅登记目标与既有边界，具体数据缺失根因、端点载荷、交互和实现尚未审查，不得写 `FIXED / VERIFIED`。
-- 用户目标：战绩区域不只展示对手，还要同时展示本局队友与对手；点击某个可见玩家头像后，可查看该玩家近期战绩详情。当前不得假定既有 HB-047 数据足以支持队友、头像映射或详情页，也不得伪造缺失身份 / 历史。
-- 强制边界：功能继续默认关闭、仅本机个人实验、Main-only；PUUID、原始身份、原始历史和完整战绩不得出 Main、写日志 / 状态 / 磁盘或上传。只允许既有受限只读 GET，必须沿用分阶段 visibility、唯一身份关联、2 MiB / 并发 2 / Abort、样本不足和异常 fail closed；头像点击不得要求 Renderer 持有 PUUID。政策与自定义分发继续 `ACCEPTED RISK`。
-- 验收契约：在身份明确可见且来源可靠时，队友 / 对手分组与头像对应关系准确，点击只打开所选玩家的有界近期详情；隐藏、歧义、样本不足、端点失败、阶段 / generation 换代或功能关闭时保持不可用并清理旧详情。需先完成端点 / schema、隐私泄漏、Renderer 状态、性能和真实 WeGame 同机审计。
+- 状态：`IN PROGRESS / UNVERIFIED`；本地 v0.1.24 dirty 候选已实现并通过终审 / 本地门禁，但尚未 commit / push / Windows / tag / Release，也没有真实 WeGame 用户同机证据，不得写 `FIXED / VERIFIED`。政策 / 自定义分发继续 `ACCEPTED RISK`。
+- 当前实现：默认关闭，只在 Main 内按 HB-047 阶段化身份门禁分别构造 4 位队友和 5 位对手。任一组只有全员合格才查询 / 展示，但另一组可独立成功形成 partial；任一 raw team >5、本方不唯一或跨组身份重复时全局拒绝。每位合格玩家固定读取最多 20 场，少于 12 场不评分 / 分档。
+- 头像明细：Renderer 只持有 relation / slot、championId、脱敏 summary 与 generation 绑定的随机 24 字符 opaqueKey。点击头像经 Main-only IPC 同时校验 key、generation 和 current membership，只返回英雄、胜负、K / D / A、分钟；PUUID、玩家名、participant、gameId、原始载荷、逐局时间戳和路径不进入 Renderer / 日志 / 磁盘。禁用、换局、transport / credential 变化、退出或新批次会取消请求并清理 key / 缓存。
+- 交互：对话框打开后初始聚焦关闭按钮，Tab / Shift+Tab 受焦点陷阱约束，Escape / 背景 / 关闭按钮可退出；请求失败或关闭后恢复到仍连接的触发头像。selecting / launching 的 partial 进入 active 后必须用 gameflow 重查。
+- 当前证据 / 验收：README 已同步，最终审查无 P0 / P1；本地 36 files / 369 passed + 1 skipped、typecheck、lint、source bridge / UI、diff-check 全过。仍须 Windows packaged 与真实 WeGame 验证完整 / partial / 全局拒绝、20 场 / 12 样本、并发 / Abort / 清理、点击失效 key、焦点恢复、性能和隐私泄漏；未完成前状态不升级。
 
 ### HB-055 真实对局内 96px 提示 / 推荐窗缺失
 
@@ -886,6 +890,14 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 响应速度：英雄 / snapshot 变化立即同步，详情后台非阻塞补齐；详情到达且 sequence 仍匹配才再次同步，不把 API 延迟计入选人 UI 刷新路径。
 
 ## 七、当前自动化验证基线
+
+2026-08-14 v0.1.24 / HB-047 + HB-054 本地 dirty 候选（未 commit / push / Windows / tag / Release）：
+
+- 产品 / 身份：默认关闭、仅本机、`ACCEPTED RISK`；`selecting / launching=champ-select`、`active=gameflow`。唯一 self、跨组唯一、任一 raw team >5 全局 fail closed；4 位队友和 5 位对手分别 all-or-nothing，组间允许 partial，selecting / launching partial 进入 active 后重查。
+- 请求 / 样本：固定 Main-only current-summoner + per-PUUID history `endIndex=19`，最多 20 场、少于 12 场不评分；跨被取消旧批次的全局并发 2、2 MiB / Abort / timeout、瞬态失败最多一次 retry。禁用、换局、transport / credential 变化、退出和新批次均取消并清理。
+- 隐私 / 明细：每位可用玩家只向主窗口提供 generation 绑定的随机 24 字符 opaqueKey 与脱敏 summary；点击仅 Main sender 且必须同时命中 key + generation + current membership，详情只含英雄 / 胜负 / KDA / 分钟。PUUID、玩家名、participant、gameId、原始载荷、逐局时间戳和路径不进 Renderer / 日志 / 磁盘。对话框具备初始聚焦、Tab / Shift+Tab 焦点陷阱、Escape / 背景关闭和成功 / 失败后的触发头像焦点恢复。
+- 当前证据：README 已同步，最终审查无 P0 / P1；clean audit 0、OCR synthetic、真实 4K title-only fixture `137ms`、36 files / 369 passed + 1 skipped、typecheck、lint、source bridge / UI、icon / release-retention / legacy / public-channel verifier 与 diff-check 全过。版本已在 package / package-lock / README / bridge / state / demo / releaseHighlights 升至 0.1.24，但尚未 commit / push / Windows / tag / Release；公开 Latest 仍为 v0.1.23，HB-047 / HB-054 保持 `IN PROGRESS / UNVERIFIED`。
+- macOS 交叉打包非正式证据：`pack:win` / updater metadata / checksums 通过；EXE `198764829` bytes / SHA-256 `e421c4858e1a8dfd9504ed90ac564de6fc092b2c6c039c03a2a175b37cf6f176`，blockmap `201139` / `c524de5ed3bcf5b355266cbf0b1edbb8e7d6cb425531cb35af80a1e3165b8ba5`，ZIP `274302721` / `be2cea707c2a0fddea62009032144b05a8d2cc0ef1c12972804f08202be35f64`，`latest.yml` `346` / `322d1d642928013dfee638fb88175f45fc91a742012a203f78767a34737bdcd8`，`SHA256SUMS.txt` `182` / `ca48d1720028668312ff3f05c1a5d03f9c6215c785372a85a7334c5038f3c914`，latest SHA-512 `DMpNKFrZmzxN8VnGAQfiYqTSnCrhktVWu7BG7O9EygTjIaxBtYjfkIaO6riaeJGIqpoc6k1hFfwjFLdR8Dh7Og==`。这些是 macOS 交叉构建完整性证据，不是 Windows Actions 正式产物、Windows / WeGame 实机或用户同机验收。
 
 2026-08-14 v0.1.23 / HB-055 Windows 候选与正式发布：
 
@@ -1216,10 +1228,10 @@ v0.1.16 Windows 候选与正式发布基线：
 - HB-039 / HB-040 当前为 `FIXED / UNVERIFIED`：v0.1.17 本地候选已删除实时助手未连接空态说明 / 按钮并保留后台发现 / 诊断 retry，且用既有单英雄详情请求展示 `builds[0]` 同一路线出装、`iesdev` / 补丁与严格装备字段清洗，缓存升至 v3。仍需 Windows packaged 空态快照、无客户端→WeGame 自动恢复、真实 Key / 上游 builds、缺图缺名 / stale 以及用户同机视觉验收，不能标 `VERIFIED`。
 - HB-041～HB-043 当前均为 `IN PROGRESS`：v0.1.19 正式版已实现更新动作纯函数显隐、Key ready 渐进式卡片和实时助手 crossfade / TransitionGroup / bench 动效；tag run `31772021173` 通过 279 tests、packaged UI / calibration / bridge、差分与发布门禁。仍无用户视觉、真实 Key 或真实 4K 游戏性能证据，不得写 `FIXED` / `VERIFIED`。
 - HB-044～HB-046 当前均为 `FIXED / UNVERIFIED`：v0.1.20 已正式发布，tag run `31780353884` / job `94704573925` 通过 Windows 36 files / 306 passed + 1 skipped 与完整发布门禁。packaged bridge 继续覆盖 smoke-only 原生 WinForms `Fake LeagueClientUx` 移动窗口和生产 observer 跟随；因此 HB-045 的 Windows synthetic native-window follow 窄范围可记 `VERIFIED`，但真实 WeGame、多屏 / 混合 DPI / 最小化仍未验，HB-045 总体不升级。HB-044 / HB-046 也无真实点击穿透 / 游戏性能或用户同机证据；HB-046 不得恢复 HB-029 已移除的全屏 / 顶部黑屏窗口。
-- HB-047 当前为 `IN PROGRESS / UNVERIFIED`，政策 / 自定义分发为 `ACCEPTED RISK`：用户要求修复而非移除对手战绩，删除方向已完整撤回。v0.1.21 正式版实现 selecting / launching=champ-select、active=gameflow 的阶段 visibility，要求本方 / team 与五个对手身份唯一且 visibility 拒绝优先；fulfilled null / error envelope 分类、历史 identity↔participant 唯一 join / 单 participant legacy fallback、500 / 429 一次重试与 404 / schema 不重试均已收口。Runtime 仅对 source / team incomplete 或 transport Abort 做 3 / 5 / 10 / 15 / 15 秒有界重试，hidden / ambiguous 不重试，成功停止、耗尽手动。最终审查、本地 36 files / 350 passed + 1 skipped 与正式 tag run `31803207522` 全链均通过，但 runner 不连接真实 WeGame，真实身份 / endpoint / 用户同机尚未完成，不得标 `FIXED` / `VERIFIED`。
+- HB-047 当前为 `IN PROGRESS / UNVERIFIED`，政策 / 自定义分发为 `ACCEPTED RISK`：用户要求修复而非移除战绩功能，删除方向已撤回。v0.1.24 dirty 候选把既有阶段 visibility / 唯一 join / 瞬态一次重试扩展到 4 位队友 + 5 位对手：唯一 self、跨组唯一、raw team >5 全局拒绝；两组各自 all-or-nothing、组间可 partial；固定 `endIndex=19`、最多 20 场 / 12 样本、跨批次全局并发 2，并用 generation-bound 24 字符 opaqueKey 提供 Main-only 脱敏明细。终审无 P0 / P1，本地 36 files / 369 passed + 1 skipped 与 typecheck / lint / source bridge / UI / diff-check 通过，但尚无 commit / push / Windows / tag / Release 或真实 WeGame 证据，不得标 `FIXED / VERIFIED`。
 - HB-048～HB-052 当前均为 `IN PROGRESS / UNVERIFIED`：v0.1.20 用户实机失败事实保持有效；v0.1.21 正式版已加入统一 `active=12h / committed=10m / weak=15s` 租约且空 ChampSelect / `None` / partial 不续期、真实 Ux PID 锚定与 Win32 贴边 / 抖动抑制 / 本局手动关闭、280ms 刷新确认 + 最多 4 次 full OCR、compact rank / 依据 / allowlisted pickRate，以及可靠卡面 / 两次 absence / 45 秒小条生命周期。v0.1.22 正式版进一步加入非 Mayhem 隔离、same-hero 跨队列清理和 80ms 已验证 HWND 跟随；Windows tag 全链通过，但 fake 窗口不等于真实 WeGame，用户同机未完成，所有项不得写 `FIXED` / `VERIFIED`。
 - HB-053 当前为 `IN PROGRESS / UNVERIFIED`：v0.1.21 正式版使用 Main-only current-summoner PUUID 缓存，只在 active gameflow team 中唯一匹配以恢复中途启动时的本英雄；首次 `null` 后 4999ms 不重试、5000ms 才成功，snapshot / logger 与 Renderer / 磁盘均不得含 PUUID。v0.1.22 正式版补充 `active→none` / generation 换代时清理私有身份缓存；Windows tag 全链通过，但真实 WeGame / 用户同机仍无证据，不得标 `FIXED` / `VERIFIED`。
-- HB-054 当前为 `IN PROGRESS（REPORTED / UNDIAGNOSED）`：需在真实 WeGame 同机确认可见队友 / 对手的分组、头像关联、点击后近期详情、样本 / 错误空态与阶段换代清理；同时审计 Renderer / 日志 / 磁盘不含 PUUID 或原始历史。默认关闭、本机、Main-only、visibility / fail-closed 与只读 GET 边界不得放宽，尚无实现或自动化证据。
+- HB-054 当前为 `IN PROGRESS / UNVERIFIED`：本地 v0.1.24 dirty 候选已实现队友 / 对手分组、组间 partial、20 场 / 12 样本、generation 绑定 opaqueKey 和点击头像脱敏明细；Renderer 详情只含英雄 / 胜负 / KDA / 分钟，并有对话框焦点陷阱 / Escape / 失败恢复。README、终审和 36 files / 369 passed + 1 skipped 等本地门禁通过，但尚未 commit / push / Windows / tag / Release；真实 WeGame 身份 / history、隐私、清理、性能和用户同机均未验证，政策继续 `ACCEPTED RISK`。
 - HB-055 当前为 `IN PROGRESS / UNVERIFIED`：v0.1.23 正式版已修复默认 `autoOcr=false` 下切出前台会清 overlay / deadline、进而让 observer 永久熄灭的自动化根因；切出只 pause / hide，切回 show + cheap probe 且不跑 full OCR，并有独立 45 秒零截图 expiry 与完整撤销条件。正式 Windows tag 已通过 36 files / 359 passed 与完整 packaged / differential / Release / channel / public 门禁，但仍需报告用户同机覆盖切出 / 切回、到期、absence、refresh 和开关切换；不得与 HB-052 的“卡面消失后小条常驻”混淆，也不得写 `FIXED / VERIFIED`。
 - HB-056 当前为 `IN PROGRESS（REPORTED / UNDIAGNOSED）`：需在 100% / 125% / 150% DPI 和长中文英雄名 / 出装 / 推荐下做选择英雄前后截图对比，确认背景英雄更清晰而所有前景信息仍可读；还须覆盖自动视觉档、eco / hidden / reduced-motion / InProgress 静态路径和真实对局性能，当前无实现或视觉通过证据。
 - HB-057 当前为 `IN PROGRESS（REPORTED / UNDIAGNOSED）`：先澄清 Wallpaper Engine 接入语义并审计受支持集成面，再在用户显式启用前提下覆盖未安装、启动 / 关闭 / 崩溃、权限拒绝、多屏 / 热插拔和高负载降级；验证 Main-only、Renderer 无安装路径 / 命令 / 进程详情、不干预第三方进程或资产，当前没有实现或实机证据。

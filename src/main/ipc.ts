@@ -92,6 +92,18 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
     requireSender(event, 'main')
     return runtime.retryOpponentScout()
   })
+  ipcMain.handle('hexbridge:get-scout-player-details', (event, opaqueKey, matchGeneration) => {
+    requireSender(event, 'main')
+    if (
+      typeof opaqueKey !== 'string' ||
+      !/^[A-Za-z0-9_-]{24}$/.test(opaqueKey) ||
+      !Number.isInteger(matchGeneration) ||
+      matchGeneration < 1
+    ) {
+      return { ok: false, message: '明细请求已失效', details: null }
+    }
+    return runtime.getScoutPlayerDetails(opaqueKey, matchGeneration)
+  })
   ipcMain.handle('hexbridge:clear-diagnostics', () => runtime.clearDiagnosticScreenshots())
   ipcMain.handle('hexbridge:retry-lcu', () => runtime.retryLcuConnection())
   ipcMain.handle('hexbridge:start-calibration', (event) => {

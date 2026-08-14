@@ -82,7 +82,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.23',
+      currentVersion: '0.1.24',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -123,11 +123,14 @@ export function createDemoApi(): HexBridgeApi {
       matchGeneration: 1,
       sampledAt: Date.now(),
       source: 'local-lcu',
-      message: '已本地汇总对手最近 10 场',
+      message: '已本地汇总队友与对手最近 20 场',
+      allies: [
+        { opaqueKey: 'ally_demo_key_0000000001', relation: 'ally', slot: 1, championId: 103, status: 'ready', rating: 68, tier: '上等马', sampleSize: 16, wins: 10, losses: 6, winRate: .625, kda: 3.4, streak: 2 },
+      ],
       opponents: [
-        { slot: 1, championId: 63, status: 'ready', rating: 72, tier: '上等马', sampleSize: 10, wins: 7, losses: 3, winRate: .7, kda: 3.62, streak: 3 },
-        { slot: 2, championId: 89, status: 'ready', rating: 54, tier: '中等马', sampleSize: 10, wins: 5, losses: 5, winRate: .5, kda: 2.91, streak: -1 },
-        { slot: 3, championId: 51, status: 'ready', rating: 34, tier: '下等马', sampleSize: 9, wins: 3, losses: 6, winRate: 1 / 3, kda: 1.84, streak: -3 },
+        { opaqueKey: 'opponent_demo_key_000001', relation: 'opponent', slot: 1, championId: 63, status: 'ready', rating: 72, tier: '上等马', sampleSize: 20, wins: 14, losses: 6, winRate: .7, kda: 3.62, streak: 3 },
+        { opaqueKey: 'opponent_demo_key_000002', relation: 'opponent', slot: 2, championId: 89, status: 'ready', rating: 54, tier: '中等马', sampleSize: 18, wins: 9, losses: 9, winRate: .5, kda: 2.91, streak: -1 },
+        { opaqueKey: null, relation: 'opponent', slot: 3, championId: 51, status: 'ready', rating: null, tier: null, sampleSize: 9, wins: 3, losses: 6, winRate: 1 / 3, kda: 1.84, streak: -3 },
       ],
     },
     overlay: {
@@ -181,7 +184,19 @@ export function createDemoApi(): HexBridgeApi {
     openDeveloperPage: async () => ({ ok: true, message: '预览模式：打开 API Key 申请页' }),
     dismissReleaseHighlights: async () => { demoState.releaseHighlights = null },
     triggerOcr: async () => ({ ok: true, message: '预览模式：识别完成' }),
-    retryOpponentScout: async () => ({ ok: true, message: '已本地汇总对手最近 10 场' }),
+    retryOpponentScout: async () => ({ ok: true, message: '已本地汇总队友与对手最近 20 场' }),
+    getScoutPlayerDetails: async (opaqueKey, matchGeneration) => ({
+      ok: true,
+      message: '已读取本机缓存明细',
+      details: {
+        opaqueKey,
+        matchGeneration,
+        relation: opaqueKey.startsWith('ally') ? 'ally' : 'opponent',
+        slot: 1,
+        championId: 63,
+        matches: [{ championId: 63, win: true, kills: 8, deaths: 2, assists: 12, durationMinutes: 19 }],
+      },
+    }),
     clearDiagnosticScreenshots: async () => ({ ok: true, message: '预览模式：没有诊断截图' }),
     retryLcuConnection: async () => ({ ok: false, message: '预览模式：未连接客户端' }),
     startCalibration: async () => undefined,

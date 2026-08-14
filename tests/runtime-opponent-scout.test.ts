@@ -18,6 +18,32 @@ vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 import { HexBridgeRuntime } from '../src/main/runtime.js'
 
 describe('runtime opponent scout lifecycle', () => {
+  it('returns cached details only for a current generation-scoped opaque key', () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    const opaqueKey = 'abcdefghijklmnopqrstuvwx'
+    runtime.config = { getSettings: () => ({ opponentScouting: true }) }
+    runtime.snapshot = { matchStage: 'active', matchGeneration: 9 }
+    runtime.opponentScout = {
+      allies: [{ opaqueKey }],
+      opponents: [],
+    }
+    runtime.lcu = {
+      getScoutPlayerDetails: vi.fn(() => ({
+        matchGeneration: 9,
+        opaqueKey,
+        relation: 'ally',
+        slot: 1,
+        championId: 63,
+        matches: [{ championId: 63, win: true, kills: 8, deaths: 2, assists: 10, durationMinutes: 18 }],
+      })),
+    }
+
+    expect(runtime.getScoutPlayerDetails(opaqueKey, 9)).toMatchObject({ ok: true })
+    expect(runtime.getScoutPlayerDetails('zyxwvutsrqponmlkjihgfedc', 9)).toMatchObject({ ok: false })
+    expect(runtime.getScoutPlayerDetails(opaqueKey, 8)).toMatchObject({ ok: false })
+    expect(runtime.lcu.getScoutPlayerDetails).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves loading and schedules a bounded retry when the LCU transport aborts', async () => {
     vi.useFakeTimers()
     try {
@@ -62,6 +88,43 @@ describe('runtime opponent scout lifecycle', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('re-queries a partial selecting result after the same match enters active play', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = {
+      phase: 'ChampSelect', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'selecting', matchGeneration: 13, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+    runtime.config = { getSettings: () => ({ opponentScouting: true }) }
+    runtime.opponentScout = {
+      status: 'partial', reason: 'partial', matchGeneration: 13,
+      allies: [], opponents: [{ opaqueKey: null }], sampledAt: Date.now(),
+      source: 'local-lcu', message: '只读取到一个公开分组',
+    }
+    runtime.opponentScoutSequence = 0
+    runtime.opponentScoutAttemptKey = '13:selecting'
+    runtime.opponentScoutAbort = null
+    runtime.opponentScoutRetryTimer = null
+    runtime.opponentScoutRetryAttempt = 0
+    runtime.stopping = false
+    runtime.sync = vi.fn()
+    runtime.lcu = {
+      scoutOpponents: vi.fn().mockResolvedValue({
+        status: 'ready', reason: 'ready', matchGeneration: 13,
+        allies: [], opponents: [], sampledAt: Date.now(),
+        source: 'local-lcu', message: '读取完成',
+      }),
+    }
+
+    await runtime.updateOpponentScout(false, true)
+    expect(runtime.lcu.scoutOpponents).not.toHaveBeenCalled()
+
+    runtime.snapshot = { ...runtime.snapshot, phase: 'InProgress', matchStage: 'active' }
+    await runtime.updateOpponentScout(false, true)
+    expect(runtime.lcu.scoutOpponents).toHaveBeenCalledTimes(1)
+    expect(runtime.opponentScout).toMatchObject({ status: 'ready', matchGeneration: 13 })
   })
 
   it('automatically retries an early active-game identity miss and stops after success', async () => {

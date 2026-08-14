@@ -187,8 +187,11 @@ export interface AugmentOverlayViewState {
 }
 
 export type OpponentFormTier = '上等马' | '中等马' | '下等马'
+export type ScoutRelation = 'ally' | 'opponent'
 
 export interface OpponentFormSummary {
+  opaqueKey: string | null
+  relation: ScoutRelation
   slot: number
   championId: number | null
   status: 'ready' | 'unavailable'
@@ -200,6 +203,30 @@ export interface OpponentFormSummary {
   winRate: number | null
   kda: number | null
   streak: number
+}
+
+export interface ScoutMatchDetail {
+  championId: number | null
+  win: boolean
+  kills: number
+  deaths: number
+  assists: number
+  durationMinutes: number
+}
+
+export interface ScoutPlayerDetails {
+  matchGeneration: number
+  opaqueKey: string
+  relation: ScoutRelation
+  slot: number
+  championId: number | null
+  matches: ScoutMatchDetail[]
+}
+
+export interface ScoutPlayerDetailsResult {
+  ok: boolean
+  message: string
+  details: ScoutPlayerDetails | null
 }
 
 export type OpponentScoutReason =
@@ -220,6 +247,7 @@ export interface OpponentScoutState {
   status: 'disabled' | 'idle' | 'loading' | 'ready' | 'partial' | 'unavailable' | 'error'
   reason: OpponentScoutReason
   matchGeneration: number | null
+  allies: OpponentFormSummary[]
   opponents: OpponentFormSummary[]
   sampledAt: number | null
   source: 'local-lcu' | null
@@ -333,6 +361,7 @@ export interface HexBridgeApi {
   dismissReleaseHighlights(): Promise<void>
   triggerOcr(): Promise<{ ok: boolean; message: string }>
   retryOpponentScout(): Promise<{ ok: boolean; message: string }>
+  getScoutPlayerDetails(opaqueKey: string, matchGeneration: number): Promise<ScoutPlayerDetailsResult>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>
   startCalibration(): Promise<void>

@@ -33,6 +33,8 @@ const api: HexBridgeApi = {
   dismissReleaseHighlights: () => ipcRenderer.invoke('hexbridge:dismiss-release-highlights'),
   triggerOcr: () => ipcRenderer.invoke('hexbridge:trigger-ocr'),
   retryOpponentScout: () => ipcRenderer.invoke('hexbridge:retry-opponent-scout'),
+  getScoutPlayerDetails: (opaqueKey: string, matchGeneration: number) =>
+    ipcRenderer.invoke('hexbridge:get-scout-player-details', opaqueKey, matchGeneration),
   clearDiagnosticScreenshots: () => ipcRenderer.invoke('hexbridge:clear-diagnostics'),
   retryLcuConnection: () => ipcRenderer.invoke('hexbridge:retry-lcu'),
   startCalibration: () => ipcRenderer.invoke('hexbridge:start-calibration'),

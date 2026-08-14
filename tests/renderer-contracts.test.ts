@@ -7,6 +7,7 @@ const rendererEntry = readFileSync(new URL('../src/renderer/src/main.ts', import
 const windowManager = readFileSync(new URL('../src/main/window-manager.ts', import.meta.url), 'utf8')
 const mainProcess = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8')
 const preloadSource = readFileSync(new URL('../src/preload/index.ts', import.meta.url), 'utf8')
+const ipcSource = readFileSync(new URL('../src/main/ipc.ts', import.meta.url), 'utf8')
 const augmentOverlaySource = readFileSync(new URL('../src/renderer/src/AugmentOverlay.vue', import.meta.url), 'utf8')
 
 describe('main-window recommendation presentation', () => {
@@ -60,6 +61,31 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('class="build-empty">暂无数据</p>')
     expect(appSource).not.toContain('立即重新检测')
     expect(appSource).not.toContain('启动 WeGame 与英雄联盟后')
+  })
+
+  it('keeps team-history details behind a Main-only opaque-key bridge', () => {
+    expect(appSource).toContain('队友与对手近期状态')
+    expect(appSource).toContain('state.opponentScout.allies')
+    expect(appSource).toContain('state.opponentScout.opponents')
+    expect(appSource).toContain('api.getScoutPlayerDetails(')
+    expect(appSource).not.toContain('player.puuid')
+    expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-scout-player-details', opaqueKey, matchGeneration)")
+    expect(ipcSource).toContain("ipcMain.handle('hexbridge:get-scout-player-details'")
+    expect(ipcSource).toContain("requireSender(event, 'main')")
+    expect(windowManager).toContain("message: '仅主窗口可见'")
+  })
+
+  it('keeps the team-history dialog keyboard-contained and restores its trigger', () => {
+    expect(appSource).toContain('ref="scoutDetailsDialog"')
+    expect(appSource).toContain('ref="scoutDetailsCloseButton"')
+    expect(appSource).toContain('tabindex="-1"')
+    expect(appSource).toContain("event.key === 'Escape'")
+    expect(appSource).toContain("event.key !== 'Tab'")
+    expect(appSource).toContain('scoutDetailsTrigger = event?.currentTarget')
+    expect(appSource).toContain('scoutDetailsCloseButton.value?.focus()')
+    expect(appSource).toContain('active === dialog || active === first')
+    expect(appSource).toContain('if (trigger?.isConnected) trigger.focus()')
+    expect(appSource).toContain('@click="openScoutDetails(player, $event)"')
   })
 
   it('exposes one compact update intent without a separate update page or confirmation copy', () => {

@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   classifyOpponentForm,
+  extractRecentMatchDetails,
   extractRecentMatchSamples,
   extractVisibleOpponentIdentities,
   inspectVisibleOpponentIdentities,
+  inspectVisibleTeamIdentities,
   summarizeOpponentHistory,
 } from '../src/main/opponent-scout.js'
 import { isLcuReadOnlyEndpoint, LcuClient } from '../src/main/lcu/client.js'
@@ -18,6 +20,28 @@ const ENEMY_TWO = `enemy_${'c'.repeat(32)}`
 const ENEMY_THREE = `enemy_${'d'.repeat(32)}`
 const ENEMY_FOUR = `enemy_${'e'.repeat(32)}`
 const ENEMY_FIVE = `enemy_${'f'.repeat(32)}`
+const ALLY_ONE = `ally_${'g'.repeat(32)}`
+const ALLY_TWO = `ally_${'h'.repeat(32)}`
+const ALLY_THREE = `ally_${'i'.repeat(32)}`
+const ALLY_FOUR = `ally_${'j'.repeat(32)}`
+const ALLIES = [ALLY_ONE, ALLY_TWO, ALLY_THREE, ALLY_FOUR]
+
+const activeOwnTeam = (self: Array<Record<string, unknown>> = [{ puuid: SELF, championId: 103 }]) => [
+  ...self,
+  ...ALLIES.slice(0, Math.max(0, 5 - self.length)).map((puuid, index) => ({
+    puuid,
+    championId: 30 + index,
+  })),
+]
+
+const selectingOwnTeam = () => [
+  { puuid: SELF, nameVisibilityType: 'VISIBLE', championId: 103 },
+  ...ALLIES.map((puuid, index) => ({
+    puuid,
+    nameVisibilityType: 'VISIBLE',
+    championId: 30 + index,
+  })),
+]
 
 const game = (win: boolean, kills: number, deaths: number, assists: number, duration = 900) => ({
   gameDuration: duration,
@@ -25,12 +49,75 @@ const game = (win: boolean, kills: number, deaths: number, assists: number, dura
 })
 
 describe('local opponent form experiment', () => {
+  it('separates four allies and five opponents with generation-local slots', () => {
+    const decision = inspectVisibleTeamIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: {
+        gameData: {
+          teamOne: activeOwnTeam(),
+          teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+            .map((puuid, index) => ({ puuid, championId: 60 + index })),
+        },
+      },
+      champSelectSession: null,
+      matchStage: 'active',
+    })
+    expect(decision.allies).toEqual(ALLIES.map((puuid, index) => ({
+      puuid, championId: 30 + index, relation: 'ally', slot: index + 1,
+    })))
+    expect(decision.opponents).toHaveLength(5)
+    expect(decision.opponents[0]).toMatchObject({ relation: 'opponent', slot: 1, championId: 60 })
+  })
+
+  it('keeps the visible group when the other group is hidden, but fails closed on cross-team duplicates', () => {
+    const hiddenAllyTeam = activeOwnTeam().map((player, index) =>
+      index === 2 ? { ...player, nameVisibilityType: 'HIDDEN' } : player)
+    const opponents = [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+      .map((puuid) => ({ puuid }))
+    const partial = inspectVisibleTeamIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: { gameData: { teamOne: hiddenAllyTeam, teamTwo: opponents } },
+      champSelectSession: null,
+      matchStage: 'active',
+    })
+    expect(partial.allies).toEqual([])
+    expect(partial.opponents).toHaveLength(5)
+    expect(partial.allyReason).toBe('opponent-visibility-rejected')
+
+    const duplicated = structuredClone(opponents)
+    duplicated[0] = { puuid: ALLY_ONE }
+    const ambiguous = inspectVisibleTeamIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: { gameData: { teamOne: activeOwnTeam(), teamTwo: duplicated } },
+      champSelectSession: null,
+      matchStage: 'active',
+    })
+    expect(ambiguous).toMatchObject({ allies: [], opponents: [], globalAmbiguous: true })
+  })
+
+  it('fails closed when either raw team contains more than five entries', () => {
+    const opponents = [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+      .map((puuid) => ({ puuid }))
+    const inspect = (teamOne: Array<Record<string, unknown>>, teamTwo: Array<Record<string, unknown>>) =>
+      inspectVisibleTeamIdentities({
+        currentSummoner: { puuid: SELF },
+        gameflowSession: { gameData: { teamOne, teamTwo } },
+        champSelectSession: null,
+        matchStage: 'active',
+      })
+
+    expect(inspect([...activeOwnTeam(), { puuid: `extra_${'k'.repeat(32)}` }], opponents))
+      .toMatchObject({ allies: [], opponents: [], globalAmbiguous: true })
+    expect(inspect(activeOwnTeam(), [...opponents, { puuid: `extra_${'l'.repeat(32)}` }]))
+      .toMatchObject({ allies: [], opponents: [], globalAmbiguous: true })
+  })
+
   it('extracts only the opposite explicit gameflow team and preserves slot champion ids', () => {
     expect(extractVisibleOpponentIdentities({
       currentSummoner: { puuid: SELF },
       gameflowSession: {
         gameData: {
-          teamOne: [{ puuid: SELF, championId: 103 }],
+          teamOne: activeOwnTeam(),
           teamTwo: [
             { puuid: ENEMY_ONE, championId: 63, nameVisibilityType: 'VISIBLE' },
             { puuid: ENEMY_TWO, championId: 89, nameVisibilityType: 'VISIBLE' },
@@ -56,7 +143,7 @@ describe('local opponent form experiment', () => {
       currentSummoner: { puuid: SELF },
       gameflowSession: {
         gameData: {
-          teamOne: [{ puuid: SELF, championId: 103 }],
+          teamOne: activeOwnTeam(),
           teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
             .map((puuid, index) => ({ puuid, championId: 20 + index })),
         },
@@ -71,7 +158,7 @@ describe('local opponent form experiment', () => {
     const extract = (theirTeam: Array<Record<string, unknown>>) => extractVisibleOpponentIdentities({
       currentSummoner: { puuid: SELF },
       gameflowSession: null,
-      champSelectSession: { myTeam: [{ puuid: SELF }], theirTeam },
+      champSelectSession: { myTeam: selectingOwnTeam(), theirTeam },
       matchStage: 'selecting',
     })
     expect(extract(opponents.map((puuid) => ({ puuid, nameVisibilityType: '' })))).toHaveLength(5)
@@ -93,7 +180,7 @@ describe('local opponent form experiment', () => {
         }))
       expect(extractVisibleOpponentIdentities({
         currentSummoner: { puuid: SELF },
-        gameflowSession: { gameData: { teamOne: [{ puuid: SELF }], teamTwo: opponents } },
+        gameflowSession: { gameData: { teamOne: activeOwnTeam(), teamTwo: opponents } },
         champSelectSession: null,
         matchStage: 'active',
       })).toEqual([])
@@ -110,7 +197,7 @@ describe('local opponent form experiment', () => {
       currentSummoner: { puuid: SELF },
       gameflowSession: {
         gameData: {
-          teamOne: [{ puuid: SELF }, { puuid: SELF }],
+          teamOne: activeOwnTeam([{ puuid: SELF }, { puuid: SELF }]),
           teamTwo: activeTeam,
         },
       },
@@ -121,7 +208,7 @@ describe('local opponent form experiment', () => {
     expect(inspectVisibleOpponentIdentities({
       currentSummoner: { puuid: SELF },
       gameflowSession: {
-        gameData: { teamOne: [{ puuid: SELF }], teamTwo: activeTeam },
+        gameData: { teamOne: activeOwnTeam(), teamTwo: activeTeam },
       },
       champSelectSession: null,
       matchStage: 'active',
@@ -131,8 +218,8 @@ describe('local opponent form experiment', () => {
       currentSummoner: { puuid: SELF },
       gameflowSession: null,
       champSelectSession: {
-        myTeam: [{ puuid: SELF }],
-        theirTeam: [{ puuid: SELF }, ...activeTeam.map((player) => ({
+        myTeam: selectingOwnTeam(),
+        theirTeam: [{ puuid: SELF }, ...activeTeam.slice(1).map((player) => ({
           ...player,
           nameVisibilityType: 'VISIBLE',
         }))],
@@ -153,7 +240,7 @@ describe('local opponent form experiment', () => {
     expect(inspectVisibleOpponentIdentities({
       currentSummoner: { puuid: SELF },
       gameflowSession: {
-        gameData: { teamOne: [{ puuid: SELF }], teamTwo: opponents },
+        gameData: { teamOne: activeOwnTeam(), teamTwo: opponents },
       },
       champSelectSession: null,
       matchStage: 'active',
@@ -182,7 +269,7 @@ describe('local opponent form experiment', () => {
   it('prioritizes an explicit hidden marker over an incomplete active roster', () => {
     const inspect = (teamTwo: Array<Record<string, unknown>>) => inspectVisibleOpponentIdentities({
       currentSummoner: { puuid: SELF },
-      gameflowSession: { gameData: { teamOne: [{ puuid: SELF }], teamTwo } },
+      gameflowSession: { gameData: { teamOne: activeOwnTeam(), teamTwo } },
       champSelectSession: null,
       matchStage: 'active',
     })
@@ -204,7 +291,7 @@ describe('local opponent form experiment', () => {
       currentSummoner: { puuid: SELF },
       gameflowSession: null,
       champSelectSession: {
-        myTeam: [{ puuid: SELF }],
+        myTeam: selectingOwnTeam(),
         theirTeam: [
           { puuid: ENEMY_ONE, championPickIntent: 81, nameVisibilityType: 'VISIBLE' },
           { puuid: ENEMY_TWO, championId: 63, nameVisibilityType: 'VISIBLE' },
@@ -220,7 +307,7 @@ describe('local opponent form experiment', () => {
       currentSummoner: { puuid: SELF },
       gameflowSession: null,
       champSelectSession: {
-        myTeam: [{ puuid: SELF }],
+        myTeam: selectingOwnTeam(),
         theirTeam: [
           { puuid: ENEMY_ONE, nameVisibilityType: 'VISIBLE' },
           { puuid: ENEMY_TWO, nameVisibilityType: 'HIDDEN' },
@@ -236,7 +323,7 @@ describe('local opponent form experiment', () => {
       currentSummoner: { puuid: SELF },
       gameflowSession: null,
       champSelectSession: {
-        myTeam: [{ puuid: SELF }],
+        myTeam: selectingOwnTeam(),
         theirTeam: [
           ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE, `enemy_${'g'.repeat(32)}`,
         ].map((puuid) => ({ puuid, nameVisibilityType: 'VISIBLE' })),
@@ -248,13 +335,13 @@ describe('local opponent form experiment', () => {
       currentSummoner: { puuid: SELF },
       gameflowSession: {
         gameData: {
-          teamOne: [{ puuid: SELF }],
+          teamOne: activeOwnTeam(),
           teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
             .map((puuid) => ({ puuid, nameVisibilityType: 'VISIBLE' })),
         },
       },
       champSelectSession: {
-        myTeam: [{ puuid: SELF }],
+        myTeam: selectingOwnTeam(),
         theirTeam: [
           { puuid: ENEMY_ONE, nameVisibilityType: 'VISIBLE' },
           { puuid: ENEMY_TWO, nameVisibilityType: 'HIDDEN' },
@@ -270,7 +357,7 @@ describe('local opponent form experiment', () => {
       currentSummoner: { puuid: SELF },
       gameflowSession: {
         gameData: {
-          teamOne: [{ puuid: SELF }],
+          teamOne: activeOwnTeam(),
           teamTwo: [{ puuid: ENEMY_ONE, championId: 63 }],
         },
       },
@@ -317,7 +404,37 @@ describe('local opponent form experiment', () => {
     expect(summary.rating).toBeNull()
   })
 
-  it('does not invent a rating or tier for fewer than eight valid games', () => {
+  it('caps sanitized recent samples at twenty matches', () => {
+    const payload = { games: { games: Array.from({ length: 25 }, (_, index) => ({
+      ...game(index % 2 === 0, 4, 2, 7),
+      gameCreation: index,
+      gameId: `private-${index}`,
+      participantIdentities: [{ participantId: 1, player: { puuid: ENEMY_ONE, displayName: 'private' } }],
+      participants: [{
+        participantId: 1,
+        championId: 63,
+        summonerName: 'private',
+        stats: { win: index % 2 === 0, kills: 4, deaths: 2, assists: 7, accountId: 'private' },
+      }],
+    })) } }
+    expect(extractRecentMatchSamples(payload, ENEMY_ONE)).toHaveLength(20)
+    const details = extractRecentMatchDetails(payload, ENEMY_ONE)
+    expect(details).toHaveLength(20)
+    expect(details[0]).toEqual({
+      championId: 63, win: true, kills: 4, deaths: 2, assists: 7, durationMinutes: 15,
+    })
+    expect(Object.keys(details[0] ?? {}).sort()).toEqual([
+      'assists', 'championId', 'deaths', 'durationMinutes', 'kills', 'win',
+    ])
+    expect(JSON.stringify(details)).not.toContain('gameCreation')
+    expect(JSON.stringify(details)).not.toContain('gameId')
+    expect(JSON.stringify(details)).not.toContain('displayName')
+    expect(JSON.stringify(details)).not.toContain('summonerName')
+    expect(JSON.stringify(details)).not.toContain(ENEMY_ONE)
+    expect(JSON.stringify(details)).not.toContain('participant')
+  })
+
+  it('does not invent a rating or tier for fewer than twelve valid games', () => {
     const summary = summarizeOpponentHistory(
       { games: { games: [game(false, 1, 7, 2)] } },
       1,
@@ -332,11 +449,11 @@ describe('local opponent form experiment', () => {
     expect(classifyOpponentForm(39)).toBe('下等马')
   })
 
-  it('creates a tier only when eight valid samples support the rating', () => {
+  it('creates a tier only when twelve valid samples support the rating', () => {
     const summary = summarizeOpponentHistory({
-      games: { games: Array.from({ length: 8 }, () => game(true, 8, 2, 10)) },
+      games: { games: Array.from({ length: 12 }, () => game(true, 8, 2, 10)) },
     }, 1, 63, ENEMY_ONE)
-    expect(summary).toMatchObject({ status: 'ready', sampleSize: 8, tier: '上等马' })
+    expect(summary).toMatchObject({ status: 'ready', sampleSize: 12, tier: '上等马' })
     expect(summary.rating).toBeGreaterThanOrEqual(65)
   })
 
@@ -433,6 +550,18 @@ describe('local opponent form experiment', () => {
       }] },
     }
     expect(extractRecentMatchSamples(sharedParticipantMapping, ENEMY_ONE)).toEqual([])
+
+    const sharedWithMissingPuuid = {
+      games: { games: [{
+        gameDuration: 900,
+        participantIdentities: [
+          { participantId: 1, player: { puuid: ENEMY_ONE } },
+          { participantId: 1, player: { summonerName: 'redacted' } },
+        ],
+        participants: [{ participantId: 1, stats: baseStats }],
+      }] },
+    }
+    expect(extractRecentMatchSamples(sharedWithMissingPuuid, ENEMY_ONE)).toEqual([])
   })
 
   it('rejects the scoped single-participant fallback when an explicit PUUID field is malformed', () => {
@@ -465,13 +594,13 @@ describe('local opponent form experiment', () => {
   it('allows only the fixed current-summoner route and bounded match-history query', () => {
     expect(isLcuReadOnlyEndpoint('/lol-summoner/v1/current-summoner')).toBe(true)
     expect(isLcuReadOnlyEndpoint(
-      `/lol-match-history/v1/products/lol/${ENEMY_ONE}/matches?begIndex=0&endIndex=9`,
+      `/lol-match-history/v1/products/lol/${ENEMY_ONE}/matches?begIndex=0&endIndex=19`,
     )).toBe(true)
     expect(isLcuReadOnlyEndpoint(
       `/lol-match-history/v1/products/lol/${ENEMY_ONE}/matches?begIndex=0&endIndex=200`,
     )).toBe(false)
-    expect(isLcuReadOnlyEndpoint('/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=9')).toBe(false)
-    expect(isLcuReadOnlyEndpoint(`/lol-match-history/v1/products/lol/${ENEMY_ONE}/matches?begIndex=0&endIndex=9&token=secret`)).toBe(false)
+    expect(isLcuReadOnlyEndpoint('/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=19')).toBe(false)
+    expect(isLcuReadOnlyEndpoint(`/lol-match-history/v1/products/lol/${ENEMY_ONE}/matches?begIndex=0&endIndex=19&token=secret`)).toBe(false)
   })
 
   it('queries identities and histories inside Main but returns only aggregate summaries', async () => {
@@ -484,7 +613,7 @@ describe('local opponent form experiment', () => {
         if (endpoint === '/lol-gameflow/v1/session') {
           return {
             gameData: {
-              teamOne: [{ puuid: SELF, championId: 103 }],
+              teamOne: activeOwnTeam(),
               teamTwo: [
                 { puuid: ENEMY_ONE, championId: 63 },
                 { puuid: ENEMY_TWO, championId: 89 },
@@ -497,7 +626,7 @@ describe('local opponent form experiment', () => {
         }
         if (endpoint === '/lol-champ-select/v1/session') return null
         if (endpoint.includes(ENEMY_ONE)) {
-          return { games: { games: Array.from({ length: 8 }, () => game(true, 5, 2, 8)) } }
+          return { games: { games: Array.from({ length: 12 }, () => game(true, 5, 2, 8)) } }
         }
         if (endpoint.includes(ENEMY_TWO)) return { errorCode: 'NOT_FOUND', httpStatus: 404 }
         return null
@@ -515,16 +644,124 @@ describe('local opponent form experiment', () => {
 
     const result = await client.scoutOpponents(7)
     expect(result).toMatchObject({ status: 'partial', matchGeneration: 7, source: 'local-lcu' })
+    expect(result.allies).toHaveLength(4)
     expect(result.opponents).toHaveLength(5)
     expect(result.opponents[0]).toMatchObject({ championId: 63, status: 'ready', tier: '上等马' })
     expect(result.opponents[1]).toMatchObject({ championId: 89, status: 'unavailable' })
     expect(JSON.stringify(result)).not.toContain(SELF)
     expect(JSON.stringify(result)).not.toContain(ENEMY_ONE)
     expect(JSON.stringify(result)).not.toContain('secret-not-rendered')
-    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(5)
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(9)
+    expect(requests.some((endpoint) => endpoint.includes(SELF))).toBe(false)
     expect(requests).toContain('/lol-gameflow/v1/session')
     expect(requests).not.toContain('/lol-champ-select/v1/session')
     expect(requests.filter((endpoint) => endpoint.includes(ENEMY_TWO))).toHaveLength(1)
+    const opaqueKey = result.opponents[0]?.opaqueKey
+    expect(opaqueKey).toMatch(/^[A-Za-z0-9_-]{24}$/)
+    const details = client.getScoutPlayerDetails(7, opaqueKey as string)
+    expect(details).toMatchObject({ matchGeneration: 7, relation: 'opponent', slot: 1 })
+    expect(details?.matches).toHaveLength(12)
+    expect(JSON.stringify(details)).not.toContain(ENEMY_ONE)
+    expect(JSON.stringify(details)).not.toContain('participantId')
+    client.snapshot = { ...client.snapshot, matchGeneration: 8 }
+    expect(client.getScoutPlayerDetails(7, opaqueKey as string)).toBeNull()
+  })
+
+  it('keeps all nine history reads within a global concurrency of two', async () => {
+    let inFlight = 0
+    let maximumInFlight = 0
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+        if (endpoint === '/lol-gameflow/v1/session') {
+          return {
+            gameData: {
+              teamOne: activeOwnTeam(),
+              teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+                .map((puuid) => ({ puuid })),
+            },
+          }
+        }
+        if (endpoint.includes('/matches?')) {
+          inFlight += 1
+          maximumInFlight = Math.max(maximumInFlight, inFlight)
+          await new Promise((resolve) => setTimeout(resolve, 2))
+          inFlight -= 1
+          return { games: { games: [game(true, 4, 2, 7)] } }
+        }
+        return null
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    client.snapshot = {
+      phase: 'InProgress', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'active', matchGeneration: 11, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+
+    await client.scoutOpponents(11)
+    expect(maximumInFlight).toBe(2)
+  })
+
+  it('keeps replacement batches within the same global history concurrency limit', async () => {
+    const firstController = new AbortController()
+    const pending: Array<() => void> = []
+    let started = 0
+    let inFlight = 0
+    let maximumInFlight = 0
+    const historyPayload = { games: { games: [game(true, 4, 2, 7)] } }
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+        if (endpoint === '/lol-gameflow/v1/session') {
+          return {
+            gameData: {
+              teamOne: activeOwnTeam(),
+              teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+                .map((puuid) => ({ puuid })),
+            },
+          }
+        }
+        if (!endpoint.includes('/matches?')) return null
+        started += 1
+        inFlight += 1
+        maximumInFlight = Math.max(maximumInFlight, inFlight)
+        return new Promise((resolve) => pending.push(() => {
+          inFlight -= 1
+          resolve(historyPayload)
+        }))
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    client.snapshot = {
+      phase: 'InProgress', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'active', matchGeneration: 12, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+
+    const first = client.scoutOpponents(12, firstController.signal)
+    while (started < 2) await Promise.resolve()
+    firstController.abort()
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' })
+
+    const replacement = client.scoutOpponents(12)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(started).toBe(2)
+    expect(maximumInFlight).toBe(2)
+
+    for (let round = 0; round < 8 && (started < 11 || inFlight > 0); round += 1) {
+      const releases = pending.splice(0)
+      releases.forEach((release) => release())
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+    await replacement
+    expect(started).toBe(11)
+    expect(maximumInFlight).toBe(2)
   })
 
   it('retries a transient history request once but does not expose the requested identity', async () => {
@@ -538,7 +775,7 @@ describe('local opponent form experiment', () => {
           if (endpoint === '/lol-gameflow/v1/session') {
             return {
               gameData: {
-                teamOne: [{ puuid: SELF }],
+                teamOne: activeOwnTeam(),
                 teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
                   .map((puuid) => ({ puuid })),
               },
@@ -584,7 +821,7 @@ describe('local opponent form experiment', () => {
     }
   })
 
-  it('does not query any history unless all five opponent identities are explicitly visible', async () => {
+  it('never queries a hidden opponent group while allowing an independently visible ally group', async () => {
     const requests: string[] = []
     const client = new LcuClient(() => '', {
       disableWebSocket: true,
@@ -593,7 +830,7 @@ describe('local opponent form experiment', () => {
         if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
         if (endpoint === '/lol-champ-select/v1/session') {
           return {
-            myTeam: [{ puuid: SELF }],
+            myTeam: selectingOwnTeam(),
             theirTeam: [
                 { puuid: ENEMY_ONE, nameVisibilityType: 'VISIBLE' },
                 { puuid: ENEMY_TWO, nameVisibilityType: 'HIDDEN' },
@@ -615,11 +852,44 @@ describe('local opponent form experiment', () => {
     }
     const result = await client.scoutOpponents(4)
     expect(result).toMatchObject({
-      status: 'unavailable', reason: 'identity-visibility-rejected', opponents: [],
+      status: 'unavailable', reason: 'history-unavailable', opponents: [],
     })
-    expect(requests.some((endpoint) => endpoint.includes('/matches?'))).toBe(false)
+    expect(result.allies).toHaveLength(4)
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(4)
+    expect(requests.some((endpoint) => endpoint.includes(ENEMY_TWO))).toBe(false)
     expect(requests).toContain('/lol-champ-select/v1/session')
     expect(requests).not.toContain('/lol-gameflow/v1/session')
+  })
+
+  it('never queries history when either raw active team exceeds five entries', async () => {
+    const opponents = [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+      .map((puuid) => ({ puuid }))
+    for (const [teamOne, teamTwo] of [
+      [[...activeOwnTeam(), { puuid: `extra_${'k'.repeat(32)}` }], opponents],
+      [activeOwnTeam(), [...opponents, { puuid: `extra_${'l'.repeat(32)}` }]],
+    ] as const) {
+      const requests: string[] = []
+      const client = new LcuClient(() => '', {
+        disableWebSocket: true,
+        request: vi.fn(async (endpoint: string) => {
+          requests.push(endpoint)
+          if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+          if (endpoint === '/lol-gameflow/v1/session') return { gameData: { teamOne, teamTwo } }
+          return null
+        }),
+      }) as any
+      client.credentials = { port: 2999, token: 'secret', source: 'process' }
+      client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+      client.snapshot = {
+        phase: 'InProgress', locale: 'zh_CN', queueId: 3270, modeActive: true,
+        matchStage: 'active', matchGeneration: 14, currentChampionId: 103,
+        benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+      }
+
+      const result = await client.scoutOpponents(14)
+      expect(result).toMatchObject({ status: 'unavailable', reason: 'identity-ambiguous' })
+      expect(requests.some((endpoint) => endpoint.includes('/matches?'))).toBe(false)
+    }
   })
 
   it('classifies a fulfilled-null active identity payload as a retryable source miss', async () => {
@@ -657,7 +927,7 @@ describe('local opponent form experiment', () => {
         if (endpoint === '/lol-gameflow/v1/session') {
           return {
             gameData: {
-              teamOne: [{ puuid: SELF }],
+              teamOne: activeOwnTeam(),
               teamTwo: [
                 { puuid: ENEMY_ONE, nameVisibilityType: 'VISIBLE' },
                 { puuid: ENEMY_TWO, nameVisibilityType: 'VISIBLE' },

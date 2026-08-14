@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { randomBytes } from 'node:crypto'
 import https from 'node:https'
 import path from 'node:path'
 import WebSocket from 'ws'
@@ -8,11 +9,13 @@ import type {
   LcuConnectionState,
   OpponentFormSummary,
   OpponentScoutState,
+  ScoutPlayerDetails,
 } from '../../shared/contracts.js'
 import { isAramMayhemQueueId } from '../../shared/mayhem-queues.js'
 import { logger } from '../logger.js'
 import {
-  inspectVisibleOpponentIdentities,
+  extractRecentMatchDetails,
+  inspectVisibleTeamIdentities,
   summarizeOpponentHistory,
 } from '../opponent-scout.js'
 import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
@@ -48,7 +51,7 @@ const READ_ONLY_ENDPOINTS = new Set([
 ])
 
 const OPPONENT_HISTORY_ENDPOINT =
-  /^\/lol-match-history\/v1\/products\/lol\/[A-Za-z0-9_-]{20,120}\/matches\?begIndex=0&endIndex=9$/
+  /^\/lol-match-history\/v1\/products\/lol\/[A-Za-z0-9_-]{20,120}\/matches\?begIndex=0&endIndex=19$/
 const MAX_LCU_RESPONSE_BYTES = 2 * 1024 * 1024
 
 export function isLcuReadOnlyEndpoint(endpoint: string): boolean {
@@ -475,6 +478,14 @@ export class LcuClient extends EventEmitter {
   private lastContextSignature = ''
   private lastObservation: LcuObservationSummary | null = null
   private readonly opponentScoutControllers = new Set<AbortController>()
+  private readonly opponentScoutDetails = new Map<string, ScoutPlayerDetails>()
+  private opponentHistoryRequestsInFlight = 0
+  private readonly opponentHistoryWaiters: Array<{
+    signal?: AbortSignal
+    resolve: (release: () => void) => void
+    reject: (error: Error) => void
+    onAbort: () => void
+  }> = []
   private currentSummonerPuuid: string | null = null
   private nextCurrentSummonerProbeAt = 0
 
@@ -506,6 +517,117 @@ export class LcuClient extends EventEmitter {
     return equivalent ? Number(equivalent.processId) : null
   }
 
+  getScoutPlayerDetails(expectedGeneration: number, opaqueKey: string): ScoutPlayerDetails | null {
+    if (
+      this.snapshot.matchGeneration !== expectedGeneration ||
+      this.snapshot.matchStage === 'none'
+    ) return null
+    const details = this.opponentScoutDetails.get(opaqueKey)
+    if (!details || details.matchGeneration !== expectedGeneration) return null
+    return { ...details, matches: details.matches.map((match) => ({ ...match })) }
+  }
+
+  clearOpponentScoutDetails(): void {
+    this.opponentScoutDetails.clear()
+  }
+
+  private acquireOpponentHistoryPermit(signal?: AbortSignal): Promise<() => void> {
+    if (signal?.aborted) return Promise.reject(abortError())
+    return new Promise((resolve, reject) => {
+      const grant = (): void => {
+        this.opponentHistoryRequestsInFlight += 1
+        let released = false
+        resolve(() => {
+          if (released) return
+          released = true
+          this.opponentHistoryRequestsInFlight = Math.max(
+            0, this.opponentHistoryRequestsInFlight - 1,
+          )
+          this.grantOpponentHistoryPermits()
+        })
+      }
+      if (this.opponentHistoryRequestsInFlight < 2) {
+        grant()
+        return
+      }
+      const waiter = {
+        signal,
+        resolve,
+        reject,
+        onAbort: (): void => {
+          const index = this.opponentHistoryWaiters.indexOf(waiter)
+          if (index >= 0) this.opponentHistoryWaiters.splice(index, 1)
+          reject(abortError())
+        },
+      }
+      signal?.addEventListener('abort', waiter.onAbort, { once: true })
+      this.opponentHistoryWaiters.push(waiter)
+    })
+  }
+
+  private grantOpponentHistoryPermits(): void {
+    while (this.opponentHistoryRequestsInFlight < 2 && this.opponentHistoryWaiters.length) {
+      const waiter = this.opponentHistoryWaiters.shift()
+      if (!waiter) return
+      waiter.signal?.removeEventListener('abort', waiter.onAbort)
+      if (waiter.signal?.aborted) {
+        waiter.reject(abortError())
+        continue
+      }
+      this.opponentHistoryRequestsInFlight += 1
+      let released = false
+      waiter.resolve(() => {
+        if (released) return
+        released = true
+        this.opponentHistoryRequestsInFlight = Math.max(
+          0, this.opponentHistoryRequestsInFlight - 1,
+        )
+        this.grantOpponentHistoryPermits()
+      })
+    }
+  }
+
+  private async requestOpponentHistory<T>(
+    endpoint: string,
+    credentials: LcuCredentials,
+    timeoutMs: number,
+    signal: AbortSignal,
+  ): Promise<T | null> {
+    const release = await this.acquireOpponentHistoryPermit(signal)
+    if (signal.aborted) {
+      release()
+      throw abortError()
+    }
+    if (!this.dependencies.request) {
+      const response = this.requestWithCredentials<T>(endpoint, credentials, timeoutMs, signal)
+      void response.then(release, release)
+      return response
+    }
+
+    // Keep the permit until the injected transport itself settles, even when
+    // the caller aborts first. This mirrors the real HTTPS socket lifecycle and
+    // prevents a replacement scout batch from briefly exceeding concurrency 2.
+    const transport = Promise.resolve().then(() =>
+      this.dependencies.request?.(endpoint, credentials, timeoutMs, signal),
+    ) as Promise<T | null>
+    void transport.then(release, release)
+    return new Promise<T | null>((resolve, reject) => {
+      let settled = false
+      const finish = <Value>(callback: (value: Value) => void, value: Value): void => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        callback(value)
+      }
+      const onAbort = (): void => finish(reject, abortError())
+      signal.addEventListener('abort', onAbort, { once: true })
+      void transport.then(
+        (value) => finish(resolve, value),
+        (error) => finish(reject, error),
+      )
+    })
+  }
+
   async scoutOpponents(
     expectedGeneration: number,
     signal?: AbortSignal,
@@ -515,6 +637,7 @@ export class LcuClient extends EventEmitter {
     if (signal?.aborted) controller.abort()
     else signal?.addEventListener('abort', forwardAbort, { once: true })
     this.opponentScoutControllers.add(controller)
+    this.opponentScoutDetails.clear()
     try {
       return await this.performOpponentScout(expectedGeneration, controller.signal)
     } finally {
@@ -536,13 +659,14 @@ export class LcuClient extends EventEmitter {
       status: 'unavailable',
       reason,
       matchGeneration: expectedGeneration,
+      allies: [],
       opponents: [],
       sampledAt,
       source: null,
       message,
     })
     if (!credentials || !this.state.connected) {
-      return unavailable('当前 LCU 已交接或不可用，无法读取对手近期战绩', 'identity-source-unavailable')
+      return unavailable('当前 LCU 已交接或不可用，无法读取队伍近期战绩', 'identity-source-unavailable')
     }
     if (
       this.snapshot.matchGeneration !== expectedGeneration ||
@@ -606,51 +730,50 @@ export class LcuClient extends EventEmitter {
       : null
     const gameflowSession = activeStage ? identitySource : null
     const champSelectSession = activeStage ? null : identitySource
-    const identityDecision = inspectVisibleOpponentIdentities({
+    const identityDecision = inspectVisibleTeamIdentities({
       currentSummoner,
       gameflowSession,
       champSelectSession,
       matchStage: this.snapshot.matchStage,
     })
-    const identities = identityDecision.identities
+    const identities = [...identityDecision.allies, ...identityDecision.opponents]
     if (!identities.length) {
-      const retryable = identityDecision.reason === 'current-summoner-unavailable' ||
-        identityDecision.reason === 'opponent-team-incomplete'
+      const reasons = [identityDecision.allyReason, identityDecision.opponentReason]
+      const retryable = reasons.some((reason) =>
+        reason === 'current-summoner-unavailable' || reason === 'opponent-team-incomplete')
+      const visibilityRejected = reasons.some((reason) => reason === 'opponent-visibility-rejected')
       const reason: OpponentScoutState['reason'] = retryable
-        ? identityDecision.reason === 'opponent-team-incomplete'
+        ? reasons.includes('opponent-team-incomplete')
           ? 'identity-team-incomplete'
           : 'identity-source-unavailable'
-        : identityDecision.reason === 'opponent-visibility-rejected'
+        : visibilityRejected
           ? 'identity-visibility-rejected'
           : 'identity-ambiguous'
-      logger.debug('Opponent identity gate unavailable', {
+      logger.debug('Team identity gate unavailable', {
         matchStage: this.snapshot.matchStage,
         identitySource: identityDecision.source,
-        reason: identityDecision.reason,
+        allyReason: identityDecision.allyReason,
+        opponentReason: identityDecision.opponentReason,
         selfMatches: identityDecision.selfMatches,
+        allyCount: identityDecision.allyCount,
         opponentCount: identityDecision.opponentCount,
-        validIdentityCount: identityDecision.validIdentityCount,
-        visibilityCounts: identityDecision.visibilityCounts,
+        globalAmbiguous: identityDecision.globalAmbiguous,
       })
       const message = retryable
         ? this.snapshot.matchStage === 'active'
-          ? '游戏内尚未取得完整的 5 人对手身份；稍后将自动重试'
+          ? '游戏内尚未取得完整的队友与对手身份；稍后将自动重试'
           : this.snapshot.matchStage === 'launching'
-            ? '正在等待游戏客户端公开完整对手身份；进入游戏后自动读取'
-            : '选人阶段尚未公开完整对手身份；进入游戏后自动读取'
-        : identityDecision.reason === 'opponent-visibility-rejected'
-          ? '对手身份未明确公开，本局不会查询近期战绩'
+            ? '正在等待游戏客户端公开完整队伍身份；进入游戏后自动读取'
+            : '选人阶段尚未公开完整队伍身份；进入游戏后自动读取'
+        : visibilityRejected
+          ? '队友或对手身份未明确公开，受影响的分组不会查询'
           : '无法唯一确认本方与对方阵营，本局不会猜测或查询'
       return unavailable(message, reason)
     }
-    if (identities.length !== 5) {
-      return unavailable(
-        `仅确认 ${identities.length}/5 位公开身份；为避免补猜或混用隐藏身份，本轮不查询`,
-        'identity-team-incomplete',
-      )
-    }
 
-    const opponents: OpponentFormSummary[] = new Array(identities.length)
+    const allies: OpponentFormSummary[] = new Array(identityDecision.allies.length)
+    const opponents: OpponentFormSummary[] = new Array(identityDecision.opponents.length)
+    const pendingDetails = new Map<string, ScoutPlayerDetails>()
     const historyFailures = new Map<OpponentRequestFailureClass, number>()
     let emptyHistoryCount = 0
     let cursor = 0
@@ -662,9 +785,9 @@ export class LcuClient extends EventEmitter {
         const identity = identities[index]
         if (!identity) continue
         try {
-          const endpoint = `/lol-match-history/v1/products/lol/${identity.puuid}/matches?begIndex=0&endIndex=9`
+          const endpoint = `/lol-match-history/v1/products/lol/${identity.puuid}/matches?begIndex=0&endIndex=19`
           const fetchHistory = async (timeoutMs: number): Promise<unknown | null> => {
-            const value = await this.requestWithCredentials<unknown>(
+            const value = await this.requestOpponentHistory<unknown>(
               endpoint,
               credentials,
               timeoutMs,
@@ -684,17 +807,37 @@ export class LcuClient extends EventEmitter {
             history = await fetchHistory(5_000)
           }
           if (history == null) emptyHistoryCount += 1
-          opponents[index] = summarizeOpponentHistory(
+          const details = extractRecentMatchDetails(history, identity.puuid)
+          const opaqueKey = details.length ? randomBytes(18).toString('base64url') : null
+          const summary = summarizeOpponentHistory(
             history,
-            index + 1,
+            identity.slot,
             identity.championId,
             identity.puuid,
+            identity.relation,
+            opaqueKey,
           )
+          if (opaqueKey) {
+            pendingDetails.set(opaqueKey, {
+              matchGeneration: expectedGeneration,
+              opaqueKey,
+              relation: identity.relation,
+              slot: identity.slot,
+              championId: identity.championId,
+              matches: details,
+            })
+          }
+          if (identity.relation === 'ally') allies[identity.slot - 1] = summary
+          else opponents[identity.slot - 1] = summary
         } catch (error) {
           if (isAbortError(error)) throw error
           const failureClass = classifyOpponentRequestFailure(error)
           historyFailures.set(failureClass, (historyFailures.get(failureClass) ?? 0) + 1)
-          opponents[index] = summarizeOpponentHistory(null, index + 1, identity.championId)
+          const summary = summarizeOpponentHistory(
+            null, identity.slot, identity.championId, undefined, identity.relation,
+          )
+          if (identity.relation === 'ally') allies[identity.slot - 1] = summary
+          else opponents[identity.slot - 1] = summary
         }
       }
     }
@@ -706,17 +849,26 @@ export class LcuClient extends EventEmitter {
       currentSnapshot.matchGeneration !== expectedGeneration ||
       currentSnapshot.matchStage === 'none'
     ) {
+      this.opponentScoutDetails.clear()
       return unavailable('对局已切换，上一局的查询结果已丢弃', 'waiting-context')
     }
-    const availableCount = opponents.filter((entry) => entry?.status === 'ready').length
-    const status = identities.length === 5 && availableCount === identities.length
+    this.opponentScoutDetails.clear()
+    for (const [key, details] of pendingDetails) this.opponentScoutDetails.set(key, details)
+    const availableAllyCount = allies.filter((entry) => entry?.status === 'ready').length
+    const availableOpponentCount = opponents.filter((entry) => entry?.status === 'ready').length
+    const availableCount = availableAllyCount + availableOpponentCount
+    const completeIdentitySet = identityDecision.allies.length === 4 && identityDecision.opponents.length === 5
+    const status = completeIdentitySet && availableCount === 9
       ? 'ready'
       : availableCount > 0
         ? 'partial'
         : 'unavailable'
-    logger.info('Local opponent form scan completed', {
+    logger.info('Local team form scan completed', {
       matchGeneration: expectedGeneration,
+      allyCount: allies.length,
       opponentCount: opponents.length,
+      availableAllyCount,
+      availableOpponentCount,
       availableCount,
       emptyHistoryCount,
       historyFailures: Object.fromEntries(historyFailures),
@@ -726,14 +878,15 @@ export class LcuClient extends EventEmitter {
       status,
       reason: status === 'ready' ? 'ready' : status === 'partial' ? 'partial' : 'history-unavailable',
       matchGeneration: expectedGeneration,
+      allies,
       opponents,
       sampledAt: Date.now(),
       source: 'local-lcu',
       message: status === 'ready'
-        ? '已本地汇总 5 位对手的近期可用对局'
+        ? '已本地汇总 4 位队友与 5 位对手的近期可用对局'
         : status === 'partial'
-          ? '已确认 5 位对手，部分近期战绩暂不可用'
-          : '已确认 5 位对手，但国服历史接口暂未返回可用样本，可手动重试',
+          ? '已读取可公开的队友或对手数据，部分分组或近期战绩暂不可用'
+          : '队伍身份已确认，但国服历史接口暂未返回可用样本，可手动重试',
     }
   }
 
@@ -1198,7 +1351,13 @@ export class LcuClient extends EventEmitter {
     this.transportEpoch += 1
     this.socket?.close()
     this.socket = null
-    this.state = { ...this.state, connected: true, source: next.source, lastError: null }
+    this.state = {
+      ...this.state,
+      connected: true,
+      source: next.source,
+      lastError: null,
+      lastConnectedAt: Date.now(),
+    }
     logger.info('LCU credential candidate switched', {
       fromSource: previousSource,
       toSource: next.source,
@@ -1214,6 +1373,7 @@ export class LcuClient extends EventEmitter {
   private abortOpponentScouts(): void {
     for (const controller of this.opponentScoutControllers) controller.abort()
     this.opponentScoutControllers.clear()
+    this.opponentScoutDetails.clear()
   }
 
   private refreshCandidatePoolInBackground(): void {

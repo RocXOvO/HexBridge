@@ -2,11 +2,18 @@ import type {
   MatchContextStage,
   OpponentFormSummary,
   OpponentFormTier,
+  ScoutMatchDetail,
+  ScoutRelation,
 } from '../shared/contracts.js'
 
 export interface OpponentIdentity {
   puuid: string
   championId: number | null
+}
+
+export interface ScoutIdentity extends OpponentIdentity {
+  relation: ScoutRelation
+  slot: number
 }
 
 const positiveInteger = (value: unknown): number | null => {
@@ -36,6 +43,18 @@ export interface OpponentIdentityDecision {
   opponentCount: number
   validIdentityCount: number
   visibilityCounts: Record<'visible' | 'empty' | 'missing' | 'hidden' | 'other', number>
+}
+
+export interface TeamIdentityDecision {
+  allies: ScoutIdentity[]
+  opponents: ScoutIdentity[]
+  allyReason: OpponentIdentityDecisionReason
+  opponentReason: OpponentIdentityDecisionReason
+  source: IdentityVisibilityPolicy
+  selfMatches: number
+  allyCount: number
+  opponentCount: number
+  globalAmbiguous: boolean
 }
 
 const visibilityBucket = (
@@ -85,9 +104,10 @@ const visibleIdentity = (
   }
 }
 
-const inspectTeam = (
+const inspectGroup = (
   players: any[],
   policy: IdentityVisibilityPolicy,
+  expectedCount: number,
 ): Pick<OpponentIdentityDecision, 'identities' | 'reason' | 'opponentCount' | 'validIdentityCount' | 'visibilityCounts'> => {
   const visibilityCounts = { visible: 0, empty: 0, missing: 0, hidden: 0, other: 0 }
   for (const player of players) visibilityCounts[visibilityBucket(player?.nameVisibilityType)] += 1
@@ -103,7 +123,7 @@ const inspectTeam = (
       validIdentityCount: 0, visibilityCounts,
     }
   }
-  if (players.length !== 5) {
+  if (players.length !== expectedCount) {
     return {
       identities: [], reason: 'opponent-team-incomplete', opponentCount: players.length,
       validIdentityCount: 0, visibilityCounts,
@@ -153,6 +173,111 @@ const inspectTeam = (
   }
 }
 
+const asScoutIdentities = (
+  identities: OpponentIdentity[],
+  relation: ScoutRelation,
+): ScoutIdentity[] => identities.map((identity, index) => ({
+  ...identity,
+  relation,
+  slot: index + 1,
+}))
+
+const groupDecision = (
+  players: any[],
+  policy: IdentityVisibilityPolicy,
+  relation: ScoutRelation,
+  expectedCount: number,
+): { identities: ScoutIdentity[]; reason: OpponentIdentityDecisionReason } => {
+  const inspected = inspectGroup(players, policy, expectedCount)
+  return {
+    identities: inspected.reason === 'ready'
+      ? asScoutIdentities(inspected.identities, relation)
+      : [],
+    reason: inspected.reason,
+  }
+}
+
+/**
+ * Resolves the local player's four allies and five opponents as two separate
+ * privacy groups. Self placement and cross-team duplicate identities are
+ * global fail-closed conditions; a visibility failure in one group does not
+ * discard the other group when that other group is independently complete.
+ */
+export function inspectVisibleTeamIdentities(input: {
+  currentSummoner: unknown
+  gameflowSession: unknown
+  champSelectSession: unknown
+  matchStage: MatchContextStage
+}): TeamIdentityDecision {
+  const currentPuuid = (input.currentSummoner as any)?.puuid
+  const source: IdentityVisibilityPolicy = input.matchStage === 'active' ? 'active-game' : 'champ-select'
+  const empty = (
+    reason: OpponentIdentityDecisionReason,
+    selfMatches = 0,
+    allyCount = 0,
+    opponentCount = 0,
+    globalAmbiguous = false,
+  ): TeamIdentityDecision => ({
+    allies: [], opponents: [], allyReason: reason, opponentReason: reason,
+    source, selfMatches, allyCount, opponentCount, globalAmbiguous,
+  })
+  if (!isPuuid(currentPuuid)) return empty('current-summoner-unavailable')
+
+  const session = input.matchStage === 'active'
+    ? (input.gameflowSession as any)?.gameData
+    : input.champSelectSession as any
+  const firstTeam = input.matchStage === 'active'
+    ? (Array.isArray(session?.teamOne) ? session.teamOne : [])
+    : (Array.isArray(session?.myTeam) ? session.myTeam : [])
+  const secondTeam = input.matchStage === 'active'
+    ? (Array.isArray(session?.teamTwo) ? session.teamTwo : [])
+    : (Array.isArray(session?.theirTeam) ? session.theirTeam : [])
+  const firstSelfCount = firstTeam.filter((player: any) => player?.puuid === currentPuuid).length
+  const secondSelfCount = secondTeam.filter((player: any) => player?.puuid === currentPuuid).length
+  const selfMatches = firstSelfCount + secondSelfCount
+  if (firstTeam.length > 5 || secondTeam.length > 5) {
+    return empty(
+      'opponent-identity-invalid', selfMatches, firstTeam.length, secondTeam.length, true,
+    )
+  }
+  if (selfMatches > 1) {
+    return empty('self-team-ambiguous', selfMatches, firstTeam.length, secondTeam.length, true)
+  }
+  if (selfMatches === 0 && (firstTeam.length !== 5 || secondTeam.length !== 5)) {
+    return empty('opponent-team-incomplete', selfMatches, firstTeam.length, secondTeam.length)
+  }
+  if (
+    selfMatches !== 1 ||
+    (input.matchStage !== 'active' && (firstSelfCount !== 1 || secondSelfCount !== 0))
+  ) {
+    return empty('self-team-ambiguous', selfMatches, firstTeam.length, secondTeam.length, true)
+  }
+
+  const allValidPuuids = [...firstTeam, ...secondTeam]
+    .map((player: any) => player?.puuid)
+    .filter(isPuuid)
+  if (new Set(allValidPuuids).size !== allValidPuuids.length) {
+    return empty('opponent-identity-invalid', selfMatches, firstTeam.length, secondTeam.length, true)
+  }
+
+  const ownTeam = firstSelfCount === 1 ? firstTeam : secondTeam
+  const opponentTeam = firstSelfCount === 1 ? secondTeam : firstTeam
+  const allies = ownTeam.filter((player: any) => player?.puuid !== currentPuuid)
+  const allyDecision = groupDecision(allies, source, 'ally', 4)
+  const opponentDecision = groupDecision(opponentTeam, source, 'opponent', 5)
+  return {
+    allies: allyDecision.identities,
+    opponents: opponentDecision.identities,
+    allyReason: allyDecision.reason,
+    opponentReason: opponentDecision.reason,
+    source,
+    selfMatches,
+    allyCount: allies.length,
+    opponentCount: opponentTeam.length,
+    globalAmbiguous: false,
+  }
+}
+
 /**
  * Extracts opponents only when the local player can be placed on one of two
  * explicit teams. Hidden/obfuscated identities and spectator-like payloads
@@ -164,46 +289,29 @@ export function inspectVisibleOpponentIdentities(input: {
   champSelectSession: unknown
   matchStage: MatchContextStage
 }): OpponentIdentityDecision {
-  const currentPuuid = (input.currentSummoner as any)?.puuid
-  const source: IdentityVisibilityPolicy = input.matchStage === 'active' ? 'active-game' : 'champ-select'
-  const emptyDecision = (
-    reason: OpponentIdentityDecisionReason,
-    selfMatches = 0,
-  ): OpponentIdentityDecision => ({
-    identities: [], reason, source, selfMatches, opponentCount: 0, validIdentityCount: 0,
-    visibilityCounts: { visible: 0, empty: 0, missing: 0, hidden: 0, other: 0 },
-  })
-  if (!isPuuid(currentPuuid)) return emptyDecision('current-summoner-unavailable')
-
-  if (input.matchStage === 'active') {
-    const gameData = (input.gameflowSession as any)?.gameData
-    const teamOne = Array.isArray(gameData?.teamOne) ? gameData.teamOne : []
-    const teamTwo = Array.isArray(gameData?.teamTwo) ? gameData.teamTwo : []
-    const teamOneSelfCount = teamOne.filter((player: any) => player?.puuid === currentPuuid).length
-    const teamTwoSelfCount = teamTwo.filter((player: any) => player?.puuid === currentPuuid).length
-    const selfMatches = teamOneSelfCount + teamTwoSelfCount
-    if (selfMatches === 0 && (teamOne.length < 5 || teamTwo.length < 5)) {
-      return emptyDecision('opponent-team-incomplete')
-    }
-    if (selfMatches !== 1) return emptyDecision('self-team-ambiguous', selfMatches)
-    const team = inspectTeam(teamOneSelfCount === 1 ? teamTwo : teamOne, 'active-game')
-    return { ...team, source, selfMatches }
+  const decision = inspectVisibleTeamIdentities(input)
+  const visibilityCounts = { visible: 0, empty: 0, missing: 0, hidden: 0, other: 0 }
+  const sourcePlayers = decision.source === 'active-game'
+    ? (() => {
+        const gameData = (input.gameflowSession as any)?.gameData
+        const teamOne = Array.isArray(gameData?.teamOne) ? gameData.teamOne : []
+        const teamTwo = Array.isArray(gameData?.teamTwo) ? gameData.teamTwo : []
+        const currentPuuid = (input.currentSummoner as any)?.puuid
+        return teamOne.some((player: any) => player?.puuid === currentPuuid) ? teamTwo : teamOne
+      })()
+    : (Array.isArray((input.champSelectSession as any)?.theirTeam)
+        ? (input.champSelectSession as any).theirTeam
+        : [])
+  for (const player of sourcePlayers) visibilityCounts[visibilityBucket(player?.nameVisibilityType)] += 1
+  return {
+    identities: decision.opponents.map(({ puuid, championId }) => ({ puuid, championId })),
+    reason: decision.opponentReason,
+    source: decision.source,
+    selfMatches: decision.selfMatches,
+    opponentCount: decision.opponentCount,
+    validIdentityCount: decision.opponents.length,
+    visibilityCounts,
   }
-
-  const session = input.champSelectSession as any
-  const myTeam = Array.isArray(session?.myTeam) ? session.myTeam : []
-  const theirTeam = Array.isArray(session?.theirTeam) ? session.theirTeam : []
-  const myTeamSelfCount = myTeam.filter((player: any) => player?.puuid === currentPuuid).length
-  const theirTeamSelfCount = theirTeam.filter((player: any) => player?.puuid === currentPuuid).length
-  const selfMatches = myTeamSelfCount + theirTeamSelfCount
-  if (myTeam.length === 0 || theirTeam.length < 5) {
-    return emptyDecision('opponent-team-incomplete', selfMatches)
-  }
-  if (myTeamSelfCount !== 1 || theirTeamSelfCount !== 0) {
-    return emptyDecision('self-team-ambiguous', selfMatches)
-  }
-  const team = inspectTeam(theirTeam, 'champ-select')
-  return { ...team, source, selfMatches }
 }
 
 export function extractVisibleOpponentIdentities(input: {
@@ -221,6 +329,14 @@ type MatchSample = {
   deaths: number
   assists: number
 }
+
+type RecentMatchRecord = MatchSample & {
+  championId: number | null
+  durationMinutes: number
+}
+
+export const MAX_SCOUT_MATCHES = 20
+export const MIN_SCOUT_RATING_SAMPLES = 12
 
 const finiteNonNegative = (value: unknown): number | null => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null
@@ -251,7 +367,7 @@ const participantForPlayer = (game: any, targetPuuid?: string): any | null => {
   const identity = targetIdentities[0]
   const participantId = positiveInteger(identity?.participantId)
   if (!participantId) return null
-  const identityMappings = identitiesWithPuuid.filter((entry: any) =>
+  const identityMappings = identities.filter((entry: any) =>
     positiveInteger(entry?.participantId) === participantId)
   if (identityMappings.length !== 1) return null
   const matchingParticipants = participants.filter((participant: any) =>
@@ -259,7 +375,7 @@ const participantForPlayer = (game: any, targetPuuid?: string): any | null => {
   return matchingParticipants.length === 1 ? matchingParticipants[0] : null
 }
 
-export function extractRecentMatchSamples(payload: unknown, targetPuuid?: string): MatchSample[] {
+const extractRecentMatchRecords = (payload: unknown, targetPuuid?: string): RecentMatchRecord[] => {
   const root = payload as any
   const games = Array.isArray(root?.games?.games)
     ? root.games.games
@@ -277,9 +393,9 @@ export function extractRecentMatchSamples(payload: unknown, targetPuuid?: string
     if (rightCreated != null) return 1
     return left.index - right.index
   })
-  const samples: MatchSample[] = []
+  const samples: RecentMatchRecord[] = []
   for (const { game } of orderedGames) {
-    if (samples.length >= 10) break
+    if (samples.length >= MAX_SCOUT_MATCHES) break
     const duration = finiteNonNegative(game?.gameDuration)
     if (duration == null || duration < 360) continue
     const participant = participantForPlayer(game, targetPuuid)
@@ -288,9 +404,26 @@ export function extractRecentMatchSamples(payload: unknown, targetPuuid?: string
     const deaths = finiteNonNegative(stats?.deaths)
     const assists = finiteNonNegative(stats?.assists)
     if (kills == null || deaths == null || assists == null || typeof stats?.win !== 'boolean') continue
-    samples.push({ win: stats.win, kills, deaths, assists })
+    samples.push({
+      win: stats.win,
+      kills,
+      deaths,
+      assists,
+      championId: positiveInteger(participant?.championId),
+      durationMinutes: Math.max(1, Math.round(duration / 60)),
+    })
   }
   return samples
+}
+
+export function extractRecentMatchSamples(payload: unknown, targetPuuid?: string): MatchSample[] {
+  return extractRecentMatchRecords(payload, targetPuuid).map(({ win, kills, deaths, assists }) => ({
+    win, kills, deaths, assists,
+  }))
+}
+
+export function extractRecentMatchDetails(payload: unknown, targetPuuid?: string): ScoutMatchDetail[] {
+  return extractRecentMatchRecords(payload, targetPuuid).map((sample) => ({ ...sample }))
 }
 
 export function classifyOpponentForm(rating: number): OpponentFormTier {
@@ -307,10 +440,14 @@ export function summarizeOpponentHistory(
   slot: number,
   championId: number | null,
   targetPuuid?: string,
+  relation: ScoutRelation = 'opponent',
+  opaqueKey: string | null = null,
 ): OpponentFormSummary {
   const samples = extractRecentMatchSamples(payload, targetPuuid)
   if (!samples.length) {
     return {
+      opaqueKey: null,
+      relation,
       slot,
       championId,
       status: 'unavailable',
@@ -349,13 +486,15 @@ export function summarizeOpponentHistory(
   ))
 
   return {
+    opaqueKey,
+    relation,
     slot,
     championId,
     status: 'ready',
-    rating: samples.length >= 8 ? computedRating : null,
-    // Eight matches is still only a rough recent-form sample. Smaller samples are
+    rating: samples.length >= MIN_SCOUT_RATING_SAMPLES ? computedRating : null,
+    // Twelve matches is still only a rough recent-form sample. Smaller samples are
     // still displayed as raw recent form without inventing a tier.
-    tier: samples.length >= 8 ? classifyOpponentForm(computedRating) : null,
+    tier: samples.length >= MIN_SCOUT_RATING_SAMPLES ? classifyOpponentForm(computedRating) : null,
     sampleSize: samples.length,
     wins,
     losses,

@@ -7,6 +7,7 @@ import type {
   ChampSelectSnapshot,
   LcuConnectionState,
   OpponentScoutState,
+  ScoutPlayerDetailsResult,
   RuntimeState,
   HotkeyRegistrationResult,
 } from '../shared/contracts.js'
@@ -72,6 +73,7 @@ const DISABLED_OPPONENT_SCOUT: OpponentScoutState = {
   status: 'disabled',
   reason: 'disabled',
   matchGeneration: null,
+  allies: [],
   opponents: [],
   sampledAt: null,
   source: null,
@@ -249,6 +251,7 @@ export class HexBridgeRuntime {
       opponentScout: includeOpponentScout
         ? {
             ...this.opponentScout,
+            allies: this.opponentScout.allies.map((ally) => ({ ...ally })),
             opponents: this.opponentScout.opponents.map((opponent) => ({ ...opponent })),
           }
         : { ...DISABLED_OPPONENT_SCOUT },
@@ -477,6 +480,31 @@ export class HexBridgeRuntime {
     }
   }
 
+  getScoutPlayerDetails(opaqueKey: string, matchGeneration: number): ScoutPlayerDetailsResult {
+    if (!/^[A-Za-z0-9_-]{24}$/.test(opaqueKey)) {
+      return { ok: false, message: '明细请求已失效', details: null }
+    }
+    if (!this.config.getSettings().opponentScouting) {
+      return { ok: false, message: '队伍近期状态实验未开启', details: null }
+    }
+    if (
+      this.snapshot.matchStage === 'none' ||
+      this.snapshot.matchGeneration !== matchGeneration
+    ) {
+      return { ok: false, message: '对局已切换，上一局的明细已清理', details: null }
+    }
+    const currentKeys = [...this.opponentScout.allies, ...this.opponentScout.opponents]
+      .map((entry) => entry.opaqueKey)
+      .filter((entry): entry is string => Boolean(entry))
+    if (!currentKeys.includes(opaqueKey)) {
+      return { ok: false, message: '该明细不属于当前对局', details: null }
+    }
+    const details = this.lcu.getScoutPlayerDetails(matchGeneration, opaqueKey)
+    return details
+      ? { ok: true, message: '已读取本机缓存的近期明细', details }
+      : { ok: false, message: '该明细已过期，请重新读取', details: null }
+  }
+
   async clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }> {
     const removed = await this.scanner.clearDiagnostics()
     return { ok: true, message: removed ? `已清除 ${removed} 张诊断截图` : '没有诊断截图需要清除' }
@@ -541,6 +569,8 @@ export class HexBridgeRuntime {
     const nextChampion = snapshot.modeActive ? snapshot.currentChampionId : null
     const previousGeneration = this.snapshot.matchGeneration
     const wasConnected = this.lcuState.connected
+    const previousSource = this.lcuState.source
+    const previousConnectedAt = this.lcuState.lastConnectedAt
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
     this.windows?.setLeagueClientProcessId?.(this.lcu?.getActiveProcessId?.() ?? null)
@@ -577,7 +607,12 @@ export class HexBridgeRuntime {
           }
         : { ...DISABLED_OPPONENT_SCOUT }
     }
-    if (this.opponentScout) this.updateOpponentScout(state.connected && !wasConnected)
+    const transportChanged = state.connected && (
+      !wasConnected ||
+      state.source !== previousSource ||
+      state.lastConnectedAt !== previousConnectedAt
+    )
+    if (this.opponentScout) this.updateOpponentScout(transportChanged)
     if (!snapshotChanged && !stateChanged) return
     this.sync()
   }
@@ -604,7 +639,7 @@ export class HexBridgeRuntime {
     if (
       !force &&
       this.opponentScout.matchGeneration === generation &&
-      (this.opponentScout.status === 'ready' || this.opponentScout.status === 'partial')
+      this.opponentScout.status === 'ready'
     ) return
     if (!force && this.opponentScoutAttemptKey === attemptKey) return
     this.opponentScoutAbort?.abort()
@@ -618,6 +653,7 @@ export class HexBridgeRuntime {
       status: 'loading',
       reason: 'loading',
       matchGeneration: generation,
+      allies: [],
       opponents: [],
       sampledAt: null,
       source: null,
@@ -662,6 +698,7 @@ export class HexBridgeRuntime {
           status: 'idle',
           reason: 'transport-switched',
           matchGeneration: generation,
+          allies: [],
           opponents: [],
           sampledAt: null,
           source: null,
@@ -676,6 +713,7 @@ export class HexBridgeRuntime {
         status: 'error',
         reason: 'unexpected-error',
         matchGeneration: generation,
+        allies: [],
         opponents: [],
         sampledAt: Date.now(),
         source: null,
@@ -694,6 +732,7 @@ export class HexBridgeRuntime {
   private cancelOpponentScoutRequest(): void {
     this.opponentScoutAbort?.abort()
     this.opponentScoutAbort = null
+    this.lcu.clearOpponentScoutDetails?.()
     this.clearOpponentScoutRetry()
   }
 
