@@ -3,6 +3,11 @@ import type { ReleaseHighlights } from './contracts.js'
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 
 const HIGHLIGHTS: Readonly<Record<string, readonly string[]>> = {
+  '0.1.21': [
+    '退出自定义房间后会及时清理旧英雄，中途启动也能从当前对局恢复本地英雄。',
+    '选人伴随窗贴合 LeagueClientUx 移动，并可在本局手动关闭后保持隐藏。',
+    '三卡刷新识别更快；推荐序与英雄专属真实选取率分开展示，卡面关闭后小条自动隐藏。',
+  ],
   '0.1.20': [
     '页面切换更稳定，滚动区域不再因内容高度变化而横向跳动。',
     '选人伴随窗会跟随英雄联盟客户端移动和最小化。',

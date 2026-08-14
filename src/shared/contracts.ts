@@ -181,7 +181,7 @@ export interface AugmentOverlayState {
 }
 
 export interface AugmentOverlayViewState {
-  slots: Array<Pick<RankedAugmentSlot, 'slot' | 'augmentId' | 'name' | 'position' | 'tied' | 'reason'>>
+  slots: Array<Pick<RankedAugmentSlot, 'slot' | 'augmentId' | 'name' | 'position' | 'tied' | 'reason' | 'pickRate'>>
   layout: Array<{ slot: AugmentSlot; left: number; width: number }>
   message: string
 }

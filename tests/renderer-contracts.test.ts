@@ -7,6 +7,7 @@ const rendererEntry = readFileSync(new URL('../src/renderer/src/main.ts', import
 const windowManager = readFileSync(new URL('../src/main/window-manager.ts', import.meta.url), 'utf8')
 const mainProcess = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8')
 const preloadSource = readFileSync(new URL('../src/preload/index.ts', import.meta.url), 'utf8')
+const augmentOverlaySource = readFileSync(new URL('../src/renderer/src/AugmentOverlay.vue', import.meta.url), 'utf8')
 
 describe('main-window recommendation presentation', () => {
   it('routes only a bounded click-through augment recommendation strip', () => {
@@ -41,6 +42,14 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('优先采用上游提供的英雄专属推荐顺序')
     expect(appSource).toContain('data.dtodo 单英雄统计')
     expect(appSource).toContain('选取率仅作参考')
+  })
+
+  it('shows both recommendation order and champion-specific pick rate in the in-game strip', () => {
+    expect(augmentOverlaySource).toContain('该英雄选取率')
+    expect(augmentOverlaySource).toContain('(value * 100).toFixed(1)')
+    expect(augmentOverlaySource).toContain('rankLabel')
+    expect(augmentOverlaySource).toContain('overlay-rank')
+    expect(augmentOverlaySource).toContain('slot.reason')
   })
 
   it('renders a coherent current-champion build and removes redundant reconnect controls', () => {

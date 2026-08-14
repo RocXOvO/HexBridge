@@ -204,6 +204,36 @@ describe('DataService failures and fallback', () => {
     expect(detail.builds).toEqual([])
   })
 
+  it('rejects a cached pick rate without complete allowlisted provenance', async () => {
+    const directory = await cacheDirectory()
+    await writeFile(path.join(directory, 'champion-detail-v3-16.15.6-103.json'), JSON.stringify({
+      championId: 103,
+      dataVersion: '16.15.6',
+      ranks: [{ augmentId: 7, rank: 1, total: 100, tier: 1, pickRate: .9, statsSource: null, statsRegion: null }],
+      builds: [],
+    }))
+    const config = new MemoryConfig()
+    config.key = 'hx_live_12345678'
+    const fetchMock = vi.fn(async () => Response.json({ data: { augments: [{
+      id: 7,
+      stats: { rank: 1, total: 100, tier: 1, pickRate: .2, source: 'tencent', region: 'CN' },
+    }] } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const service = new DataService(directory, config as any) as any
+    service.apiState = { ...service.apiState, status: 'ready', dataVersion: '16.15.6' }
+    service.cachedDataVersion = '16.15.6'
+    await service.loadDetailCaches('16.15.6')
+
+    const detail = await service.getChampionAugments(103)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(detail.ranks[0]).toMatchObject({
+      pickRate: .2,
+      statsSource: 'tencent',
+      statsRegion: 'CN',
+    })
+  })
+
   it('uses a v2 pick-rate detail as stale fallback when the upgraded client is offline', async () => {
     const directory = await cacheDirectory()
     await writeFile(path.join(directory, 'champion-detail-v2-16.15.6-103.json'), JSON.stringify({
@@ -227,6 +257,32 @@ describe('DataService failures and fallback', () => {
       dataVersion: '16.15.6',
       ranks: [{ augmentId: 7, rank: 3, total: 167, tier: 1, pickRate: .2, statsSource: 'tencent', statsRegion: 'CN' }],
       builds: [],
+    })
+  })
+
+  it('drops an unattributed legacy pick rate while preserving rank fallback offline', async () => {
+    const directory = await cacheDirectory()
+    await writeFile(path.join(directory, 'champion-detail-v2-16.15.6-103.json'), JSON.stringify({
+      championId: 103,
+      dataVersion: '16.15.6',
+      ranks: [{ augmentId: 7, rank: 3, total: 167, tier: 1, pickRate: .9 }],
+    }))
+    const config = new MemoryConfig()
+    config.key = 'hx_live_12345678'
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+    const service = new DataService(directory, config as any) as any
+    service.apiState = { ...service.apiState, status: 'ready', dataVersion: '16.15.6' }
+    service.cachedDataVersion = '16.15.6'
+    await service.loadDetailCaches('16.15.6')
+
+    const detail = await service.getChampionAugments(103)
+
+    expect(service.getState().status).toBe('stale')
+    expect(detail.ranks[0]).toMatchObject({
+      rank: 3,
+      pickRate: null,
+      statsSource: null,
+      statsRegion: null,
     })
   })
 

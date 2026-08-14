@@ -58,6 +58,17 @@ describe('upstream data sanitation', () => {
       ['aramgg-client-upload', 'WORLD'],
       [null, null],
     ])
+    expect(detail.ranks.map(({ pickRate }) => pickRate)).toEqual([.2, null])
+  })
+
+  it('does not expose a pick rate unless both source and region are allowlisted', () => {
+    const detail = normalizeChampionAugmentDetail({ data: { augments: [
+      { id: 1, stats: { rank: 1, pickRate: .2, source: 'tencent' } },
+      { id: 2, stats: { rank: 2, pickRate: .3, region: 'CN' } },
+      { id: 3, stats: { rank: 3, pickRate: .4, source: 'tencent', region: 'CN' } },
+    ] } }, 103, '16.15.6')
+
+    expect(detail.ranks.map(({ pickRate }) => pickRate)).toEqual([null, null, .4])
   })
 
   it('keeps one recommendation coherent instead of mixing documented build routes', () => {

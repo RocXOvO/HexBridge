@@ -112,7 +112,7 @@ internal static class FakeLeagueClient {
     var form = new Form {
       Text = "HexBridge LeagueClientUx smoke",
       StartPosition = FormStartPosition.Manual,
-      Bounds = new Rectangle(60, 100, 480, 360)
+      Bounds = new Rectangle(60, 100, 800, 600)
     };
     var alternate = false;
     var timer = new Timer { Interval = 900 };
@@ -167,6 +167,7 @@ try {
       ...process.env,
       HEXBRIDGE_SMOKE_RESULT: resultPath,
       HEXBRIDGE_SMOKE_FAKE_LEAGUE: fakeLeagueClient ? '1' : '0',
+      HEXBRIDGE_SMOKE_FAKE_LEAGUE_PID: fakeLeagueClient?.pid ? String(fakeLeagueClient.pid) : '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,

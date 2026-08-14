@@ -18,7 +18,10 @@ import { WindowManager } from '../src/main/window-manager.js'
 
 const state = {
   settings: { showChampionPanel: true },
-  snapshot: { phase: 'ChampSelect', matchStage: 'selecting' },
+  snapshot: {
+    phase: 'ChampSelect', matchStage: 'selecting', matchGeneration: 1,
+    modeActive: true, currentChampionId: 103,
+  },
 } as any
 
 function fakeWindow(options: { visible: boolean; focused: boolean }) {
@@ -128,7 +131,7 @@ describe('WindowManager shutdown lifecycle', () => {
     expect((manager as any).windows.has('champion')).toBe(false)
   })
 
-  it('sends only the compact three-card view to the augment renderer', () => {
+  it('sends actual champion pick rate instead of relative ranking to the augment renderer', () => {
     const manager = new WindowManager({} as any)
     const send = vi.fn()
     const augment = {
@@ -162,10 +165,33 @@ describe('WindowManager shutdown lifecycle', () => {
       position: 1,
       tied: false,
       reason: '英雄专属顺序',
+      pickRate: .42,
     }])
     expect(payload.slots[0]).not.toHaveProperty('iconUrl')
-    expect(payload.slots[0]).not.toHaveProperty('pickRate')
     expect(payload.layout).toHaveLength(3)
+  })
+
+  it('keeps a manually closed champion companion hidden for the current match only', () => {
+    const manager = new WindowManager({} as any)
+    const sender = { isDestroyed: () => false, send: vi.fn() }
+    const champion = {
+      ...fakeWindow({ visible: false, focused: false }),
+      webContents: sender,
+    }
+    ;(manager as any).windows.set('champion', champion)
+
+    manager.sync(state)
+    expect(champion.showInactive).toHaveBeenCalledOnce()
+    manager.handleAction(sender as any, 'close')
+    manager.sync(state)
+    expect(champion.hide).toHaveBeenCalled()
+    expect(champion.showInactive).toHaveBeenCalledOnce()
+
+    manager.sync({
+      ...state,
+      snapshot: { ...state.snapshot, matchGeneration: 2 },
+    })
+    expect(champion.showInactive).toHaveBeenCalledTimes(2)
   })
 
   it('does not create a calibration window when shutdown starts during capture', async () => {

@@ -84,6 +84,13 @@ interface ScanActionResult {
   message: string
 }
 
+const AUTO_OCR_WAIT_MS = 2_000
+const AUTO_OCR_VISIBLE_MS = 700
+const AUTO_OCR_CHANGE_CONFIRM_MS = 280
+const AUTO_OCR_UNRELIABLE_RETRY_LIMIT = 4
+const MANUAL_OVERLAY_PROBE_MS = 1_000
+const MANUAL_OVERLAY_MONITOR_MAX_MS = 45_000
+
 export class HexBridgeRuntime {
   private readonly config = new ConfigStore(app.getVersion())
   private readonly data: DataService
@@ -111,6 +118,7 @@ export class HexBridgeRuntime {
   private automaticScanContextKey: string | null = null
   private automaticScanInFlightEpoch: number | null = null
   private manualScanInFlight = false
+  private manualOverlayMonitorDeadlineAt: number | null = null
   private stopping = false
   private gameProcessTimer: NodeJS.Timeout | null = null
   private gameProcessPollMs: number | null = null
@@ -158,10 +166,7 @@ export class HexBridgeRuntime {
 
   async initialize(): Promise<void> {
     this.stopping = false
-    this.windows.setActivityChangedHandler(() => {
-      this.updateScanLoop()
-      this.sync()
-    })
+    this.windows.setActivityChangedHandler(() => this.handleWindowActivityChanged())
     this.windows.createMainWindow()
     this.windows.createCompanionWindows()
     this.gpuAcceleration = !app.getGPUFeatureStatus().gpu_compositing?.includes('disabled')
@@ -264,8 +269,21 @@ export class HexBridgeRuntime {
         ? { ...patch, calibration: null }
         : patch
     const next = this.config.updateSettings(normalizedPatch)
-    if (!next.autoOcr) this.stopScanLoop()
-    else this.updateScanLoop()
+    if (!next.showInGameRecommendations) {
+      this.manualOverlayMonitorDeadlineAt = null
+      if (this.overlay.visible) {
+        this.overlay = {
+          ...this.overlay,
+          visible: false,
+          message: '游戏内推荐已关闭，主窗口仍保留上次可靠结果',
+        }
+      }
+      this.stopScanLoop()
+    } else if (!next.autoOcr && this.manualOverlayMonitorDeadlineAt == null) {
+      this.stopScanLoop()
+    } else {
+      this.updateScanLoop()
+    }
     if (!next.opponentScouting) {
       this.cancelOpponentScoutRequest()
       this.opponentScoutSequence += 1
@@ -485,6 +503,7 @@ export class HexBridgeRuntime {
 
   stop(): void {
     this.stopping = true
+    this.manualOverlayMonitorDeadlineAt = null
     this.cancelOpponentScoutRequest()
     this.windows.prepareToQuit()
     this.stopScanLoop()
@@ -501,10 +520,12 @@ export class HexBridgeRuntime {
     const wasConnected = this.lcuState.connected
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
+    this.windows?.setLeagueClientProcessId?.(this.lcu?.getActiveProcessId?.() ?? null)
     if (snapshot.currentChampionId !== oldChampion) {
       const sequence = ++this.championRequestSequence
       this.detail = null
       this.overlay = { ...EMPTY_OVERLAY, championId: snapshot.currentChampionId }
+      this.manualOverlayMonitorDeadlineAt = null
       if (snapshot.currentChampionId && this.dataReady) {
         void this.refreshCurrentDetail(snapshot.currentChampionId, sequence).then(() => {
           if (sequence === this.championRequestSequence) this.sync()
@@ -513,6 +534,7 @@ export class HexBridgeRuntime {
     }
     if (!isMatchContextOcrEligible(snapshot)) {
       this.overlay = { ...EMPTY_OVERLAY, championId: snapshot.currentChampionId }
+      this.manualOverlayMonitorDeadlineAt = null
       this.getAugmentRound().reset()
     }
     this.updateScanLoop()
@@ -645,19 +667,12 @@ export class HexBridgeRuntime {
       this.stopScanLoop()
       return
     }
-    const settings = this.config.getSettings()
     if (this.manualScanInFlight) return
-    if (!shouldRunOcr(
-      settings.autoOcr,
-      this.snapshot,
-      this.windows.getMainActivity(),
-      {
-        enabled: settings.showInGameRecommendations,
-        gameForeground: Boolean(
-          settings.showInGameRecommendations && this.windows.isLeagueGameForeground(),
-        ),
-      },
-    )) {
+    if (this.expireManualOverlayMonitor()) {
+      this.stopScanLoop()
+      return
+    }
+    if (!this.shouldRunAutomaticSurfaceLoop()) {
       this.stopScanLoop()
       return
     }
@@ -667,7 +682,32 @@ export class HexBridgeRuntime {
       this.automaticScanContextKey = contextKey
     }
     if (this.scanTimer || this.automaticScanInFlightEpoch != null) return
-    this.scheduleAutomaticScan(2_000)
+    const manualSurfaceVisible = !this.config.getSettings().autoOcr &&
+      this.overlay.visible && this.overlay.slots.length === 3
+    this.scheduleAutomaticScan(
+      this.automaticScanPhase === 'latched'
+        ? this.visibleSurfaceProbeDelay()
+        : manualSurfaceVisible
+          ? MANUAL_OVERLAY_PROBE_MS
+          : AUTO_OCR_WAIT_MS,
+    )
+  }
+
+  private handleWindowActivityChanged(): void {
+    if (
+      this.snapshot.matchStage === 'active' &&
+      this.overlay.visible &&
+      !this.windows.isLeagueGameForeground?.()
+    ) {
+      this.manualOverlayMonitorDeadlineAt = null
+      this.overlay = {
+        ...this.overlay,
+        visible: false,
+        message: '游戏已失去前台焦点，已保留上次可靠结果',
+      }
+    }
+    this.updateScanLoop()
+    this.sync()
   }
 
   private scheduleAutomaticScan(delayMs: number): void {
@@ -681,7 +721,9 @@ export class HexBridgeRuntime {
     const generation = this.snapshot.matchGeneration
     const championId = this.snapshot.currentChampionId
     this.automaticScanInFlightEpoch = epoch
-    let nextDelay = 2_000
+    let nextDelay = this.automaticScanPhase === 'latched'
+      ? this.visibleSurfaceProbeDelay()
+      : AUTO_OCR_WAIT_MS
     try {
       const probe = await this.scanner.probeInterface()
       if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
@@ -692,17 +734,39 @@ export class HexBridgeRuntime {
         this.getAugmentRound().observe('not-detected')
         this.automaticScanErrors = 0
         this.automaticScanAbsences += 1
+        if (this.overlay.visible && this.automaticScanAbsences < 2) {
+          nextDelay = AUTO_OCR_CHANGE_CONFIRM_MS
+        }
         if (this.automaticScanPhase === 'recognizing' || this.automaticScanAbsences >= 2) {
           this.automaticScanPhase = 'waiting'
           this.automaticFullAttempts = 0
           this.automaticFingerprint = null
           this.automaticFingerprintCandidate = null
           this.automaticFingerprintSamples = 0
+          nextDelay = AUTO_OCR_WAIT_MS
+          if (this.overlay.visible && this.overlay.slots.length) {
+            this.manualOverlayMonitorDeadlineAt = null
+            this.overlay = {
+              ...this.overlay,
+              visible: false,
+              message: '卡牌界面已关闭，已保留上次可靠结果',
+            }
+            this.sync()
+          }
         }
       } else if (probe.status === 'detected') {
         this.getAugmentRound().observe('detected')
         this.automaticScanAbsences = 0
         const fingerprints = probe.fingerprints?.length === 3 ? probe.fingerprints : null
+        const automaticRecognitionEnabled = this.config.getSettings().autoOcr
+        if (
+          this.automaticScanPhase === 'waiting' &&
+          !automaticRecognitionEnabled &&
+          this.overlay.slots.length === 3
+        ) {
+          this.automaticScanPhase = 'latched'
+          if (fingerprints) this.automaticFingerprint = [...fingerprints]
+        }
         if (this.automaticScanPhase === 'latched' && fingerprints && this.automaticFingerprint) {
           if (fingerprintDistance(this.automaticFingerprint, fingerprints) >= 0.08) {
             if (
@@ -714,19 +778,29 @@ export class HexBridgeRuntime {
               this.automaticFingerprintCandidate = [...fingerprints]
               this.automaticFingerprintSamples = 1
             }
+            nextDelay = AUTO_OCR_CHANGE_CONFIRM_MS
             if (this.automaticFingerprintSamples >= 2) {
               this.automaticScanPhase = 'recognizing'
               this.automaticFullAttempts = 0
               this.automaticFingerprint = [...fingerprints]
               this.automaticFingerprintCandidate = null
               this.automaticFingerprintSamples = 0
+              this.getAugmentRound().beginNextRound()
+              this.manualOverlayMonitorDeadlineAt = null
+              this.overlay = {
+                ...this.overlay,
+                visible: false,
+                championId: this.snapshot.currentChampionId,
+                message: '检测到卡牌刷新，正在识别新一轮',
+              }
+              this.sync()
             }
           } else {
             this.automaticFingerprintCandidate = null
             this.automaticFingerprintSamples = 0
           }
         }
-        if (this.automaticScanPhase !== 'latched') {
+        if (this.automaticScanPhase !== 'latched' && automaticRecognitionEnabled) {
           const result = await this.runScan(false, undefined, true)
           if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
           if (result.ok) {
@@ -734,10 +808,20 @@ export class HexBridgeRuntime {
             this.automaticScanPhase = 'latched'
             this.automaticFullAttempts = 0
             if (fingerprints) this.automaticFingerprint = [...fingerprints]
+            nextDelay = this.visibleSurfaceProbeDelay()
           } else if (result.code === 'UNRELIABLE' || result.code === 'NOT_DETECTED') {
             this.automaticScanErrors = 0
             this.automaticFullAttempts += 1
-            this.automaticScanPhase = this.automaticFullAttempts >= 2 ? 'latched' : 'recognizing'
+            this.automaticScanPhase = this.automaticFullAttempts >= AUTO_OCR_UNRELIABLE_RETRY_LIMIT
+              ? 'latched'
+              : 'recognizing'
+            nextDelay = this.automaticScanPhase === 'latched'
+              ? this.visibleSurfaceProbeDelay()
+              : this.automaticFullAttempts === 1
+                ? AUTO_OCR_CHANGE_CONFIRM_MS
+                : this.automaticFullAttempts === 2
+                  ? 2_000
+                  : 4_000
           } else if (result.code === 'SCAN_ERROR') {
             this.automaticScanPhase = 'waiting'
             this.automaticFullAttempts = 0
@@ -746,6 +830,7 @@ export class HexBridgeRuntime {
           }
         } else {
           this.automaticScanErrors = 0
+          if (this.automaticFingerprintSamples === 0) nextDelay = this.visibleSurfaceProbeDelay()
         }
       }
     } finally {
@@ -764,17 +849,53 @@ export class HexBridgeRuntime {
       generation === this.snapshot.matchGeneration &&
       championId != null &&
       championId === this.snapshot.currentChampionId &&
-      shouldRunOcr(
-        this.config.getSettings().autoOcr,
-        this.snapshot,
-        this.windows.getMainActivity(),
-        {
-          enabled: this.config.getSettings().showInGameRecommendations,
-          gameForeground: Boolean(
-            this.config.getSettings().showInGameRecommendations && this.windows.isLeagueGameForeground(),
-          ),
-        },
-      )
+      this.shouldRunAutomaticSurfaceLoop()
+  }
+
+  private shouldRunAutomaticSurfaceLoop(): boolean {
+    const settings = this.config.getSettings()
+    const gameForeground = Boolean(
+      settings.showInGameRecommendations && this.windows.isLeagueGameForeground?.(),
+    )
+    const automaticRecognition = shouldRunOcr(
+      settings.autoOcr,
+      this.snapshot,
+      this.windows.getMainActivity(),
+      { enabled: settings.showInGameRecommendations, gameForeground },
+    )
+    const manualOverlayLifecycle =
+      settings.showInGameRecommendations &&
+      this.manualOverlayMonitorDeadlineAt != null &&
+      Date.now() < this.manualOverlayMonitorDeadlineAt &&
+      this.overlay.visible &&
+      this.overlay.slots.length === 3 &&
+      this.snapshot.modeActive &&
+      this.snapshot.currentChampionId != null &&
+      this.snapshot.matchStage === 'active' &&
+      gameForeground
+    return automaticRecognition || manualOverlayLifecycle
+  }
+
+  private visibleSurfaceProbeDelay(): number {
+    return this.config.getSettings().autoOcr ? AUTO_OCR_VISIBLE_MS : MANUAL_OVERLAY_PROBE_MS
+  }
+
+  private expireManualOverlayMonitor(): boolean {
+    if (
+      this.config.getSettings().autoOcr ||
+      this.manualOverlayMonitorDeadlineAt == null ||
+      Date.now() < this.manualOverlayMonitorDeadlineAt
+    ) return false
+    this.manualOverlayMonitorDeadlineAt = null
+    if (this.overlay.visible && this.overlay.slots.length === 3) {
+      this.overlay = {
+        ...this.overlay,
+        visible: false,
+        message: '卡牌界面监测已结束，已保留上次可靠结果',
+      }
+      this.sync()
+    }
+    return true
   }
 
   private stopScanLoop(): void {
@@ -810,6 +931,7 @@ export class HexBridgeRuntime {
     const contextDisposition = classifyScanContext(this.snapshot, scanGeneration, scanChampionId)
     if (contextDisposition === 'ended') {
       this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
+      this.manualOverlayMonitorDeadlineAt = null
       this.stopScanLoop()
       this.sync()
       return { ok: false, code: 'CONTEXT_ENDED', message: '对局上下文已结束' }
@@ -835,6 +957,9 @@ export class HexBridgeRuntime {
       })
       if (decision.commitMatched) {
         const ranked = rankAugmentSlots(result.slots, detailRanks, augments)
+        this.manualOverlayMonitorDeadlineAt = manual && !this.config.getSettings().autoOcr
+          ? Date.now() + MANUAL_OVERLAY_MONITOR_MAX_MS
+          : null
         this.overlay = {
           visible: true,
           championId: this.snapshot.currentChampionId,
@@ -855,8 +980,8 @@ export class HexBridgeRuntime {
     )
     if (roundDecision.clearPrevious) {
       this.overlay = {
-        ...EMPTY_OVERLAY,
-        visible: true,
+        ...this.overlay,
+        visible: false,
         championId: this.snapshot.currentChampionId,
         message: '新一轮海克斯已出现，正在等待识别稳定',
       }

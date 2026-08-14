@@ -54,6 +54,8 @@ export class WindowManager {
   private lifecycleEpoch = 0
   private captureTransactionInFlight = false
   private captureWindowsHidden = false
+  private championDismissedGeneration: number | null = null
+  private leagueClientProcessId: number | null = null
   private readonly leagueWindows = new LeagueWindowObserver(() => this.notifyActivityChanged())
 
   constructor(private readonly config: ConfigStore) {}
@@ -136,6 +138,7 @@ export class WindowManager {
       alwaysOnTop: true,
       skipTaskbar: true,
       resizable: true,
+      movable: false,
       hasShadow: true,
     })
     champion.setAlwaysOnTop(true, 'floating')
@@ -172,13 +175,29 @@ export class WindowManager {
     this.sendLatest(window)
   }
 
+  setLeagueClientProcessId(processId: number | null): void {
+    this.leagueClientProcessId = Number.isInteger(processId) && Number(processId) > 0
+      ? Number(processId)
+      : null
+  }
+
   sync(state: RuntimeState): void {
     if (this.quitting) return
     this.latestState = state
     if (this.captureWindowsHidden) return
     const champion = this.getLiveWindow('champion')
     const augment = this.getLiveWindow('augment')
-    const shouldShowChampion = shouldShowChampionCompanion(state.settings, state.snapshot)
+    if (
+      state.snapshot.matchStage === 'none' ||
+      state.snapshot.matchGeneration !== this.championDismissedGeneration
+    ) {
+      this.championDismissedGeneration = null
+    }
+    const championDismissed =
+      this.championDismissedGeneration != null &&
+      this.championDismissedGeneration === state.snapshot.matchGeneration
+    const shouldShowChampion =
+      shouldShowChampionCompanion(state.settings, state.snapshot) && !championDismissed
     const shouldObserveLeague = shouldShowChampion || (
       state.settings.showInGameRecommendations &&
       state.snapshot.matchStage === 'active' &&
@@ -188,10 +207,13 @@ export class WindowManager {
       shouldObserveLeague,
       shouldShowChampion ? champion : augment,
       shouldShowChampion,
+      shouldShowChampion ? this.leagueClientProcessId : null,
     )
-    const clientVisible = process.platform !== 'win32' ||
-      !this.leagueWindows.hasObservation() ||
-      this.leagueWindows.isClientVisible()
+    const clientVisible = process.platform !== 'win32' || (
+      this.leagueWindows.hasObservation() &&
+      this.leagueWindows.isClientVisible() &&
+      this.leagueWindows.isTargetPlaced()
+    )
     if (shouldShowChampion && clientVisible) champion?.showInactive()
     else champion?.hide()
 
@@ -292,13 +314,14 @@ export class WindowManager {
   private sendAugmentView(window: BrowserWindow, state: RuntimeState): void {
     if (window.isDestroyed() || window.webContents.isDestroyed()) return
     const view: AugmentOverlayViewState = {
-      slots: state.overlay.slots.map(({ slot, augmentId, name, position, tied, reason }) => ({
+      slots: state.overlay.slots.map(({ slot, augmentId, name, position, tied, reason, pickRate }) => ({
         slot,
         augmentId,
         name,
         position,
         tied,
         reason,
+        pickRate,
       })),
       layout: calculateAugmentOverlayColumns(state.settings.calibration),
       message: state.overlay.message,
@@ -423,14 +446,27 @@ export class WindowManager {
       app.quit()
       return
     }
-    const window = BrowserWindow.fromWebContents(sender)
-    if (!window) return
+    const managed = Array.from(this.windows.entries()).find(([, candidate]) =>
+      !candidate.isDestroyed() && candidate.webContents === sender,
+    )
+    const window = managed?.[1] ?? BrowserWindow.fromWebContents(sender)
+    if (!window || window.isDestroyed()) return
     if (action === 'minimize') window.minimize()
     if (action === 'maximize') {
       if (window.isMaximized()) window.unmaximize()
       else window.maximize()
     }
-    if (action === 'close') window.hide()
+    if (action === 'close') {
+      if (
+        managed?.[0] === 'champion' &&
+        this.latestState?.snapshot.matchStage !== 'none' &&
+        (this.latestState?.snapshot.matchGeneration ?? 0) > 0
+      ) {
+        this.championDismissedGeneration = this.latestState!.snapshot.matchGeneration
+      }
+      window.hide()
+      this.notifyActivityChanged()
+    }
   }
 
   prepareToQuit(): void {

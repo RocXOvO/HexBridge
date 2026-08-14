@@ -26,6 +26,7 @@ import {
   selectReachableLcuCredentials,
   shouldSwitchLcuCredential,
 } from '../src/main/lcu/client.js'
+import { logger } from '../src/main/logger.js'
 import { MatchContextTracker, normalizeChampSelectSnapshot } from '../src/main/lcu/normalize.js'
 import { HexBridgeRuntime } from '../src/main/runtime.js'
 import { isMatchContextOcrEligible } from '../src/main/runtime-guards.js'
@@ -145,6 +146,109 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
     expect(teamBeforeAction.currentChampionId).toBe(103)
   })
 
+  it('starts during an active game and resolves the local hero without champ-select endpoints', async () => {
+    const localPuuid = 'local-player-puuid-00000001'
+    let currentSummonerReads = 0
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      discover: async () => discovery(),
+      request: async (endpoint) => {
+        if (endpoint === '/lol-gameflow/v1/gameflow-phase') return 'InProgress'
+        if (endpoint === '/lol-gameflow/v1/session') {
+          return {
+            gameData: {
+              queue: { id: 3270 },
+              gameId: 3270099,
+              teamOne: [
+                { puuid: localPuuid, championId: 115 },
+                { puuid: 'teammate-puuid-000000001', championId: 81 },
+              ],
+              teamTwo: [],
+            },
+            gameClient: { running: true },
+          }
+        }
+        if (endpoint === '/lol-summoner/v1/current-summoner') {
+          currentSummonerReads += 1
+          return { puuid: localPuuid }
+        }
+        if (endpoint === '/riotclient/region-locale') return { locale: 'zh_CN' }
+        return null
+      },
+    })
+
+    await client.pollOnce()
+
+    expect(client.getSnapshot()).toMatchObject({
+      queueId: 3270,
+      modeActive: true,
+      currentChampionId: 115,
+      matchStage: 'active',
+      matchGeneration: 1,
+    })
+    await client.pollOnce()
+    expect(currentSummonerReads).toBe(1)
+    expect(JSON.stringify(client.getSnapshot())).not.toContain(localPuuid)
+    client.stop()
+  })
+
+  it('backs off a failed current-summoner probe for five seconds and then recovers privately', async () => {
+    const localPuuid = 'local-player-puuid-00000001'
+    let now = 10_000
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    let currentSummonerReads = 0
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      discover: async () => discovery(),
+      request: async (endpoint) => {
+        if (endpoint === '/lol-gameflow/v1/gameflow-phase') return 'InProgress'
+        if (endpoint === '/lol-gameflow/v1/session') {
+          return {
+            gameData: {
+              queue: { id: 3270 },
+              gameId: 3270100,
+              teamOne: [{ puuid: localPuuid, championId: 115 }],
+              teamTwo: [],
+            },
+            gameClient: { running: true },
+          }
+        }
+        if (endpoint === '/lol-summoner/v1/current-summoner') {
+          currentSummonerReads += 1
+          return currentSummonerReads === 1 ? null : { puuid: localPuuid }
+        }
+        if (endpoint === '/riotclient/region-locale') return { locale: 'zh_CN' }
+        return null
+      },
+    })
+
+    try {
+      await client.pollOnce()
+      expect(currentSummonerReads).toBe(1)
+      expect(client.getSnapshot().currentChampionId).toBeNull()
+
+      now += 4_999
+      await client.pollOnce()
+      expect(currentSummonerReads).toBe(1)
+      expect(client.getSnapshot().currentChampionId).toBeNull()
+
+      now += 1
+      await client.pollOnce()
+      expect(currentSummonerReads).toBe(2)
+      expect(client.getSnapshot()).toMatchObject({
+        currentChampionId: 115,
+        matchStage: 'active',
+        matchGeneration: 1,
+      })
+      expect(JSON.stringify(client.getSnapshot())).not.toContain(localPuuid)
+      expect(JSON.stringify(vi.mocked(logger.info).mock.calls)).not.toContain(localPuuid)
+      expect(JSON.stringify(vi.mocked(logger.debug).mock.calls)).not.toContain(localPuuid)
+    } finally {
+      client.stop()
+      nowSpy.mockRestore()
+    }
+  })
+
   it('prefers live queue 3270 ChampSelect evidence over an unrelated process candidate', async () => {
     const unrelated = { ...credentials, token: 'unrelated', source: 'process' as const }
     const live = { ...credentials, port: 58121, token: 'live-3270', source: 'log' as const }
@@ -160,6 +264,7 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
   it('retains the selected hero and Runtime detail when the game process takes over', async () => {
     let phase: 'ChampSelect' | 'Lobby' | 'InProgress' | 'EndOfGame' = 'ChampSelect'
     let selectionReady = false
+    let handoffReady = false
     const client = new LcuClient(() => '', {
       disableWebSocket: true,
       discover: async () => discovery(),
@@ -174,6 +279,7 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
         if (endpoint === '/lol-champ-select/v1/session' && phase === 'ChampSelect') {
           return {
             gameId: 3270001,
+            timer: { phase: handoffReady ? 'GAME_STARTING' : 'PLANNING' },
             localPlayerCellId: 4,
             myTeam: [{ cellId: 4, championId: 0 }],
             actions: selectionReady
@@ -237,6 +343,15 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
       message: 'retained',
     }
     runtime.championRequestSequence = 7
+
+    handoffReady = true
+    await client.pollOnce()
+    expect(runtime.snapshot).toMatchObject({
+      queueId: 3270,
+      currentChampionId: 115,
+      matchStage: 'launching',
+      matchGeneration: 1,
+    })
 
     // Real CN/WeGame hand-off: LeagueClientUx can remain reachable while its
     // gameflow briefly returns Lobby before the separate game process appears.

@@ -38,6 +38,9 @@ function isChampionDetailCache(value: unknown, version: string): value is Champi
   const ranksValid = detail.ranks.every((entry) => {
     if (!entry || typeof entry !== 'object') return false
     const rank = entry as Partial<ChampionAugmentData['ranks'][number]>
+    const sourceValid = rank.statsSource === null || ['iesdev', 'tencent', 'aramgg-client-upload'].includes(String(rank.statsSource))
+    const regionValid = rank.statsRegion === null || rank.statsRegion === 'WORLD' || rank.statsRegion === 'CN'
+    const provenanceComplete = rank.pickRate === null || (rank.statsSource !== null && rank.statsRegion !== null)
     return (
       Number.isInteger(rank.augmentId) &&
       (rank.augmentId ?? 0) > 0 &&
@@ -45,8 +48,9 @@ function isChampionDetailCache(value: unknown, version: string): value is Champi
       Object.hasOwn(rank, 'statsSource') &&
       Object.hasOwn(rank, 'statsRegion') &&
       (rank.pickRate === null || (typeof rank.pickRate === 'number' && rank.pickRate >= 0 && rank.pickRate <= 1)) &&
-      (rank.statsSource === null || ['iesdev', 'tencent', 'aramgg-client-upload'].includes(String(rank.statsSource))) &&
-      (rank.statsRegion === null || rank.statsRegion === 'WORLD' || rank.statsRegion === 'CN')
+      sourceValid &&
+      regionValid &&
+      provenanceComplete
     )
   })
   const buildsValid = detail.builds.every((entry) => {
@@ -84,18 +88,22 @@ function migrateLegacyChampionDetail(value: unknown, version: string): ChampionA
         : typeof candidate === 'number' && Number.isFinite(candidate)
           ? candidate
           : null
+    const normalizedSource = rank.statsSource === 'iesdev' || rank.statsSource === 'tencent' || rank.statsSource === 'aramgg-client-upload'
+      ? rank.statsSource
+      : null
+    const normalizedRegion = rank.statsRegion === 'WORLD' || rank.statsRegion === 'CN' ? rank.statsRegion : null
+    const normalizedPickRate = normalizedSource && normalizedRegion &&
+      (rank.pickRate === null || (typeof rank.pickRate === 'number' && rank.pickRate >= 0 && rank.pickRate <= 1))
+      ? rank.pickRate
+      : null
     return [{
       augmentId: rank.augmentId as number,
       rank: nullableNumber(rank.rank),
       total: nullableNumber(rank.total),
       tier: nullableNumber(rank.tier),
-      pickRate: rank.pickRate === null || (typeof rank.pickRate === 'number' && rank.pickRate >= 0 && rank.pickRate <= 1)
-        ? rank.pickRate
-        : null,
-      statsSource: rank.statsSource === 'iesdev' || rank.statsSource === 'tencent' || rank.statsSource === 'aramgg-client-upload'
-        ? rank.statsSource
-        : null,
-      statsRegion: rank.statsRegion === 'WORLD' || rank.statsRegion === 'CN' ? rank.statsRegion : null,
+      pickRate: normalizedPickRate,
+      statsSource: normalizedSource,
+      statsRegion: normalizedRegion,
     }]
   })
   return ranks.length

@@ -482,7 +482,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                   </button>
                 </header>
                 <p :class="['manual-ocr-state', state.diagnostics.manualOcrStatus]">{{ state.diagnostics.manualOcrMessage }}</p>
-                <TransitionGroup v-if="state.overlay.visible && state.overlay.slots.length" name="augment-card" tag="div" class="augment-live-grid" appear>
+                <TransitionGroup v-if="state.overlay.slots.length" name="augment-card" tag="div" class="augment-live-grid" appear>
                   <article v-for="slot in state.overlay.slots" :key="slot.slot" :class="[`place-${slot.position ?? 0}`, { tied: slot.tied, unknown: !slot.augmentId }]">
                     <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
                     <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />

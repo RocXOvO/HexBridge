@@ -339,6 +339,7 @@ export function applyLcuPollResults(
   results: PromiseSettledResult<unknown>[],
   now = Date.now(),
   authorityEpoch: number | null = 0,
+  currentSummonerPuuid: string | null = null,
 ): { snapshot: ChampSelectSnapshot; failure: unknown | null } {
   const resolved = resolveLcuAuxiliaryResults(results)
   const normalized = normalizeChampSelectSnapshot({
@@ -352,6 +353,7 @@ export function applyLcuPollResults(
     lobbySession: resolved.lobbySession,
     champSelectSession: resolved.champSelectSession,
     currentChampionId: resolved.currentChampionId,
+    currentSummonerPuuid,
   })
   // A rejected phase-adjacent request makes this a partial observation. Do
   // not let a terminal phase, queue change, or empty champ select destructively
@@ -421,6 +423,8 @@ export class LcuClient extends EventEmitter {
   private lastContextSignature = ''
   private lastObservation: LcuObservationSummary | null = null
   private readonly opponentScoutControllers = new Set<AbortController>()
+  private currentSummonerPuuid: string | null = null
+  private nextCurrentSummonerProbeAt = 0
 
   constructor(
     private readonly getManualDirectory: () => string,
@@ -435,6 +439,19 @@ export class LcuClient extends EventEmitter {
 
   getState(): LcuConnectionState {
     return { ...this.state }
+  }
+
+  getActiveProcessId(): number | null {
+    const direct = Number(this.credentials?.processId)
+    if (Number.isInteger(direct) && direct > 0) return direct
+    if (!this.credentials) return null
+    const equivalent = this.candidatePool.find((candidate) =>
+      candidate.port === this.credentials?.port &&
+      candidate.token === this.credentials?.token &&
+      Number.isInteger(Number(candidate.processId)) &&
+      Number(candidate.processId) > 0,
+    )
+    return equivalent ? Number(equivalent.processId) : null
   }
 
   async scoutOpponents(
@@ -648,6 +665,8 @@ export class LcuClient extends EventEmitter {
   ): void {
     this.abortOpponentScouts()
     this.credentials = null
+    this.currentSummonerPuuid = null
+    this.nextCurrentSummonerProbeAt = 0
     this.activeAuthorityEpoch = null
     this.candidatePool = []
     this.nextCandidateRefreshAt = 0
@@ -683,6 +702,8 @@ export class LcuClient extends EventEmitter {
     if (selection.credentials) {
       const credentials = selection.credentials
       this.credentials = credentials
+      this.currentSummonerPuuid = null
+      this.nextCurrentSummonerProbeAt = 0
       this.activeAuthorityEpoch = this.authorityEpochFor(credentials)
       this.transportEpoch += 1
       this.lastObservation = null
@@ -908,6 +929,10 @@ export class LcuClient extends EventEmitter {
       this.lastRawPhase = rawPhase
       const probeChampSelect = rawPhase === 'ChampSelect' || rawPhase === 'None' ||
         !KNOWN_GAMEFLOW_PHASES.has(rawPhase)
+      const probeCurrentSummoner = !this.currentSummonerPuuid &&
+        (rawPhase === 'GameStart' || rawPhase === 'InProgress' || rawPhase === 'Reconnect') &&
+        Date.now() >= this.nextCurrentSummonerProbeAt
+      if (probeCurrentSummoner) this.nextCurrentSummonerProbeAt = Date.now() + 5_000
       const auxiliary = await Promise.allSettled([
         this.request<any>('/lol-gameflow/v1/session'),
         probeChampSelect ? this.request<any>('/lol-champ-select/v1/session') : Promise.resolve(null),
@@ -916,7 +941,16 @@ export class LcuClient extends EventEmitter {
           : Promise.resolve(null),
         this.request<any>('/riotclient/region-locale'),
         probeChampSelect ? this.request<any>('/lol-lobby/v2/lobby') : Promise.resolve(null),
+        probeCurrentSummoner
+          ? this.request<any>('/lol-summoner/v1/current-summoner')
+          : Promise.resolve(null),
       ])
+      if (auxiliary[5]?.status === 'fulfilled') {
+        const puuid = auxiliary[5].value?.puuid
+        if (typeof puuid === 'string' && /^[A-Za-z0-9_-]{20,120}$/.test(puuid)) {
+          this.currentSummonerPuuid = puuid
+        }
+      }
       const champSelectSessionAvailable =
         auxiliary[1]?.status === 'fulfilled' && isChampSelectSessionPayload(auxiliary[1].value)
       const probedChampion = auxiliary[2]?.status === 'fulfilled'
@@ -936,6 +970,7 @@ export class LcuClient extends EventEmitter {
         reductionResults,
         Date.now(),
         this.activeAuthorityEpoch,
+        this.currentSummonerPuuid,
       )
       this.snapshot = reduced.snapshot
       if (reduced.failure) {
@@ -1001,6 +1036,8 @@ export class LcuClient extends EventEmitter {
     const previousSource = this.credentials.source
     this.abortOpponentScouts()
     this.credentials = next
+    this.currentSummonerPuuid = null
+    this.nextCurrentSummonerProbeAt = 0
     this.activeAuthorityEpoch = nextAuthorityEpoch
     this.transportEpoch += 1
     this.socket?.close()

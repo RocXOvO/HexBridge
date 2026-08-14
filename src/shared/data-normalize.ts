@@ -190,16 +190,19 @@ export function normalizeChampionAugmentDetail(
       const stats = safeRecord(item.stats)
       const augmentId = asNumber(item.id ?? item.augmentId)
       if (!augmentId) return []
+      const normalizedSource = statsSource(stats.source)
+      const normalizedRegion = statsRegion(stats.region)
       return [{
         augmentId,
         rank: asNumber(stats.rank),
         total: asNumber(stats.total),
         tier: asNumber(stats.tier),
         // The documented champion-detail contract is already a 0..1 ratio.
-        // Reject percentages or malformed values instead of guessing units.
-        pickRate: documentedRatio(stats.pickRate),
-        statsSource: statsSource(stats.source),
-        statsRegion: statsRegion(stats.region),
+        // Reject percentages, malformed values and unverified provenance
+        // instead of guessing units or presenting an unattributed statistic.
+        pickRate: normalizedSource && normalizedRegion ? documentedRatio(stats.pickRate) : null,
+        statsSource: normalizedSource,
+        statsRegion: normalizedRegion,
       }]
     }),
     builds: normalizeBuildRecommendations(detail),

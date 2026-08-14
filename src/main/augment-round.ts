@@ -21,6 +21,12 @@ export class AugmentRoundTracker {
     this.combination = ''
   }
 
+  beginNextRound(): void {
+    this.phase = 'recognizing-next'
+    this.consecutiveAbsence = 0
+    this.combination = ''
+  }
+
   observe(
     result: AugmentInterfaceResult,
     options: { combination?: string; manual?: boolean } = {},

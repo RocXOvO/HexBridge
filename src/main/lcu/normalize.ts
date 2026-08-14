@@ -47,6 +47,22 @@ const championIdFromActions = (
   return { observed: false, championId: null }
 }
 
+const championIdFromGameflowTeam = (
+  phase: GameflowPhase,
+  session: any,
+  currentSummonerPuuid: unknown,
+): number | null => {
+  if (!isEnteredGamePhase(phase)) return null
+  if (typeof currentSummonerPuuid !== 'string' || !currentSummonerPuuid.trim()) return null
+  const gameData = session?.gameData
+  const players = [
+    ...(Array.isArray(gameData?.teamOne) ? gameData.teamOne : []),
+    ...(Array.isArray(gameData?.teamTwo) ? gameData.teamTwo : []),
+  ]
+  const localPlayers = players.filter((player: any) => player?.puuid === currentSummonerPuuid)
+  return localPlayers.length === 1 ? positiveInteger(localPlayers[0]?.championId) : null
+}
+
 export function normalizeChampSelectSnapshot(input: {
   phase: GameflowPhase
   locale?: string
@@ -54,6 +70,7 @@ export function normalizeChampSelectSnapshot(input: {
   lobbySession?: unknown
   champSelectSession: any
   currentChampionId: unknown
+  currentSummonerPuuid?: unknown
 }): ChampSelectSnapshot {
   const session = input.champSelectSession ?? {}
   const localCellId = Number(session.localPlayerCellId)
@@ -66,7 +83,8 @@ export function normalizeChampSelectSnapshot(input: {
     positiveInteger(localMember?.championId) ??
     (actionChampion.observed
       ? actionChampion.championId
-      : positiveInteger(localMember?.championPickIntent))
+      : positiveInteger(localMember?.championPickIntent)) ??
+    championIdFromGameflowTeam(input.phase, input.gameflowSession, input.currentSummonerPuuid)
 
   const benchValues = Array.isArray(session.benchChampionIds)
     ? session.benchChampionIds
@@ -127,6 +145,13 @@ interface ConfirmedMatchContext {
   independentGameHeartbeatAt: number | null
 }
 
+const leaseForContext = (context: ConfirmedMatchContext): number =>
+  context.enteredGame
+    ? MATCH_CONTEXT_MAX_STALE_MS
+    : context.handoffCommitted
+      ? MATCH_CONTEXT_NONE_GRACE_MS
+      : MATCH_CONTEXT_TERMINAL_CONFIRM_MS
+
 export type LcuEndpointObservationStatus = 'ok' | 'empty' | 'error' | 'skipped'
 
 export interface MatchContextEvidence {
@@ -179,6 +204,7 @@ export class MatchContextTracker {
   private lastDecision: MatchContextDecision = 'none'
   private pendingTerminal: {
     phase: GameflowPhase
+    queueId: number | null
     authorityEpoch: number | null
     since: number
   } | null = null
@@ -279,16 +305,22 @@ export class MatchContextTracker {
     ) {
       if (!observationTrusted) return this.retainUntrustedObservation(next, now)
       if (!hasPositiveChampSelectEvidence && evidence.queueSource === 'lobby') {
+        const confirmationMs = this.confirmed.handoffCommitted
+          ? MATCH_CONTEXT_NONE_GRACE_MS
+          : MATCH_CONTEXT_TERMINAL_CONFIRM_MS
         const samePending = this.pendingTerminal?.authorityEpoch ===
-          (evidence.authorityEpoch ?? null)
+          (evidence.authorityEpoch ?? null) &&
+          this.pendingTerminal?.phase === next.phase &&
+          this.pendingTerminal?.queueId === next.queueId
         if (!samePending) {
           this.pendingTerminal = {
             phase: next.phase,
+            queueId: next.queueId,
             authorityEpoch: evidence.authorityEpoch ?? null,
             since: now,
           }
         }
-        if (now - (this.pendingTerminal?.since ?? now) <= MATCH_CONTEXT_NONE_GRACE_MS) {
+        if (now - (this.pendingTerminal?.since ?? now) <= confirmationMs) {
           this.lastDecision = 'retained-terminal-confirmation'
           return this.withContext({
             ...next,
@@ -312,9 +344,7 @@ export class MatchContextTracker {
         return this.retainUntrustedObservation(next, now)
       }
       if (this.confirmed && this.confirmed.stage !== 'active') {
-        const leaseMs = this.confirmed.enteredGame
-          ? MATCH_CONTEXT_MAX_STALE_MS
-          : MATCH_CONTEXT_NONE_GRACE_MS
+        const leaseMs = leaseForContext(this.confirmed)
         if (now - this.confirmed.lastMatchPhaseAt > leaseMs) {
           this.confirmed = null
           this.pendingTerminal = null
@@ -379,14 +409,39 @@ export class MatchContextTracker {
         // reliable end-of-match evidence. Keep the selected champion until
         // the transition is stable, and let the game-process heartbeat cancel
         // this pending terminal state while the real game is still running.
+        // A game id can remain visible briefly after leaving a custom room, so
+        // identity alone is not proof that the separate game process is being
+        // launched. Only an explicit timer/transport/game-client signal earns
+        // the long hand-off lease.
+        const hadConfirmedHandoff = this.confirmed.handoffCommitted
+        const directRoomExit = !hadConfirmedHandoff && (
+          next.phase === 'Lobby' || next.phase === 'Matchmaking' || next.phase === 'ReadyCheck'
+        )
+        if (directRoomExit) {
+          this.confirmed = null
+          this.pendingTerminal = null
+          this.lastDecision = 'cleared-terminal-phase'
+          return this.withoutContext({
+            ...next,
+            queueId: null,
+            modeActive: false,
+            currentChampionId: null,
+            benchChampionIds: [],
+            benchEnabled: false,
+          })
+        }
         this.confirmed.stage = 'launching'
-        this.confirmed.handoffCommitted = true
-        const confirmationMs = MATCH_CONTEXT_NONE_GRACE_MS
+        const confirmationMs = hadConfirmedHandoff
+          ? MATCH_CONTEXT_NONE_GRACE_MS
+          : MATCH_CONTEXT_TERMINAL_CONFIRM_MS
         const samePending = this.pendingTerminal?.authorityEpoch ===
-          (evidence.authorityEpoch ?? null)
+          (evidence.authorityEpoch ?? null) &&
+          this.pendingTerminal?.phase === next.phase &&
+          this.pendingTerminal?.queueId === next.queueId
         if (!samePending) {
           this.pendingTerminal = {
             phase: next.phase,
+            queueId: next.queueId,
             authorityEpoch: evidence.authorityEpoch ?? null,
             since: now,
           }
@@ -440,9 +495,7 @@ export class MatchContextTracker {
         (sameIdentity || sessionMissing || sameHeroWithoutIdentity || incompleteOutgoingObservation)
       ) {
         const elapsed = now - this.confirmed.lastMatchPhaseAt
-        const leaseMs = this.confirmed.enteredGame
-          ? MATCH_CONTEXT_MAX_STALE_MS
-          : MATCH_CONTEXT_NONE_GRACE_MS
+        const leaseMs = leaseForContext(this.confirmed)
         if (elapsed > leaseMs) {
           this.confirmed = null
           this.pendingTerminal = null
@@ -509,12 +562,14 @@ export class MatchContextTracker {
     const isTransientNone = next.phase === 'None'
     const isUnknownTransition = !canCarryMatchPhase && !isTransientNone
     const elapsed = now - this.confirmed.lastMatchPhaseAt
-    const leaseMs = this.confirmed.enteredGame
-      ? MATCH_CONTEXT_MAX_STALE_MS
-      : MATCH_CONTEXT_NONE_GRACE_MS
+    const leaseMs = leaseForContext(this.confirmed)
+    const weakEmptyMatchPhase = next.phase === 'ChampSelect' && next.currentChampionId == null
     const canCarryTransientNone = isTransientNone && elapsed <= leaseMs
     const canCarryUnknownTransition = isUnknownTransition && elapsed <= leaseMs
-    if (!canCarryMatchPhase && !canCarryTransientNone && !canCarryUnknownTransition) {
+    if (
+      (!canCarryMatchPhase && !canCarryTransientNone && !canCarryUnknownTransition) ||
+      (weakEmptyMatchPhase && elapsed > leaseMs)
+    ) {
       this.confirmed = null
       this.pendingTerminal = null
       this.lastDecision = 'expired'
@@ -531,8 +586,7 @@ export class MatchContextTracker {
       // The CN client can return an empty/404 phase while LeagueClientUx is
       // still reachable but already handing control to the game process.
       this.confirmed.stage = 'launching'
-      this.confirmed.handoffCommitted = true
-    } else if (canCarryMatchPhase) {
+    } else if (canCarryMatchPhase && !weakEmptyMatchPhase) {
       this.confirmed.lastMatchPhaseAt = now
       this.confirmed.stage = stageForPhase(next.phase, this.confirmed.stage)
       if (isEnteredGamePhase(next.phase)) {
@@ -543,7 +597,6 @@ export class MatchContextTracker {
       // Unknown regional hand-off phases must not erase a confirmed match. A
       // named terminal phase or a new queue still clears it above.
       this.confirmed.stage = this.confirmed.stage === 'selecting' ? 'launching' : this.confirmed.stage
-      if (this.confirmed.stage === 'launching') this.confirmed.handoffCommitted = true
       this.lastDecision = 'retained-unknown-phase'
     } else {
       this.lastDecision = 'retained-match-phase'
@@ -553,9 +606,7 @@ export class MatchContextTracker {
 
   transportDisconnected(previous: ChampSelectSnapshot, now = Date.now()): ChampSelectSnapshot {
     if (!this.confirmed) return this.discardTransportContext(previous, now)
-    const leaseMs = this.confirmed.enteredGame
-      ? MATCH_CONTEXT_MAX_STALE_MS
-      : MATCH_CONTEXT_NONE_GRACE_MS
+    const leaseMs = leaseForContext(this.confirmed)
     if (now - this.confirmed.lastMatchPhaseAt > leaseMs) {
       this.confirmed = null
       this.pendingTerminal = null
@@ -563,7 +614,6 @@ export class MatchContextTracker {
       return this.discardTransportContext(previous, now)
     }
     if (this.confirmed.stage === 'selecting') this.confirmed.stage = 'launching'
-    this.confirmed.handoffCommitted = true
     this.pendingTerminal = null
     this.lastDecision = 'retained-transport-handoff'
     return this.withContext({
@@ -708,9 +758,7 @@ export class MatchContextTracker {
   private retainPartialObservation(next: ChampSelectSnapshot, now: number): ChampSelectSnapshot {
     if (!this.confirmed) return this.withoutContext(next)
     const elapsed = now - this.confirmed.lastMatchPhaseAt
-    const leaseMs = this.confirmed.enteredGame
-      ? MATCH_CONTEXT_MAX_STALE_MS
-      : MATCH_CONTEXT_NONE_GRACE_MS
+    const leaseMs = leaseForContext(this.confirmed)
     if (elapsed > leaseMs) {
       this.confirmed = null
       this.pendingTerminal = null
@@ -724,7 +772,6 @@ export class MatchContextTracker {
       this.confirmed.enteredGame = true
     } else if (this.confirmed.stage === 'selecting') {
       this.confirmed.stage = 'launching'
-      this.confirmed.handoffCommitted = true
     }
     this.lastDecision = 'retained-partial-observation'
     return this.withContext({
@@ -739,9 +786,7 @@ export class MatchContextTracker {
 
   private commitTrustedHandoff(next: ChampSelectSnapshot, now: number): ChampSelectSnapshot {
     if (!this.confirmed) return this.withoutContext(next)
-    const leaseMs = this.confirmed.enteredGame
-      ? MATCH_CONTEXT_MAX_STALE_MS
-      : MATCH_CONTEXT_NONE_GRACE_MS
+    const leaseMs = leaseForContext(this.confirmed)
     if (now - this.confirmed.lastMatchPhaseAt > leaseMs) {
       this.confirmed = null
       this.pendingTerminal = null
@@ -771,9 +816,7 @@ export class MatchContextTracker {
 
   private confirmTrustedGameClient(next: ChampSelectSnapshot, now: number): ChampSelectSnapshot {
     if (!this.confirmed) return this.withoutContext(next)
-    const leaseMs = this.confirmed.enteredGame
-      ? MATCH_CONTEXT_MAX_STALE_MS
-      : MATCH_CONTEXT_NONE_GRACE_MS
+    const leaseMs = leaseForContext(this.confirmed)
     if (now - this.confirmed.lastMatchPhaseAt > leaseMs) {
       this.confirmed = null
       this.pendingTerminal = null
@@ -823,9 +866,7 @@ export class MatchContextTracker {
 
   private retainUntrustedObservation(next: ChampSelectSnapshot, now: number): ChampSelectSnapshot {
     if (!this.confirmed) return this.withoutContext(next)
-    const leaseMs = this.confirmed.enteredGame
-      ? MATCH_CONTEXT_MAX_STALE_MS
-      : MATCH_CONTEXT_NONE_GRACE_MS
+    const leaseMs = leaseForContext(this.confirmed)
     if (now - this.confirmed.lastMatchPhaseAt > leaseMs) {
       this.confirmed = null
       this.pendingTerminal = null
