@@ -28,6 +28,7 @@ import {
   detailRanksForCurrentChampion,
   isMatchContextOcrEligible,
   isCurrentChampionRequest,
+  fingerprintDistance,
   sameLcuState,
   sameSnapshot,
   shouldRunOcr,
@@ -89,6 +90,9 @@ export class HexBridgeRuntime {
   private automaticScanAbsences = 0
   private automaticScanErrors = 0
   private automaticFullAttempts = 0
+  private automaticFingerprint: string[] | null = null
+  private automaticFingerprintCandidate: string[] | null = null
+  private automaticFingerprintSamples = 0
   private automaticScanEpoch = 0
   private automaticScanContextKey: string | null = null
   private automaticScanInFlightEpoch: number | null = null
@@ -498,7 +502,17 @@ export class HexBridgeRuntime {
     }
     const settings = this.config.getSettings()
     if (this.manualScanInFlight) return
-    if (!shouldRunOcr(settings.autoOcr, this.snapshot, this.windows.getMainActivity())) {
+    if (!shouldRunOcr(
+      settings.autoOcr,
+      this.snapshot,
+      this.windows.getMainActivity(),
+      {
+        enabled: settings.showInGameRecommendations,
+        gameForeground: Boolean(
+          settings.showInGameRecommendations && this.windows.isLeagueGameForeground(),
+        ),
+      },
+    )) {
       this.stopScanLoop()
       return
     }
@@ -536,10 +550,37 @@ export class HexBridgeRuntime {
         if (this.automaticScanPhase === 'recognizing' || this.automaticScanAbsences >= 2) {
           this.automaticScanPhase = 'waiting'
           this.automaticFullAttempts = 0
+          this.automaticFingerprint = null
+          this.automaticFingerprintCandidate = null
+          this.automaticFingerprintSamples = 0
         }
       } else if (probe.status === 'detected') {
         this.getAugmentRound().observe('detected')
         this.automaticScanAbsences = 0
+        const fingerprints = probe.fingerprints?.length === 3 ? probe.fingerprints : null
+        if (this.automaticScanPhase === 'latched' && fingerprints && this.automaticFingerprint) {
+          if (fingerprintDistance(this.automaticFingerprint, fingerprints) >= 0.08) {
+            if (
+              this.automaticFingerprintCandidate &&
+              fingerprintDistance(this.automaticFingerprintCandidate, fingerprints) <= 0.04
+            ) {
+              this.automaticFingerprintSamples += 1
+            } else {
+              this.automaticFingerprintCandidate = [...fingerprints]
+              this.automaticFingerprintSamples = 1
+            }
+            if (this.automaticFingerprintSamples >= 2) {
+              this.automaticScanPhase = 'recognizing'
+              this.automaticFullAttempts = 0
+              this.automaticFingerprint = [...fingerprints]
+              this.automaticFingerprintCandidate = null
+              this.automaticFingerprintSamples = 0
+            }
+          } else {
+            this.automaticFingerprintCandidate = null
+            this.automaticFingerprintSamples = 0
+          }
+        }
         if (this.automaticScanPhase !== 'latched') {
           const result = await this.runScan(false, undefined, true)
           if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
@@ -547,6 +588,7 @@ export class HexBridgeRuntime {
             this.automaticScanErrors = 0
             this.automaticScanPhase = 'latched'
             this.automaticFullAttempts = 0
+            if (fingerprints) this.automaticFingerprint = [...fingerprints]
           } else if (result.code === 'UNRELIABLE' || result.code === 'NOT_DETECTED') {
             this.automaticScanErrors = 0
             this.automaticFullAttempts += 1
@@ -577,7 +619,17 @@ export class HexBridgeRuntime {
       generation === this.snapshot.matchGeneration &&
       championId != null &&
       championId === this.snapshot.currentChampionId &&
-      shouldRunOcr(this.config.getSettings().autoOcr, this.snapshot, this.windows.getMainActivity())
+      shouldRunOcr(
+        this.config.getSettings().autoOcr,
+        this.snapshot,
+        this.windows.getMainActivity(),
+        {
+          enabled: this.config.getSettings().showInGameRecommendations,
+          gameForeground: Boolean(
+            this.config.getSettings().showInGameRecommendations && this.windows.isLeagueGameForeground(),
+          ),
+        },
+      )
   }
 
   private stopScanLoop(): void {
@@ -589,6 +641,9 @@ export class HexBridgeRuntime {
     this.automaticScanAbsences = 0
     this.automaticScanErrors = 0
     this.automaticFullAttempts = 0
+    this.automaticFingerprint = null
+    this.automaticFingerprintCandidate = null
+    this.automaticFingerprintSamples = 0
   }
 
   private async runScan(

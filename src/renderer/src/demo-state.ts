@@ -50,6 +50,7 @@ export function createDemoApi(): HexBridgeApi {
     visualMode: 'auto',
     autoOcr: false,
     showChampionPanel: true,
+    showInGameRecommendations: true,
     hotkey: 'F8',
     gameDirectory: '',
     displayId: '',
@@ -80,7 +81,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.19',
+      currentVersion: '0.1.20',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',

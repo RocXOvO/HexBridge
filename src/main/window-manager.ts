@@ -1,20 +1,22 @@
 import { app, BrowserWindow, desktopCapturer, screen } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { CalibrationContext, RuntimeState } from '../shared/contracts.js'
+import type { AugmentOverlayViewState, CalibrationContext, RuntimeState } from '../shared/contracts.js'
+import { calculateAugmentOverlayBounds, calculateAugmentOverlayColumns } from '../shared/augment-overlay-layout.js'
 import { ConfigStore } from './config-store.js'
+import { LeagueWindowObserver } from './league-window-observer.js'
 import { logger } from './logger.js'
-import { shouldShowChampionCompanion } from './runtime-guards.js'
+import { shouldShowAugmentCompanion, shouldShowChampionCompanion } from './runtime-guards.js'
 
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url))
 
-type ManagedWindow = 'main' | 'champion' | 'calibration'
+type ManagedWindow = 'main' | 'champion' | 'augment' | 'calibration'
 
 export function resolvePreloadPath(): string {
   return path.resolve(moduleDirectory, '../preload/index.cjs')
 }
 
-export function secureWebPreferences(): Electron.WebPreferences {
+export function secureWebPreferences(route?: ManagedWindow): Electron.WebPreferences {
   return {
     preload: resolvePreloadPath(),
     contextIsolation: true,
@@ -23,6 +25,7 @@ export function secureWebPreferences(): Electron.WebPreferences {
     webSecurity: true,
     allowRunningInsecureContent: false,
     backgroundThrottling: true,
+    ...(route ? { additionalArguments: [`--hexbridge-renderer=${route}`] } : {}),
   }
 }
 
@@ -51,6 +54,7 @@ export class WindowManager {
   private lifecycleEpoch = 0
   private captureTransactionInFlight = false
   private captureWindowsHidden = false
+  private readonly leagueWindows = new LeagueWindowObserver(() => this.notifyActivityChanged())
 
   constructor(private readonly config: ConfigStore) {}
 
@@ -77,6 +81,10 @@ export class WindowManager {
       focused: Boolean(main && !main.isDestroyed() && main.isFocused()),
       minimized: Boolean(main && !main.isDestroyed() && main.isMinimized()),
     }
+  }
+
+  isLeagueGameForeground(): boolean {
+    return this.leagueWindows.isGameForeground()
   }
 
   createMainWindow(): BrowserWindow {
@@ -131,7 +139,28 @@ export class WindowManager {
       hasShadow: true,
     })
     champion.setAlwaysOnTop(true, 'floating')
-    this.rememberBounds(champion, 'champion')
+    this.rememberBounds(champion, 'champion', false)
+
+    const augment = this.createWindow('augment', {
+      width: 960,
+      height: 96,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      show: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: false,
+      resizable: false,
+      movable: false,
+      fullscreenable: false,
+      hasShadow: false,
+    })
+    augment.setAlwaysOnTop(true, 'floating')
+    augment.setIgnoreMouseEvents(true)
+    augment.webContents.on('did-finish-load', () => {
+      if (this.latestState) this.sendAugmentView(augment, this.latestState)
+    })
   }
 
   showMain(): void {
@@ -148,9 +177,37 @@ export class WindowManager {
     this.latestState = state
     if (this.captureWindowsHidden) return
     const champion = this.getLiveWindow('champion')
+    const augment = this.getLiveWindow('augment')
     const shouldShowChampion = shouldShowChampionCompanion(state.settings, state.snapshot)
-    if (shouldShowChampion) champion?.showInactive()
+    const shouldObserveLeague = shouldShowChampion || (
+      state.settings.showInGameRecommendations &&
+      state.snapshot.matchStage === 'active' &&
+      (state.settings.autoOcr || state.overlay.visible)
+    )
+    this.leagueWindows.setEnabled(
+      shouldObserveLeague,
+      shouldShowChampion ? champion : augment,
+      shouldShowChampion,
+    )
+    const clientVisible = process.platform !== 'win32' ||
+      !this.leagueWindows.hasObservation() ||
+      this.leagueWindows.isClientVisible()
+    if (shouldShowChampion && clientVisible) champion?.showInactive()
     else champion?.hide()
+
+    const shouldShowAugment = shouldShowAugmentCompanion(
+      state.settings,
+      state.snapshot,
+      state.overlay,
+      process.platform !== 'win32' || this.leagueWindows.isGameForeground(),
+    )
+    if (shouldShowAugment && augment) {
+      this.positionAugmentWindow(augment, state)
+      this.sendAugmentView(augment, state)
+      augment.showInactive()
+    } else {
+      augment?.hide()
+    }
 
     this.broadcastVisible(state)
   }
@@ -160,7 +217,7 @@ export class WindowManager {
     if (this.captureTransactionInFlight) throw new Error('截图任务正在运行')
     if (this.getLiveWindow('calibration')) throw new Error('请先完成或取消屏幕校准')
     const lifecycleEpoch = this.lifecycleEpoch
-    const original = (['main', 'champion'] as const).map((name) => {
+    const original = (['main', 'champion', 'augment'] as const).map((name) => {
       const window = this.getLiveWindow(name)
       return {
         name,
@@ -205,7 +262,7 @@ export class WindowManager {
         if (this.windows.get(name) === window) this.windows.delete(name)
         continue
       }
-      if (!window.webContents.isDestroyed() && window.isVisible()) {
+      if (name !== 'augment' && !window.webContents.isDestroyed() && window.isVisible()) {
         window.webContents.send('hexbridge:state', state)
       }
     }
@@ -215,6 +272,23 @@ export class WindowManager {
     if (this.latestState && !window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.send('hexbridge:state', this.latestState)
     }
+  }
+
+  private sendAugmentView(window: BrowserWindow, state: RuntimeState): void {
+    if (window.isDestroyed() || window.webContents.isDestroyed()) return
+    const view: AugmentOverlayViewState = {
+      slots: state.overlay.slots.map(({ slot, augmentId, name, position, tied, reason }) => ({
+        slot,
+        augmentId,
+        name,
+        position,
+        tied,
+        reason,
+      })),
+      layout: calculateAugmentOverlayColumns(state.settings.calibration),
+      message: state.overlay.message,
+    }
+    window.webContents.send('hexbridge:augment-overlay', view)
   }
 
   async startCalibration(): Promise<void> {
@@ -372,6 +446,7 @@ export class WindowManager {
     this.lifecycleEpoch += 1
     this.suspendedActivityChanged = this.activityChanged
     this.activityChanged = null
+    this.leagueWindows.stop()
     this.getLiveWindow('calibration')?.destroy()
   }
 
@@ -380,7 +455,7 @@ export class WindowManager {
     const window = new BrowserWindow({
       icon: applicationIconPath(),
       ...options,
-      webPreferences: secureWebPreferences(),
+      webPreferences: secureWebPreferences(name),
     })
     this.windows.set(name, window)
     window.once('closed', () => {
@@ -498,7 +573,24 @@ export class WindowManager {
     }
   }
 
-  private rememberBounds(window: BrowserWindow, name: 'main' | 'champion'): void {
+  private positionAugmentWindow(window: BrowserWindow, state: RuntimeState): void {
+    const displays = screen.getAllDisplays()
+    const display = displays.find((candidate) => String(candidate.id) === state.settings.displayId) ?? screen.getPrimaryDisplay()
+    const bounds = calculateAugmentOverlayBounds(
+      state.settings.calibration,
+      display.bounds,
+      display.workArea,
+    )
+    const current = window.getBounds()
+    if (
+      current.x !== bounds.x || current.y !== bounds.y ||
+      current.width !== bounds.width || current.height !== bounds.height
+    ) {
+      window.setBounds(bounds, false)
+    }
+  }
+
+  private rememberBounds(window: BrowserWindow, name: 'main' | 'champion', rememberMoves = true): void {
     let timer: NodeJS.Timeout | null = null
     const save = (): void => {
       if (timer) clearTimeout(timer)
@@ -506,7 +598,7 @@ export class WindowManager {
         if (!window.isDestroyed() && !window.isMaximized()) this.config.saveWindowBounds(name, window.getBounds())
       }, 200)
     }
-    window.on('move', save)
+    if (rememberMoves) window.on('move', save)
     window.on('resize', save)
   }
 }

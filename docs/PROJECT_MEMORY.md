@@ -1,7 +1,7 @@
 # HexBridge 项目记忆
 
 > 最后更新：2026-08-14
-> 当前基线：公开最新正式 Release 为 [v0.1.19](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.19)，Release ID `370366810`，publishedAt `2026-08-14T05:13:29Z`，为 Latest、non-draft、non-prerelease。annotated tag object `a44b758fcbe05ec3744b4c6afa57b1622929c9ef` 指向产品 / 候选记忆 commit `0b30064d399c69d7edc8f082d0ef27b40bc8c5d3`；main 可在本次记忆提交后领先 tag，但 Release 产品源码固定为该 tag 指向。正式 run `31772021173` / job `94679735360` success，约 5m57s；Windows 31 files / 279 tests、真实 4K fixture 275ms、packaged UI / calibration / bridge、synthetic differential 0.1.20、Release / channel / public packaged check 与完整门禁全通过。HB-041～043 继续 `IN PROGRESS`；真实 Key、用户视觉、真实 4K 游戏性能、商业签名 / SmartScreen 仍未验，不得写 `VERIFIED`。
+> 当前基线：公开最新正式 Release 仍为 [v0.1.19](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.19)，Release ID `370366810`，publishedAt `2026-08-14T05:13:29Z`，为 Latest、non-draft、non-prerelease。annotated tag object `a44b758fcbe05ec3744b4c6afa57b1622929c9ef` 指向产品 / 候选记忆 commit `0b30064d399c69d7edc8f082d0ef27b40bc8c5d3`；main 可在记忆提交后领先 tag，但 Release 产品源码固定为该 tag 指向。当前本地候选为 v0.1.20，尚未 commit / push / Windows workflow / tag / Release；最终独立审查无已知 P0 / P1，本地 34 test files / 293 passed + 1 skipped，typecheck、lint、diff-check、OCR synthetic、真实 4K fixture 134ms 且三块 detected、source UI / bridge / preload / retention 通过。HB-044～046 保持 `FIXED / UNVERIFIED`，HB-047 保持 `ACCEPTED RISK`；Windows、真实 WeGame、DPI、多屏、点击穿透和真实游戏性能均未验证，不得写 `VERIFIED`。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -25,6 +25,7 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 - 字段白名单继续禁止海克斯胜率、胜局和场次；英雄胜率与 Tier 可以展示。现已批准进入实施的唯一新增统计是 data.dtodo 单英雄详情 `augments[*].stats.pickRate`，仅表示当前英雄选择该海克斯的上游选取率，并且只能作次级展示；它不得参与排序、不得冒充全局数据、不得推导。批准实施不等于代码已完成或 Riot 政策已批准产品；详见 HB-030。
 - 默认不保存截图；诊断模式也只能保存三张海克斯标题裁切区，绝不能保存完整屏幕。
 - 定位为个人实验工具。Riot 当前政策对强化胜率展示、替玩家决策类产品存在风险；扩大分发前必须重新评估政策和数据授权。
+- 具体对手近期历史胜率、KDA、连胜 / 连败与“上等马 / 中等马 / 下等马”画像不进入正式实现：个人实验定位不能覆盖 Riot 对竞争优势、隐藏身份与替代玩家技能评估的政策边界，且当前国服没有经本项目验证的可靠官方历史数据源。允许继续评估的窄替代仅为赛后本人数据或当前局已经公开、无需身份绕过的最小字段，见 HB-047。
 - 许可为 PolyForm Noncommercial 1.0.0（source-available，非 OSI 开源）。Mineradio 仅是视觉理念参考，不复制其 GPL 代码、素材、品牌或原创视觉表达。
 
 ### 1.1 界面与视觉长期契约（目标与 v0.1.12 / v0.1.13 实现边界，尚未完整用户同机验证）
@@ -43,6 +44,10 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 - 更新入口可见性目标：右上角更新按钮只能在 Main 已确认存在高于当前版本的正式可用更新时显示；检查中、已是最新版、错误、离线或尚未检查时不得用常驻按钮制造“有更新”的错觉。隐藏按钮不能停掉受控后台检查或丢失可恢复错误状态，Renderer 也不能自行比较任意远端版本或构造更新 URL。该目标尚未实现 / 验证，见 HB-041。
 - 设置 API Key ready 视觉目标：已验证 Key 的 `ready` 状态应使用清晰、克制且与输入 / 错误态显著不同的完成态布局，突出“已安全保存 / 数据可用”而不是继续呈现为待填写表单；替换、清除和失败保留旧 Key 的行为仍须可理解。视觉重做不得把 Key 明文回显给 Renderer 或日志，申请入口仍只能由 Main 打开固定官方 URL，见 HB-042。
 - 实时助手动效目标：可以使用现有 CSS / Vue / Chromium 能力或经审计的新技术增强英雄背景、状态过渡和信息进入感，但不得为炫技引入无必要依赖、持续粒子、重型滤镜、全屏高频重绘或对局捕获负担。`cinematic` 可提供完整但克制的动效，`balanced` 只保留低成本状态变化，`eco`、Main hidden / minimized / unfocused、`InProgress` 与 `prefers-reduced-motion` 必须暂停或静态降级；可见性和性能状态变化后不得留下运行中的 timer / RAF / observer，见 HB-043。
+- 页面切换稳定性目标：导航到实时助手或离开实时助手时，内容区必须持续预留一致的纵向滚动条空间，不能因页面高度或 `out-in` 过渡的中间空帧造成滚动条显隐、内容横向跳动或窗口视觉抖动；当前工作树已用固定 `overflow-y: scroll` 与 stable scrollbar gutter 预留宽度，并把页面淡入改为 4px 位移、无 scale。导航、英雄背景和卡片重排仍受 `eco`、`InProgress`、hidden / minimized / unfocused 与 `prefers-reduced-motion` 的静态降级约束，见 HB-044。
+- 选人伴随窗跟随目标：`ChampSelect` 伴随窗不能只在首次显示时读取一次 League 客户端位置。v0.1.20 本地候选使用 Windows-only 单个持久 PowerShell / Win32 观察器，以 Per-Monitor V2 DPI awareness 优先读取 DWM extended frame bounds，必要时回退 `GetWindowRect`；每 350ms 跟随可见 `LeagueClientUx`，优先前台或最近前台客户端 PID，并通过 `SetWindowPos` 只移动 HexBridge 伴随窗。相同句柄 / 模式不重复 spawn；异常退出指数退避，迟到旧 child 输出 / 终止事件不得污染新 observer；客户端最小化时隐藏，离开上下文或退出时停止。它不能注入客户端、抢焦点、转发游戏输入或记录敏感窗口信息，见 HB-045。
+- 游戏内小型推荐窗目标：v0.1.20 本地候选在三卡全部可靠识别后创建高度 96px 的小型透明、点击穿透、不可聚焦 augment 窗；BrowserWindow 以受控 `additionalArguments` 隔离 augment preload route，只暴露 compact DTO。窗口按真实整卡矩形计算卡位 columns 与卡下 bounds，异常 / 标题带式 geometry 回退审计过的默认整卡矩形；严格要求三槽均有 `augmentId`，先发送 compact 状态再 `showInactive`。它只在本局 active、Windows 检测到游戏前台且推荐可靠时显示；自动 OCR 仍默认关闭。该窗是对“不得恢复旧全屏 / 顶部黑屏 augment 窗”的窄例外：不得创建全屏透明宿主、黑色底板、大块遮挡、自动点击、持续发光或循环动画；实时助手仍保留本局最后可靠结果，见 HB-046。
+- 实验性对手战绩目标：经官方 Riot 政策、身份可见性与国服数据源审计，具体对手历史胜率 / KDA / 连胜和“上等马 / 中等马 / 下等马”分类不进入正式实现；它可能形成额外竞争优势、绕过有意隐藏的身份信息并替代玩家自身技能评估，同时当前国服没有经项目验证的可靠官方历史源。不得上传战绩、记录或持久化 PUUID / 完整对局历史、绕过客户端权限或以不明私有接口补齐。可选合规替代仅限赛后本人数据或当前局已公开的最小字段，见 HB-047。
 - 自动视觉性能状态机：普通用户界面不得继续暴露“自动 / 电影 / 均衡 / 省电”的手动档位入口，视觉成本应由 Main 主导的自动状态机根据游戏阶段、窗口可见 / 焦点状态、GPU 可用性、系统内存和 reduced-motion 等证据决定。状态可在诊断页只读显示，但 Renderer 不得把任意手动档位写回设置；旧版已持久化的手动 `visualMode` 需安全迁移回自动且不能重置 OCR、浮窗、快捷键等无关设置。该目标与 `autoOcr` 是否开启相互独立，隐藏视觉入口不得顺带开启周期截图。
 - 验收边界：上述目标虽已进入 v0.1.12，但不代表用户同机视觉 / 性能验收已经完成。验收仍需覆盖 1080p / 2K / 4K、100%～150% DPI、长中文英雄 / 职业名、自动性能状态迁移、reduced-motion、窗口可见性和 InProgress；通过逐页视觉快照、Windows packaged 人工可读性与后台 CPU / GPU / 重绘测量后才可写已完成。
 - v0.1.12 / v0.1.13 当前边界：v0.1.12 新增独立“更新”导航 / 页面和可用更新 banner，并从设置页移除主要更新卡；设置页删除游戏目录 UI，但 Main / IPC 的手动目录 fallback 暂时保留。英雄榜移除角色筛选 / 列，搜索接入显式可审计的常用别名表并覆盖 `name / title / alias`，Tier 通过行背景色带表达，但准确 Tier 文本不得改写成“强度顶尖”等主观文案；点击 / 键盘焦点采用轻微上浮和极光，eco / hidden / reduced-motion 有静态降级。实时助手降低原画遮罩 / 模糊、把未连接状态合并到空态并删除侧栏独立 LCU 块，等待图保留受性能模式 / 可见性守卫的轨道动效。新 SVG icon 生成 1024 PNG 与 16～256 多尺寸 ICO，builder、窗口与托盘路径已接入；verifier 只检查格式、多尺寸与非空大小，尚未在 Windows EXE / 任务栏 / 托盘 / 安装器四处实看。v0.1.13 已移除普通设置页四档 `visualMode` 下拉框与 Renderer handler，并从受限设置 IPC 白名单移除该字段；revision 2 将旧手动 override 迁移为 `auto`，Main 通过独立 policy 根据窗口 / 游戏 / 资源状态决定实际档位。正式 Windows 门禁已通过，用户同机性能仍未完成，见 HB-028。
@@ -57,11 +62,12 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 - `src/main/lcu/`：凭据发现、只读 HTTPS / WebSocket 客户端、session 归一化。
 - `src/main/data-service.ts`：上游请求、Key 验证、版本缓存、错误状态。
 - `src/main/ocr/`：显示器截取、门控、裁切和 PaddleOCR / ONNX 推理。
-- `src/main/window-manager.ts`：主窗口、选人浮窗与校准窗口；当前 dirty 候选已删除自动 augment / 海克斯结果 BrowserWindow。
+- `src/main/window-manager.ts`：主窗口、选人伴随窗、96px 小型 augment 推荐窗与校准窗口；augment 窗保持透明、点击穿透、不可聚焦，严格 3/3 `augmentId` 后先发送 compact DTO 再仅于 active + 游戏前台显示。
+- `src/main/league-window-observer.ts`：Windows-only 单个持久 PowerShell / Win32 观察器；DWM extended bounds / PMv2、前台客户端 PID 偏好、350ms 跟随、异常指数退避与 stale child 守卫。选人期跟随 `LeagueClientUx`，对局期提供游戏前台状态；不得扩展为客户端内容读取或输入注入。
 - `src/main/ipc.ts` + `src/preload/index.ts`：Renderer 的唯一业务边界。
 - `src/shared/data-normalize.ts`：上游字段白名单与隐私清洗。
 - `src/shared/recommendations.ts`：英雄和海克斯的纯函数排序规则。
-- `src/renderer/`：实时助手、英雄榜、设置、诊断、选人伴随窗与校准界面；当前 dirty 候选已删除 `#augment` route 和 `AugmentOverlay.vue`，三卡 OCR 结果只进入实时助手。
+- `src/renderer/`：实时助手、英雄榜、设置、诊断、选人伴随窗、校准界面与受限 `#augment` route；`additionalArguments` 决定 preload 只暴露 `hexbridgeOverlay` compact bridge，`AugmentOverlay.vue` 不接收完整 RuntimeState 或主业务 API，主实时助手仍保留本局最后可靠结果。
 
 ## 三、接口契约
 
@@ -82,6 +88,8 @@ HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克�
 - `/lol-champ-select/v1/session`
 - `/lol-champ-select/v1/current-champion`
 - `/riotclient/region-locale`
+
+HB-047 的官方政策与国服数据源审计已决定不实现具体对手历史画像 / 三档标签，因此不构成对上述 allowlist 的扩展，也没有新增对手战绩 endpoint。任何未来赛后本人数据或当前局公开字段方案仍必须先记录来源、字段最小化、身份可见阶段、失败语义与测试，再更新本契约；不得以屏幕抓取、客户端注入或不明第三方接口替代。
 
 同步契约：WAMP WebSocket 订阅 `OnJsonApiEvent`，同时保留 1 秒轮询兜底；401、超时或连接错误使凭据失效并触发重新发现。不得将 token 或带凭据 URL 写入日志。
 
@@ -129,11 +137,11 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
    - 不包含 ARAM Mayhem 聚合统计或三张海克斯推荐数据，不能作为本模式的统计源。
 4. **本地 LCU Match History（可选个人样本，未接入）**
    - 候选只读 GET：`/lol-match-history/v1/products/lol/current-summoner/matches`、`/lol-match-history/v1/games/{gameId}`。
-   - 仅适合在用户设备上形成个人历史样本，不能替代聚合 Tier / 胜率；属于非官方、可能变化的 LCU 接口。
+   - 仅适合在用户设备上形成当前用户自己的赛后历史样本，不能用于当前对手画像，也不能替代聚合 Tier / 胜率；属于非官方、可能变化的 LCU 接口。
    - 会接触 PUUID 和战绩隐私，默认不得上传、遥测或跨设备同步。若未来实现，必须另行扩展只读 allowlist、最小化保存字段、明确本地保留 / 删除策略，并增加接口变化与隐私回归测试。
 5. **Live Client Data API（可选对局上下文，未接入）**
    - 本地 `127.0.0.1:2999` 可补充对局中的玩家、英雄、事件等上下文。
-   - 不提供海克斯界面的三张候选卡，也不提供国服聚合胜率 / Tier，因此不能替代 OCR 或主统计源。
+   - 不提供海克斯界面的三张候选卡，也不提供国服聚合胜率 / Tier，因此不能替代 OCR 或主统计源；即使未来使用，也只能消费当前局已公开且不形成对手历史画像的最小字段。
 6. **League Wiki MediaWiki Action API（英文规则交叉校验，未接入）**
    - `Module:MayhemAugmentData/data` 可用于英文名称、禁用状态和规则的交叉校验。
    - 内容受 CC BY-SA 3.0 约束；任何纳入或衍生发布都必须满足署名与相同方式共享要求，并与 HexBridge 的 PolyForm Noncommercial 代码 / 数据产物做好许可隔离。不能无声明地复制进主目录。
@@ -147,7 +155,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
    - 对 OP.GG、U.GG、MetaSRC、PlayARAM、arammeta 等未发现可依赖的文档化公共 API。
    - 不把站点私有 XHR、逆向接口、Selenium / 浏览器抓取当作稳定生产上游；除稳定性外还涉及授权、反爬、字段漂移和再分发风险。
 
-审计后的整合原则：聚合统计继续来自文档化且获授权的数据接口；静态海克斯元数据可评估 pin patch 的 CommunityDragon；Riot / Meraki 只补静态资产；LCU Match History 和 Live Client Data API 如接入也仅限本地最小化上下文；Wiki 只在满足 CC BY-SA 许可隔离时用于交叉校验；不使用私有网页抓取填补数据空缺。
+审计后的整合原则：聚合统计继续来自文档化且获授权的数据接口；静态海克斯元数据可评估 pin patch 的 CommunityDragon；Riot / Meraki 只补静态资产；LCU Match History 若接入仅限赛后本人本地样本，Live Client Data API 若接入仅限当前局已公开最小字段，二者均不得恢复 HB-047 已排除的对手历史画像 / 三档标签；Wiki 只在满足 CC BY-SA 许可隔离时用于交叉校验；不使用私有网页抓取填补数据空缺。
 
 ### 3.3 IPC 契约
 
@@ -156,6 +164,7 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 允许的业务调用：
 
 - `getState()` / `onStateChanged(callback)`
+- augment BrowserWindow 通过受控 `additionalArguments` 标识 renderer route；该 preload 只暴露独立 `hexbridgeOverlay.onChanged(callback)`，接收 Main 单向发送的 compact `slots + layout + message` DTO。单纯修改 URL hash 不能取得主 `window.hexbridge` 业务桥；overlay 不暴露完整 RuntimeState、LCU 凭据、API Key、文件系统、网络能力或任意 invoke。
 - `updateSettings(patch)`：当前实现只允许视觉模式、自动 OCR、两个浮窗开关、热键、游戏目录、显示器、校准区域、诊断截图开关。长期界面契约要求删除普通设置页的游戏目录 UI；Main / IPC 中手动目录 fallback 是否继续保留须经主线审计后决定。若保留，只能是严格路径校验、明确诊断用途的受控 fallback，不能重新成为普通用户必填项或任意文件系统入口。
 - `validateAndSaveApiKey(key)` / `clearApiKey()`
 - `refreshData()` / `triggerOcr()`
@@ -171,12 +180,12 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 
 - `desktopCapturer` 只截取用户设置的显示器；依据 `bounds × scaleFactor` 请求物理尺寸。
 - 默认标题区域使用归一化矩形，用户可以依次拖框校准左 / 中 / 右标题。
-- v0.1.12 默认关闭自动 OCR；v0.1.16 候选进一步要求只有本局为 `active` 且 Main 窗口可见时才调度自动扫描。用户显式开启后每 2 秒只允许一个自动扫描任务，先做最大宽 960px 的低分辨率标题 ROI 门控，信号命中后才进入 full OCR；`busy` 时拒绝自动重入。手动按钮 / 当前配置快捷键只触发一次有界捕获，不经过周期门控，并可为取得优先级等待在途自动任务最多 1.5 秒。
+- v0.1.12 默认关闭自动 OCR；v0.1.20 本地候选只有本局为 `active`，且“Main 可见、未最小化并聚焦”或“游戏内推荐已启用且 League 游戏窗口处于前台”至少一个可见表面成立时才调度自动扫描。用户显式开启后每 2 秒只允许一个自动扫描任务，先做最大宽 960px 的低分辨率标题 ROI 门控，信号命中后才进入 full OCR；`busy` 时拒绝自动重入。手动按钮 / 当前配置快捷键只触发一次有界捕获，不经过周期门控，并可为取得优先级等待在途自动任务最多 1.5 秒。
 - 先对三块裁切做低成本灰度信号门控，至少两块命中才启动 OCR。
 - 三块按左 / 中 / 右串行识别，中文标准化后精确或模糊匹配；置信度阈值不得低于 90%。
-- 三张全部可靠识别才自动展示；组合去重。v0.1.16 候选对同一组三卡 full OCR 成功一次后不重复识别，不可靠结果最多重试两次，连续两次明确 absence 才重置 gate / round 扫描 tracker；该重置只允许后续重新识别，不得清除 HB-034 规定的上一组可靠展示结果。当前配置的手动快捷键只强制重新截图 / 识别，不发送键鼠事件；其原子注册与 Windows 游戏前台未验证边界见 HB-025。
-- 识别结果呈现契约按用户 v0.1.13 实机反馈修正：海克斯三卡结果与推荐应作为实时助手页的对局内容显示，不得识别成功后打开覆盖屏幕顶部的大块黑色浮窗。是否保留任何小型伴随窗口须由 HB-029 重新审计；当前用户明确否定的“黑屏顶部浮窗”不得作为完成态。
-- 自动扫描只在保留的目标本局上下文为 `active + queueId ∈ {2400, 3270}`、Main 可见、自动 OCR 已显式开启且 Runtime 未 stopping 时运行；LCU transport 交接本身不能否定仍有效的 active generation。离局 / generation 或 champion 变化、Main hidden / minimized、关闭自动 OCR或 stopping 必须停表；在途扫描结束后再次以 scan epoch + generation + champion + stopping 原子校验，旧结果不得进入新局或重新显示已移除的浮窗。
+- 三张全部可靠识别才自动展示；组合去重。v0.1.20 本地候选在同一组三卡成功后继续用 960px 标题 ROI 门控生成三个标题指纹，并以单槽变化比例的最大值判断组合变化，避免一张刷新被其他两槽平均稀释；候选变化连续两帧稳定才触发一次新的 full OCR，以覆盖刷新卡牌并抑制单帧动画 / 亮度噪声。该变化不得清除 HB-034 规定的上一组可靠展示结果，也不得让 full OCR 无界重复。当前配置的手动快捷键只强制重新截图 / 识别，不发送键鼠事件；其原子注册与 Windows 游戏前台未验证边界见 HB-025。
+- 识别结果呈现契约按用户后续需求收口：海克斯三卡结果与推荐继续作为实时助手页的对局内容，同时允许 HB-046 的 96px 小型透明推荐窗作为窄例外。v0.1.14 已移除的全屏 / 顶部大块黑色浮窗、黑色底板与遮挡式宿主永久禁止恢复；小窗必须点击穿透、不可聚焦，严格三槽均有 `augmentId` 后先收 compact DTO 再于 active + 游戏前台显示。
+- 自动扫描只在目标本局上下文为 `active + queueId ∈ {2400, 3270}`、自动 OCR 已显式开启、Runtime 未 stopping，并且 Main 聚焦表面或游戏前台推荐表面至少一个成立时运行；LCU transport 交接本身不能否定仍有效的 active generation。离局 / generation 或 champion 变化、Main 失焦且游戏不在前台、关闭自动 OCR 或 stopping 必须停表；在途扫描结束后再次以 scan epoch + generation + champion + stopping 原子校验，旧结果不得进入新局或重新显示过期小窗。
 - 当前英雄变化时应先立即同步 snapshot / 候选 UI，再在后台非阻塞补齐英雄详情；详情返回后仅在 `championId + requestSequence + dataVersion` 仍匹配时二次同步，不能让上游请求阻塞 1.5 秒界面刷新目标。
 - 游戏要求无边框模式；独占全屏不在 V1 保证范围。
 
@@ -730,6 +739,44 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - v0.1.19 本地实现：英雄背景 crossfade；hero / build 区块与 augment `TransitionGroup`、bench 重排增加克制动效。只有 active cinematic 运行持续 ambient；inactive 时 Vue enter 瞬间完成并暂停持续动画，`eco / InProgress / reduced-motion` 为静态。浏览器预览确认 hero / cards 正常。
 - 验收标准：source / packaged 视觉快照覆盖三档、focus / visibility、InProgress 和 reduced-motion；真实 4K Windows 游戏对照记录 HexBridge CPU / GPU、FPS / frametime、长任务、RAF / timer / observer 数量与窗口切换恢复。Windows runner 已通过功能烟测，但没有用户同机性能或 Release 证据，仍不得写 `FIXED` / `VERIFIED`。
 
+### HB-044 页面切换滚动条显隐导致布局抖动，现有动效需柔化
+
+- 严重度：中（不阻断功能，但页面切换产生明显横向位移和生硬感）
+- 状态：`FIXED / UNVERIFIED`（样式与 source UI 窄门禁通过，尚无 Windows packaged / 用户视觉验收）
+- 用户症状：从其他页面切换到实时助手时，纵向滚动条会出现或消失，页面内容随之抖动；用户同时要求当前导航、页面进入与内容更新动效更柔和。
+- 当前实现：内容 stage 固定 `overflow-y: scroll` 并启用 stable scrollbar gutter，使长短页面和 Vue `out-in` 中间态持续预留纵向滚动空间；页面进退场改为 4px 轻位移与透明度淡入，不再使用 scale。没有新增持续动画、重型滤镜、 timer、RAF、observer 或运行时依赖；`eco`、`InProgress`、hidden / minimized / unfocused 与 reduced-motion 的既有静态降级保持不变。
+- 当前证据：source UI smoke 循环进入实时助手与诊断页，二者内容区 `clientWidth` 均为 953px；最终独立审查无已知 P0 / P1，v0.1.20 本地全链为 34 files / 293 passed + 1 skipped，typecheck、lint、source UI / bridge / preload / retention 与 diff-check 通过。该证据验证了受控 source viewport 的宽度稳定，不等于 Windows 系统滚动条、不同缩放或用户视觉已经验证。
+- 剩余验收：在 Windows 主窗口最小 / 默认 / 最大尺寸和 100%～150% DPI 下循环切换实时助手、英雄榜、设置和诊断，确认无横向跳动、双滚动条、焦点 / 滚动位置异常，并覆盖 reduced-motion。用户同机确认前不得标 `VERIFIED`。
+
+### HB-045 ChampSelect 伴随窗未持续跟随 League 客户端窗口
+
+- 严重度：中高（移动或缩放 League 客户端后伴随窗与选人界面脱离）
+- 状态：`FIXED / UNVERIFIED`（Windows-only 跟随链与解析测试已落地，尚无真实 WeGame / League 客户端实测）
+- 用户症状：此前伴随窗只在显示时取得一次 League 客户端坐标；之后移动客户端，伴随窗仍留在旧位置。
+- 当前实现：新增单个持久 PowerShell / Win32 观察器；以 PMv2 DPI awareness 优先读取 DWM extended frame bounds，失败才回退 `GetWindowRect`。只在受支持选人期跟随，每 350ms 枚举可见、非最小化的 `LeagueClientUx` 主窗口，优先当前前台或最近前台客户端 PID，再以面积稳定决策，并用 `SetWindowPos` 只移动 HexBridge 伴随窗。相同 target handle 与 follow 模式复用已有子进程，不重复 spawn；观察器异常终止按 1.5s 起、最高 30s 指数退避重启，旧 child 的迟到输出 / close / error 受实例与配置守卫，不得污染新 observer。League 客户端最小化 / 不可见时隐藏伴随窗，离开选人、应用退出或目标销毁时停止。实现不注入 League 进程、不 Hook 输入、不发送键鼠、不读取窗口内容，也不把句柄、路径或玩家标识写入日志。
+- 当前证据：观察器输出采用仅含 `gameForeground / clientVisible` 布尔值的严格解析测试，退避边界、脚本静态能力与生命周期守卫进入本地测试；最终独立审查无已知 P0 / P1，v0.1.20 本地全链为 34 files / 293 passed + 1 skipped，typecheck、lint、source UI / bridge / preload / retention 与 diff-check 通过。非 Windows 平台 fail closed；source 测试不能证明真实 WeGame 的窗口枚举、DWM / PMv2 坐标、DPI / 多屏位置或 350ms 跟随成本。
+- 剩余验收：Windows packaged 中覆盖单 / 多个 `LeagueClientUx`、连续移动 / 缩放、最小化 / 恢复、跨屏、负坐标、100%～150% DPI、关闭与下一次选人，确认不抢焦点、无重复 PowerShell、无窗口重建风暴、退出无残留且 CPU 有界。报告用户实机通过前不得标 `VERIFIED`。
+
+### HB-046 游戏内三卡下方小型推荐窗与刷新后实时更新
+
+- 严重度：高（用户在实际选择时无法就地查看推荐；错误恢复旧覆盖层又会遮挡游戏或影响性能）
+- 状态：`FIXED / UNVERIFIED`（小窗、compact IPC 与刷新门控已实现并通过 source 窄门禁，尚无真实 Windows 4K 游戏验收）
+- 用户目标：自动 OCR 可靠识别左 / 中 / 右三张卡后，在三张卡牌下方显示与卡位对齐的小型推荐信息；玩家刷新卡牌后，新组合可靠识别完成即在原位更新，不要求切回主窗口。选择仍由用户完成，软件不得自动点击或发送输入。
+- 当前窗口实现：WindowManager 创建固定高度 96px、透明背景、点击穿透、不可聚焦、不可移动 / 缩放、skip-taskbar 的 augment BrowserWindow；受控 `additionalArguments` 决定 preload route，augment 只获得独立 `hexbridgeOverlay.onChanged`，不能取得主业务桥。按真实整卡校准矩形计算三张卡牌的独立 columns 与下方 bounds；非法、乱序或仍像 OCR 标题带的 geometry 回退审计过的默认整卡矩形。compact DTO 仅含 `slots + layout + message`；严格要求三槽均有 `augmentId`，并且先 send 后 `showInactive`，避免首帧空窗。只在 supported match `active` 且 Windows 观察器确认 League 游戏前台时显示；其他状态隐藏。自动 OCR 仍默认关闭，用户未显式开启时不会因小窗增加周期截图。
+- 当前刷新实现：首次 full OCR 成功后继续使用 960px 标题 ROI 门控计算三个标题指纹；变化距离取三个槽位中单槽变化比例最大值，使单卡刷新不会被平均稀释。候选指纹连续两帧稳定才触发一次新的 full OCR，以更新刷新后的卡牌并过滤单帧动画 / 亮度噪声。同组合和短暂 miss 继续保留上一可靠结果；部分 OCR、缺任一 `augmentId` 或猜测名称不进入小窗，离局 / 新 generation / 显式禁用按既有边界隐藏。自动调度还要求 Main 可见未最小化且聚焦，或游戏内推荐启用且 League 游戏在前台；二者都不成立即停表。
+- 与 HB-029 的兼容边界：v0.1.14 移除的全屏 / 顶部 augment BrowserWindow、黑色底板和大块覆盖没有恢复。当前窗只覆盖卡牌下方推荐带，不使用全屏透明父窗，不阻挡鼠标，不 show / focus / restore 主窗口，也没有持续发光或循环动画；实时助手继续保留本局最后可靠结果。
+- 当前证据：layout 测试覆盖真实整卡 columns、默认 / 校准矩形卡下 bounds 与异常 geometry fallback；Renderer / preload 契约覆盖 additionalArguments bridge 隔离、compact DTO 与严格 3/3 门禁。source UI smoke 验证 augment route 视口为 960×96、背景透明、compact bridge 正常，实时助手 / 诊断 stage 宽均为 953px；OCR synthetic 和真实 4K fixture 134ms 且三块 detected。最终独立审查无已知 P0 / P1，v0.1.20 本地全链为 34 files / 293 passed + 1 skipped，typecheck、lint、source UI / bridge / preload / retention 与 diff-check 通过。尚未在 Windows 真实游戏证明前台检测、点击穿透、DPI 布局、刷新换代或性能。
+- 剩余验收：1080p / 2K / 4K、100%～150% DPI、多显示器和真实海克斯刷新中确认不黑屏、不遮卡、不抢焦点、点击穿透、原位更新且无明显 FPS / frametime 峰值；另覆盖游戏失焦 / 恢复、手动 OCR、自动 OCR 显式开关和退出销毁。完成用户实机前不得标 `VERIFIED`。
+
+### HB-047 实验性本地只读对手战绩与分档评分
+
+- 严重度：高（涉及玩家身份、战绩隐私、未文档化端点稳定性和 Riot 产品政策；错误评分会直接误导）
+- 状态：`ACCEPTED RISK`（官方政策 / 国服数据源审计后决定不把具体对手历史画像与三档标签纳入正式产品）
+- 用户目标：在个人实验范围内读取当前对手可合法取得的近期数据，参考 rating、连胜 / 连败、KDA 和胜率生成“上等马 / 中等马 / 下等马”标签，并调研 GitHub / 既有开源实现。该目标不证明国服当前有可用数据源，也不代表 Riot 已批准该功能。
+- 官方政策审计结论：[Riot Games General Policies](https://developer.riotgames.com/policies/general) 与 [League of Legends developer policies](https://developer.riotgames.com/docs/lol) 要求产品不能通过未公开信息或额外实时分析形成不公平竞争优势，也不能绕过有意隐藏的玩家身份或用产品评分替代玩家自身技能判断。把当前对手的近期胜率、KDA、连胜 / 连败聚合成带价值判断的三档标签与这些边界冲突风险过高；“个人实验”不构成豁免。
+- 数据源审计结论：当前国服没有经项目验证、覆盖目标模式且可可靠使用的官方对手历史数据源；GitHub 项目、未文档化 LCU 端点或客户端抓包只能作为研究线索，不能冒充 Riot 官方支持。对手身份在目标阶段不可见时不得通过注入、内存读取、屏幕 OCR、权限绕过或不明私有接口补齐，因此本轮不新增 endpoint、allowlist、IPC、缓存或 UI。
+- 保留边界：继续禁止上传战绩、记录 / 持久化 PUUID、完整对局历史、完整玩家标识或可重放查询。未来若政策和官方数据覆盖发生明确变化，须重新走完整审计，不能从本条自动恢复原方案；当前可单独评估的合规替代仅为赛后本人的数据总结，或当前局已公开、无需身份绕过的最小字段，且不能生成“上 / 中 / 下等马”玩家价值画像。
+
 ### HB-013～HB-017 的 v0.1.3 packaged smoke 边界
 
 - tag workflow 在 Windows runner 启动实际 unpacked EXE：bridge smoke 验证 CommonJS preload、bridge / IPC 和安全偏好；packaged UI smoke 验证 invalid-Key 反馈与 busy 恢复、关键文字 14px、三个 reduced-motion 选择器、1024×768 校准截图 data URL / Renderer 解码、中文说明 14px，以及真实 CDP `Esc` 后主窗口恢复。
@@ -742,6 +789,14 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 响应速度：英雄 / snapshot 变化立即同步，详情后台非阻塞补齐；详情到达且 sequence 仍匹配才再次同步，不把 API 延迟计入选人 UI 刷新路径。
 
 ## 七、当前自动化验证基线
+
+2026-08-14 v0.1.20 / HB-044～HB-047 当前本地候选窄门禁（未 commit / push / Windows / tag / Release）：
+
+- HB-044：stage 固定 `overflow-y: scroll` + stable scrollbar gutter，页面过渡降为 4px 淡入且无 scale；source UI smoke 在实时助手 / 诊断切换后读取的内容区 `clientWidth` 均为 953px。
+- HB-045：Windows-only 单个持久 PowerShell / Win32 观察器已接入 DWM extended bounds / PMv2、前台 `LeagueClientUx` PID 偏好、350ms 跟随、相同配置不重复 spawn、异常指数退避、stale child 守卫、最小化隐藏和退出停止；没有真实 Windows `LeagueClientUx` / WeGame / 多屏 DPI 证据。
+- HB-046：96px 透明、点击穿透、不可聚焦小窗已接入 `additionalArguments` route 隔离、compact DTO、真实卡位 columns、异常 geometry fallback、严格 3/3 `augmentId`、先 send 后 show、active + 游戏前台守卫；OCR 使用单槽最大指纹与连续两帧变化门禁，并以 Main 焦点或游戏前台作为自动调度可见表面。自动 OCR 仍默认关闭。source UI smoke 验证 `#augment` 为 960×96 且透明。
+- 最终独立审查无已知 P0 / P1。当前全链精确结果为 34 test files / 293 passed + 1 skipped（294 total），typecheck、lint、`git diff --check`、OCR synthetic、真实 4K fixture 134ms 且三块 detected、source UI / bridge / preload / retention 通过。没有 Windows workflow / packaged、真实 WeGame、DPI / 多屏、点击穿透、真实游戏性能或用户同机结果，HB-044～046 只能记 `FIXED / UNVERIFIED`。
+- HB-047 只有官方政策 / 国服数据源审计结论，没有也不应新增产品代码或测试；具体对手历史画像 / “上中下等马”分类按 `ACCEPTED RISK` 退出正式范围。
 
 2026-08-14 `v0.1.19` Windows 候选基线（已 push，未 tag / Release）：
 
@@ -959,7 +1014,7 @@ v0.1.16 Windows 候选与正式发布基线：
 - **游戏交接（HB-020 / HB-022）**：v0.1.13 报告用户同机脱敏时间线已证明 3270 最终英雄在同一 generation 内从 selecting 经 launching 连续进入 InProgress / active，交接连续性子项通过；历史 v0.1.11 的空窗丢英雄仅保留为旧版失败事实。该单次时间线没有第二局，也没有完整确认终局 UI、详情 / OCR 推荐呈现和正式匹配 queue；因此两项总体仍为 `IN PROGRESS`，不得宣称整体已修复或已验证。
 - **自动视觉性能状态机（HB-028）**：v0.1.12 仍暴露四档下拉框；v0.1.13 已移除 UI / IPC 写入口、增加 revision 2 迁移和 Main 自动 policy，并通过正式 Windows packaged UI 门禁。该门禁只覆盖受控窗口状态与 1024×768 校准恢复，不包含真实用户 4K FPS / frametime / CPU / GPU 采样；不得宣称用户性能目标已完成。
 - **OCR 与性能（HB-024～HB-026）**：真实用户 4K / DPI / 多屏校准、Windows 游戏前台全局快捷键、自动 OCR hidden pause / 连续 miss 退避，以及切屏 / 进游戏前后的 FPS、frametime、CPU / GPU / capture 次数对照仍未执行。真实 title-only fixture和无交互 Windows smoke不能替代这些现场数据。
-- **最新 OCR 交互实机（HB-025 / HB-029）**：v0.1.13 报告用户同机确认手动按钮可以识别，但游戏前台配置快捷键无反应；识别后出现的黑屏顶部浮窗也被用户明确否定。当前 dirty 候选已让 button / hotkey / tray 共用 Main 触发路径，移除 augment BrowserWindow / route / component，并使 OCR 结果只进入实时助手且同步不 show / focus；稳定手动状态与 sequence / 脱敏日志也已进入本地门禁。上述实现尚未完成最终复审、Windows Actions 或报告用户同机复测，不能把本地通过误写成快捷键或结果呈现闭环。
+- **最新 OCR 交互实机（HB-025 / HB-029 / HB-046）**：v0.1.13 报告用户同机确认手动按钮可以识别，但游戏前台配置快捷键无反应；识别后出现的黑屏顶部浮窗也被用户明确否定。v0.1.14 因此让 button / hotkey / tray 共用 Main 触发路径，移除当时的 augment BrowserWindow / route / component，并使结果只进入实时助手且同步不 show / focus。当前 HB-046 又按用户新目标加入严格 96px、透明、点击穿透、不可聚焦的小型卡下推荐窗；这不撤销对旧全屏 / 顶部黑窗的禁止。当前 source 门禁仍不能替代 Windows 游戏前台快捷键、小窗、刷新换代或用户同机复测。
 - **数据与 Tier 产品决策（HB-030 / HB-031）**：dirty 候选已按 allowlist 接入 data.dtodo 单英雄详情 `stats.pickRate` 次级展示，只接受 number 0～1，rank 顺序不变，`winRate / wins / games` 继续剔除；详情缓存升为 v2，legacy 只以 stale rank / tier 回退。Tier 背景条也已显示肉眼可见原始 `Tn` 并移除“强度顶尖”。本地自动化不能替代最终复审、Windows 视觉和报告用户同机数据对应性，二者继续 `IN PROGRESS`。
 - **更新与差分（HB-019 / HB-021 / HB-023 / HB-033）**：v0.1.11～v0.1.15 远端 Releases 并存，正式 v0.1.15 Windows / public 门禁在人工 seed 旧 installer cache 时证明 v2 Range 差分算法有效；但用户由 v0.1.14 更新 v0.1.15 时仍看到 / 可能下载约 200 MB。v0.1.14 旧客户端不含 v0.1.15 单 Range 逻辑，且目前不能区分 UI 展示 metadata full size 与真实网络 full fallback。仍需由 installed v0.1.15 执行下一正式版本更新，取得 cache 状态、请求 / 字节、安装与重启后的同机证据。
 - **LCU / Key / 发现（HB-013 / HB-015 / HB-018 / HB-027）**：真实国服 Key 保存 / 重启、WeGame 多来源发现、端口 / token 轮换、残留日志 / lockfile 到 5 秒自动恢复，以及完整 ChampSelect→终局→第二局只读链仍需实机证据。
@@ -992,11 +1047,13 @@ v0.1.16 Windows 候选与正式发布基线：
 - HB-026：当前 `IN PROGRESS`。默认 `autoOcr=false`；显式开启后，v0.1.16 仅在 `active + Main visible`时运行自动 OCR，用 960px 低分辨率标题 ROI 门控，必要时才取最大 1440px 帧并在 `NativeImage` 中先裁三块标题；手动只取一次 1440px 帧。同一组成功后不重复 full OCR，失败使用有界退避，隐藏、最小化、换局与退出会使旧任务失效。正式 Windows 门禁通过，仍缺报告用户同机的持久化重启、hidden pause / 退避、手动 OCR 以及真实 4K FPS / frametime / CPU / GPU 对照；未采样前不得确认根因或修复，自动视觉策略剩余验收另由 HB-028 跟踪。
 - HB-027：当前 `IN PROGRESS`。v0.1.12 在进程 0 / 无 manual 且 probes 全失败时保持 `connected=false` 并给普通 UI“客户端未启动或未发现”，内部候选原因只进脱敏 debug；最终审查通过，仍需 Windows 残留日志 / lockfile和随后启动 5 秒恢复链。
 - HB-028：当前 `IN PROGRESS`。v0.1.13 已移除普通用户视觉档位 UI / IPC 写入口，revision 2 把旧 override 迁移到 auto，并由 Main 自动 policy 选择前台 cinematic、失焦 balanced、hidden / minimized / launching / active / 低资源 eco；最终复审、本地 clean 全链及正式 Windows packaged UI 门禁通过。真实 4K 性能、reduced-motion 组合和报告用户同机窗口切换实测未完成，不能写 `FIXED` / `VERIFIED`。
-- HB-029～HB-031 当前均为 `IN PROGRESS`。v0.1.14 已删除 augment BrowserWindow / `#augment` route / `AugmentOverlay.vue`，OCR 结果只进入实时助手且状态同步不 show / focus；已按数值与来源 / 区域 allowlist 清洗英雄专属 `pickRate`，rank 排序不变，详情缓存升为 v2且 legacy 只回退 stale rank / tier；Tier 背景条显示肉眼可见原始 `Tn` 并移除“强度顶尖”。正式 Windows tag run 已通过 25 files / 219 passed + 1 skip、真实 4K OCR、packaged UI / bridge 与 public update check；但游戏前台快捷键和报告用户同机 OCR / 数据 / 视觉仍未验证，三项不得写 `FIXED` / `VERIFIED`。
+- HB-029～HB-031 当前均为 `IN PROGRESS`。v0.1.14 删除了产生黑屏体验的 augment BrowserWindow / `#augment` route / `AugmentOverlay.vue`，并把 OCR 结果收口到实时助手；当前 HB-046 仅新增严格 96px、透明、点击穿透、不可聚焦的卡下小窗窄例外，旧全屏 / 顶部黑窗仍永久禁止。英雄专属 `pickRate` 继续按数值与来源 / 区域 allowlist 清洗且不改变 rank 排序，详情缓存与 Tier 原始文本契约不变。既有正式 Windows tag run 与当前 source 门禁都不能替代游戏前台快捷键、真实 4K 小窗 / 数据 / 视觉和用户同机验证，三项不得写 `VERIFIED`。
 - HB-032 当前为 `FIXED / UNVERIFIED`。v0.1.14 tag / 产品提交 `5bd64052ec9262f38bbea0351e28c889d69009e3` 已正式发布；tag run `31697626369` / job `94438937472` 通过 25 files / 219 passed + 1 skip、真实 4K OCR、packaged UI / bridge `shutdownLifecycle`、updater / public check、metadata / checksums 与 Release 全链。但尚无报告用户同机系统托盘右键退出复测，不能标 `VERIFIED`。
 - HB-033～HB-038 当前均为 `IN PROGRESS`。v0.1.15～v0.1.17 的 Windows 差分烟测均在受控 cache 前置条件下验证 Range / blockmap 与显著低于完整 EXE 的传输量；但用户 v0.1.14→v0.1.15 仍看到 / 可能下载约 200 MB，尚无网络字节证据区分 metadata 展示与 full fallback。必须由 installed 客户端对 v0.1.17 或后续正式版复验；Windows 图标、合成器隐藏截图恢复，以及报告用户同机多轮三卡 / 中文依据 / toast 也仍未验。公开 Latest 为 v0.1.17。
 - HB-039 / HB-040 当前为 `FIXED / UNVERIFIED`：v0.1.17 本地候选已删除实时助手未连接空态说明 / 按钮并保留后台发现 / 诊断 retry，且用既有单英雄详情请求展示 `builds[0]` 同一路线出装、`iesdev` / 补丁与严格装备字段清洗，缓存升至 v3。仍需 Windows packaged 空态快照、无客户端→WeGame 自动恢复、真实 Key / 上游 builds、缺图缺名 / stale 以及用户同机视觉验收，不能标 `VERIFIED`。
 - HB-041～HB-043 当前均为 `IN PROGRESS`：v0.1.19 正式版已实现更新动作纯函数显隐、Key ready 渐进式卡片和实时助手 crossfade / TransitionGroup / bench 动效；tag run `31772021173` 通过 279 tests、packaged UI / calibration / bridge、差分与发布门禁。仍无用户视觉、真实 Key 或真实 4K 游戏性能证据，不得写 `FIXED` / `VERIFIED`。
+- HB-044～HB-046 当前均为 `FIXED / UNVERIFIED`：稳定滚动布局 / 4px 无 scale 淡入、DWM / PMv2 单一持久 Windows League 窗口观察器与 96px route 隔离小型三卡推荐窗 / 单槽最大指纹连续两帧刷新已进入 v0.1.20 本地候选。最终独立审查无已知 P0 / P1；34 files / 293 passed + 1 skipped、typecheck、lint、diff-check、OCR synthetic / 真实 4K fixture 134ms 三块 detected、source UI / bridge / preload / retention 通过。候选尚未 commit / push / Windows / tag / Release，也无真实 WeGame / DPI / 多屏 / 点击穿透 / 游戏性能或用户同机证据。HB-046 不得恢复 HB-029 已移除的全屏 / 顶部黑屏窗口。
+- HB-047 当前为 `ACCEPTED RISK`：官方政策与国服数据源审计后，具体对手历史胜率 / KDA / 连胜画像和“上中下等马”分类不进入正式实现；没有新增 endpoint / allowlist / IPC / UI。可选替代仅为赛后本人数据或当前局已公开最小字段，继续禁止上传或持久化 PUUID / 完整战绩。
 - 界面长期契约：验证降低原画模糊 / 遮罩后英雄仍清晰可辨且文字对比合格；更新入口只在 Main 确认可用更新时显示；普通设置中无游戏目录 UI，同时底层 fallback 的保留 / 删除有审计结论；等待英雄轨道球在 balanced / cinematic 可见并在 eco / InProgress / hidden / reduced-motion 静止；英雄榜职业全中文、无冗余角色列 / 筛选，Tier 背景条同时保留准确 Tier 文本 / 无障碍语义且不得用“强度顶尖”替代；选中行轻微悬浮与极光在 eco / InProgress / hidden / reduced-motion 停止；搜索覆盖正式中文名、称号、alias 与可审计常用别名；Windows EXE / 任务栏 / 托盘 / 安装器图标均非空且非默认；侧栏无独立 LCU 状态，普通未连接状态统一合并到实时助手；新配色为独立实现且无第三方代码 / 素材复制。以上均须视觉快照、键盘 / 搜索回归、Windows packaged 图标 / 可读性和渲染性能证据，当前不得预写完成。
 - 无边框游戏下真实三卡：默认关闭自动 OCR 时，按钮 / 当前配置快捷键应完成一次有界识别；显式开启自动 OCR 后按 2 秒门控周期工作，需记录三卡稳定出现到展示的真实延迟，刷新动画期间不误识别，连续丢失正确隐藏。
 - 1080p / 2K / 4K、100% / 125% / 150% DPI、多显示器、非主显示器、显示器热插拔和手动拖框校准。
@@ -1194,3 +1251,5 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-14 | HB-041～HB-043 / v0.1.19 本地候选 | OPEN→IN PROGRESS；不得FIXED/VERIFIED | 更新动作纯函数矩阵隐藏up-to-date/unsupported；Key ready渐进卡片+折叠编辑、unauthorized清理与label/aria；live hero crossfade、hero/build、augment TransitionGroup、bench动效，只有active cinematic持续ambient，inactive/eco/InProgress/reduced-motion暂停或静态 | 最终独审无P0/P1；npm audit0、OCR synthetic、真实4K fixture136ms、31 files277 pass+1 macOS Windows-only skip、lint/typecheck/diff/source UI+bridge/preload全过；浏览器预览ready editor collapsed、updateAction false、hero/cards正常 | 尚无Windows packaged、用户视觉或真实游戏CPU/GPU/FPS/frametime证据 | 本地v0.1.19未commit/push/Windows/tag/Release；公开Latest仍v0.1.18
 - 2026-08-14 | v0.1.19 / Windows 候选 | workflow_dispatch SUCCESS；HB-041～043保持IN PROGRESS | 产品HEAD/origin main `748eaab42cd11644b26c75f044335d5ad2ce5da3`；run31770633134修正旧connection-stage smoke，run31770956164拆分产品1.8s与CI 8s Get-Process并加24s/30s deadline | run31771597588/job94678512664 success约4m23s；audit0/public0.1.18/OCR真实4K202ms/Windows31 files279 tests/lint/typecheck/retention/legacy/pack EXE199239210/metadata/UI+calibration/bridge/synthetic0.1.20差分/checksums/artifact全过；差分传输1,117,915/199,239,210、Range11、blockmap各1、isolated cache；artifact ID9208397307 | Windows runner不替代用户视觉、真实Key、4K游戏CPU/GPU/FPS/frametime或installed更新；不得FIXED/VERIFIED | tag-only按预期skip；尚未tag/Release，公开Latest仍v0.1.18
 - 2026-08-14 | v0.1.19 / 正式 Release | Release SUCCESS；HB-041～043保持IN PROGRESS | annotated tag object `a44b758fcbe05ec3744b4c6afa57b1622929c9ef` 指向产品/候选记忆 commit `0b30064d399c69d7edc8f082d0ef27b40bc8c5d3`；更新显隐、Key ready卡片与实时助手动效正式发布 | run31772021173/job94679735360 success约5m57s；31 files279 tests、真实4K275ms、lint/typecheck/retention/UI+calibration/bridge/synthetic0.1.20差分/checksums/Release/channel/public packaged全过；差分1,117,913/199,239,208、Range11；五资产和public channel摘要已记录 | 真实Key、用户视觉、真实4K游戏性能、installed更新未验；未商业签名且可能SmartScreen，不得VERIFIED | Release ID370366810，v0.1.19为Latest/non-draft/non-prerelease；v0.1.18五资产与tags保留；main后续记忆提交可领先tag，不预写未知hash
+- 2026-08-14 | HB-044～HB-047 / 新一轮需求登记 | OPEN（仅冻结目标与边界，尚未实现 / 验证） | 页面切换预留稳定滚动布局并柔化动效；ChampSelect 伴随窗有界只读跟随 League 窗口；新增仅位于三卡下方的小型透明点击穿透推荐窗并在可靠刷新后换代；对手战绩 / 三档评分须先完成政策、端点、身份可见性、来源、口径与隐私审计 | 无源码、测试、构建、网络调研、Windows、commit、tag或Release证据，不预写根因 / 实现结果 | 不得恢复全屏 / 顶部黑屏 augment 窗，不得抢焦点 / 自动点击 / 持续动画；对手功能不得上传或记录 PUUID / 完整战绩，来源 / 样本不成立时保持不可用且不伪造评分 | 仅更新项目记忆；等待主线提交实际实现与验证结果后再更新状态
+- 2026-08-14 | v0.1.20 / HB-044～HB-047 本地候选 | HB-044～046 FIXED / UNVERIFIED；HB-047 ACCEPTED RISK | stable scrollbar与4px无scale淡入；observer接入DWM extended bounds/PMv2、前台LeagueClientUx PID偏好、350ms单进程、异常指数退避和stale child守卫；96px透明非focus点击穿透小窗接入additionalArguments route隔离、compact DTO、真实卡位columns、异常geometry fallback、严格3/3 augmentId、先send后show和游戏前台守卫；OCR使用单槽最大指纹+连续两帧、Main焦点/游戏前台门禁；自动OCR仍默认off | 最终独审无P0/P1；34 files / 293 passed + 1 skipped、typecheck、lint、diff-check、OCR synthetic、真实4K fixture134ms且三块detected、source UI（augment 960×96 transparent compact bridge、stage 953/953）、source bridge/preload/retention通过 | 候选尚未commit/push/Windows/tag/Release；无真实WeGame、DPI/多屏、点击穿透、真实游戏性能或用户同机证据，不得VERIFIED；HB-047不实现对手历史/KDA/连胜/上中下等马 | 公开Latest仍v0.1.19；不新增对手endpoint/allowlist/IPC/UI，不预写未来结果

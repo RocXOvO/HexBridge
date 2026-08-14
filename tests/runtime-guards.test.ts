@@ -5,9 +5,11 @@ import {
   classifyScanContext,
   detailBuildForCurrentChampion,
   detailRanksForCurrentChampion,
+  fingerprintDistance,
   isCurrentScanContext,
   isCurrentChampionRequest,
   sameSnapshot,
+  shouldShowAugmentCompanion,
   shouldRunOcr,
   shouldShowChampionCompanion,
 } from '../src/main/runtime-guards.js'
@@ -27,6 +29,26 @@ const snapshot = (patch: Partial<ChampSelectSnapshot> = {}): ChampSelectSnapshot
 })
 
 describe('runtime state guards', () => {
+  it('shows the bounded augment companion only for three reliably identified cards', () => {
+    const reliable = [
+      { slot: 'left', augmentId: 1, position: 1 },
+      { slot: 'center', augmentId: 2, position: null },
+      { slot: 'right', augmentId: 3, position: 2 },
+    ]
+    const input = [{ showInGameRecommendations: true }, { matchStage: 'active' }, { visible: true }] as const
+    expect(shouldShowAugmentCompanion(input[0], input[1] as any, { ...input[2], slots: reliable }, true)).toBe(true)
+    for (const recognized of [0, 1, 2]) {
+      const partial = reliable.map((slot, index) => ({ ...slot, augmentId: index < recognized ? slot.augmentId : null }))
+      expect(shouldShowAugmentCompanion(input[0], input[1] as any, { ...input[2], slots: partial }, true)).toBe(false)
+    }
+    expect(shouldShowAugmentCompanion(input[0], input[1] as any, { ...input[2], slots: reliable }, false)).toBe(false)
+    expect(shouldShowAugmentCompanion(input[0], { matchStage: 'launching' } as any, { ...input[2], slots: reliable }, true)).toBe(false)
+  })
+  it('compares only bounded three-slot visual fingerprints', () => {
+    expect(fingerprintDistance(['0000', '0000', '0000'], ['0000', '0000', '0000'])).toBe(0)
+    expect(fingerprintDistance(['0000', '0000', '0000'], ['0000', 'ffff', '0000'])).toBe(1)
+    expect(fingerprintDistance(['0000'], ['0000'])).toBe(1)
+  })
   it('backs off repeated automatic capture or model errors', () => {
     expect([0, 1, 2, 3, 8].map(automaticOcrErrorDelay)).toEqual([4_000, 8_000, 15_000, 15_000, 15_000])
   })
@@ -35,11 +57,25 @@ describe('runtime state guards', () => {
     expect(isCurrentChampionRequest(81, 2, 81, 2)).toBe(true)
   })
 
-  it('runs automatic OCR only during active play while the main window is visible', () => {
+  it('runs automatic OCR only during active play with a visible main window or foreground game overlay', () => {
     expect(shouldRunOcr(true, snapshot({ matchStage: 'launching', phase: 'None' }))).toBe(false)
     expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }))).toBe(true)
     expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }), { visible: false, minimized: false })).toBe(false)
     expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }), { visible: true, minimized: true })).toBe(false)
+    expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }), { visible: true, minimized: false, focused: false })).toBe(false)
+    expect(shouldRunOcr(true, snapshot({ matchStage: 'active' }), { visible: true, minimized: false, focused: true })).toBe(true)
+    expect(shouldRunOcr(
+      true,
+      snapshot({ matchStage: 'active' }),
+      { visible: false, minimized: false },
+      { enabled: true, gameForeground: true },
+    )).toBe(true)
+    expect(shouldRunOcr(
+      true,
+      snapshot({ matchStage: 'active' }),
+      { visible: false, minimized: false },
+      { enabled: true, gameForeground: false },
+    )).toBe(false)
     expect(shouldRunOcr(true, snapshot({ matchStage: 'selecting' }))).toBe(false)
     expect(shouldRunOcr(false, snapshot())).toBe(false)
   })

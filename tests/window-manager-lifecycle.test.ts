@@ -39,19 +39,28 @@ describe('WindowManager shutdown lifecycle', () => {
     const manager = new WindowManager({} as any)
     const main = fakeWindow({ visible: true, focused: false })
     const champion = fakeWindow({ visible: true, focused: false })
+    const augment = fakeWindow({ visible: true, focused: false })
     ;(manager as any).windows.set('main', main)
     ;(manager as any).windows.set('champion', champion)
+    ;(manager as any).windows.set('augment', augment)
     const order: string[] = []
     main.hide.mockImplementation(() => order.push('hide-main'))
     champion.hide.mockImplementation(() => order.push('hide-champion'))
+    augment.hide.mockImplementation(() => order.push('hide-augment'))
     main.showInactive.mockImplementation(() => order.push('restore-main'))
     champion.showInactive.mockImplementation(() => order.push('restore-champion'))
+    augment.showInactive.mockImplementation(() => order.push('restore-augment'))
 
     await manager.captureWithoutHexBridgeWindows(async () => { order.push('capture') })
 
-    expect(order).toEqual(['hide-main', 'hide-champion', 'capture', 'restore-main', 'restore-champion'])
+    expect(order).toEqual([
+      'hide-main', 'hide-champion', 'hide-augment',
+      'capture',
+      'restore-main', 'restore-champion', 'restore-augment',
+    ])
     expect(main.focus).not.toHaveBeenCalled()
     expect(champion.focus).not.toHaveBeenCalled()
+    expect(augment.focus).not.toHaveBeenCalled()
   })
 
   it('can restore windows after capture while OCR work is still pending', async () => {
@@ -117,6 +126,46 @@ describe('WindowManager shutdown lifecycle', () => {
 
     expect(() => manager.sync(state)).not.toThrow()
     expect((manager as any).windows.has('champion')).toBe(false)
+  })
+
+  it('sends only the compact three-card view to the augment renderer', () => {
+    const manager = new WindowManager({} as any)
+    const send = vi.fn()
+    const augment = {
+      isDestroyed: () => false,
+      webContents: { isDestroyed: () => false, send },
+    }
+    ;(manager as any).sendAugmentView(augment, {
+      settings: { calibration: null },
+      overlay: {
+        message: '推荐已更新',
+        slots: [{
+          slot: 'left',
+          augmentId: 101,
+          name: '冰寒',
+          position: 1,
+          tied: false,
+          reason: '英雄专属顺序',
+          iconUrl: 'https://example.invalid/private.png',
+          pickRate: .42,
+          statsSource: 'tencent',
+          statsRegion: 'CN',
+        }],
+      },
+    })
+
+    const payload = send.mock.calls[0]![1]
+    expect(payload.slots).toEqual([{
+      slot: 'left',
+      augmentId: 101,
+      name: '冰寒',
+      position: 1,
+      tied: false,
+      reason: '英雄专属顺序',
+    }])
+    expect(payload.slots[0]).not.toHaveProperty('iconUrl')
+    expect(payload.slots[0]).not.toHaveProperty('pickRate')
+    expect(payload.layout).toHaveLength(3)
   })
 
   it('does not create a calibration window when shutdown starts during capture', async () => {

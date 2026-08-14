@@ -10,6 +10,7 @@ const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): AppS
   visualMode,
   autoOcr,
   showChampionPanel: true,
+  showInGameRecommendations: true,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -22,21 +23,40 @@ describe('settings migration', () => {
     'disables legacy automatic OCR and removes the obsolete %s visual override',
     (visualMode) => {
       const migrated = migrateSettingsForRevision(settings(visualMode, true), 0)
-      expect(migrated).toMatchObject({ revision: 3, settings: { visualMode: 'auto', autoOcr: false } })
+      expect(migrated).toMatchObject({ revision: 4, settings: { visualMode: 'auto', autoOcr: false, showInGameRecommendations: true } })
     },
   )
 
   it('migrates a revision-one manual override without changing OCR again', () => {
     expect(migrateSettingsForRevision(settings('eco', true), 1)).toEqual({
       settings: settings('auto', true),
-      revision: 3,
+      revision: 4,
     })
   })
 
   it('does not repeat the migration at the current revision', () => {
-    expect(migrateSettingsForRevision(settings('auto', true), 3)).toEqual({
-      settings: settings('auto', true),
-      revision: 3,
+    const current = { ...settings('auto', true), showInGameRecommendations: false }
+    expect(migrateSettingsForRevision(current, 4)).toEqual({
+      settings: current,
+      revision: 4,
+    })
+  })
+
+  it('adds the bounded overlay default without changing unrelated revision-three settings', () => {
+    const previous = {
+      ...settings('auto', false),
+      hotkey: 'Ctrl+F9',
+      displayId: 'secondary',
+      diagnosticsScreenshots: true,
+      calibration: {
+        left: { x: .1, y: .2, width: .15, height: .5 },
+        center: { x: .4, y: .2, width: .15, height: .5 },
+        right: { x: .7, y: .2, width: .15, height: .5 },
+      },
+    }
+    expect(migrateSettingsForRevision(previous, 3)).toEqual({
+      settings: { ...previous, showInGameRecommendations: true },
+      revision: 4,
     })
   })
 })

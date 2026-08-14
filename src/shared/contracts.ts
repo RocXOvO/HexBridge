@@ -41,6 +41,7 @@ export interface AppSettings {
   visualMode: VisualModePreference
   autoOcr: boolean
   showChampionPanel: boolean
+  showInGameRecommendations: boolean
   hotkey: string
   gameDirectory: string
   displayId: string
@@ -176,6 +177,16 @@ export interface AugmentOverlayState {
   slots: RankedAugmentSlot[]
   detectedAt: number | null
   message: string
+}
+
+export interface AugmentOverlayViewState {
+  slots: Array<Pick<RankedAugmentSlot, 'slot' | 'augmentId' | 'name' | 'position' | 'tied' | 'reason'>>
+  layout: Array<{ slot: AugmentSlot; left: number; width: number }>
+  message: string
+}
+
+export interface AugmentOverlayBridge {
+  onChanged(callback: (state: AugmentOverlayViewState) => void): () => void
 }
 
 export interface ApiConnectionState {

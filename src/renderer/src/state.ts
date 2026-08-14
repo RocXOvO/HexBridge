@@ -9,6 +9,7 @@ const defaultViewSettings: AppSettings = {
   visualMode: 'auto',
   autoOcr: false,
   showChampionPanel: true,
+  showInGameRecommendations: true,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -47,7 +48,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.19',
+    currentVersion: '0.1.20',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',

@@ -4,6 +4,7 @@ import { ConfigStore } from './config-store.js'
 import { discoverLcuCredentials, queryLeagueClientProcesses } from './lcu/discovery.js'
 import { secureWebPreferences, WindowManager } from './window-manager.js'
 import { cropNativeImageTitles } from './ocr/scanner.js'
+import { smokeLeagueWindowObserverScript } from './league-window-observer.js'
 
 const CHANNEL = 'hexbridge:get-state'
 const TIMEOUT_MS = 24_000
@@ -32,7 +33,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.19',
+    currentVersion: '0.1.20',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -55,6 +56,7 @@ const smokeState: RuntimeState = {
     visualMode: 'eco',
     autoOcr: false,
     showChampionPanel: false,
+    showInGameRecommendations: true,
     hotkey: 'F8',
     gameDirectory: '',
     displayId: '',
@@ -86,6 +88,7 @@ export interface BridgeSmokeResult {
   updaterBridge: true
   lcuDiscovery: true
   windowsDisplayCapture: true | null
+  windowObserverScript: true | null
   shutdownLifecycle: true
   security: {
     sandbox: true
@@ -191,7 +194,10 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
     if (!rendererResult?.updaterBridge) throw new SmokeFailure('HB_SMOKE_UPDATER_BRIDGE_MISSING')
 
     let windowsDisplayCapture: true | null = null
+    let windowObserverScript: true | null = null
     if (process.platform === 'win32') {
+      await smokeLeagueWindowObserverScript()
+      windowObserverScript = true
       const display = screen.getPrimaryDisplay()
       const sources = await desktopCapturer.getSources({
         types: ['screen'],
@@ -243,6 +249,7 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
       updaterBridge: true,
       lcuDiscovery: true,
       windowsDisplayCapture,
+      windowObserverScript,
       shutdownLifecycle: true,
       security: {
         sandbox: true,

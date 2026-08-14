@@ -35,11 +35,41 @@ export interface ScanResult {
 export interface InterfaceProbeResult {
   status: 'detected' | 'not-detected' | 'busy' | 'error'
   durationMs: number
+  fingerprints: string[]
 }
 
 export interface AugmentScannerDependencies {
   resolveDisplay?(displayId: string): Electron.Display
   captureDisplay?(display: Electron.Display, maximumWidth: number): Promise<Buffer>
+}
+
+export async function analyzeAugmentTitleCrop(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> {
+  const { data } = await sharp(crop).grayscale().resize(32, 12, { fit: 'fill' }).raw().toBuffer({
+    resolveWithObject: true,
+  })
+  if (!data.length) return { detected: false, fingerprint: '' }
+  let sum = 0
+  let squared = 0
+  for (const value of data) {
+    sum += value
+    squared += value * value
+  }
+  const mean = sum / data.length
+  const standardDeviation = Math.sqrt(Math.max(0, squared / data.length - mean * mean))
+  let fingerprint = ''
+  for (let y = 0; y < 12; y += 2) {
+    for (let x = 0; x < 32; x += 2) {
+      let block = 0
+      for (let dy = 0; dy < 2; dy += 1) {
+        for (let dx = 0; dx < 2; dx += 1) block += data[(y + dy) * 32 + x + dx] ?? 0
+      }
+      fingerprint += Math.round((block / 4) / 17).toString(16)
+    }
+  }
+  return {
+    detected: standardDeviation >= 14 && mean >= 18,
+    fingerprint,
+  }
 }
 
 export class AugmentScanner {
@@ -171,7 +201,7 @@ export class AugmentScanner {
   }
 
   async probeInterface(): Promise<InterfaceProbeResult> {
-    if (this.busy) return { status: 'busy', durationMs: 0 }
+    if (this.busy) return { status: 'busy', durationMs: 0, fingerprints: [] }
     this.busy = true
     const startedAt = Date.now()
     try {
@@ -179,16 +209,17 @@ export class AugmentScanner {
       const display = this.resolveDisplay(settings.displayId)
       const rects = settings.calibration ?? DEFAULT_RECTS
       const gateCrops = await this.captureTitleCrops(display, AUTO_GATE_WIDTH, rects, false)
-      const gates = await Promise.all(gateCrops.map((crop) => this.hasInterfaceSignal(crop)))
+      const analyses = await Promise.all(gateCrops.map(analyzeAugmentTitleCrop))
       return {
-        status: gates.filter(Boolean).length >= 2 ? 'detected' : 'not-detected',
+        status: analyses.filter((item) => item.detected).length >= 2 ? 'detected' : 'not-detected',
         durationMs: Date.now() - startedAt,
+        fingerprints: analyses.map((item) => item.fingerprint),
       }
     } catch (error) {
       logger.warn('OCR interface probe failed', {
         errorName: error instanceof Error ? error.name : 'Error',
       })
-      return { status: 'error', durationMs: Date.now() - startedAt }
+      return { status: 'error', durationMs: Date.now() - startedAt, fingerprints: [] }
     } finally {
       this.releaseIdleWaiters()
     }
@@ -310,19 +341,7 @@ export class AugmentScanner {
   }
 
   private async hasInterfaceSignal(crop: Buffer): Promise<boolean> {
-    const { data } = await sharp(crop).grayscale().resize(64, 24, { fit: 'fill' }).raw().toBuffer({
-      resolveWithObject: true,
-    })
-    if (!data.length) return false
-    let sum = 0
-    let squared = 0
-    for (const value of data) {
-      sum += value
-      squared += value * value
-    }
-    const mean = sum / data.length
-    const standardDeviation = Math.sqrt(Math.max(0, squared / data.length - mean * mean))
-    return standardDeviation >= 14 && mean >= 18
+    return (await analyzeAugmentTitleCrop(crop)).detected
   }
 
   private async saveDiagnosticCrops(crops: Buffer[]): Promise<void> {

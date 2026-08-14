@@ -5,6 +5,7 @@ import { HexBridgeRuntime } from './runtime.js'
 const allowedSettingKeys = new Set<keyof AppSettings>([
   'autoOcr',
   'showChampionPanel',
+  'showInGameRecommendations',
   'displayId',
   'calibration',
   'diagnosticsScreenshots',
@@ -15,7 +16,7 @@ function sanitizeSettings(value: unknown): Partial<AppSettings> {
   const patch: Partial<AppSettings> = {}
   for (const [key, entry] of Object.entries(value)) {
     if (!allowedSettingKeys.has(key as keyof AppSettings)) continue
-    if (['autoOcr', 'showChampionPanel', 'diagnosticsScreenshots'].includes(key)) {
+    if (['autoOcr', 'showChampionPanel', 'showInGameRecommendations', 'diagnosticsScreenshots'].includes(key)) {
       if (typeof entry === 'boolean') Object.assign(patch, { [key]: entry })
     } else if (key === 'displayId' && typeof entry === 'string') {
       patch.displayId = entry.slice(0, 80)

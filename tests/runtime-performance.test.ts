@@ -32,6 +32,9 @@ function initializeAutomaticState(runtime: any): void {
   runtime.automaticScanAbsences = 0
   runtime.automaticScanErrors = 0
   runtime.automaticFullAttempts = 0
+  runtime.automaticFingerprint = null
+  runtime.automaticFingerprintCandidate = null
+  runtime.automaticFingerprintSamples = 0
   runtime.automaticScanEpoch = 0
   runtime.automaticScanContextKey = null
   runtime.automaticScanInFlightEpoch = null
@@ -86,6 +89,26 @@ describe('runtime performance scheduling', () => {
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(5)
     expect(runtime.runScan).toHaveBeenCalledTimes(2)
     expect(runtime.runScan).toHaveBeenCalledWith(false, undefined, true)
+    runtime.stopScanLoop()
+  })
+
+  it('re-runs full OCR after one card has a stable two-frame visual change', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true }) }
+    runtime.windows = { getMainActivity: () => ({ visible: true, minimized: false }) }
+    runtime.scanner = { probeInterface: vi.fn() }
+    runtime.scanner.probeInterface
+      .mockResolvedValueOnce({ status: 'detected', durationMs: 10, fingerprints: ['0000', '0000', '0000'] })
+      .mockResolvedValueOnce({ status: 'detected', durationMs: 10, fingerprints: ['0000', 'ffff', '0000'] })
+      .mockResolvedValueOnce({ status: 'detected', durationMs: 10, fingerprints: ['0000', 'ffff', '0000'] })
+    runtime.runScan = vi.fn(async () => ({ ok: true, code: 'MATCHED', message: 'matched' }))
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(runtime.runScan).toHaveBeenCalledTimes(2)
     runtime.stopScanLoop()
   })
 
@@ -171,20 +194,20 @@ describe('runtime performance scheduling', () => {
     expect(runtime.scanTimer).toBeNull()
   })
 
-  it('does not run or reschedule full OCR after a hide or match switch during a probe', async () => {
+  it('does not run or reschedule full OCR after a hide, focus loss or match switch during a probe', async () => {
     let finishProbe: ((value: unknown) => void) | undefined
     const probe = new Promise((resolve) => { finishProbe = resolve })
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
     runtime.snapshot = { ...activeSnapshot }
     initializeAutomaticState(runtime)
     runtime.config = { getSettings: () => ({ autoOcr: true }) }
-    let visible = true
-    runtime.windows = { getMainActivity: () => ({ visible, minimized: false }) }
+    let focused = true
+    runtime.windows = { getMainActivity: () => ({ visible: true, focused, minimized: false }) }
     runtime.scanner = { probeInterface: vi.fn(() => probe) }
     runtime.runScan = vi.fn()
 
     const inFlight = runtime.runAutomaticScan()
-    visible = false
+    focused = false
     runtime.stopScanLoop()
     finishProbe?.({ status: 'detected', durationMs: 10 })
     await inFlight

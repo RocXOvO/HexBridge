@@ -1,5 +1,20 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, CalibrationRects, HexBridgeApi, RuntimeState } from '../shared/contracts.js'
+import type { AppSettings, AugmentOverlayBridge, AugmentOverlayViewState, CalibrationRects, HexBridgeApi, RuntimeState } from '../shared/contracts.js'
+
+const overlayCallbacks = new Set<(state: AugmentOverlayViewState) => void>()
+let latestOverlay: AugmentOverlayViewState | null = null
+ipcRenderer.on('hexbridge:augment-overlay', (_event, state: AugmentOverlayViewState) => {
+  latestOverlay = state
+  for (const callback of overlayCallbacks) callback(state)
+})
+
+const overlayApi: AugmentOverlayBridge = {
+  onChanged: (callback) => {
+    overlayCallbacks.add(callback)
+    if (latestOverlay) queueMicrotask(() => callback(latestOverlay as AugmentOverlayViewState))
+    return () => overlayCallbacks.delete(callback)
+  },
+}
 
 const api: HexBridgeApi = {
   getState: () => ipcRenderer.invoke('hexbridge:get-state'),
@@ -30,4 +45,9 @@ const api: HexBridgeApi = {
     ipcRenderer.invoke('hexbridge:window-action', action),
 }
 
-contextBridge.exposeInMainWorld('hexbridge', api)
+const rendererRoute = process.argv
+  .filter((argument) => argument.startsWith('--hexbridge-renderer='))
+  .at(-1)
+  ?.slice('--hexbridge-renderer='.length)
+if (rendererRoute === 'augment') contextBridge.exposeInMainWorld('hexbridgeOverlay', overlayApi)
+else contextBridge.exposeInMainWorld('hexbridge', api)

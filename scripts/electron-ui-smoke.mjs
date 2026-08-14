@@ -182,6 +182,7 @@ let child = null
 let stdout = ''
 let stderr = ''
 let mainCdp = null
+let augmentCdp = null
 let calibrationCdp = null
 let hardTimeout = null
 
@@ -205,11 +206,34 @@ try {
       (target) => target.type === 'page' && /#main$/.test(target.url),
       'the main HexBridge renderer',
     )
-    const obsoleteAugmentTarget = (await targets(debuggingPort)).find(
+    const augmentTarget = await waitForTarget(
+      debuggingPort,
       (target) => target.type === 'page' && /#augment$/.test(target.url),
+      'the bounded augment recommendation renderer',
     )
-    if (obsoleteAugmentTarget) {
-      throw new Error('Obsolete full-screen augment renderer is still being created')
+    augmentCdp = await connectCdp(augmentTarget.webSocketDebuggerUrl)
+    await augmentCdp.call('Runtime.enable', {}, 10_000)
+    const augmentSurface = await waitUntil(
+      () => augmentCdp.evaluate(`(() => {
+        if (document.documentElement.dataset.route !== 'augment' || !document.querySelector('.augment-overlay-window')) return null
+        return {
+          width: innerWidth,
+          height: innerHeight,
+          route: document.documentElement.dataset.route,
+          transparent: ['transparent', 'rgba(0, 0, 0, 0)'].includes(getComputedStyle(document.documentElement).backgroundColor),
+          bridge: typeof window.hexbridgeOverlay?.onChanged === 'function' && typeof window.hexbridge === 'undefined',
+        }
+      })()`),
+      'the bounded augment recommendation surface',
+    )
+    if (
+      augmentSurface?.route !== 'augment' ||
+      !augmentSurface.transparent ||
+      !augmentSurface.bridge ||
+      augmentSurface.width > 1_200 ||
+      augmentSurface.height > 140
+    ) {
+      throw new Error(`Augment overlay is not bounded and transparent: ${JSON.stringify(augmentSurface)}`)
     }
     mainCdp = await connectCdp(mainTarget.webSocketDebuggerUrl)
     // A freshly unpacked Windows executable can expose its CDP target before
@@ -320,6 +344,7 @@ try {
       throw new Error(`Updater UI/bridge smoke failed: ${JSON.stringify(updaterUi)}`)
     }
 
+    const liveStageWidth = await mainCdp.evaluate(`document.querySelector('.stage')?.clientWidth ?? 0`)
     await mainCdp.evaluate(`([...document.querySelectorAll('.sidebar nav button')]
       .find((item) => item.textContent.includes('诊断'))?.click(), true)`)
     await waitUntil(
@@ -327,6 +352,7 @@ try {
       'the transitioned diagnostics page',
     )
     const diagnosticsFont = await mainCdp.evaluate(`parseFloat(getComputedStyle(document.querySelector('.health-grid p')).fontSize)`)
+    const diagnosticsStageWidth = await mainCdp.evaluate(`document.querySelector('.stage')?.clientWidth ?? 0`)
     await mainCdp.evaluate(`([...document.querySelectorAll('.sidebar nav button')]
       .find((item) => item.textContent.includes('实时助手'))?.click(), true)`)
     await waitUntil(
@@ -339,8 +365,13 @@ try {
       liveEyebrow: parseFloat(getComputedStyle(document.querySelector('.eyebrow')).fontSize),
     })`)
     typography.diagnostics = diagnosticsFont
+    typography.liveStageWidth = liveStageWidth
+    typography.diagnosticsStageWidth = diagnosticsStageWidth
     if (Object.values(typography).some((value) => value < 14)) {
       throw new Error(`Critical typography regressed: ${JSON.stringify(typography)}`)
+    }
+    if (Math.abs(liveStageWidth - diagnosticsStageWidth) > 1) {
+      throw new Error(`Stage width changed with scrollbar visibility: ${JSON.stringify({ liveStageWidth, diagnosticsStageWidth })}`)
     }
 
     await mainCdp.call('Emulation.setEmulatedMedia', {
@@ -467,7 +498,7 @@ try {
       calibration.restoredMain = restoredMain
     }
 
-    return { keyFeedback, keyIdle, apiServiceUi, updaterUi, typography, reducedMotion, calibrationIsolation, calibration }
+    return { augmentSurface, keyFeedback, keyIdle, apiServiceUi, updaterUi, typography, reducedMotion, calibrationIsolation, calibration }
   }
 
   const hardStop = new Promise((_, reject) => {
@@ -483,6 +514,7 @@ try {
 } finally {
   if (hardTimeout) clearTimeout(hardTimeout)
   calibrationCdp?.close()
+  augmentCdp?.close()
   mainCdp?.close()
   await terminate(child)
   await rm(temporaryDirectory, { recursive: true, force: true })

@@ -3,6 +3,11 @@ import type { ReleaseHighlights } from './contracts.js'
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 
 const HIGHLIGHTS: Readonly<Record<string, readonly string[]>> = {
+  '0.1.20': [
+    '页面切换更稳定，滚动区域不再因内容高度变化而横向跳动。',
+    '选人伴随窗会跟随英雄联盟客户端移动和最小化。',
+    '三卡可靠识别后可在卡片下方显示点击穿透的小型推荐，并在刷新后更新。',
+  ],
   '0.1.19': [
     '确认最新版后不再显示更新按钮。',
     'API Key 配置完成态更清晰。',

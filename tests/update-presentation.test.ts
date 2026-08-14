@@ -23,14 +23,18 @@ function updateState(status: AppUpdateStatus, patch: Partial<AppUpdateState> = {
 }
 
 describe('compact update presentation', () => {
-  it.each(['unsupported', 'up-to-date'] as const)('hides the action for %s', (status) => {
-    expect(shouldShowUpdateAction(status)).toBe(false)
+  it.each(['unsupported', 'idle', 'checking', 'up-to-date', 'error'] as const)('hides the action for %s', (status) => {
+    expect(shouldShowUpdateAction(updateState(status))).toBe(false)
   })
 
-  it.each(['idle', 'checking', 'available', 'downloading', 'downloaded', 'installing', 'error'] as const)(
+  it.each(['available', 'downloading', 'downloaded', 'installing'] as const)(
     'keeps the action visible for %s',
-    (status) => expect(shouldShowUpdateAction(status)).toBe(true),
+    (status) => expect(shouldShowUpdateAction(updateState(status))).toBe(true),
   )
+
+  it('keeps a confirmed update recoverable after its download fails', () => {
+    expect(shouldShowUpdateAction(updateState('error', { availableVersion: '0.1.20' }))).toBe(true)
+  })
 
   it('describes every actionable state without claiming that the latest version needs action', () => {
     expect(describeUpdateAction(updateState('idle'), false)).toBe('检查更新')

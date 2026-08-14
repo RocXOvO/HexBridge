@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   visualMode: 'auto',
   autoOcr: false,
   showChampionPanel: true,
+  showInGameRecommendations: true,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -48,6 +49,12 @@ export function migrateSettingsForRevision(
     // Augment recommendations now live inside the main assistant. Remove the
     // obsolete full-screen overlay preference so it cannot be re-enabled.
     nextRevision = 3
+  }
+  if (nextRevision < 4) {
+    // The retired full-screen overlay preference must stay ignored. This is a
+    // new, bounded and click-through recommendation strip below the cards.
+    next = { ...next, showInGameRecommendations: true }
+    nextRevision = 4
   }
   return { settings: next, revision: nextRevision }
 }

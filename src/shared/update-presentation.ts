@@ -1,7 +1,8 @@
 import type { AppUpdateState } from './contracts.js'
 
-export function shouldShowUpdateAction(status: AppUpdateState['status']): boolean {
-  return status !== 'unsupported' && status !== 'up-to-date'
+export function shouldShowUpdateAction(state: AppUpdateState): boolean {
+  return ['available', 'downloading', 'downloaded', 'installing'].includes(state.status) ||
+    (state.status === 'error' && Boolean(state.availableVersion))
 }
 
 export function describeUpdateAction(

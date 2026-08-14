@@ -6,12 +6,21 @@ const stylesSource = readFileSync(new URL('../src/renderer/src/styles.css', impo
 const rendererEntry = readFileSync(new URL('../src/renderer/src/main.ts', import.meta.url), 'utf8')
 const windowManager = readFileSync(new URL('../src/main/window-manager.ts', import.meta.url), 'utf8')
 const mainProcess = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8')
+const preloadSource = readFileSync(new URL('../src/preload/index.ts', import.meta.url), 'utf8')
 
 describe('main-window recommendation presentation', () => {
-  it('does not create or route a full-screen augment renderer', () => {
-    expect(rendererEntry).not.toContain("route === 'augment'")
-    expect(windowManager).not.toContain("createWindow('augment'")
-    expect(windowManager).not.toContain("windows.get('augment'")
+  it('routes only a bounded click-through augment recommendation strip', () => {
+    expect(rendererEntry).toContain("route === 'augment'")
+    expect(windowManager).toContain("createWindow('augment'")
+    expect(windowManager).toContain("focusable: false")
+    expect(windowManager).toContain("augment.setIgnoreMouseEvents(true")
+    expect(windowManager).toContain("height: 96")
+    expect(windowManager).not.toContain("augment.setFullScreen")
+    expect(windowManager).not.toContain("augment.focus()")
+    expect(windowManager).toContain("additionalArguments: [`--hexbridge-renderer=${route}`]")
+    expect(preloadSource).toContain("rendererRoute === 'augment'")
+    expect(preloadSource).toContain("exposeInMainWorld('hexbridgeOverlay', overlayApi)")
+    expect(preloadSource).toContain("else contextBridge.exposeInMainWorld('hexbridge', api)")
   })
 
   it('starts the guarded shutdown path before the tray asks Electron to quit', () => {
@@ -46,7 +55,7 @@ describe('main-window recommendation presentation', () => {
 
   it('exposes one compact update intent without a separate update page or confirmation copy', () => {
     expect(appSource).toContain('class="title-update-action"')
-    expect(appSource).toContain('shouldShowUpdateAction(state.value.update.status)')
+    expect(appSource).toContain('shouldShowUpdateAction(state.value.update)')
     expect(appSource).toContain('api.applyUpdate()')
     expect(appSource).not.toContain("page === 'updates'")
     expect(appSource).not.toContain('确认下载')
@@ -87,5 +96,8 @@ describe('main-window recommendation presentation', () => {
     expect(stylesSource).toContain('[data-performance="eco"] .live-atmosphere { display:none; }')
     expect(stylesSource).toContain('[data-performance="eco"] .hero-presence-enter-active .build-recommendation { animation:none!important; }')
     expect(stylesSource).toContain('@media (prefers-reduced-motion: reduce)')
+    expect(stylesSource).toContain('overflow-y: scroll')
+    expect(stylesSource).toContain('scrollbar-gutter: stable')
+    expect(stylesSource).not.toContain('.page-flow-enter-from { opacity:0; transform:translateY(10px) scale(.995); }')
   })
 })

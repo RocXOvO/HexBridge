@@ -5,6 +5,7 @@ import type {
   ChampionBuildRecommendation,
   ChampSelectSnapshot,
   LcuConnectionState,
+  RankedAugmentSlot,
 } from '../shared/contracts.js'
 
 export function shouldShowChampionCompanion(
@@ -15,6 +16,20 @@ export function shouldShowChampionCompanion(
     snapshot.modeActive &&
     snapshot.currentChampionId != null &&
     (snapshot.matchStage === 'selecting' || snapshot.matchStage === 'launching')
+}
+
+export function shouldShowAugmentCompanion(
+  settings: Pick<AppSettings, 'showInGameRecommendations'>,
+  snapshot: Pick<ChampSelectSnapshot, 'matchStage'>,
+  overlay: { visible: boolean; slots: Array<Pick<RankedAugmentSlot, 'augmentId'>> },
+  gameSurfaceAvailable: boolean,
+): boolean {
+  return settings.showInGameRecommendations &&
+    snapshot.matchStage === 'active' &&
+    overlay.visible &&
+    overlay.slots.length === 3 &&
+    overlay.slots.every((slot) => slot.augmentId != null) &&
+    gameSurfaceAvailable
 }
 
 export function sameSnapshot(left: ChampSelectSnapshot, right: ChampSelectSnapshot): boolean {
@@ -53,18 +68,35 @@ export function isCurrentChampionRequest(
 export function shouldRunOcr(
   autoOcr: boolean,
   snapshot: ChampSelectSnapshot,
-  mainActivity: { visible: boolean; minimized: boolean } = { visible: true, minimized: false },
+  mainActivity: { visible: boolean; minimized: boolean; focused?: boolean } = { visible: true, minimized: false, focused: true },
+  inGameOverlay: { enabled: boolean; gameForeground: boolean } = { enabled: false, gameForeground: false },
 ): boolean {
+  const hasVisibleSurface = (mainActivity.visible && !mainActivity.minimized && mainActivity.focused !== false) || (
+    inGameOverlay.enabled && inGameOverlay.gameForeground
+  )
   return autoOcr &&
     snapshot.modeActive &&
     snapshot.currentChampionId != null &&
     snapshot.matchStage === 'active' &&
-    mainActivity.visible &&
-    !mainActivity.minimized
+    hasVisibleSurface
 }
 
 export function automaticOcrErrorDelay(errors: number): number {
   return [4_000, 8_000, 15_000][Math.max(0, Math.min(2, Math.trunc(errors)))] ?? 15_000
+}
+
+export function fingerprintDistance(left: string[], right: string[]): number {
+  if (left.length !== 3 || right.length !== 3) return 1
+  let maximum = 0
+  for (let slot = 0; slot < 3; slot += 1) {
+    const a = left[slot] ?? ''
+    const b = right[slot] ?? ''
+    if (!a || a.length !== b.length) return 1
+    let changed = 0
+    for (let index = 0; index < a.length; index += 1) if (a[index] !== b[index]) changed += 1
+    maximum = Math.max(maximum, changed / a.length)
+  }
+  return maximum
 }
 
 export function isMatchContextOcrEligible(snapshot: ChampSelectSnapshot): boolean {
