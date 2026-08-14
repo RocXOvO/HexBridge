@@ -1,8 +1,8 @@
 # HexBridge 项目记忆（精简版）
 
-> 最后更新：2026-08-14
-> 当前正式版：[v0.1.24](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.24)，public / Latest / non-draft / non-prerelease。
-> 当前未发布候选：`v0.1.25` 仅实现 HB-060 启动只读更新检查；commit `b38cc2c554f176c69e00ab20d9b76742b377c5ab` 已 push main，workflow_dispatch run `31816174583` / job `94818284979` success（约 5m31s）。Windows 候选 36 files / 372 passed + 1 skipped 及 audit、OCR / 真实 4K fixture 255ms、lint、typecheck、pack / metadata、packaged UI / bridge、differential smoke、checksums、artifact 全过；尚无 tag / Release，公开 Latest 仍为 v0.1.24。Windows runner 不能替代真实 installed 启动检查，HB-060 保持 `FIXED / UNVERIFIED`。
+> 最后更新：2026-08-15
+> 当前正式版：[v0.1.25](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.25)，public / Latest / non-draft / non-prerelease；产品 commit `3aeb522745bb16949e886aeecca66fcf213aea3c`，Release ID `370680494`。HB-060 已正式发布但真实 installed Windows 启动自动检查仍未由用户验证，保持 `FIXED / UNVERIFIED`。
+> 当前基础设施缺陷：HB-061 为 `IN PROGRESS`。v0.1.25 首次 tag run 已发布 Release / assets / channel，但约 16s raw 传播检查误报失败；重跑以幂等 preflight 跳过既有发布并成功。不得移动 tag、重建 / 覆盖 Release 或回滚 v0.1.25；这不是产品 P0。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -121,34 +121,32 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 7. 更新与发布
 
-- HB-060 的启动检查只适用于受支持打包版：adapter ready 后 Main 调度一次 `check(false)`，不等待 6h 首轮；既有 6h 周期继续。异步 `adapterLoader` 可能在 `stop()` 后才 resolve，旧实现会复活检查任务；当前候选以 `stopped` 门禁阻止迟到 adapter 安装、启动检查与周期计时器。此链只读且不改变用户点击下载 / 安装及对局 fail-closed 契约。
-- v0.1.25 Windows 候选已产出 EXE `199258008` bytes；synthetic available `0.1.26` 验证 differential=true、metadata 1、old / new blockmap 各 1、Range 10、redirect 3、传输 `1158503 / 199258008` bytes、previous `0.1.24`、isolatedCache=true。Actions artifact `9225246607` / `473462816` bytes / digest（上游摘要）`e7d1862e…39075`；tag-only Release / channel / public 按预期 skip，不构成正式发布或真实 installed 证据。
+- HB-060 的启动检查只适用于受支持打包版：adapter ready 后 Main 调度一次 `check(false)`，不等待 6h 首轮；既有 6h 周期继续。异步 `adapterLoader` 可能在 `stop()` 后才 resolve，`stopped` 门禁阻止迟到 adapter 安装、启动检查与周期计时器。此链只读且不改变用户点击下载 / 安装及对局 fail-closed 契约。
+- HB-061 发布基础设施 P1：channel PUT 后先用 GitHub Contents API 权威回读，再由 publish 与 public verifier 共用 exact-content raw poll；raw 总预算 90～120s、单次 8～10s Abort，429 尊重 `Retry-After`。必须覆盖 late propagation、API mismatch、raw 旧内容 / 404 / 429 / 5xx / hang 与幂等重跑；失败不得移动 tag、重建 / 覆盖已存在 Release。这不改变 v0.1.25 产品状态。
 - stable channel：`update-channel/v2/latest.yml`；legacy 根 channel 固定 0.1.14，仅兼容旧客户端。
 - `pack:win --publish never` 只构建；tag 与 package 版本必须一致。正式 workflow 在全部检查后才发布 EXE、blockmap、ZIP、latest.yml、SHA256SUMS。
 - v0.1.11 起所有正式 Releases、五项 assets、blockmap 和 tags 永久保留；workflow 禁止远端删除。差分依赖旧 / 新 blockmap 与本地旧 installer cache。
 - 本地 `clean:release` 只清仓库根下精确 `release/`，拒绝 symlink / 越界；不触碰 Downloads、已安装版本或 GitHub。
 - Windows hosted Actions / synthetic updater 不等于真实 installed N→N+1；真实差分仍需 Range / 206、网络字节、fallback、安装、重启和 UAC / SmartScreen 证据。
 
-## 8. v0.1.24 正式基线
+## 8. v0.1.25 正式基线
 
-- 产品 / tag commit：`765c4339ce677378437322434c570fc937c345d7`；annotated tag object `eae3015db5f2b58a78224a4b620f9772c95a1b40`。
-- Candidate run `31813165279` / job `94808409628` success；正式 run `31813937683` / job `94810962678` 于 `2026-08-14T15:19:52Z`～`15:26:05Z` success。
-- 正式 Windows：36 files / 370 passed、OCR synthetic + 真实 4K 258ms、lint、typecheck、retention / legacy、pack / metadata、packaged UI / bridge、differential、checksums、Release / channel / public 全过。
-- Synthetic 0.1.25 差分：old / new blockmap 各 1、Range 11、传输 `1180062 / 199257693` bytes、isolated cache。
-- Release ID `370661255`，publishedAt `2026-08-14T15:25:56Z`。
-- 资产：EXE `199257693` / SHA-256 `38ed7ca94367a676ac01fb82729c29753277bc53b06e392e9d3371a24e65f6d3`；blockmap `201336` / `a364a332bb2907490f02155d178ab10d598019f8d61ff44558e7e90adcffdd91`；ZIP `274416212` / `28f687565e867ccdd0b91ecfa8a172b96706419e814d327353900383d75721f8`；latest.yml `346` / `da4e1cca2ecc9e58e4b0eed87cf7c1a72f95f91af555e1518f19a532a3c54c52`；SHA256SUMS `182` / `2278d0a7dcaaeb8f39c7d648f88b805e5c61e6f28abf828432e42639cdc7cc1e`。
-- Actions artifact `9224401588` / `473462266` / `sha256:1fd7b4c4a92c5296ef7e1749bf38af08af95e4a47039ee6af1ab3fc58bbe9a2b`。
-- Public v2：version 0.1.24、size `199257693`、SHA-512 `xG23k77MYfynzmI/x3+ZxFT5q5RAUGgqzrfyjORvSqloEJoPz5KAojbfg36Wi2A735njI//zwqWgrHAhnYy9uw==`、releaseDate `2026-08-14T15:24:42.750Z`；public packaged `updateAvailable=false`。
-- v0.1.11～v0.1.24 每版保留五项资产与 tag。Node 20 action annotation 非阻断。
-- 自动化不能关闭真实 WeGame / OCR / DPI / 性能缺口；HB-047 / HB-054 仍 `IN PROGRESS / UNVERIFIED`，政策 / 自定义分发仍 `ACCEPTED RISK`。
+- annotated tag object `fbfcb284a753e02da6a96e74f170604d9f8a6945` 解引用产品 commit `3aeb522745bb16949e886aeecca66fcf213aea3c`。Release ID `370680494`（GraphQL `RE_kwDOT1eQs84WGCKu`）于 `2026-08-14T16:00:30Z` 发布为 public Latest、non-draft、non-prerelease。
+- tag run `31816741701` attempt 1 / job `94820124499` 已成功发布 Release、五资产和 channel PUT，仅因约 16s raw 传播检查假阴性结束；未移动 tag、重建或覆盖 Release。attempt 2 / job `94822107093` 于 `2026-08-14T16:01:28Z`～`16:07:38Z` success（job 约 6m5s），preflight `shouldPublishRelease=false / shouldPublishChannel=false`，证明幂等跳过既有 Release / channel。
+- attempt 2：Windows 36 files / 373 tests，audit、OCR / 真实 fixture 355ms、lint、typecheck、retention / legacy、pack / metadata、packaged UI / bridge、checksums 全过。artifact `9225713001` / `473462731` bytes / SHA-256 `ee9e21ba73c04a06699c6f4652d5294dab41fa37ba957b55c163208fde43bf24`。
+- Synthetic 0.1.26 差分：metadata 1、old / new blockmap 各 1、Range 10、redirect 3、传输 `1180243 / 199258008` bytes、previous `0.1.24`、isolatedCache=true。
+- 正式资产：EXE `199258069` / `44d7440cffb44c58e62c1b803917dd72f33ed917c212623208fd6fd1055f68b2`；blockmap `201282` / `830ad368dfe3c5bc18ab390c1b59af706fe60fd5d9f267fc644d000b06a8d341`；ZIP `274416329` / `5cd4c268cda7bcc87e21a1164367a7b6dd0804a86ad2835f41cc31882c5cc97d`；latest.yml `346` / `971a2adfc8e9340c86d721f1bd0e9ff7a486afaca79a466ac724019e3b4e961d`；SHA256SUMS `182` / `0d79eec545f71d4ccbac1c15715fbbaefff0f9554c6068e25bbcaee4a5e4943d`。
+- Public v2：version `0.1.25`、size `199258069`、SHA-512 `I53PkEsGXVkX/B1wlF/PItaVqw834Mo1x6ZHMx06jVd/K3NxOqubWqIwiWwv/JQQm/M+S5c1WIcs/VmTX95rIQ==`、releaseDate `2026-08-14T15:59:30.994Z`；packaged public `updateAvailable=false`。v0.1.11～v0.1.25 Releases 均保留；Node 20 annotation 非阻断。
+- 正式发布不等于真实 installed Windows 启动自动 check 已验；HB-060 保持 `FIXED / UNVERIFIED`。HB-061 是发布验证传播逻辑 P1，不是产品 P0，也不要求回滚 v0.1.25。
 
 ## 9. 当前优先级
 
-1. HB-060：v0.1.25 已 push 并通过 Windows 候选窄门禁；仍须真实 installed 覆盖启动检查，且尚无 tag / Release，不得预写发布结果。
-2. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
-3. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
-4. HB-059：先做只读 capture 可行性 / 性能 / 隐私评估；默认关闭，绝不注入 League 客户端。
-5. HB-056 / HB-057：背景清晰度和 Wallpaper Engine 分别独立评估，不与数据源或 Lobby 捕获捆绑发布。
+1. HB-061：修复发布 channel 的权威回读与共享传播轮询，并覆盖超时 / 限流 / 幂等矩阵；不改写 v0.1.25。
+2. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
+3. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
+4. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
+5. HB-059：先做只读 capture 可行性 / 性能 / 隐私评估；默认关闭，绝不注入 League 客户端。
+6. HB-056 / HB-057：背景清晰度和 Wallpaper Engine 分别独立评估，不与数据源或 Lobby 捕获捆绑发布。
 
 ## 10. 协作与迁移边界
 

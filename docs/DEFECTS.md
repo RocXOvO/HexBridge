@@ -1,6 +1,6 @@
 # HexBridge 缺陷与验收索引
 
-> 最后更新：2026-08-14。详细历史证据保留在 Git 历史、GitHub Actions 与 Releases；本文件只保留问题状态、当前边界和验收出口，避免 `PROJECT_MEMORY.md` 无限膨胀。
+> 最后更新：2026-08-15。详细历史证据保留在 Git 历史、GitHub Actions 与 Releases；本文件只保留问题状态、当前边界和验收出口，避免 `PROJECT_MEMORY.md` 无限膨胀。
 
 ## 状态规则
 
@@ -71,7 +71,8 @@
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS（已登记、未实现） |
-| HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 Windows 候选已过） |
+| HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
+| HB-061 | 发布 channel 传播检查假阴性 | IN PROGRESS（基础设施 P1） |
 
 ## 当前重点验收
 
@@ -87,10 +88,13 @@
 
 ### HB-060：每次启动只读检查更新
 
-- 本地 v0.1.25 候选在每次受支持打包版进程启动、updater adapter ready 后由 Main 以 0ms 调度一次 `check(false)`，并保留 6h 周期；无新版不显示入口，有新版才显示。检查不自动下载 / 安装，下载 / 安装仍由用户点击且沿用对局门禁。
-- 根因边界：异步 `adapterLoader` 可能在 `stop()` 后才 resolve；`stopped` 门禁必须阻止迟到 adapter 复活启动检查或周期计时器。target 24 tests、完整 36 files / 372 passed + 1 skipped、typecheck / lint / source bridge / UI、真实 4K fixture 145ms、icon / retention / diff-check 与最终审查 P0 / P1 = 0 已通过。
-- Windows 候选：commit `b38cc2c554f176c69e00ab20d9b76742b377c5ab` 已 push main；run `31816174583` / job `94818284979` success（约 5m31s），Windows 36 files / 372 passed + 1 skipped、audit / OCR / 真实 4K fixture 255ms、lint / typecheck、EXE `199258008`、metadata、packaged UI / bridge、differential smoke、checksums与 artifact 全过。synthetic `0.1.26` 验证 differential=true、blockmap 各 1、Range 10、传输 `1158503 / 199258008`、previous `0.1.24`、isolated cache；artifact `9225246607` / `473462816` bytes / digest 摘要 `e7d1862e…39075`。
-- 状态仍为 `FIXED / UNVERIFIED`：Windows runner 只覆盖候选窄门禁，真实 installed 每进程启动检查仍未由用户验证。tag-only Release / channel / public 按预期 skip，尚无 v0.1.25 tag / Release，公开 Latest 仍为 v0.1.24；不得预写未来结果。
+- v0.1.25 已正式发布：每次受支持打包版进程启动、updater adapter ready 后由 Main 以 0ms 调度一次 `check(false)`，并保留 6h 周期；无新版不显示入口，有新版才显示。检查不自动下载 / 安装，下载 / 安装仍由用户点击且沿用对局门禁。
+- 异步 `adapterLoader` 在 `stop()` 后 resolve 的竞态由 `stopped` 门禁阻止复活。正式 Windows attempt 2 通过 36 files / 373 tests 及 packaged UI / bridge 等全链，但 runner 不能替代真实 installed 每进程启动行为，状态保持 `FIXED / UNVERIFIED`。
+
+### HB-061：发布 channel 传播检查假阴性
+
+- v0.1.25 tag run attempt 1 已成功创建 Release / assets 并 PUT channel，但仅约 16s raw 传播检查造成假阴性；attempt 2 preflight 显示 Release / channel 均已存在并幂等跳过，随后 public v2 `0.1.25 / 199258069` 和 packaged `updateAvailable=false` 通过。不得移动 tag、重建 / 覆盖 Release 或回滚 v0.1.25；这是基础设施 P1，不是产品 P0。
+- 修复出口：PUT 后先以 Contents API 权威回读；publish 与 public verifier 复用 exact-content poll；raw 总预算 90～120s、单次 8～10s Abort、429 按 `Retry-After`。测试必须覆盖 late propagation、API mismatch、raw 旧内容 / 404 / 429 / 5xx / hang 和幂等重跑。完成代码、审查与 Actions 前保持 `IN PROGRESS`；Node 20 annotation 非阻断。
 
 ### HB-024～026：OCR、快捷键、性能
 
