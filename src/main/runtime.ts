@@ -123,6 +123,7 @@ export class HexBridgeRuntime {
   private automaticScanInFlightEpoch: number | null = null
   private manualScanInFlight = false
   private manualOverlayMonitorDeadlineAt: number | null = null
+  private manualOverlayExpiryTimer: NodeJS.Timeout | null = null
   private stopping = false
   private gameProcessTimer: NodeJS.Timeout | null = null
   private gameProcessPollMs: number | null = null
@@ -283,7 +284,7 @@ export class HexBridgeRuntime {
         : patch
     const next = this.config.updateSettings(normalizedPatch)
     if (!next.showInGameRecommendations) {
-      this.manualOverlayMonitorDeadlineAt = null
+      this.setManualOverlayMonitorDeadline(null)
       if (this.overlay.visible) {
         this.overlay = {
           ...this.overlay,
@@ -292,8 +293,16 @@ export class HexBridgeRuntime {
         }
       }
       this.stopScanLoop()
+    } else if (next.autoOcr) {
+      this.setManualOverlayMonitorDeadline(null)
+      this.updateScanLoop()
     } else if (!next.autoOcr && this.manualOverlayMonitorDeadlineAt == null) {
-      this.stopScanLoop()
+      if (previous.autoOcr && this.overlay.visible && this.overlay.slots.length === 3) {
+        this.setManualOverlayMonitorDeadline(Date.now() + MANUAL_OVERLAY_MONITOR_MAX_MS)
+        this.updateScanLoop()
+      } else {
+        this.stopScanLoop()
+      }
     } else {
       this.updateScanLoop()
     }
@@ -516,7 +525,7 @@ export class HexBridgeRuntime {
 
   stop(): void {
     this.stopping = true
-    this.manualOverlayMonitorDeadlineAt = null
+    this.setManualOverlayMonitorDeadline(null)
     this.cancelOpponentScoutRequest()
     this.windows.prepareToQuit()
     this.stopScanLoop()
@@ -539,7 +548,7 @@ export class HexBridgeRuntime {
       const sequence = ++this.championRequestSequence
       this.detail = null
       this.overlay = { ...EMPTY_OVERLAY, championId: nextChampion }
-      this.manualOverlayMonitorDeadlineAt = null
+      this.setManualOverlayMonitorDeadline(null)
       if (nextChampion && this.dataReady) {
         void this.refreshCurrentDetail(nextChampion, sequence).then(() => {
           if (sequence === this.championRequestSequence) this.sync()
@@ -548,7 +557,7 @@ export class HexBridgeRuntime {
     }
     if (!isMatchContextOcrEligible(snapshot)) {
       this.overlay = { ...EMPTY_OVERLAY, championId: nextChampion }
-      this.manualOverlayMonitorDeadlineAt = null
+      this.setManualOverlayMonitorDeadline(null)
       this.getAugmentRound().reset()
     }
     this.updateScanLoop()
@@ -744,7 +753,8 @@ export class HexBridgeRuntime {
       return
     }
     if (!this.shouldRunAutomaticSurfaceLoop()) {
-      this.stopScanLoop()
+      if (this.shouldPauseAutomaticSurfaceLoop()) this.pauseScanLoop()
+      else this.stopScanLoop()
       return
     }
     const contextKey = `${this.snapshot.matchGeneration}:${this.snapshot.currentChampionId ?? 0}`
@@ -765,18 +775,10 @@ export class HexBridgeRuntime {
   }
 
   private handleWindowActivityChanged(): void {
-    if (
-      this.snapshot.matchStage === 'active' &&
-      this.overlay.visible &&
-      !this.windows.isLeagueGameForeground?.()
-    ) {
-      this.manualOverlayMonitorDeadlineAt = null
-      this.overlay = {
-        ...this.overlay,
-        visible: false,
-        message: '游戏已失去前台焦点，已保留上次可靠结果',
-      }
-    }
+    // Foreground loss is only a presentation boundary. WindowManager hides the
+    // compact companion while League is not foreground, but the last reliable
+    // surface and its bounded cheap-probe lease must survive so the observer can
+    // report foreground recovery without running another full OCR pass.
     this.updateScanLoop()
     this.sync()
   }
@@ -816,7 +818,7 @@ export class HexBridgeRuntime {
           this.automaticFingerprintSamples = 0
           nextDelay = AUTO_OCR_WAIT_MS
           if (this.overlay.visible && this.overlay.slots.length) {
-            this.manualOverlayMonitorDeadlineAt = null
+            this.setManualOverlayMonitorDeadline(null)
             this.overlay = {
               ...this.overlay,
               visible: false,
@@ -857,7 +859,7 @@ export class HexBridgeRuntime {
               this.automaticFingerprintCandidate = null
               this.automaticFingerprintSamples = 0
               this.getAugmentRound().beginNextRound()
-              this.manualOverlayMonitorDeadlineAt = null
+              this.setManualOverlayMonitorDeadline(null)
               this.overlay = {
                 ...this.overlay,
                 visible: false,
@@ -947,17 +949,27 @@ export class HexBridgeRuntime {
     return automaticRecognition || manualOverlayLifecycle
   }
 
+  private shouldPauseAutomaticSurfaceLoop(): boolean {
+    if (!isMatchContextOcrEligible(this.snapshot)) return false
+    const settings = this.config.getSettings()
+    if (settings.autoOcr) return true
+    return settings.showInGameRecommendations &&
+      this.manualOverlayMonitorDeadlineAt != null &&
+      Date.now() < this.manualOverlayMonitorDeadlineAt &&
+      this.overlay.visible &&
+      this.overlay.slots.length === 3
+  }
+
   private visibleSurfaceProbeDelay(): number {
     return this.config.getSettings().autoOcr ? AUTO_OCR_VISIBLE_MS : MANUAL_OVERLAY_PROBE_MS
   }
 
   private expireManualOverlayMonitor(): boolean {
     if (
-      this.config.getSettings().autoOcr ||
       this.manualOverlayMonitorDeadlineAt == null ||
       Date.now() < this.manualOverlayMonitorDeadlineAt
     ) return false
-    this.manualOverlayMonitorDeadlineAt = null
+    this.setManualOverlayMonitorDeadline(null)
     if (this.overlay.visible && this.overlay.slots.length === 3) {
       this.overlay = {
         ...this.overlay,
@@ -967,6 +979,27 @@ export class HexBridgeRuntime {
       this.sync()
     }
     return true
+  }
+
+  private setManualOverlayMonitorDeadline(deadlineAt: number | null): void {
+    if (this.manualOverlayExpiryTimer) clearTimeout(this.manualOverlayExpiryTimer)
+    this.manualOverlayExpiryTimer = null
+    this.manualOverlayMonitorDeadlineAt = deadlineAt
+    if (deadlineAt == null || this.stopping) return
+    const expectedDeadline = deadlineAt
+    this.manualOverlayExpiryTimer = setTimeout(() => {
+      this.manualOverlayExpiryTimer = null
+      if (this.stopping || this.manualOverlayMonitorDeadlineAt !== expectedDeadline) return
+      if (this.expireManualOverlayMonitor()) this.stopScanLoop()
+    }, Math.max(0, deadlineAt - Date.now()))
+  }
+
+  private pauseScanLoop(): void {
+    this.automaticScanEpoch += 1
+    if (this.scanTimer) clearTimeout(this.scanTimer)
+    this.scanTimer = null
+    this.automaticFingerprintCandidate = null
+    this.automaticFingerprintSamples = 0
   }
 
   private stopScanLoop(): void {
@@ -1002,7 +1035,7 @@ export class HexBridgeRuntime {
     const contextDisposition = classifyScanContext(this.snapshot, scanGeneration, scanChampionId)
     if (contextDisposition === 'ended') {
       this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
-      this.manualOverlayMonitorDeadlineAt = null
+      this.setManualOverlayMonitorDeadline(null)
       this.stopScanLoop()
       this.sync()
       return { ok: false, code: 'CONTEXT_ENDED', message: '对局上下文已结束' }
@@ -1028,9 +1061,9 @@ export class HexBridgeRuntime {
       })
       if (decision.commitMatched) {
         const ranked = rankAugmentSlots(result.slots, detailRanks, augments)
-        this.manualOverlayMonitorDeadlineAt = manual && !this.config.getSettings().autoOcr
+        this.setManualOverlayMonitorDeadline(manual && !this.config.getSettings().autoOcr
           ? Date.now() + MANUAL_OVERLAY_MONITOR_MAX_MS
-          : null
+          : null)
         this.overlay = {
           visible: true,
           championId: this.snapshot.currentChampionId,

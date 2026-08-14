@@ -3,6 +3,10 @@ import type { ReleaseHighlights } from './contracts.js'
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 
 const HIGHLIGHTS: Readonly<Record<string, readonly string[]>> = {
+  '0.1.23': [
+    '游戏短暂失去前台后，三卡下方推荐会随返回游戏正确恢复。',
+    '提示条仍会在卡面关闭或有界监测到期后自动撤下，不会因切屏重跑完整 OCR。',
+  ],
   '0.1.22': [
     '非海克斯队列不再残留或展示上一局的英雄、出装与三卡推荐。',
     '对局结束或换局后会失效本机身份缓存，下一局中途启动时重新只读确认当前英雄。',

@@ -3,6 +3,7 @@
 > 最后更新：2026-08-14
 > 当前基线：公开最新正式 Release 为 [v0.1.22](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.22)，Release ID `370607755`，publishedAt `2026-08-14T13:55:56Z`，public、Latest、non-draft、non-prerelease。annotated tag object `a61033caa796d7b83b920606dc1d8ba1e4da9161` 解引用到产品 / 标签提交 `9fe7e3c80e622e0eb50a5198ac3f753f668049e8`；tag run `31806400237` / job `94786266964` 于 `13:48:00Z`～`13:56:05Z` success，约 8m5s。Windows 36 files / 354 passed + 1 skipped 及全部 packaged UI / bridge、fake follow、differential、Release、channel、public packaged smoke 通过；public v2 channel 已独立核验 `version=0.1.22`、EXE size `199254074`。旧 Release retention 保持，v0.1.11～v0.1.22 Releases / assets / tags 均须保留。
 > 当前验证边界：HB-047～HB-057 均未完成真实 WeGame / 用户同机闭环，HB-047 与新增战绩扩展目标的政策 / 自定义分发继续 `ACCEPTED RISK`；正式发布和 Windows runner 不能替代真实身份 / history endpoint、DPI、多屏、点击穿透、游戏性能或用户同机证据。用户要求修复而非删除战绩功能的决策、Main-only / PUUID 隐私和其他产品边界不变。Windows 产物未商业代码签名，SmartScreen 风险与 Node 20 action 非阻断 annotation 继续保留。
+> 当前未发布工作树：版本已机械升至 `v0.1.23`，dirty 候选只修 HB-055。最终审查无 P0 / P1；本地 audit 0、OCR synthetic、真实 4K fixture 141ms、36 files / 358 passed + 1 skipped、lint、typecheck、source bridge / UI、icon、retention 与 diff-check 全过。尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.22；HB-055 保持 `IN PROGRESS / UNVERIFIED`，不得把本地门禁外推为真实 WeGame 修复完成。
 > 用途：记录不可丢失的产品边界、接口契约、审查缺陷和发布状态。后续修复应更新对应条目的“状态 / 验证”，不要另建平行记忆文档。
 
 ## 记忆维护规则
@@ -853,9 +854,11 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 ### HB-055 真实对局内 96px 提示 / 推荐窗缺失
 
 - 严重度：高（实际三卡出现时没有游戏内提示，会使核心对局推荐不可用）
-- 状态：`IN PROGRESS（REPORTED / UNDIAGNOSED）`；仅有用户再次报告“对局内提示又没了”，具体版本、阶段、overlay 资格、游戏前台与 OCR 结果证据均待取，不得预写根因或修复。
+- 状态：`IN PROGRESS / UNVERIFIED`；v0.1.23 dirty 候选已定位并修复自动化可复现根因，但尚无 commit / push / Windows 或真实 WeGame 用户同机证据，不得写 `FIXED / VERIFIED`。
+- 已确认根因：Runtime 在游戏前台变为 false 时清空 `overlay.visible` 与 deadline，WindowManager 又用 `autoOcr || overlay.visible` 决定是否启用 observer；默认 `autoOcr=false` 时二者形成永久熄灭，使重新回到游戏前台后 96px 推荐窗无法恢复。
+- v0.1.23 dirty 候选：前台丢失只暂停监测并保留 committed fingerprint / context / slots / deadline，WindowManager 临时隐藏小窗；在原 deadline 内回到前台时直接重新显示并恢复 cheap probe，不触发 full OCR。独立 45 秒 expiry 以零截图主动撤销；连续两次 reliable absence、refresh、功能 disable、auto OCR 开启、terminal、generation 换代或 stop 均撤销。`autoOcr=true→false` 且已有可靠 3 / 3 结果时建立新的 45 秒 cheap monitor。
 - 区分边界：本项记录“三卡界面存在但 96px 提示 / 推荐窗没有出现”；HB-052 记录“选择完成、三卡界面消失后推荐条仍常驻”。两者症状和验收方向相反，不得合并、互相覆盖或用其中一项的自动化证明另一项已修复。
-- 验收契约：在受支持队列 active、游戏窗口前台、三卡界面可靠存在且 3 / 3 结果满足显示门禁时，96px 点击穿透、不抢焦点的小窗应有界出现并对应真实卡位；任一门禁不成立时必须给出脱敏、可审计的隐藏原因。需在报告用户同机记录应用版本、归一化阶段、overlay eligibility / visibility、前台判定与 OCR 结果分类，不记录截图内容、身份、token、路径或原始 session。
+- 验收契约：在受支持队列 active、游戏窗口前台、三卡界面可靠存在且 3 / 3 结果满足显示门禁时，96px 点击穿透、不抢焦点的小窗应有界出现并对应真实卡位；前台切出只临时隐藏，切回不得要求 full OCR；45 秒 expiry 与所有撤销条件必须有界停止且不额外截图。任一门禁不成立时必须给出脱敏、可审计的隐藏原因。需在报告用户同机记录应用版本、归一化阶段、overlay eligibility / visibility、前台判定与 OCR 结果分类，不记录截图内容、身份、token、路径或原始 session。
 
 ### HB-056 选英雄后主背景清晰度提升
 
@@ -884,6 +887,12 @@ HexBridge 使用文档化的第三方接口 `https://data.dtodo.cn/api/v1/zh-CN/
 - 响应速度：英雄 / snapshot 变化立即同步，详情后台非阻塞补齐；详情到达且 sequence 仍匹配才再次同步，不把 API 延迟计入选人 UI 刷新路径。
 
 ## 七、当前自动化验证基线
+
+2026-08-14 v0.1.23 / HB-055 dirty 候选（未 commit / push / Windows / tag / Release）：
+
+- 范围只包含 HB-055：修复默认 `autoOcr=false` 时切出游戏导致 overlay / observer 永久熄灭。前台丢失改为 pause + WindowManager 临时 hide，并保留 committed fingerprint / context / slots / deadline；回前台后 show + cheap probe，不执行 full OCR。
+- 生命周期：45 秒独立 expiry 零截图主动撤销；两次 reliable absence、refresh、disable、auto-on、terminal、generation 或 stop 撤销；`autoOcr=true→false` 且已有可靠 3 / 3 时建立 45 秒 cheap monitor。HB-052 的选择完成后常驻问题及其撤销边界保持不变。
+- 证据：最终审查无 P0 / P1；audit 0、OCR synthetic、真实 4K fixture 141ms、36 files / 358 passed + 1 skipped、lint、typecheck、source bridge / UI、icon、retention 与 diff-check 全过。尚无 Windows / 真实 WeGame / 用户同机证据，HB-055 继续 `IN PROGRESS / UNVERIFIED`；版本尚未 commit / push / tag / Release，公开 Latest 仍为 v0.1.22。
 
 2026-08-14 v0.1.22 Windows 候选与正式发布：
 
@@ -1208,7 +1217,7 @@ v0.1.16 Windows 候选与正式发布基线：
 - HB-048～HB-052 当前均为 `IN PROGRESS / UNVERIFIED`：v0.1.20 用户实机失败事实保持有效；v0.1.21 正式版已加入统一 `active=12h / committed=10m / weak=15s` 租约且空 ChampSelect / `None` / partial 不续期、真实 Ux PID 锚定与 Win32 贴边 / 抖动抑制 / 本局手动关闭、280ms 刷新确认 + 最多 4 次 full OCR、compact rank / 依据 / allowlisted pickRate，以及可靠卡面 / 两次 absence / 45 秒小条生命周期。v0.1.22 正式版进一步加入非 Mayhem 隔离、same-hero 跨队列清理和 80ms 已验证 HWND 跟随；Windows tag 全链通过，但 fake 窗口不等于真实 WeGame，用户同机未完成，所有项不得写 `FIXED` / `VERIFIED`。
 - HB-053 当前为 `IN PROGRESS / UNVERIFIED`：v0.1.21 正式版使用 Main-only current-summoner PUUID 缓存，只在 active gameflow team 中唯一匹配以恢复中途启动时的本英雄；首次 `null` 后 4999ms 不重试、5000ms 才成功，snapshot / logger 与 Renderer / 磁盘均不得含 PUUID。v0.1.22 正式版补充 `active→none` / generation 换代时清理私有身份缓存；Windows tag 全链通过，但真实 WeGame / 用户同机仍无证据，不得标 `FIXED` / `VERIFIED`。
 - HB-054 当前为 `IN PROGRESS（REPORTED / UNDIAGNOSED）`：需在真实 WeGame 同机确认可见队友 / 对手的分组、头像关联、点击后近期详情、样本 / 错误空态与阶段换代清理；同时审计 Renderer / 日志 / 磁盘不含 PUUID 或原始历史。默认关闭、本机、Main-only、visibility / fail-closed 与只读 GET 边界不得放宽，尚无实现或自动化证据。
-- HB-055 当前为 `IN PROGRESS（REPORTED / UNDIAGNOSED）`：需先取得报告版本及同一时间线的受支持阶段、三卡存在、3 / 3 OCR、overlay eligibility / visibility 和游戏前台脱敏状态，复现“真实对局内 96px 提示窗缺失”；不得与 HB-052 的“卡面消失后小条常驻”混淆。当前没有根因、修复或实机通过证据。
+- HB-055 当前为 `IN PROGRESS / UNVERIFIED`：v0.1.23 dirty 候选已修复默认 `autoOcr=false` 下切出前台会清 overlay / deadline、进而让 observer 永久熄灭的自动化根因；切出只 pause / hide，切回 show + cheap probe 且不跑 full OCR，并有独立 45 秒零截图 expiry 与完整撤销条件。本地 36 files / 358 passed + 1 skipped 等门禁通过，但未 commit / push / Windows / tag / Release，仍需报告用户同机覆盖切出 / 切回、到期、absence、refresh 和开关切换；不得与 HB-052 的“卡面消失后小条常驻”混淆。
 - HB-056 当前为 `IN PROGRESS（REPORTED / UNDIAGNOSED）`：需在 100% / 125% / 150% DPI 和长中文英雄名 / 出装 / 推荐下做选择英雄前后截图对比，确认背景英雄更清晰而所有前景信息仍可读；还须覆盖自动视觉档、eco / hidden / reduced-motion / InProgress 静态路径和真实对局性能，当前无实现或视觉通过证据。
 - HB-057 当前为 `IN PROGRESS（REPORTED / UNDIAGNOSED）`：先澄清 Wallpaper Engine 接入语义并审计受支持集成面，再在用户显式启用前提下覆盖未安装、启动 / 关闭 / 崩溃、权限拒绝、多屏 / 热插拔和高负载降级；验证 Main-only、Renderer 无安装路径 / 命令 / 进程详情、不干预第三方进程或资产，当前没有实现或实机证据。
 - 界面长期契约：验证降低原画模糊 / 遮罩后英雄仍清晰可辨且文字对比合格；更新入口只在 Main 确认可用更新时显示；普通设置中无游戏目录 UI，同时底层 fallback 的保留 / 删除有审计结论；等待英雄轨道球在 balanced / cinematic 可见并在 eco / InProgress / hidden / reduced-motion 静止；英雄榜职业全中文、无冗余角色列 / 筛选，Tier 背景条同时保留准确 Tier 文本 / 无障碍语义且不得用“强度顶尖”替代；选中行轻微悬浮与极光在 eco / InProgress / hidden / reduced-motion 停止；搜索覆盖正式中文名、称号、alias 与可审计常用别名；Windows EXE / 任务栏 / 托盘 / 安装器图标均非空且非默认；侧栏无独立 LCU 状态，普通未连接状态统一合并到实时助手；新配色为独立实现且无第三方代码 / 素材复制。以上均须视觉快照、键盘 / 搜索回归、Windows packaged 图标 / 可读性和渲染性能证据，当前不得预写完成。
@@ -1430,3 +1439,4 @@ YYYY-MM-DD | 缺陷/契约 ID | 状态变化 | 代码摘要 | 自动化验证 | 
 - 2026-08-14 | HB-054 / HB-055 新目标与实机回归登记 | `IN PROGRESS（REPORTED / UNDIAGNOSED）`；不得 `FIXED / VERIFIED` | HB-054要求战绩同时覆盖可见队友与对手并支持点击头像查看所选玩家近期详情，继续默认关闭、本机、Main-only、visibility / fail-closed / 只读GET及PUUID不出Main/日志/磁盘；HB-055记录真实对局内96px提示/推荐窗再次缺失，必须与HB-052选择后常驻区分 | 仅登记用户目标、现象与验收边界；没有新增源码、测试、自动化或实机通过证据，不预写根因 / 实现 | 待取脱敏队伍/头像/详情与阶段换代证据，以及报告版本、三卡存在、3/3 OCR、overlay eligibility/visibility和游戏前台时间线；不得记录身份、原始历史、token、路径、截图内容或完整session | v0.1.22发布流程当时仍在运行，本记录不预写其tag/Release结果
 - 2026-08-14 | HB-056 / HB-057 新视觉与第三方接入目标 | `IN PROGRESS（REPORTED / UNDIAGNOSED）`；不得 `FIXED / VERIFIED` | HB-056要求选英雄后主背景更清晰但英雄文字/出装/推荐可读性及自动视觉档、eco/hidden/reduced-motion/对局性能边界保持；HB-057只登记Wallpaper Engine接入意图，语义与技术路径待审计，必须显式启用、Main-only、Renderer无安装路径/命令/进程详情、不注入或篡改第三方进程、不复制分发壁纸资产并全面fail-safe | 仅更新目标、强制边界和实机清单，无源码、测试、自动化、Windows或用户通过证据 | HB-056待100/125/150% DPI、长中文与真实性能；HB-057待未安装/启动/关闭/崩溃/权限/多屏/热插拔/性能及第三方所有权恢复验证 | 用户要求每完成一项独立目标即逐项发布一个小版本；不得预分配版本号或预写未来tag/Release结果
 - 2026-08-14 | v0.1.22 / 正式 Release | Release SUCCESS；HB-048～053 保持 `IN PROGRESS / UNVERIFIED`，HB-054～057 仍为未实现新目标 | annotated tag object `a61033caa796d7b83b920606dc1d8ba1e4da9161` 解引用产品commit `9fe7e3c80e622e0eb50a5198ac3f753f668049e8`；run31806400237/job94786266964于13:48:00Z～13:56:05Z success约8m5s | Windows36 files/354 passed+1 skipped及packaged UI/bridge/fake follow/differential/Release/channel/public packaged全过；五资产摘要与artifact9221561761/473455761 bytes/digest `sha256:366547c64b09c44cfecf02ae318d92aba8f24968256ce1fc201574ade2cb9797`已记录；public v2独立核验0.1.22/199254074 | Windows runner与fake follow不连接真实WeGame，不能关闭HB-048～053；HB-054～057在tag产品后登记且无实现/验证，不得外推 | Release ID370607755于2026-08-14T13:55:56Z公开Latest/non-draft/non-prerelease；v0.1.11～v0.1.22旧Release retention保持
+- 2026-08-14 | v0.1.23 / HB-055 本地 dirty 候选 | `IN PROGRESS / UNVERIFIED`；HB-052边界不变 | 根因为前台false清overlay.visible/deadline，WindowManager再以autoOcr或overlay.visible决定observer，默认autoOcr=false时永久熄灭；候选改为切出pause+hide并保留committed fingerprint/context/slots/deadline，切回show+cheap probe且无full OCR；独立45秒零截图expiry，两次absence/refresh/disable/auto-on/terminal/generation/stop撤销，autoOcr true→false且已有3/3时建立cheap monitor | 最终审查无P0/P1；audit0、OCR synthetic、真实4K 141ms、36 files/358 passed+1 skipped、lint/typecheck/source bridge/UI/icon/retention/diff全过 | 尚无Windows或真实WeGame用户同机切出/切回、expiry与撤销链证据，不得FIXED/VERIFIED | 版本尚未commit/push/Windows/tag/Release；公开Latest仍v0.1.22

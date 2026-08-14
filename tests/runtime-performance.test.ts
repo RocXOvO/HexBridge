@@ -40,6 +40,7 @@ function initializeAutomaticState(runtime: any): void {
   runtime.automaticScanInFlightEpoch = null
   runtime.manualScanInFlight = false
   runtime.manualOverlayMonitorDeadlineAt = null
+  runtime.manualOverlayExpiryTimer = null
   runtime.stopping = false
   runtime.overlay = { visible: false, championId: 103, slots: [], detectedAt: null, message: '' }
   runtime.sync = vi.fn()
@@ -237,7 +238,8 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
   })
 
-  it('withdraws the compact strip on focus loss while retaining the last reliable result', () => {
+  it('pauses on focus loss without revoking the compact surface or its fingerprint', async () => {
+    vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
     runtime.snapshot = { ...activeSnapshot }
     initializeAutomaticState(runtime)
@@ -248,20 +250,164 @@ describe('runtime performance scheduling', () => {
       detectedAt: 1,
       message: '推荐已更新',
     }
-    runtime.manualOverlayMonitorDeadlineAt = Date.now() + 45_000
-    runtime.windows = { isLeagueGameForeground: () => false }
-    runtime.updateScanLoop = vi.fn()
+    const deadline = Date.now() + 45_000
+    runtime.config = { getSettings: () => ({ autoOcr: false, showInGameRecommendations: true }) }
+    let gameForeground = false
+    runtime.windows = {
+      getMainActivity: () => ({ visible: false, focused: false, minimized: false }),
+      isLeagueGameForeground: () => gameForeground,
+    }
+    runtime.scanner = {
+      probeInterface: vi.fn(async () => ({
+        status: 'detected', durationMs: 10, fingerprints: ['aaaa', 'bbbb', 'cccc'],
+      })),
+    }
+    runtime.runScan = vi.fn()
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.setManualOverlayMonitorDeadline(deadline)
 
     runtime.handleWindowActivityChanged()
 
     expect(runtime.overlay).toMatchObject({
-      visible: false,
+      visible: true,
       slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
-      message: '游戏已失去前台焦点，已保留上次可靠结果',
+      message: '推荐已更新',
+    })
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBe(deadline)
+    expect(runtime.automaticScanPhase).toBe('latched')
+    expect(runtime.automaticFingerprint).toEqual(['aaaa', 'bbbb', 'cccc'])
+    expect(runtime.scanTimer).toBeNull()
+
+    gameForeground = true
+    runtime.handleWindowActivityChanged()
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBe(deadline)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledOnce()
+    expect(runtime.runScan).not.toHaveBeenCalled()
+    expect(runtime.sync).toHaveBeenCalledTimes(2)
+    runtime.setManualOverlayMonitorDeadline(null)
+    runtime.stopScanLoop()
+  })
+
+  it('detects a card refresh that happens while the game is temporarily out of foreground', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    let gameForeground = false
+    runtime.windows = {
+      getMainActivity: () => ({ visible: false, focused: false, minimized: false }),
+      isLeagueGameForeground: () => gameForeground,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '推荐已更新',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.scanner = {
+      probeInterface: vi.fn(async () => ({
+        status: 'detected', durationMs: 10, fingerprints: ['dddd', 'eeee', 'ffff'],
+      })),
+    }
+    runtime.runScan = vi.fn(async () => ({ ok: true, code: 'MATCHED', message: 'matched' }))
+
+    runtime.handleWindowActivityChanged()
+    expect(runtime.automaticFingerprint).toEqual(['aaaa', 'bbbb', 'cccc'])
+    gameForeground = true
+    runtime.handleWindowActivityChanged()
+    await vi.advanceTimersByTimeAsync(700 + 280)
+
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.augmentRound.beginNextRound).toHaveBeenCalledOnce()
+    expect(runtime.runScan).toHaveBeenCalledOnce()
+    runtime.stopScanLoop()
+  })
+
+  it('expires a manual compact surface while the game remains out of foreground', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: false, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: false, focused: false, minimized: false }),
+      isLeagueGameForeground: () => false,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '推荐已更新',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.setManualOverlayMonitorDeadline(Date.now() + 45_000)
+
+    runtime.handleWindowActivityChanged()
+    await vi.advanceTimersByTimeAsync(45_000)
+
+    expect(runtime.overlay).toMatchObject({
+      visible: false,
+      message: '卡牌界面监测已结束，已保留上次可靠结果',
     })
     expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
-    expect(runtime.updateScanLoop).toHaveBeenCalledOnce()
-    expect(runtime.sync).toHaveBeenCalledOnce()
+    expect(runtime.manualOverlayExpiryTimer).toBeNull()
+    expect(runtime.scanTimer).toBeNull()
+    expect(runtime.sync).toHaveBeenCalledTimes(2)
+  })
+
+  it('continues cheap absence monitoring when automatic OCR is turned off with a visible result', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    let settings = {
+      autoOcr: true,
+      showInGameRecommendations: true,
+      opponentScouting: true,
+      gameDirectory: '',
+    }
+    runtime.config = {
+      getSettings: () => settings,
+      updateSettings: (patch: Record<string, unknown>) => {
+        settings = { ...settings, ...patch }
+        return settings
+      },
+    }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: false, focused: false, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '推荐已更新',
+    }
+    runtime.scanner = { probeInterface: vi.fn(async () => ({ status: 'not-detected', durationMs: 10 })) }
+    runtime.runScan = vi.fn()
+
+    runtime.updateSettings({ autoOcr: false })
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBe(Date.now() + 45_000)
+    await vi.advanceTimersByTimeAsync(1_280)
+
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.runScan).not.toHaveBeenCalled()
+    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
   })
 
   it('never schedules automatic capture during launching or while the main window is hidden', () => {

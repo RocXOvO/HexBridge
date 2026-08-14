@@ -171,6 +171,42 @@ describe('WindowManager shutdown lifecycle', () => {
     expect(payload.layout).toHaveLength(3)
   })
 
+  it('keeps the League foreground observer enabled for a retained manual OCR surface', () => {
+    const manager = new WindowManager({} as any)
+    const leagueWindows = (manager as any).leagueWindows
+    const setEnabled = vi.spyOn(leagueWindows, 'setEnabled').mockImplementation(() => {})
+    const augment = {
+      ...fakeWindow({ visible: false, focused: false }),
+      webContents: { isDestroyed: () => false, send: vi.fn() },
+      setBounds: vi.fn(),
+      getBounds: vi.fn(() => ({ x: 0, y: 0, width: 1, height: 1 })),
+    }
+    ;(manager as any).windows.set('augment', augment)
+    vi.spyOn(manager as any, 'positionAugmentWindow').mockImplementation(() => {})
+    vi.spyOn(manager as any, 'sendAugmentView').mockImplementation(() => {})
+
+    manager.sync({
+      settings: {
+        showChampionPanel: false,
+        showInGameRecommendations: true,
+        autoOcr: false,
+      },
+      snapshot: {
+        phase: 'InProgress', matchStage: 'active', matchGeneration: 1,
+        modeActive: true, currentChampionId: 103,
+      },
+      overlay: {
+        visible: true,
+        championId: 103,
+        slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+        detectedAt: 1,
+        message: '推荐已更新',
+      },
+    } as any)
+
+    expect(setEnabled).toHaveBeenCalledWith(true, augment, false, null)
+  })
+
   it('keeps a manually closed champion companion hidden for the current match only', () => {
     const manager = new WindowManager({} as any)
     const leagueWindows = (manager as any).leagueWindows
