@@ -4,7 +4,10 @@ import { ConfigStore } from './config-store.js'
 import { discoverLcuCredentials, queryLeagueClientProcesses } from './lcu/discovery.js'
 import { secureWebPreferences, WindowManager } from './window-manager.js'
 import { cropNativeImageTitles } from './ocr/scanner.js'
-import { smokeLeagueWindowObserverScript } from './league-window-observer.js'
+import {
+  smokeLeagueWindowObserverFollow,
+  smokeLeagueWindowObserverScript,
+} from './league-window-observer.js'
 
 const CHANNEL = 'hexbridge:get-state'
 const TIMEOUT_MS = 24_000
@@ -89,6 +92,7 @@ export interface BridgeSmokeResult {
   lcuDiscovery: true
   windowsDisplayCapture: true | null
   windowObserverScript: true | null
+  windowObserverFollow: true | null
   shutdownLifecycle: true
   security: {
     sandbox: true
@@ -195,9 +199,14 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
 
     let windowsDisplayCapture: true | null = null
     let windowObserverScript: true | null = null
+    let windowObserverFollow: true | null = null
     if (process.platform === 'win32') {
       await smokeLeagueWindowObserverScript()
       windowObserverScript = true
+      if (process.env.HEXBRIDGE_SMOKE_FAKE_LEAGUE === '1') {
+        await smokeLeagueWindowObserverFollow(window)
+        windowObserverFollow = true
+      }
       const display = screen.getPrimaryDisplay()
       const sources = await desktopCapturer.getSources({
         types: ['screen'],
@@ -250,6 +259,7 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
       lcuDiscovery: true,
       windowsDisplayCapture,
       windowObserverScript,
+      windowObserverFollow,
       shutdownLifecycle: true,
       security: {
         sandbox: true,

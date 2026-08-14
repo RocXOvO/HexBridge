@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import path from 'node:path'
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, Rectangle } from 'electron'
 
 export interface LeagueWindowObservation {
   gameForeground: boolean
@@ -196,6 +196,34 @@ export async function smokeLeagueWindowObserverScript(): Promise<LeagueWindowObs
       if (code && code !== 0) finish(new Error(`League window observer exited ${code}: ${output.slice(-160)}`))
     })
   })
+}
+
+export async function smokeLeagueWindowObserverFollow(target: BrowserWindow): Promise<void> {
+  if (process.platform !== 'win32' || process.env.HEXBRIDGE_SMOKE_FAKE_LEAGUE !== '1') return
+  target.setBounds({ x: 8, y: 8, width: 180, height: 100 })
+  let clientVisible = false
+  const observer = new LeagueWindowObserver((observation) => {
+    if (observation.clientVisible) clientVisible = true
+  })
+  observer.setEnabled(true, target, true)
+  const deadlineAt = Date.now() + 10_000
+  let firstFollowedBounds: Rectangle | null = null
+  try {
+    while (Date.now() < deadlineAt) {
+      if (clientVisible) {
+        const bounds = target.getBounds()
+        if (!firstFollowedBounds) firstFollowedBounds = bounds
+        else if (
+          Math.abs(bounds.x - firstFollowedBounds.x) >= 80 ||
+          Math.abs(bounds.y - firstFollowedBounds.y) >= 40
+        ) return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    }
+    throw new Error('League window observer did not follow the moving client window')
+  } finally {
+    observer.stop()
+  }
 }
 
 export class LeagueWindowObserver {
