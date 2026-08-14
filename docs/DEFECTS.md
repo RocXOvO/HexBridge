@@ -70,7 +70,7 @@
 | HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 已发布） |
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
-| HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS / UNVERIFIED（v0.1.28 本地候选） |
+| HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS / UNVERIFIED（Windows 首跑失败，dirty fix） |
 | HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
 | HB-061 | 发布 channel 传播检查假阴性 | VERIFIED（v0.1.27 fresh PUT） |
 | HB-062 | GitHub Release 滚动保留与双通道 | VERIFIED（v0.1.26 实际执行） |
@@ -166,7 +166,8 @@
 - v0.1.28 本地候选默认关闭；仅 win32 + LCU connected + `matchStage=none` + Lobby / Matchmaking / ReadyCheck + Main live 页可见 / 聚焦 / 非最小化 + 非 reduced-motion + 非 eco + authority PID / HWND 唯一时，每 5s PrintWindow 精确截权威 LeagueClientUx。不得整屏捕获、SetWindowPos 或注入。
 - Main 限 `16,777,216` 像素、缩至 `<=960x540`、强模糊 / 暗化、JPEG `<=500KB`；Main-only IPC 只传 sanitized bytes，raw / frames 不进 RuntimeState / 日志 / 磁盘 / 伴随窗。切页 / 失焦 / 最小化 / eco / 选人 / launching / active / capture 事务 / 失败 / 退出立即停清。
 - controller 为 child + epoch、3s sanitize timeout、9s watchdog、single-flight；Sharp 未 settle 不开第二任务，迟到 drop，15 / 30 / 60s 退避，重启可恢复同一 raw。最终审查 P0 / P1 = 0；audit 0、OCR synthetic、真实 4K 160ms、41 files / 436 passed + 1 skipped、typecheck / lint / icon / rolling retention / source bridge / UI / diff-check 全过；版本 / release / lobby 定向 5 files / 55 tests 通过。
-- 尚未 commit / push / Windows / tag / Release，Latest 仍 v0.1.27。Windows bridge smoke 将以 fake 权威 HWND 实跑 PrintWindow + sanitize 并拒绝错误 PID，但 fake 不等于真实 WeGame Chromium；状态保持 `IN PROGRESS / UNVERIFIED`。
+- candidate commit `2334be441227f99d65e7ef18353436e7eaedbd7d` 已 push；run `31829405268` / job `94861207078` 在 Windows npm test 唯一失败：旧 RuntimeState 缺 `lobbyBackground` 时，win32 资格 `&&` 链返回 `undefined`，macOS 则平台短路为 `false`。失败后 lint / typecheck / build / pack / assets / Release 均未运行。
+- dirty fix 以外层 `Boolean` 让 `shouldDiscoverLobbyBackground` 严格 fail closed 并新增缺 setting 回归；修后本地 41 files / 437 passed + 1 skipped、typecheck / lint / diff-check 通过，快速审查 P0 / P1 = 0 并批准 commit + Windows retry，定向 lobby 30 / 30、changed-files eslint 与 diff-check 通过；仍待 commit / push / retry。Latest 仍 v0.1.27，状态保持 `IN PROGRESS / UNVERIFIED`。
 
 ## 追溯
 

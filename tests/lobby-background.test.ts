@@ -72,6 +72,13 @@ describe('Lobby background safety boundary', () => {
     expect(shouldDiscoverLobbyBackground({ ...eligible, phase: 'Lobby', matchStage: 'launching' })).toBe(false)
   })
 
+  it('returns a strict false when an older partial runtime state lacks the opt-in setting', () => {
+    expect(shouldDiscoverLobbyBackground({
+      ...eligible,
+      settingEnabled: undefined as unknown as boolean,
+    })).toBe(false)
+  })
+
   it('accepts only a bounded base64 frame envelope', () => {
     const bytes = Buffer.from('safe-frame')
     expect(parseLobbyBackgroundCaptureLine(JSON.stringify({ ok: true, frame: bytes.toString('base64') })))

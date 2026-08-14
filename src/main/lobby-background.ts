@@ -35,7 +35,7 @@ export interface LobbyBackgroundEligibilityInput {
 }
 
 export function shouldDiscoverLobbyBackground(input: LobbyBackgroundEligibilityInput): boolean {
-  return (input.platform ?? process.platform) === 'win32' &&
+  return Boolean((input.platform ?? process.platform) === 'win32' &&
     input.settingEnabled &&
     input.lcuConnected &&
     input.matchStage === 'none' &&
@@ -48,7 +48,7 @@ export function shouldDiscoverLobbyBackground(input: LobbyBackgroundEligibilityI
     !input.systemReducedMotion &&
     input.activeVisualMode !== 'eco' &&
     Number.isInteger(input.authorityClientPid) &&
-    Number(input.authorityClientPid) > 0
+    Number(input.authorityClientPid) > 0)
 }
 
 interface CaptureLine {
