@@ -69,6 +69,16 @@ describe('LCU credential discovery parsers', () => {
     expect(result.summary).toContain('CIM 不可用')
     expect(result.strategies).toEqual({ cim: 'unavailable', 'get-process': 'ok' })
   })
+  it('allows a smoke-only timeout override without changing product defaults', async () => {
+    const observed = new Map<string, number>()
+    const result = await queryLeagueClientProcessesWithRunner(async (method, _script, timeoutMs) => {
+      observed.set(method, timeoutMs)
+      return ''
+    }, { 'get-process': 8_000 })
+    expect(observed.get('cim')).toBe(2_600)
+    expect(observed.get('get-process')).toBe(8_000)
+    expect(result.strategies).toEqual({ cim: 'empty', 'get-process': 'empty' })
+  })
   it('checks every known directory even when an older credential already exists', async () => {
     const visited: string[] = []
     const found = await collectDirectoryCredentials(

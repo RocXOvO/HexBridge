@@ -41,8 +41,8 @@ export interface LcuDiscoveryResult {
   processStrategies: Record<ProcessQueryMethod, ProcessStrategyStatus>
 }
 
-type ProcessQueryMethod = 'cim' | 'get-process'
-type ProcessStrategyStatus = 'ok' | 'empty' | 'unavailable' | 'unparseable' | 'not-run'
+export type ProcessQueryMethod = 'cim' | 'get-process'
+export type ProcessStrategyStatus = 'ok' | 'empty' | 'unavailable' | 'unparseable' | 'not-run'
 type ProcessQueryRunner = (
   method: ProcessQueryMethod,
   script: string,
@@ -138,6 +138,7 @@ async function defaultProcessQueryRunner(
 
 export async function queryLeagueClientProcessesWithRunner(
   runner: ProcessQueryRunner,
+  timeoutOverrides: Partial<Record<ProcessQueryMethod, number>> = {},
 ): Promise<{
   records: ProcessRecord[]
   summary: string
@@ -164,8 +165,8 @@ export async function queryLeagueClientProcessesWithRunner(
   ].join(' ')
 
   const attempts = await Promise.allSettled([
-    runner('cim', cimScript, CIM_TIMEOUT_MS),
-    runner('get-process', processScript, GET_PROCESS_TIMEOUT_MS),
+    runner('cim', cimScript, timeoutOverrides.cim ?? CIM_TIMEOUT_MS),
+    runner('get-process', processScript, timeoutOverrides['get-process'] ?? GET_PROCESS_TIMEOUT_MS),
   ])
   const labels = ['CIM', 'Get-Process'] as const
   const methods: ProcessQueryMethod[] = ['cim', 'get-process']
@@ -206,6 +207,12 @@ export async function queryLeagueClientProcessesWithRunner(
     })
   }
   return { records: [...merged.values()], summary: statuses.join('；'), strategies }
+}
+
+export async function queryLeagueClientProcesses(
+  timeoutOverrides: Partial<Record<ProcessQueryMethod, number>> = {},
+): ReturnType<typeof queryLeagueClientProcessesWithRunner> {
+  return queryLeagueClientProcessesWithRunner(defaultProcessQueryRunner, timeoutOverrides)
 }
 
 async function within<T>(operation: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
@@ -402,7 +409,7 @@ export async function discoverLcuCredentials(manualDirectory: string): Promise<L
 
   if (process.platform === 'win32') {
     try {
-      const processResult = await queryLeagueClientProcessesWithRunner(defaultProcessQueryRunner)
+      const processResult = await queryLeagueClientProcesses()
       processSummary = processResult.summary
       processStrategies = processResult.strategies
       const processes = [...processResult.records].sort((a, b) =>

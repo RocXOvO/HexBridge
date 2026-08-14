@@ -1,12 +1,12 @@
 import { BrowserWindow, desktopCapturer, ipcMain, screen } from 'electron'
 import type { RuntimeState } from '../shared/contracts.js'
 import { ConfigStore } from './config-store.js'
-import { discoverLcuCredentials } from './lcu/discovery.js'
+import { discoverLcuCredentials, queryLeagueClientProcesses } from './lcu/discovery.js'
 import { secureWebPreferences, WindowManager } from './window-manager.js'
 import { cropNativeImageTitles } from './ocr/scanner.js'
 
 const CHANNEL = 'hexbridge:get-state'
-const TIMEOUT_MS = 15_000
+const TIMEOUT_MS = 24_000
 
 const smokeState: RuntimeState = {
   lcu: { connected: false, source: null, lastError: null, lastConnectedAt: null },
@@ -103,7 +103,25 @@ class SmokeFailure extends Error {
 }
 
 export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
-  let discovery = await discoverLcuCredentials('')
+  const deadlineAt = Date.now() + TIMEOUT_MS
+  const withinSmokeDeadline = async <T>(operation: Promise<T>): Promise<T> => {
+    let phaseTimeout: NodeJS.Timeout | null = null
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<never>((_resolve, reject) => {
+          phaseTimeout = setTimeout(
+            () => reject(new SmokeFailure('HB_SMOKE_TIMEOUT')),
+            Math.max(1, deadlineAt - Date.now()),
+          )
+        }),
+      ])
+    } finally {
+      if (phaseTimeout) clearTimeout(phaseTimeout)
+    }
+  }
+
+  const discovery = await withinSmokeDeadline(discoverLcuCredentials(''))
   if (!discovery.summary || !Array.isArray(discovery.candidates)) {
     throw new SmokeFailure('HB_SMOKE_LCU_DISCOVERY_FAILED')
   }
@@ -111,16 +129,16 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
     process.platform === 'win32' &&
     !['ok', 'empty'].includes(discovery.processStrategies['get-process'])
   ) {
-    // A cold Windows PowerShell startup can exceed the product discovery
-    // budget on hosted runners. Retry once, but keep the executable/parse
-    // assertion strict so an invalid Get-Process script still fails CI.
-    discovery = await discoverLcuCredentials('')
-  }
-  if (
-    process.platform === 'win32' &&
-    !['ok', 'empty'].includes(discovery.processStrategies['get-process'])
-  ) {
-    throw new SmokeFailure('HB_SMOKE_GET_PROCESS_STRATEGY_FAILED')
+    // Keep the product's 1.8 second discovery budget, but separate that
+    // latency target from CI's script-validity assertion. Hosted runners can
+    // be heavily contended, so execute the exact production scripts once with
+    // a wider smoke-only deadline before deciding that Get-Process is broken.
+    const verification = await withinSmokeDeadline(
+      queryLeagueClientProcesses({ 'get-process': 8_000 }),
+    )
+    if (!['ok', 'empty'].includes(verification.strategies['get-process'])) {
+      throw new SmokeFailure('HB_SMOKE_GET_PROCESS_STRATEGY_FAILED')
+    }
   }
   ipcMain.removeHandler(CHANNEL)
   ipcMain.handle(CHANNEL, () => smokeState)
@@ -130,7 +148,6 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
     webPreferences: secureWebPreferences(),
   })
 
-  let timeout: NodeJS.Timeout | null = null
   let rejectFailure: ((error: Error) => void) | null = null
   const failure = new Promise<never>((_resolve, reject) => {
     rejectFailure = reject
@@ -237,12 +254,8 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
   }
 
   try {
-    const deadline = new Promise<never>((_resolve, reject) => {
-      timeout = setTimeout(() => reject(new SmokeFailure('HB_SMOKE_TIMEOUT')), TIMEOUT_MS)
-    })
-    return await Promise.race([verification(), failure, deadline])
+    return await withinSmokeDeadline(Promise.race([verification(), failure]))
   } finally {
-    if (timeout) clearTimeout(timeout)
     ipcMain.removeHandler(CHANNEL)
     if (!window.isDestroyed()) window.destroy()
   }
