@@ -72,9 +72,9 @@
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS（已登记、未实现） |
 | HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
-| HB-061 | 发布 channel 传播检查假阴性 | IN PROGRESS（v0.1.26 Windows 候选已过） |
-| HB-062 | GitHub Release 滚动保留与双通道 | IN PROGRESS（新策略未执行） |
-| HB-063 | 跨版本升级 / Release 说明 | IN PROGRESS（v0.1.26 Windows 候选已过） |
+| HB-061 | 发布 channel 传播检查假阴性 | FIXED / UNVERIFIED（下一次全新 PUT 待验） |
+| HB-062 | GitHub Release 滚动保留与双通道 | VERIFIED（v0.1.26 实际执行） |
+| HB-063 | 跨版本升级 / Release 说明 | VERIFIED（v0.1.26 正式说明） |
 
 ## 当前重点验收
 
@@ -95,19 +95,17 @@
 ### HB-061：发布 channel 传播检查假阴性
 
 - v0.1.25 tag run attempt 1 已成功创建 Release / assets 并 PUT channel，但仅约 16s raw 传播检查造成假阴性；attempt 2 preflight 显示 Release / channel 均已存在并幂等跳过，随后 public v2 `0.1.25 / 199258069` 和 packaged `updateAvailable=false` 通过。不得移动 tag、重建 / 覆盖 Release 或回滚 v0.1.25；这是基础设施 P1，不是产品 P0。
-- v0.1.26 dirty 候选在 PUT 后校验 Contents API content / blob 与 branch commit，再由 publisher / verifier 共享 exact-content raw poll；v2 + root 双通道使用 100s 总预算、10s Abort，429 按 `Retry-After`。重跑先验证 published Release 取得 immutable `releaseDate=T1`，以 T1 覆盖本地双通道再 strict plan；missing / draft 才使用 local `T2` fail closed。canonical / 双通道定向测试、本地完整链与 Windows 候选门禁已过；正式 tag 的真实传播 / 重跑尚未发生，保持 `IN PROGRESS`。Node 20 annotation 非阻断。
-- Windows 候选：commit / HEAD / origin main `7646270aa74b7de2ffb72100520beb567eaa9d33`；run `31821155726` / job `94834419314` 于 `2026-08-14T16:49:58Z`～`16:55:29Z` success（5m31s）。Windows 39 files / 398 passed（无 skip）、audit 0、OCR synthetic / 真实 4K 270ms、lint / typecheck / retention、EXE `199259407`、metadata、packaged UI / bridge、checksums 全过；synthetic 0.1.27 differential=true、Range 7、传输 `3246010 / 199259407`。artifact `9227139993` / `473466678` bytes / SHA-256 `da0735775ecfce469593ec98fa8cf17155b895cfc9faa94af43efda868bad4ad`。
-- tag-only 步骤按预期 skip；尚无 v0.1.26 tag / Release / prune，Latest 仍 v0.1.25、远端仍 15 个 Releases，本地 release 为空。Windows 候选不等于正式发布或真实 installed / WeGame，状态不升级。
+- v0.1.26 attempt 1 已发布 Release / assets 并 PUT channel，但立即 Contents API 回读旧缓存而失败。main `1713ccb5a951439cdcb1c77abd2561649761b16c` 改为有界 authenticated Contents / ref poll；重跑从 published Release 取得 immutable T1，同步 v2 / root 并校验 blob / ref，missing / draft 仍按 local T2 fail closed。定向 5 tests、typecheck / lint / diff-check与审查 P0 / P1 = 0 通过。
+- attempt 2 / job `94838957698` success，39 files / 398 passed、4K 276ms、双通道和 packaged public 全过；但重跑 preflight 跳过新 PUT，修复仍需下一次正式版全新 PUT 验证，状态为 `FIXED / UNVERIFIED`。这不是产品 P0；Node 20 annotation 非阻断。
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- 旧“v0.1.11 起永久保留所有 Releases”已由用户新决策取代：只保留最新 5 个严格 semver、non-draft / non-prerelease 正式 Release 及资产；只能在新 Release、v2 + root channel 和 public packaged 全验证后 prune，所有 tags / 源码永久保留。root 不能继续冻结 0.1.14，v0.1.26 候选必须镜像 v2 后才可删除旧资产；超窗升级允许 full fallback。
-- prune 必须在首次 delete 前拿齐并验证本轮全部目标 Release ID，不能边枚举边删除。Windows 候选门禁已过，但 tag-only prune 按预期未执行；远端仍为 15 个 Releases，不得预写成功。本地 release 为空，7 个旧 v0.1.24 条目可重打包 / 下载恢复。完成正式 Release / 双通道 / public packaged 后才能执行，状态保持 `IN PROGRESS`。
+- v0.1.26 在 Release、v2 / root、public packaged 全验证并预取全部目标 ID 后，已删除 v0.1.11～v0.1.21 Releases / assets；这些远端对象不可恢复，除非依保留 tags 重建。最终仅 v0.1.22～v0.1.26 五个 public stable Releases，27 个 tags（v0.1.0～v0.1.26）与源码全部保留；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- 本地 release 为空；此前删除的本地旧构建仍可重打包 / 下载恢复，与已删除的远端 Release / assets 恢复边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 旧实现只展示 `currentVersion`。v0.1.26 dirty 候选让客户端和 GitHub publisher 共用逐版本清单 `0.1.1～0.1.26` 并按 `previous < entry <= current` 累计；previous stable 不相邻时，`0.1.23→0.1.26` 必须包含 0.1.24 / 0.1.25 / 0.1.26。publisher 同源生成“相较上一正式版”，长清单滚动显示。
-- 最终审查 P0 / P1 = 0；本地完整链与 Windows 39 files / 398 passed（无 skip）候选门禁均通过。正式 tag / Release 尚未完成，保持 `IN PROGRESS`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；非相邻 `0.1.23→0.1.26` 自动化覆盖 0.1.24 / 0.1.25 / 0.1.26。v0.1.26 正式 Release 说明已正确列出“相较 v0.1.25”的五项变化，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -134,7 +132,7 @@
 ### HB-048～055：对局提示生命周期
 
 - v0.1.21～0.1.23 已加入弱 / committed / active 租约、独立游戏心跳、刷新确认、96px compact、两次 absence、45 秒 expiry、切屏 pause / hide 与回前台 cheap probe。
-- v0.1.26 dirty 候选把 96px 条定位到卡面上方，保存 matched frame 指纹；变化后经 500ms + 280ms 稳定确认先撤旧条，两次 probe error 调用 `beginNextRound` 恢复。审查无 P0 / P1 且本地 / Windows 候选链全过；真实 WeGame 未跑，HB-050 / 052 / 055 不得升级状态。
+- v0.1.26 正式版把 96px 条定位到卡面上方，保存 matched frame 指纹；变化后经 500ms + 280ms 稳定确认先撤旧条，两次 probe error 调用 `beginNextRound` 恢复。审查无 P0 / P1 且正式 Windows 全链通过；真实 WeGame 未跑，HB-050 / 052 / 055 不得升级状态。
 - 真实 3270 退出、刷新、选择卡牌、小窗出现 / 消失、点击穿透、中途启动、英雄专属统计与性能仍需用户同机逐项闭环。
 
 ### HB-056：背景清晰度
