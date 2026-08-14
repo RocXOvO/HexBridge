@@ -248,4 +248,70 @@ describe('LCU handoff through runtime state', () => {
     expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
     expect(runtime.championRequestSequence).toBe(5)
   })
+
+  it('clears the previous Mayhem detail when the same hero appears in another queue', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect',
+      gameflowSession: { queueId: 3270 },
+      champSelectSession: {},
+      currentChampionId: 103,
+    }), 1_000, {
+      destructive: true,
+      champSelectSession: 'ok',
+      currentChampion: 'ok',
+      queueSource: 'gameflow',
+      matchIdentity: null,
+      authorityEpoch: 1,
+    })
+    const otherQueue = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect',
+      gameflowSession: { queueId: 450 },
+      champSelectSession: {},
+      currentChampionId: 103,
+    }), 2_000, {
+      destructive: true,
+      champSelectSession: 'ok',
+      currentChampion: 'ok',
+      queueSource: 'gameflow',
+      matchIdentity: null,
+      authorityEpoch: 1,
+    })
+
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = selected
+    runtime.lcuState = connected
+    runtime.detail = {
+      championId: 103,
+      dataVersion: '16.15.6',
+      ranks: [],
+      builds: [{ starter: [], core: [], situational: [] }],
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1_000,
+      message: '旧推荐',
+    }
+    runtime.manualOverlayMonitorDeadlineAt = 90_000
+    runtime.championRequestSequence = 4
+    runtime.dataReady = false
+    runtime.updateScanLoop = vi.fn()
+    runtime.updateGameProcessLoop = vi.fn()
+    runtime.sync = vi.fn()
+
+    runtime.handleLcuUpdate(otherQueue, connected)
+
+    expect(otherQueue).toMatchObject({
+      queueId: 450,
+      modeActive: false,
+      currentChampionId: null,
+      matchStage: 'none',
+    })
+    expect(runtime.detail).toBeNull()
+    expect(runtime.overlay).toMatchObject({ visible: false, championId: null, slots: [] })
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
+    expect(runtime.championRequestSequence).toBe(5)
+  })
 })

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   calculateCompanionDock,
+  LEAGUE_WINDOW_FOLLOW_INTERVAL_MS,
+  LEAGUE_WINDOW_GUARD_INTERVAL_MS,
+  LEAGUE_WINDOW_REDISCOVERY_INTERVAL_MS,
   leagueWindowObserverRetryDelay,
   parseLeagueWindowObservation,
 } from '../src/main/league-window-observer.js'
@@ -25,7 +28,7 @@ describe('League window observation transport', () => {
       workArea,
     )).toEqual({
       side: 'right',
-      bounds: { x: 1304, y: 80, width: 430, height: 570 },
+      bounds: { x: 1300, y: 80, width: 430, height: 570 },
     })
     expect(calculateCompanionDock(
       { x: 350, y: 40, width: 1500, height: 900 },
@@ -41,6 +44,15 @@ describe('League window observation transport', () => {
       workArea,
       'left',
     ).side).toBe('left')
+  })
+
+  it('follows the verified client frequently without rediscovering processes every frame', () => {
+    expect(LEAGUE_WINDOW_FOLLOW_INTERVAL_MS).toBeLessThanOrEqual(100)
+    expect(LEAGUE_WINDOW_REDISCOVERY_INTERVAL_MS).toBeGreaterThanOrEqual(1_000)
+    expect(LEAGUE_WINDOW_REDISCOVERY_INTERVAL_MS).toBeGreaterThan(
+      LEAGUE_WINDOW_FOLLOW_INTERVAL_MS * 10,
+    )
+    expect(LEAGUE_WINDOW_GUARD_INTERVAL_MS).toBeGreaterThanOrEqual(350)
   })
 
   it('backs off repeated observer failures without growing without bound', () => {

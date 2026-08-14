@@ -791,7 +791,7 @@ describe('LCU snapshot normalization', () => {
     expect(extractLcuMatchIdentity({ gameData: { gameId: 0 } }, {})).toBeNull()
   })
 
-  it('clears a detached context when a complete champ select belongs to another queue', () => {
+  it('clears a detached context without exposing a champion from another queue', () => {
     const tracker = new MatchContextTracker()
     const selected = tracker.apply(normalizeChampSelectSnapshot({
       phase: 'ChampSelect', gameflowSession: { queueId: 2400 }, champSelectSession: {}, currentChampionId: 103,
@@ -804,7 +804,7 @@ describe('LCU snapshot normalization', () => {
     expect(otherQueue).toMatchObject({
       queueId: 450,
       modeActive: false,
-      currentChampionId: 81,
+      currentChampionId: null,
       matchStage: 'none',
     })
     expect(tracker.getLastDecision()).toBe('cleared-queue-change')

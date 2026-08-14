@@ -78,13 +78,19 @@ export function normalizeChampSelectSnapshot(input: {
     ? session.myTeam.find((member: any) => Number(member?.cellId) === localCellId)
     : null
   const actionChampion = championIdFromActions(session, localCellId)
-  const currentChampionId =
+  const observedChampionId =
     positiveInteger(input.currentChampionId) ??
     positiveInteger(localMember?.championId) ??
     (actionChampion.observed
       ? actionChampion.championId
       : positiveInteger(localMember?.championPickIntent)) ??
     championIdFromGameflowTeam(input.phase, input.gameflowSession, input.currentSummonerPuuid)
+
+  const queueId = queueIdFromSession(input.gameflowSession) ?? queueIdFromLobby(input.lobbySession)
+  const modeActive = isAramMayhemQueueId(queueId)
+  // HexBridge is deliberately scoped to Mayhem queues. A valid champion from
+  // another queue must not leak into the assistant or seed retained context.
+  const currentChampionId = modeActive ? observedChampionId : null
 
   const benchValues = Array.isArray(session.benchChampionIds)
     ? session.benchChampionIds
@@ -96,17 +102,16 @@ export function normalizeChampSelectSnapshot(input: {
     .filter((value: number | null): value is number => value != null)
     .filter((value: number, index: number, values: number[]) => values.indexOf(value) === index)
 
-  const queueId = queueIdFromSession(input.gameflowSession) ?? queueIdFromLobby(input.lobbySession)
   return {
     phase: input.phase,
     locale: input.locale ?? 'zh_CN',
     queueId,
-    modeActive: isAramMayhemQueueId(queueId),
+    modeActive,
     matchStage: 'none',
     matchGeneration: 0,
     currentChampionId,
-    benchChampionIds,
-    benchEnabled: session.benchEnabled === true || benchChampionIds.length > 0,
+    benchChampionIds: modeActive ? benchChampionIds : [],
+    benchEnabled: modeActive && (session.benchEnabled === true || benchChampionIds.length > 0),
     updatedAt: Date.now(),
   }
 }

@@ -222,19 +222,28 @@ export class HexBridgeRuntime {
       lowMemory: process.getSystemMemoryInfo().total < 8 * 1024 * 1024,
     })
     const scanner = this.scanner.getDiagnostics()
+    const supportedChampionId = this.snapshot.modeActive ? this.snapshot.currentChampionId : null
+    const publicSnapshot = this.snapshot.modeActive
+      ? { ...this.snapshot, benchChampionIds: [...this.snapshot.benchChampionIds] }
+      : {
+          ...this.snapshot,
+          currentChampionId: null,
+          benchChampionIds: [],
+          benchEnabled: false,
+        }
     const currentBuild = detailBuildForCurrentChampion(
       this.detail,
-      this.snapshot.currentChampionId,
+      supportedChampionId,
       this.data.getState().dataVersion,
     )
     return {
       lcu: { ...this.lcuState },
-      snapshot: { ...this.snapshot, benchChampionIds: [...this.snapshot.benchChampionIds] },
+      snapshot: publicSnapshot,
       api: this.data.getState(),
       update: this.updates.getState(),
       releaseHighlights: this.config.getReleaseHighlights(),
       champions: this.data.getChampions(),
-      candidates: buildChampionCandidates(this.snapshot, this.data.getChampions()),
+      candidates: buildChampionCandidates(publicSnapshot, this.data.getChampions()),
       currentBuild,
       opponentScout: includeOpponentScout
         ? {
@@ -519,25 +528,26 @@ export class HexBridgeRuntime {
   private handleLcuUpdate(snapshot: ChampSelectSnapshot, state: LcuConnectionState): void {
     const snapshotChanged = !sameSnapshot(this.snapshot, snapshot)
     const stateChanged = !sameLcuState(this.lcuState, state)
-    const oldChampion = this.snapshot.currentChampionId
+    const oldChampion = this.snapshot.modeActive ? this.snapshot.currentChampionId : null
+    const nextChampion = snapshot.modeActive ? snapshot.currentChampionId : null
     const previousGeneration = this.snapshot.matchGeneration
     const wasConnected = this.lcuState.connected
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
     this.windows?.setLeagueClientProcessId?.(this.lcu?.getActiveProcessId?.() ?? null)
-    if (snapshot.currentChampionId !== oldChampion) {
+    if (nextChampion !== oldChampion) {
       const sequence = ++this.championRequestSequence
       this.detail = null
-      this.overlay = { ...EMPTY_OVERLAY, championId: snapshot.currentChampionId }
+      this.overlay = { ...EMPTY_OVERLAY, championId: nextChampion }
       this.manualOverlayMonitorDeadlineAt = null
-      if (snapshot.currentChampionId && this.dataReady) {
-        void this.refreshCurrentDetail(snapshot.currentChampionId, sequence).then(() => {
+      if (nextChampion && this.dataReady) {
+        void this.refreshCurrentDetail(nextChampion, sequence).then(() => {
           if (sequence === this.championRequestSequence) this.sync()
         })
       }
     }
     if (!isMatchContextOcrEligible(snapshot)) {
-      this.overlay = { ...EMPTY_OVERLAY, championId: snapshot.currentChampionId }
+      this.overlay = { ...EMPTY_OVERLAY, championId: nextChampion }
       this.manualOverlayMonitorDeadlineAt = null
       this.getAugmentRound().reset()
     }
@@ -712,7 +722,7 @@ export class HexBridgeRuntime {
         isCurrentChampionRequest(
           championId,
           sequence,
-          this.snapshot.currentChampionId,
+          this.snapshot.modeActive ? this.snapshot.currentChampionId : null,
           this.championRequestSequence,
         )
       ) {

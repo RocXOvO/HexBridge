@@ -10,13 +10,17 @@ export interface LeagueWindowObservation {
 
 export type CompanionDockSide = 'right' | 'left' | 'inside-right'
 
+export const LEAGUE_WINDOW_FOLLOW_INTERVAL_MS = 80
+export const LEAGUE_WINDOW_GUARD_INTERVAL_MS = 350
+export const LEAGUE_WINDOW_REDISCOVERY_INTERVAL_MS = 1_000
+
 export function calculateCompanionDock(
   client: Rectangle,
   target: Pick<Rectangle, 'width' | 'height'>,
   workArea: Rectangle,
   previousSide: CompanionDockSide | null = null,
 ): { bounds: Rectangle; side: CompanionDockSide } {
-  const gap = 4
+  const gap = 0
   const hysteresis = 24
   const rightSpace = workArea.x + workArea.width - (client.x + client.width)
   const leftSpace = client.x - workArea.x
@@ -76,6 +80,7 @@ $lastState = ''
 $preferredClientPid = 0
 $preferredClientHandle = [IntPtr]::Zero
 $preferredSide = ''
+$lastClientDiscoveryAt = 0L
 function Get-HexBridgeVisualRect([IntPtr]$handle) {
   $rect = New-Object HexBridgeWindowNative+RECT
   try {
@@ -89,6 +94,24 @@ function Get-HexBridgeVisualRect([IntPtr]$handle) {
   } catch {}
   if ([HexBridgeWindowNative]::GetWindowRect($handle, [ref]$rect)) { return $rect }
   return $null
+}
+function Get-HexBridgeClientCandidate([IntPtr]$handle) {
+  if ($handle -eq [IntPtr]::Zero -or -not [HexBridgeWindowNative]::IsWindowVisible($handle) -or [HexBridgeWindowNative]::IsIconic($handle)) { return $null }
+  [uint32]$processId = 0
+  [void][HexBridgeWindowNative]::GetWindowThreadProcessId($handle, [ref]$processId)
+  if ($processId -le 0 -or ($authorityClientPid -gt 0 -and [int]$processId -ne $authorityClientPid)) { return $null }
+  if ([int]$processId -ne $preferredClientPid) {
+    try {
+      $process = [System.Diagnostics.Process]::GetProcessById([int]$processId)
+      if ($process.ProcessName -ne 'LeagueClientUx') { return $null }
+    } catch { return $null }
+  }
+  $rect = Get-HexBridgeVisualRect $handle
+  if ($null -eq $rect) { return $null }
+  $width = $rect.Right - $rect.Left
+  $height = $rect.Bottom - $rect.Top
+  if ($width -lt 600 -or $height -lt 400) { return $null }
+  return @{ Handle = $handle; Rect = $rect; Pid = [int]$processId }
 }
 while ($true) {
   $gameForeground = $false
@@ -109,29 +132,40 @@ while ($true) {
 
     $best = $null
     if ($followClient -and $dpiReady) {
-      $sticky = $null
-      $bestPriority = -1
-      $bestArea = 0L
-      foreach ($process in [System.Diagnostics.Process]::GetProcessesByName('LeagueClientUx')) {
-        $handle = $process.MainWindowHandle
-        if ($handle -eq [IntPtr]::Zero -or -not [HexBridgeWindowNative]::IsWindowVisible($handle) -or [HexBridgeWindowNative]::IsIconic($handle)) { continue }
-        $rect = Get-HexBridgeVisualRect $handle
-        if ($null -eq $rect) { continue }
-        $width = $rect.Right - $rect.Left
-        $height = $rect.Bottom - $rect.Top
-        if ($width -lt 600 -or $height -lt 400) { continue }
-        $candidate = @{ Handle = $handle; Rect = $rect; Pid = $process.Id }
-        if ($handle -eq $preferredClientHandle) { $sticky = $candidate }
-        $area = [int64]$width * [int64]$height
-        $priority = if ($authorityClientPid -gt 0 -and $process.Id -eq $authorityClientPid) { 3 } elseif ($process.Id -eq $foregroundClientPid) { 2 } elseif ($process.Id -eq $preferredClientPid) { 1 } else { 0 }
-        if ($priority -gt $bestPriority -or ($priority -eq $bestPriority -and $area -gt $bestArea)) {
-          $best = $candidate
-          $bestPriority = $priority
-          $bestArea = $area
+      # Window movement uses the already verified HWND fast path. Full process
+      # enumeration remains bounded to once per second so faster docking does
+      # not multiply LeagueClientUx discovery cost.
+      $best = Get-HexBridgeClientCandidate $preferredClientHandle
+      $now = [Environment]::TickCount64
+      $needsDiscovery = $lastClientDiscoveryAt -eq 0 -or ($now - $lastClientDiscoveryAt) -ge ${LEAGUE_WINDOW_REDISCOVERY_INTERVAL_MS}
+      if ($needsDiscovery) {
+        $lastClientDiscoveryAt = $now
+        $best = $null
+        $sticky = $null
+        $bestPriority = -1
+        $bestArea = 0L
+        foreach ($process in [System.Diagnostics.Process]::GetProcessesByName('LeagueClientUx')) {
+          if ($authorityClientPid -gt 0 -and $process.Id -ne $authorityClientPid) { continue }
+          $handle = $process.MainWindowHandle
+          if ($handle -eq [IntPtr]::Zero -or -not [HexBridgeWindowNative]::IsWindowVisible($handle) -or [HexBridgeWindowNative]::IsIconic($handle)) { continue }
+          $rect = Get-HexBridgeVisualRect $handle
+          if ($null -eq $rect) { continue }
+          $width = $rect.Right - $rect.Left
+          $height = $rect.Bottom - $rect.Top
+          if ($width -lt 600 -or $height -lt 400) { continue }
+          $candidate = @{ Handle = $handle; Rect = $rect; Pid = $process.Id }
+          if ($handle -eq $preferredClientHandle) { $sticky = $candidate }
+          $area = [int64]$width * [int64]$height
+          $priority = if ($authorityClientPid -gt 0 -and $process.Id -eq $authorityClientPid) { 3 } elseif ($process.Id -eq $foregroundClientPid) { 2 } elseif ($process.Id -eq $preferredClientPid) { 1 } else { 0 }
+          if ($priority -gt $bestPriority -or ($priority -eq $bestPriority -and $area -gt $bestArea)) {
+            $best = $candidate
+            $bestPriority = $priority
+            $bestArea = $area
+          }
         }
-      }
-      if ($null -ne $sticky -and -not ($authorityClientPid -gt 0 -and $sticky.Pid -ne $authorityClientPid)) {
-        $best = $sticky
+        if ($null -ne $sticky -and -not ($authorityClientPid -gt 0 -and $sticky.Pid -ne $authorityClientPid)) {
+          $best = $sticky
+        }
       }
     }
 
@@ -148,7 +182,7 @@ while ($true) {
         $info.cbSize = [Runtime.InteropServices.Marshal]::SizeOf($info)
         if ([HexBridgeWindowNative]::GetMonitorInfo($monitor, [ref]$info)) {
           $client = $best.Rect
-          $gap = 4
+          $gap = 0
           $hysteresis = 24
           $rightSpace = $info.rcWork.Right - $client.Right
           $leftSpace = $client.Left - $info.rcWork.Left
@@ -182,7 +216,8 @@ while ($true) {
   $state = @{ gameForeground = $gameForeground; clientVisible = $clientVisible; targetPlaced = $targetPlaced } | ConvertTo-Json -Compress
   if ($state -ne $lastState) { Write-Output $state; $lastState = $state }
   if ($env:HEXBRIDGE_OBSERVER_ONESHOT -eq '1') { break }
-  Start-Sleep -Milliseconds 350
+  $interval = if ($followClient) { ${LEAGUE_WINDOW_FOLLOW_INTERVAL_MS} } else { ${LEAGUE_WINDOW_GUARD_INTERVAL_MS} }
+  Start-Sleep -Milliseconds $interval
 }
 `
 

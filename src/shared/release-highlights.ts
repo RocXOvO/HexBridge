@@ -3,6 +3,10 @@ import type { ReleaseHighlights } from './contracts.js'
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 
 const HIGHLIGHTS: Readonly<Record<string, readonly string[]>> = {
+  '0.1.22': [
+    '非海克斯队列不再残留或展示上一局的英雄、出装与三卡推荐。',
+    '对局结束或换局后会失效本机身份缓存，下一局中途启动时重新只读确认当前英雄。',
+  ],
   '0.1.21': [
     '退出自定义房间后会及时清理旧英雄，中途启动也能从当前对局恢复本地英雄。',
     '选人伴随窗贴合 LeagueClientUx 移动，并可在本局手动关闭后保持隐藏。',

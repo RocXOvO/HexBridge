@@ -1119,7 +1119,16 @@ export class LcuClient extends EventEmitter {
         this.activeAuthorityEpoch,
         this.currentSummonerPuuid,
       )
+      const previousGeneration = this.snapshot.matchGeneration
+      const previousStage = this.snapshot.matchStage
       this.snapshot = reduced.snapshot
+      if (
+        (previousStage !== 'none' && this.snapshot.matchStage === 'none') ||
+        (previousGeneration > 0 && this.snapshot.matchGeneration !== previousGeneration)
+      ) {
+        this.currentSummonerPuuid = null
+        this.nextCurrentSummonerProbeAt = 0
+      }
       if (reduced.failure) {
         const message = reduced.failure instanceof Error
           ? reduced.failure.message

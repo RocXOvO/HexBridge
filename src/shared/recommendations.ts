@@ -27,6 +27,7 @@ export function buildChampionCandidates(
   snapshot: ChampSelectSnapshot,
   champions: ChampionSummary[],
 ): ChampionCandidate[] {
+  if (!snapshot.modeActive) return []
   const byId = new Map(champions.map((champion) => [champion.id, champion]))
   const orderedIds = [
     ...(snapshot.currentChampionId ? [snapshot.currentChampionId] : []),

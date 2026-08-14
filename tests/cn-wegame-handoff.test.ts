@@ -192,6 +192,66 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
     client.stop()
   })
 
+  it('drops the private summoner cache at match end and resolves the next active game again', async () => {
+    let phase: 'InProgress' | 'EndOfGame' = 'InProgress'
+    let gameId = 3270201
+    let localPuuid = 'local-player-puuid-00000001'
+    let championId = 115
+    let currentSummonerReads = 0
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      discover: async () => discovery(),
+      request: async (endpoint) => {
+        if (endpoint === '/lol-gameflow/v1/gameflow-phase') return phase
+        if (endpoint === '/lol-gameflow/v1/session') {
+          return {
+            gameData: {
+              queue: { id: 3270 },
+              gameId,
+              teamOne: [{ puuid: localPuuid, championId }],
+              teamTwo: [],
+            },
+            gameClient: { running: phase === 'InProgress' },
+          }
+        }
+        if (endpoint === '/lol-summoner/v1/current-summoner') {
+          currentSummonerReads += 1
+          return { puuid: localPuuid }
+        }
+        if (endpoint === '/riotclient/region-locale') return { locale: 'zh_CN' }
+        return null
+      },
+    })
+
+    await client.pollOnce()
+    expect(client.getSnapshot()).toMatchObject({
+      currentChampionId: 115,
+      matchStage: 'active',
+      matchGeneration: 1,
+    })
+    expect(currentSummonerReads).toBe(1)
+
+    phase = 'EndOfGame'
+    await client.pollOnce()
+    expect(client.getSnapshot()).toMatchObject({ currentChampionId: null, matchStage: 'none' })
+
+    phase = 'InProgress'
+    gameId = 3270202
+    localPuuid = 'local-player-puuid-00000002'
+    championId = 81
+    await client.pollOnce()
+    expect(currentSummonerReads).toBe(2)
+    expect(client.getSnapshot()).toMatchObject({
+      currentChampionId: 81,
+      matchStage: 'active',
+      matchGeneration: 2,
+    })
+    expect(JSON.stringify(client.getSnapshot())).not.toContain(localPuuid)
+    expect(JSON.stringify(vi.mocked(logger.info).mock.calls)).not.toContain(localPuuid)
+    expect(JSON.stringify(vi.mocked(logger.debug).mock.calls)).not.toContain(localPuuid)
+    client.stop()
+  })
+
   it('backs off a failed current-summoner probe for five seconds and then recovers privately', async () => {
     const localPuuid = 'local-player-puuid-00000001'
     let now = 10_000

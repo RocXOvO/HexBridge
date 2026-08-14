@@ -14,6 +14,17 @@ const snapshot: ChampSelectSnapshot = {
 }
 
 describe('champion recommendations', () => {
+  it('never exposes candidates from an unsupported queue', () => {
+    const unsupportedSnapshot = {
+      ...snapshot,
+      queueId: 450,
+      modeActive: false,
+      currentChampionId: 1,
+      benchChampionIds: [2],
+    }
+    expect(buildChampionCandidates(unsupportedSnapshot, [champion(1, 1, .5), champion(2, 2, .4)])).toEqual([])
+  })
+
   it('sorts by tier, win rate, then id while keeping current champion first', () => {
     const result = buildChampionCandidates(snapshot, [
       champion(1, 2, .51), champion(2, 1, .53), champion(3, 1, .55), champion(4, null, null),
