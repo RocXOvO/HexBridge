@@ -1,9 +1,9 @@
 # HexBridge 项目记忆（精简版）
 
 > 最后更新：2026-08-15
-> 当前正式版：[v0.1.26](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.26)，public / Latest / non-draft / non-prerelease；Release ID `370711644`。annotated tag object `699bdef449500ec0c014dbc8845df9d3abb72411` 解引用产品 / 记忆 commit `5bef3e8697102a2a2e794e91be5c8686e893dd84`；当前 main / origin main 为发布基础设施修复 commit `1713ccb5a951439cdcb1c77abd2561649761b16c`。
+> 当前正式版：[v0.1.26](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.26)，public / Latest / non-draft / non-prerelease；Release ID `370711644`。annotated tag object `699bdef449500ec0c014dbc8845df9d3abb72411` 解引用产品 / 记忆 commit `5bef3e8697102a2a2e794e91be5c8686e893dd84`；其后发布基础设施修复 commit 为 `1713ccb5a951439cdcb1c77abd2561649761b16c`。
 > 正式边界：v0.1.26 tag run attempt 2 已通过 39 files / 398 passed、双通道、public packaged 与五版滚动清理；本地 release 为空。真实 installed 自动更新与真实 WeGame / 96px 仍未验证。HB-061 为 `FIXED / UNVERIFIED`，HB-062 / HB-063 为 `VERIFIED`；不得把发布基础设施证据外推为游戏实机证据。
-> 当前未发布候选：本地 `v0.1.27` 仅实现 HB-056 背景清晰度；尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.26。audit 0、OCR synthetic、真实 4K 141ms、39 files / 399 passed + 1 skipped、typecheck、lint、icon、retention、source bridge / UI、diff-check 全过；第一轮 eco scrim P1 与 README / 记忆旧状态已修，最终候选审查无 P0 / P1 并批准 Windows workflow_dispatch。HB-056 保持 `IN PROGRESS / UNVERIFIED`。
+> 当前未发布候选：`v0.1.27` commit / HEAD / origin main `b6fcb8f77cea2f6a52e1f598838c70d09a37316f` 已通过 workflow_dispatch run `31824132991` / job `94844117145`（`2026-08-14T17:28:15Z`～`17:34:11Z`，约 5m56s）。Windows clean npm ci、audit 0、OCR synthetic / 真实 4K 251ms、Test Files 39（基线 399 passed + 1 Windows skip）、lint、typecheck、retention、pack / metadata、packaged UI / bridge、differential、checksums全过。尚无 tag / Release，公开 Latest 仍为 v0.1.26；HB-056 保持 `IN PROGRESS / UNVERIFIED`。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -142,7 +142,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 9. 当前优先级
 
-1. HB-056 / v0.1.27：完成最终候选审查与 Windows 视觉 / 性能候选门禁；真实亮暗原画、长中文和 100% / 125% / 150% DPI 在此之前不得写完成。
+1. HB-056 / v0.1.27：Windows 候选门禁已过，仍须正式 tag / Release 及真实亮暗原画、长中文、100% / 125% / 150% DPI、CPU / GPU / 帧时间验收。
 2. HB-061：下一正式版以全新 channel PUT 验证有界 authenticated Contents / ref poll；当前保持 `FIXED / UNVERIFIED`。
 3. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
 4. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。

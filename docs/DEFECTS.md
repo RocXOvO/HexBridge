@@ -67,7 +67,7 @@
 | HB-053 | 对局中途启动恢复英雄 | IN PROGRESS / UNVERIFIED |
 | HB-054 | 队友 + 对手总览 / 头像详情 | IN PROGRESS / UNVERIFIED；政策 ACCEPTED RISK |
 | HB-055 | 真实对局 96px 提示缺失 | IN PROGRESS / UNVERIFIED |
-| HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 本地候选） |
+| HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 Windows 候选已过） |
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS（已登记、未实现） |
@@ -138,7 +138,8 @@
 ### HB-056：背景清晰度
 
 - v0.1.27 本地候选：cinematic blur `3→1.5`、opacity `.58→.66` 并减轻 scrim；balanced 使用 blur `1`、opacity `.56` 和独立 scrim；eco 明确无 filter / transform 且恢复旧 scrim。launching / active / hidden 等仍由 Main policy 强制 eco；没有新增持续任务或捕获。
-- audit 0、OCR synthetic、真实 4K 141ms、39 files / 399 passed + 1 skipped、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过。第一轮 eco scrim P1 与 README / 记忆旧状态已修，最终候选审查无 P0 / P1 并批准 Windows workflow_dispatch；当前未 commit / push / Windows / tag / Release，Latest 仍 v0.1.26。
+- commit / HEAD / origin main `b6fcb8f77cea2f6a52e1f598838c70d09a37316f` 已 push；run `31824132991` / job `94844117145` 于 `2026-08-14T17:28:15Z`～`17:34:11Z` success（约 5m56s）。Windows clean npm ci、audit 0、OCR synthetic / 真实 4K 251ms、Test Files 39（基线 399 passed + 1 Windows skip）、lint / typecheck / retention、EXE `199259511`、metadata、packaged UI（augment `960x96`、校准 `1024x768`）/ bridge、checksums 全过。
+- synthetic 0.1.28 differential downloaded=true，old / new blockmap 各 1、Range 10、传输 `1289157 / 199259511`、isolatedCache=true；artifact `9228280209` / `473467076` bytes / digest 摘要 `cc24376c…59b7`。tag-only publish / channel / public / prune 按预期 skip；无 v0.1.27 tag / Release，Latest 仍 v0.1.26。Node 20 annotation 非阻断。
 - 状态保持 `IN PROGRESS / UNVERIFIED`：仍须真实亮 / 暗原画、长中文、100% / 125% / 150% DPI、Windows cinematic / balanced / eco 截图与 CPU / GPU / 帧时间；不得用自动化外推视觉或性能完成。
 
 ### HB-057：Wallpaper Engine
