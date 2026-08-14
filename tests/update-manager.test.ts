@@ -87,6 +87,92 @@ const setup = (inGame = false, lifecycle?: { begin: () => unknown; cancel: (toke
 }
 
 describe('client update manager', () => {
+  it('checks once when the supported client starts without downloading or installing', async () => {
+    vi.useFakeTimers()
+    try {
+      const adapter = new FakeUpdater()
+      adapter.check.mockResolvedValueOnce(upToDateResult())
+      const manager = new UpdateManager({
+        currentVersion: '0.1.5',
+        supported: true,
+        isGameInProgress: () => false,
+        onStateChanged: () => undefined,
+        adapter,
+        scheduleAutomaticChecks: true,
+      })
+
+      manager.initialize()
+      expect(adapter.check).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(adapter.check).toHaveBeenCalledTimes(1)
+      expect(adapter.download).not.toHaveBeenCalled()
+      expect(adapter.install).not.toHaveBeenCalled()
+      expect(manager.getState()).toMatchObject({
+        status: 'up-to-date',
+        availableVersion: null,
+      })
+      manager.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels the pending startup check when the client stops immediately', async () => {
+    vi.useFakeTimers()
+    try {
+      const adapter = new FakeUpdater()
+      const manager = new UpdateManager({
+        currentVersion: '0.1.5',
+        supported: true,
+        isGameInProgress: () => false,
+        onStateChanged: () => undefined,
+        adapter,
+        scheduleAutomaticChecks: true,
+      })
+
+      manager.initialize()
+      manager.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(adapter.check).not.toHaveBeenCalled()
+      expect(adapter.download).not.toHaveBeenCalled()
+      expect(adapter.install).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ignores an updater adapter that finishes loading after the client stops', async () => {
+    vi.useFakeTimers()
+    try {
+      const adapter = new FakeUpdater()
+      const changed = vi.fn()
+      let resolveAdapter!: (value: UpdateAdapter) => void
+      const manager = new UpdateManager({
+        currentVersion: '0.1.5',
+        supported: true,
+        isGameInProgress: () => false,
+        onStateChanged: changed,
+        adapterLoader: () => new Promise((resolve) => { resolveAdapter = resolve }),
+        scheduleAutomaticChecks: true,
+      })
+
+      manager.initialize()
+      manager.stop()
+      resolveAdapter(adapter)
+      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(adapter.check).not.toHaveBeenCalled()
+      expect(adapter.download).not.toHaveBeenCalled()
+      expect(adapter.install).not.toHaveBeenCalled()
+      expect(changed).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('supports the verified update phases and silently installs a differential payload', async () => {
     const { adapter, manager } = setup()
     expect(adapter).toMatchObject({

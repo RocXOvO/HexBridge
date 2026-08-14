@@ -3,6 +3,9 @@ import type { ReleaseHighlights } from './contracts.js'
 const VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 
 const HIGHLIGHTS: Readonly<Record<string, readonly string[]>> = {
+  '0.1.25': [
+    '客户端每次启动都会立即检查一次最新正式版；检查只读取版本信息，不会自动下载或安装。',
+  ],
   '0.1.24': [
     '本地近期状态现可分别显示 4 位队友与 5 位对手，身份不完整的分组不会被猜测补齐。',
     '最多汇总 20 场可用对局，点击英雄头像可查看本局内存中的脱敏胜负、K/D/A 与时长。',

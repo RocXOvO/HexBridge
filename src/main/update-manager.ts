@@ -38,6 +38,9 @@ interface UpdateManagerOptions {
   cancelInstallShutdown?: (token: unknown) => void
 }
 
+const STARTUP_UPDATE_CHECK_DELAY_MS = 0
+const PERIODIC_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000
+
 const emptyState = (currentVersion: string, supported: boolean): AppUpdateState => ({
   status: supported ? 'idle' : 'unsupported',
   currentVersion,
@@ -101,6 +104,7 @@ export function classifyUpdateError(error: unknown): { code: string; message: st
 export class UpdateManager {
   private state: AppUpdateState
   private initialized = false
+  private stopped = false
   private automaticCheckTimer: NodeJS.Timeout | null = null
   private periodicCheckTimer: NodeJS.Timeout | null = null
   private adapter: UpdateAdapter | null = null
@@ -115,7 +119,7 @@ export class UpdateManager {
   }
 
   initialize(): void {
-    if (this.initialized || !this.options.supported) return
+    if (this.initialized || this.stopped || !this.options.supported) return
     this.initialized = true
     if (this.options.adapter) {
       this.configure(this.options.adapter)
@@ -125,12 +129,15 @@ export class UpdateManager {
       this.fail(new Error('Updater adapter unavailable'))
       return
     }
-    void this.options.adapterLoader().then((adapter) => this.configure(adapter)).catch((error) => {
-      this.fail(error)
+    void this.options.adapterLoader().then((adapter) => {
+      if (!this.stopped) this.configure(adapter)
+    }).catch((error) => {
+      if (!this.stopped) this.fail(error)
     })
   }
 
   private configure(adapter: UpdateAdapter): void {
+    if (this.stopped) return
     this.adapter = adapter
     this.adapter.autoDownload = false
     this.adapter.autoInstallOnAppQuit = false
@@ -192,8 +199,14 @@ export class UpdateManager {
     })
 
     if (this.options.scheduleAutomaticChecks !== false) {
-      this.automaticCheckTimer = setTimeout(() => void this.check(false), 60_000)
-      this.periodicCheckTimer = setInterval(() => void this.check(false), 6 * 60 * 60 * 1_000)
+      this.automaticCheckTimer = setTimeout(() => {
+        this.automaticCheckTimer = null
+        void this.check(false)
+      }, STARTUP_UPDATE_CHECK_DELAY_MS)
+      this.periodicCheckTimer = setInterval(
+        () => void this.check(false),
+        PERIODIC_UPDATE_CHECK_INTERVAL_MS,
+      )
     }
     this.patch({ status: 'idle', errorCode: null, message: '可检查正式版更新' })
   }
@@ -447,6 +460,7 @@ export class UpdateManager {
   }
 
   stop(): void {
+    this.stopped = true
     if (this.automaticCheckTimer) clearTimeout(this.automaticCheckTimer)
     if (this.periodicCheckTimer) clearInterval(this.periodicCheckTimer)
     this.automaticCheckTimer = null

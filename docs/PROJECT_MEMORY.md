@@ -2,6 +2,7 @@
 
 > 最后更新：2026-08-14
 > 当前正式版：[v0.1.24](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.24)，public / Latest / non-draft / non-prerelease。
+> 当前未发布候选：本地 `v0.1.25` 仅实现 HB-060 启动只读更新检查；尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.24。最终审查 P0 / P1 = 0；本地 target 24 tests、完整 36 files / 372 passed + 1 skipped、typecheck、lint、source bridge / UI、真实 4K fixture 145ms、icon、retention 与 diff-check 通过，不能外推为 Windows installed 或发布证据。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -12,7 +13,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 - 不注入游戏 / LeagueClientUx，不自动点击，不代替玩家选择英雄或海克斯。
 - 不做账号、云后端、遥测或战绩上传；不得记录 / 持久化 token、API Key、PUUID、原始历史、完整 session 或完整屏幕截图。
 - 默认不保存截图；诊断只允许用户手动触发后的三块标题裁切，最多 60 张。
-- 更新必须由用户明确点击；不得启动 / 普通退出自动安装，对局中必须 fail closed。差分静默 NSIS 仍可能触发 UAC / SmartScreen，不得绕过。
+- 受支持打包版每次进程启动、updater adapter ready 后，由 Main 以 0ms 调度一次只读 `check(false)`，并保留 6h 周期；只在确认新版后显示入口。检查不得自动下载 / 安装；下载与安装仍须用户明确点击，对局门禁不变，普通退出不得安装。差分静默 NSIS 仍可能触发 UAC / SmartScreen，不得绕过。
 - Windows 安装包尚无商业代码签名，必须持续说明 SmartScreen / 未知发布者风险。
 - 许可为 PolyForm Noncommercial 1.0.0。第三方项目只可作理念 / 行为参考，不复制不兼容代码、素材、品牌或原创视觉表达。
 - Riot / 腾讯网站可访问不等于产品政策、稳定 API 或数据复用授权；扩大分发前必须重新审计。
@@ -120,6 +121,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 7. 更新与发布
 
+- HB-060 的启动检查只适用于受支持打包版：adapter ready 后 Main 调度一次 `check(false)`，不等待 6h 首轮；既有 6h 周期继续。异步 `adapterLoader` 可能在 `stop()` 后才 resolve，旧实现会复活检查任务；当前候选以 `stopped` 门禁阻止迟到 adapter 安装、启动检查与周期计时器。此链只读且不改变用户点击下载 / 安装及对局 fail-closed 契约。
 - stable channel：`update-channel/v2/latest.yml`；legacy 根 channel 固定 0.1.14，仅兼容旧客户端。
 - `pack:win --publish never` 只构建；tag 与 package 版本必须一致。正式 workflow 在全部检查后才发布 EXE、blockmap、ZIP、latest.yml、SHA256SUMS。
 - v0.1.11 起所有正式 Releases、五项 assets、blockmap 和 tags 永久保留；workflow 禁止远端删除。差分依赖旧 / 新 blockmap 与本地旧 installer cache。
@@ -141,10 +143,11 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 9. 当前优先级
 
-1. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
-2. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
-3. HB-059：先做只读 capture 可行性 / 性能 / 隐私评估；默认关闭，绝不注入 League 客户端。
-4. HB-056 / HB-057：背景清晰度和 Wallpaper Engine 分别独立评估，不与数据源或 Lobby 捕获捆绑发布。
+1. HB-060：本地 v0.1.25 候选已完成审查与本地门禁，仍须 commit / push、Windows packaged 启动检查与 stop 竞态候选门禁；不得预写 tag / Release。
+2. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
+3. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
+4. HB-059：先做只读 capture 可行性 / 性能 / 隐私评估；默认关闭，绝不注入 League 客户端。
+5. HB-056 / HB-057：背景清晰度和 Wallpaper Engine 分别独立评估，不与数据源或 Lobby 捕获捆绑发布。
 
 ## 10. 协作与迁移边界
 

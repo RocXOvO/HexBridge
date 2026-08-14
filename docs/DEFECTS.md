@@ -71,6 +71,7 @@
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS（已登记、未实现） |
+| HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（本地 v0.1.25 候选） |
 
 ## 当前重点验收
 
@@ -83,6 +84,12 @@
 
 - Releases 与 blockmap 自 v0.1.11 起保留；Windows synthetic Range 差分已通过。
 - 仍需 installed N→N+1 实测旧 / 新 blockmap、HTTP Range / 206、网络字节、fallback、安装与重启。UI 的完整 EXE metadata 大小不等于实际传输量。
+
+### HB-060：每次启动只读检查更新
+
+- 本地 v0.1.25 候选在每次受支持打包版进程启动、updater adapter ready 后由 Main 以 0ms 调度一次 `check(false)`，并保留 6h 周期；无新版不显示入口，有新版才显示。检查不自动下载 / 安装，下载 / 安装仍由用户点击且沿用对局门禁。
+- 根因边界：异步 `adapterLoader` 可能在 `stop()` 后才 resolve；`stopped` 门禁必须阻止迟到 adapter 复活启动检查或周期计时器。target 24 tests、完整 36 files / 372 passed + 1 skipped、typecheck / lint / source bridge / UI、真实 4K fixture 145ms、icon / retention / diff-check 与最终审查 P0 / P1 = 0 已通过。
+- 状态仍为 `FIXED / UNVERIFIED`：当前仅本地候选，尚未 commit / push / Windows / tag / Release；公开 Latest 仍为 v0.1.24，不得预写未来结果。仍需 Windows packaged 覆盖每进程仅一次启动检查、6h 周期、stop-before-loader-resolve、最新版 / 离线 / 新版入口和对局下载 / 安装 fail-closed。
 
 ### HB-024～026：OCR、快捷键、性能
 
