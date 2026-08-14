@@ -2,7 +2,7 @@
 
 > 最后更新：2026-08-14
 > 当前正式版：[v0.1.24](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.24)，public / Latest / non-draft / non-prerelease。
-> 当前未发布候选：本地 `v0.1.25` 仅实现 HB-060 启动只读更新检查；尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.24。最终审查 P0 / P1 = 0；本地 target 24 tests、完整 36 files / 372 passed + 1 skipped、typecheck、lint、source bridge / UI、真实 4K fixture 145ms、icon、retention 与 diff-check 通过，不能外推为 Windows installed 或发布证据。
+> 当前未发布候选：`v0.1.25` 仅实现 HB-060 启动只读更新检查；commit `b38cc2c554f176c69e00ab20d9b76742b377c5ab` 已 push main，workflow_dispatch run `31816174583` / job `94818284979` success（约 5m31s）。Windows 候选 36 files / 372 passed + 1 skipped 及 audit、OCR / 真实 4K fixture 255ms、lint、typecheck、pack / metadata、packaged UI / bridge、differential smoke、checksums、artifact 全过；尚无 tag / Release，公开 Latest 仍为 v0.1.24。Windows runner 不能替代真实 installed 启动检查，HB-060 保持 `FIXED / UNVERIFIED`。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -122,6 +122,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 ## 7. 更新与发布
 
 - HB-060 的启动检查只适用于受支持打包版：adapter ready 后 Main 调度一次 `check(false)`，不等待 6h 首轮；既有 6h 周期继续。异步 `adapterLoader` 可能在 `stop()` 后才 resolve，旧实现会复活检查任务；当前候选以 `stopped` 门禁阻止迟到 adapter 安装、启动检查与周期计时器。此链只读且不改变用户点击下载 / 安装及对局 fail-closed 契约。
+- v0.1.25 Windows 候选已产出 EXE `199258008` bytes；synthetic available `0.1.26` 验证 differential=true、metadata 1、old / new blockmap 各 1、Range 10、redirect 3、传输 `1158503 / 199258008` bytes、previous `0.1.24`、isolatedCache=true。Actions artifact `9225246607` / `473462816` bytes / digest（上游摘要）`e7d1862e…39075`；tag-only Release / channel / public 按预期 skip，不构成正式发布或真实 installed 证据。
 - stable channel：`update-channel/v2/latest.yml`；legacy 根 channel 固定 0.1.14，仅兼容旧客户端。
 - `pack:win --publish never` 只构建；tag 与 package 版本必须一致。正式 workflow 在全部检查后才发布 EXE、blockmap、ZIP、latest.yml、SHA256SUMS。
 - v0.1.11 起所有正式 Releases、五项 assets、blockmap 和 tags 永久保留；workflow 禁止远端删除。差分依赖旧 / 新 blockmap 与本地旧 installer cache。
@@ -143,7 +144,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 9. 当前优先级
 
-1. HB-060：本地 v0.1.25 候选已完成审查与本地门禁，仍须 commit / push、Windows packaged 启动检查与 stop 竞态候选门禁；不得预写 tag / Release。
+1. HB-060：v0.1.25 已 push 并通过 Windows 候选窄门禁；仍须真实 installed 覆盖启动检查，且尚无 tag / Release，不得预写发布结果。
 2. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
 3. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
 4. HB-059：先做只读 capture 可行性 / 性能 / 隐私评估；默认关闭，绝不注入 League 客户端。

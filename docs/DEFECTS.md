@@ -71,7 +71,7 @@
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS（已登记、未实现） |
-| HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（本地 v0.1.25 候选） |
+| HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 Windows 候选已过） |
 
 ## 当前重点验收
 
@@ -89,7 +89,8 @@
 
 - 本地 v0.1.25 候选在每次受支持打包版进程启动、updater adapter ready 后由 Main 以 0ms 调度一次 `check(false)`，并保留 6h 周期；无新版不显示入口，有新版才显示。检查不自动下载 / 安装，下载 / 安装仍由用户点击且沿用对局门禁。
 - 根因边界：异步 `adapterLoader` 可能在 `stop()` 后才 resolve；`stopped` 门禁必须阻止迟到 adapter 复活启动检查或周期计时器。target 24 tests、完整 36 files / 372 passed + 1 skipped、typecheck / lint / source bridge / UI、真实 4K fixture 145ms、icon / retention / diff-check 与最终审查 P0 / P1 = 0 已通过。
-- 状态仍为 `FIXED / UNVERIFIED`：当前仅本地候选，尚未 commit / push / Windows / tag / Release；公开 Latest 仍为 v0.1.24，不得预写未来结果。仍需 Windows packaged 覆盖每进程仅一次启动检查、6h 周期、stop-before-loader-resolve、最新版 / 离线 / 新版入口和对局下载 / 安装 fail-closed。
+- Windows 候选：commit `b38cc2c554f176c69e00ab20d9b76742b377c5ab` 已 push main；run `31816174583` / job `94818284979` success（约 5m31s），Windows 36 files / 372 passed + 1 skipped、audit / OCR / 真实 4K fixture 255ms、lint / typecheck、EXE `199258008`、metadata、packaged UI / bridge、differential smoke、checksums与 artifact 全过。synthetic `0.1.26` 验证 differential=true、blockmap 各 1、Range 10、传输 `1158503 / 199258008`、previous `0.1.24`、isolated cache；artifact `9225246607` / `473462816` bytes / digest 摘要 `e7d1862e…39075`。
+- 状态仍为 `FIXED / UNVERIFIED`：Windows runner 只覆盖候选窄门禁，真实 installed 每进程启动检查仍未由用户验证。tag-only Release / channel / public 按预期 skip，尚无 v0.1.25 tag / Release，公开 Latest 仍为 v0.1.24；不得预写未来结果。
 
 ### HB-024～026：OCR、快捷键、性能
 
