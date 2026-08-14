@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoOcr: false,
   showChampionPanel: true,
   showInGameRecommendations: true,
+  opponentScouting: false,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -55,6 +56,12 @@ export function migrateSettingsForRevision(
     // new, bounded and click-through recommendation strip below the cards.
     next = { ...next, showInGameRecommendations: true }
     nextRevision = 4
+  }
+  if (nextRevision < 5) {
+    // Opponent history is an explicit local experiment. Existing users must
+    // opt in; upgrades never start the extra LCU reads automatically.
+    next = { ...next, opponentScouting: false }
+    nextRevision = 5
   }
   return { settings: next, revision: nextRevision }
 }

@@ -263,7 +263,22 @@ export class WindowManager {
         continue
       }
       if (name !== 'augment' && !window.webContents.isDestroyed() && window.isVisible()) {
-        window.webContents.send('hexbridge:state', state)
+        window.webContents.send(
+          'hexbridge:state',
+          name === 'main'
+            ? state
+            : {
+                ...state,
+                opponentScout: {
+                  status: 'disabled',
+                  matchGeneration: null,
+                  opponents: [],
+                  sampledAt: null,
+                  source: null,
+                  message: '仅主窗口可见',
+                },
+              },
+        )
       }
     }
   }

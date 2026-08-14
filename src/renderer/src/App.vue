@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { ApiConnectionState, ChampionSummary, RankedAugmentSlot, RuntimeDiagnostics } from '../../shared/contracts'
+import type { ApiConnectionState, ChampionSummary, OpponentFormSummary, RankedAugmentSlot, RuntimeDiagnostics } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -99,6 +99,9 @@ const statusLabel = computed(() => matchStatus.value.label)
 const augmentAssistantVisible = computed(() =>
   state.value.overlay.visible || ['launching', 'active'].includes(state.value.snapshot.matchStage),
 )
+const opponentAssistantVisible = computed(() =>
+  state.value.settings.opponentScouting && state.value.snapshot.matchStage !== 'none',
+)
 const selecting = computed(() => state.value.snapshot.matchStage === 'selecting')
 
 const ranking = computed(() => {
@@ -136,6 +139,18 @@ function augmentStatsScope(slot: RankedAugmentSlot): string {
       ? '跨服'
       : '范围未标注'
   return `${source} · ${region}`
+}
+
+function opponentChampion(opponent: OpponentFormSummary): ChampionSummary | null {
+  return opponent.championId == null
+    ? null
+    : state.value.champions.find((champion) => champion.id === opponent.championId) ?? null
+}
+
+function opponentStreak(value: number): string {
+  if (value > 0) return `连胜 ${value}`
+  if (value < 0) return `连败 ${Math.abs(value)}`
+  return '—'
 }
 
 function manualOcrTime(value: number | null): string {
@@ -252,6 +267,15 @@ async function triggerOcr(): Promise<void> {
     showToast(result.message, !result.ok)
   } catch (error) {
     showToast(error instanceof Error ? error.message : 'OCR 识别失败', true)
+  }
+}
+
+async function retryOpponentScout(): Promise<void> {
+  try {
+    const result = await api.retryOpponentScout()
+    showToast(result.message, !result.ok)
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '对手近期状态查询失败', true)
   }
 }
 
@@ -418,6 +442,38 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             </Transition>
 
             <Transition name="assistant-reveal">
+              <section v-if="opponentAssistantVisible" class="opponent-scout" aria-live="polite">
+                <header>
+                  <div><small>默认关闭 · 本地实验</small><h2>对手近期状态</h2><p>只在客户端明确公开身份时，汇总最近 10 场可用 LoL 对局；不限定海克斯队列，评分不代表官方段位。</p></div>
+                  <button class="ghost" :disabled="state.opponentScout.status === 'loading'" @click="retryOpponentScout">
+                    {{ state.opponentScout.status === 'loading' ? '读取中…' : '重新读取' }}
+                  </button>
+                </header>
+                <p :class="['opponent-scout-message', `state-${state.opponentScout.status}`]">{{ state.opponentScout.message }}</p>
+                <div v-if="state.opponentScout.opponents.length" class="opponent-grid">
+                  <article v-for="opponent in state.opponentScout.opponents" :key="opponent.slot" :class="[`tier-${opponent.tier || 'unknown'}`, { unavailable: opponent.status === 'unavailable' }]">
+                    <div class="opponent-identity">
+                      <img v-if="opponentChampion(opponent)?.iconUrl" :src="opponentChampion(opponent)?.iconUrl" :alt="opponentChampion(opponent)?.name || ''" />
+                      <span v-else aria-hidden="true">◇</span>
+                      <div><small>对手 {{ opponent.slot }}</small><b>{{ opponentChampion(opponent)?.name || (opponent.championId ? `英雄 #${opponent.championId}` : '身份已公开') }}</b></div>
+                    </div>
+                    <div v-if="opponent.status === 'ready'" class="opponent-rating">
+                      <span>{{ opponent.tier || '样本不足' }}</span><b>{{ opponent.rating ?? '—' }}</b><small>/ 100</small>
+                    </div>
+                    <div v-else class="opponent-rating"><span>暂无数据</span><b>—</b></div>
+                    <dl>
+                      <div><dt>胜率</dt><dd>{{ winRate(opponent.winRate) }}</dd></div>
+                      <div><dt>KDA</dt><dd>{{ opponent.kda == null ? '—' : opponent.kda.toFixed(2) }}</dd></div>
+                      <div><dt>连续战绩</dt><dd>{{ opponentStreak(opponent.streak) }}</dd></div>
+                      <div><dt>样本</dt><dd>{{ opponent.sampleSize }} 场</dd></div>
+                    </dl>
+                  </article>
+                </div>
+                <p class="opponent-privacy">不上传、不落盘、不向界面暴露 PUUID 或原始战绩；身份隐藏时保持不可用。</p>
+              </section>
+            </Transition>
+
+            <Transition name="assistant-reveal">
               <section v-if="augmentAssistantVisible" class="augment-assistant" aria-live="polite">
                 <header>
                   <div><small>实时推荐</small><h2>海克斯推荐</h2><p>优先采用上游提供的英雄专属推荐顺序；选取率仅作参考。data.dtodo 单英雄统计 · {{ state.api.gamePatch || '补丁未标注' }} · {{ state.api.dataVersion || '数据未就绪' }}<template v-if="['stale','limited','offline'].includes(state.api.status)"> · 已过期</template></p></div>
@@ -500,7 +556,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             </article>
             <article class="settings-card"><h3>目标显示器</h3><p>三卡位置不准时再校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">依次框住左、中、右整张卡片。</small></article>
             <article class="settings-card"><h3>识别快捷键</h3><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? 'Esc 取消录制。' : '快捷键不可用，请重新录制。') }}</small></article>
-            <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>只在海克斯对局且游戏或主窗口可见时低频识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人期间跟随英雄联盟客户端，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>三卡下方推荐</b><small>识别成功后显示点击穿透小窗，切屏时自动隐藏</small></div><input type="checkbox" :checked="state.settings.showInGameRecommendations" @change="updateSettings({ showInGameRecommendations: ($event.target as HTMLInputElement).checked })" /></label></article>
+            <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>只在海克斯对局且游戏或主窗口可见时低频识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人期间跟随英雄联盟客户端，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>三卡下方推荐</b><small>识别成功后显示点击穿透小窗，切屏时自动隐藏</small></div><input type="checkbox" :checked="state.settings.showInGameRecommendations" @change="updateSettings({ showInGameRecommendations: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>对手近期状态（本地实验）</b><small>默认关闭。仅身份明确公开时读取本机 LCU；近期样本不限定队列，可能违反 Riot 分发政策，不上传、不持久化。</small></div><input type="checkbox" :checked="state.settings.opponentScouting" @change="updateSettings({ opponentScouting: ($event.target as HTMLInputElement).checked })" /></label></article>
           </div>
         </section>
 

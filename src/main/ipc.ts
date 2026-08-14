@@ -6,6 +6,7 @@ const allowedSettingKeys = new Set<keyof AppSettings>([
   'autoOcr',
   'showChampionPanel',
   'showInGameRecommendations',
+  'opponentScouting',
   'displayId',
   'calibration',
   'diagnosticsScreenshots',
@@ -16,7 +17,7 @@ function sanitizeSettings(value: unknown): Partial<AppSettings> {
   const patch: Partial<AppSettings> = {}
   for (const [key, entry] of Object.entries(value)) {
     if (!allowedSettingKeys.has(key as keyof AppSettings)) continue
-    if (['autoOcr', 'showChampionPanel', 'showInGameRecommendations', 'diagnosticsScreenshots'].includes(key)) {
+    if (['autoOcr', 'showChampionPanel', 'showInGameRecommendations', 'opponentScouting', 'diagnosticsScreenshots'].includes(key)) {
       if (typeof entry === 'boolean') Object.assign(patch, { [key]: entry })
     } else if (key === 'displayId' && typeof entry === 'string') {
       patch.displayId = entry.slice(0, 80)
@@ -53,8 +54,12 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
       throw new Error('该操作不允许从当前窗口调用')
     }
   }
-  ipcMain.handle('hexbridge:get-state', () => runtime.getState())
-  ipcMain.handle('hexbridge:update-settings', (_event, patch) => runtime.updateSettings(sanitizeSettings(patch)))
+  ipcMain.handle('hexbridge:get-state', (event) =>
+    runtime.getState(runtime.getWindowManager().isWindowSender('main', event.sender)))
+  ipcMain.handle('hexbridge:update-settings', (event, patch) => {
+    requireSender(event, 'main')
+    return runtime.updateSettings(sanitizeSettings(patch))
+  })
   ipcMain.handle('hexbridge:set-ocr-hotkey', (_event, hotkey) => {
     if (typeof hotkey !== 'string' || hotkey.length > 40) {
       return { ok: false, activeHotkey: runtime.getState().settings.hotkey, errorCode: 'HOTKEY_INVALID', message: '快捷键格式无效' }
@@ -82,6 +87,10 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
   ipcMain.handle('hexbridge:trigger-ocr', (event) => {
     requireSender(event, 'main')
     return runtime.triggerOcr()
+  })
+  ipcMain.handle('hexbridge:retry-opponent-scout', (event) => {
+    requireSender(event, 'main')
+    return runtime.retryOpponentScout()
   })
   ipcMain.handle('hexbridge:clear-diagnostics', () => runtime.clearDiagnosticScreenshots())
   ipcMain.handle('hexbridge:retry-lcu', () => runtime.retryLcuConnection())

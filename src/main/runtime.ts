@@ -6,6 +6,7 @@ import type {
   ChampionAugmentData,
   ChampSelectSnapshot,
   LcuConnectionState,
+  OpponentScoutState,
   RuntimeState,
   HotkeyRegistrationResult,
 } from '../shared/contracts.js'
@@ -67,6 +68,15 @@ const EMPTY_OVERLAY: AugmentOverlayState = {
   message: '等待海克斯界面',
 }
 
+const DISABLED_OPPONENT_SCOUT: OpponentScoutState = {
+  status: 'disabled',
+  matchGeneration: null,
+  opponents: [],
+  sampledAt: null,
+  source: null,
+  message: '对手近期状态实验未开启',
+}
+
 type ManualOcrCode = RuntimeState['diagnostics']['manualOcrCode']
 interface ScanActionResult {
   ok: boolean
@@ -84,6 +94,10 @@ export class HexBridgeRuntime {
   private snapshot: ChampSelectSnapshot = { ...EMPTY_SNAPSHOT }
   private lcuState: LcuConnectionState = { ...EMPTY_LCU }
   private overlay: AugmentOverlayState = { ...EMPTY_OVERLAY }
+  private opponentScout: OpponentScoutState = { ...DISABLED_OPPONENT_SCOUT }
+  private opponentScoutSequence = 0
+  private opponentScoutAttemptKey: string | null = null
+  private opponentScoutAbort: AbortController | null = null
   private detail: ChampionAugmentData | null = null
   private scanTimer: NodeJS.Timeout | null = null
   private automaticScanPhase: 'waiting' | 'recognizing' | 'latched' = 'waiting'
@@ -184,7 +198,7 @@ export class HexBridgeRuntime {
     )
   }
 
-  getState(): RuntimeState {
+  getState(includeOpponentScout = true): RuntimeState {
     const storedSettings = this.config.getSettings()
     const settings = this.activeHotkeyOverride !== null
       ? { ...storedSettings, hotkey: this.activeHotkeyOverride }
@@ -213,6 +227,12 @@ export class HexBridgeRuntime {
       champions: this.data.getChampions(),
       candidates: buildChampionCandidates(this.snapshot, this.data.getChampions()),
       currentBuild,
+      opponentScout: includeOpponentScout
+        ? {
+            ...this.opponentScout,
+            opponents: this.opponentScout.opponents.map((opponent) => ({ ...opponent })),
+          }
+        : { ...DISABLED_OPPONENT_SCOUT },
       overlay: { ...this.overlay, slots: [...this.overlay.slots] },
       settings,
       displays: screen.getAllDisplays().map((display, index) => ({
@@ -246,6 +266,15 @@ export class HexBridgeRuntime {
     const next = this.config.updateSettings(normalizedPatch)
     if (!next.autoOcr) this.stopScanLoop()
     else this.updateScanLoop()
+    if (!next.opponentScouting) {
+      this.cancelOpponentScoutRequest()
+      this.opponentScoutSequence += 1
+      this.opponentScoutAttemptKey = null
+      this.opponentScout = { ...DISABLED_OPPONENT_SCOUT }
+    } else if (!previous.opponentScouting) {
+      this.opponentScoutAttemptKey = null
+      this.updateOpponentScout(true)
+    }
     if (next.gameDirectory !== previous.gameDirectory) {
       void this.retryLcuConnection().catch((error) => {
         logger.warn('LCU manual directory retry failed', {
@@ -394,6 +423,20 @@ export class HexBridgeRuntime {
     }
   }
 
+  async retryOpponentScout(): Promise<{ ok: boolean; message: string }> {
+    if (!this.config.getSettings().opponentScouting) {
+      return { ok: false, message: '请先在设置中开启“对手近期状态（实验）”' }
+    }
+    if (this.snapshot.matchStage === 'none' || !this.snapshot.modeActive) {
+      return { ok: false, message: '当前没有可查询的海克斯大乱斗对局' }
+    }
+    await this.updateOpponentScout(true, true)
+    return {
+      ok: this.opponentScout.status === 'ready' || this.opponentScout.status === 'partial',
+      message: this.opponentScout.message,
+    }
+  }
+
   async clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }> {
     const removed = await this.scanner.clearDiagnostics()
     return { ok: true, message: removed ? `已清除 ${removed} 张诊断截图` : '没有诊断截图需要清除' }
@@ -442,6 +485,7 @@ export class HexBridgeRuntime {
 
   stop(): void {
     this.stopping = true
+    this.cancelOpponentScoutRequest()
     this.windows.prepareToQuit()
     this.stopScanLoop()
     this.stopGameProcessLoop()
@@ -453,6 +497,8 @@ export class HexBridgeRuntime {
     const snapshotChanged = !sameSnapshot(this.snapshot, snapshot)
     const stateChanged = !sameLcuState(this.lcuState, state)
     const oldChampion = this.snapshot.currentChampionId
+    const previousGeneration = this.snapshot.matchGeneration
+    const wasConnected = this.lcuState.connected
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
     if (snapshot.currentChampionId !== oldChampion) {
@@ -471,8 +517,107 @@ export class HexBridgeRuntime {
     }
     this.updateScanLoop()
     this.updateGameProcessLoop()
+    if (this.opponentScout && (
+      snapshot.matchGeneration !== previousGeneration || snapshot.matchStage === 'none'
+    )) {
+      this.cancelOpponentScoutRequest()
+      this.opponentScoutSequence += 1
+      this.opponentScoutAttemptKey = null
+      this.opponentScout = this.config.getSettings().opponentScouting
+        ? {
+            ...DISABLED_OPPONENT_SCOUT,
+            status: 'idle',
+            message: '等待可查询的对手身份',
+          }
+        : { ...DISABLED_OPPONENT_SCOUT }
+    }
+    if (this.opponentScout) this.updateOpponentScout(state.connected && !wasConnected)
     if (!snapshotChanged && !stateChanged) return
     this.sync()
+  }
+
+  private async updateOpponentScout(force = false, waitForResult = false): Promise<void> {
+    const settings = this.config.getSettings()
+    if (!settings.opponentScouting) {
+      this.cancelOpponentScoutRequest()
+      this.opponentScout = { ...DISABLED_OPPONENT_SCOUT }
+      return
+    }
+    if (!this.snapshot.modeActive || this.snapshot.matchStage === 'none') {
+      this.cancelOpponentScoutRequest()
+      this.opponentScout = {
+        ...DISABLED_OPPONENT_SCOUT,
+        status: 'idle',
+        message: '等待可查询的对手身份',
+      }
+      return
+    }
+    const generation = this.snapshot.matchGeneration
+    const attemptKey = `${generation}:${this.snapshot.matchStage}`
+    if (
+      !force &&
+      this.opponentScout.matchGeneration === generation &&
+      (this.opponentScout.status === 'ready' || this.opponentScout.status === 'partial')
+    ) return
+    if (!force && this.opponentScoutAttemptKey === attemptKey) return
+    this.cancelOpponentScoutRequest()
+    this.opponentScoutAttemptKey = attemptKey
+    const sequence = ++this.opponentScoutSequence
+    const controller = new AbortController()
+    this.opponentScoutAbort = controller
+    this.opponentScout = {
+      status: 'loading',
+      matchGeneration: generation,
+      opponents: [],
+      sampledAt: null,
+      source: null,
+      message: '正在通过本机 LCU 读取近期战绩…',
+    }
+    this.sync()
+    const operation = this.lcu.scoutOpponents(generation, controller.signal).then((result) => {
+      if (
+        sequence !== this.opponentScoutSequence ||
+        generation !== this.snapshot.matchGeneration ||
+        !this.config.getSettings().opponentScouting
+      ) return
+      this.opponentScout = result
+      this.sync()
+    }).catch((error) => {
+      if (sequence !== this.opponentScoutSequence) return
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.opponentScoutAttemptKey = null
+        this.opponentScout = {
+          status: 'idle',
+          matchGeneration: generation,
+          opponents: [],
+          sampledAt: null,
+          source: null,
+          message: 'LCU 连接已切换，等待重新查询',
+        }
+        this.sync()
+        return
+      }
+      this.opponentScout = {
+        status: 'error',
+        matchGeneration: generation,
+        opponents: [],
+        sampledAt: Date.now(),
+        source: null,
+        message: '本地对手战绩查询失败，可手动重试',
+      }
+      logger.warn('Local opponent form scan failed', {
+        errorName: error instanceof Error ? error.name : 'Error',
+      })
+      this.sync()
+    }).finally(() => {
+      if (this.opponentScoutAbort === controller) this.opponentScoutAbort = null
+    })
+    if (waitForResult) await operation
+  }
+
+  private cancelOpponentScoutRequest(): void {
+    this.opponentScoutAbort?.abort()
+    this.opponentScoutAbort = null
   }
 
   private async refreshCurrentDetail(championId: number, sequence: number): Promise<void> {

@@ -42,6 +42,7 @@ export interface AppSettings {
   autoOcr: boolean
   showChampionPanel: boolean
   showInGameRecommendations: boolean
+  opponentScouting: boolean
   hotkey: string
   gameDirectory: string
   displayId: string
@@ -185,6 +186,31 @@ export interface AugmentOverlayViewState {
   message: string
 }
 
+export type OpponentFormTier = '上等马' | '中等马' | '下等马'
+
+export interface OpponentFormSummary {
+  slot: number
+  championId: number | null
+  status: 'ready' | 'unavailable'
+  rating: number | null
+  tier: OpponentFormTier | null
+  sampleSize: number
+  wins: number
+  losses: number
+  winRate: number | null
+  kda: number | null
+  streak: number
+}
+
+export interface OpponentScoutState {
+  status: 'disabled' | 'idle' | 'loading' | 'ready' | 'partial' | 'unavailable' | 'error'
+  matchGeneration: number | null
+  opponents: OpponentFormSummary[]
+  sampledAt: number | null
+  source: 'local-lcu' | null
+  message: string
+}
+
 export interface AugmentOverlayBridge {
   onChanged(callback: (state: AugmentOverlayViewState) => void): () => void
 }
@@ -272,6 +298,7 @@ export interface RuntimeState {
   champions: ChampionSummary[]
   candidates: ChampionCandidate[]
   currentBuild: ChampionBuildRecommendation | null
+  opponentScout: OpponentScoutState
   overlay: AugmentOverlayState
   settings: AppSettings
   displays: DisplayOption[]
@@ -290,6 +317,7 @@ export interface HexBridgeApi {
   openDeveloperPage(): Promise<{ ok: boolean; message: string }>
   dismissReleaseHighlights(): Promise<void>
   triggerOcr(): Promise<{ ok: boolean; message: string }>
+  retryOpponentScout(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>
   startCalibration(): Promise<void>

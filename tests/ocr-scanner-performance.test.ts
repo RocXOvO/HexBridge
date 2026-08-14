@@ -22,6 +22,7 @@ const settings = (): AppSettings => ({
   autoOcr: false,
   showChampionPanel: true,
   showInGameRecommendations: true,
+  opponentScouting: false,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',

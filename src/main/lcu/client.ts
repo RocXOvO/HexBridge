@@ -2,9 +2,19 @@ import { EventEmitter } from 'node:events'
 import https from 'node:https'
 import path from 'node:path'
 import WebSocket from 'ws'
-import type { ChampSelectSnapshot, GameflowPhase, LcuConnectionState } from '../../shared/contracts.js'
+import type {
+  ChampSelectSnapshot,
+  GameflowPhase,
+  LcuConnectionState,
+  OpponentFormSummary,
+  OpponentScoutState,
+} from '../../shared/contracts.js'
 import { isAramMayhemQueueId } from '../../shared/mayhem-queues.js'
 import { logger } from '../logger.js'
+import {
+  extractVisibleOpponentIdentities,
+  summarizeOpponentHistory,
+} from '../opponent-scout.js'
 import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
 import {
   MatchContextTracker,
@@ -33,8 +43,21 @@ const READ_ONLY_ENDPOINTS = new Set([
   '/lol-lobby/v2/lobby',
   '/lol-champ-select/v1/session',
   '/lol-champ-select/v1/current-champion',
+  '/lol-summoner/v1/current-summoner',
   '/riotclient/region-locale',
 ])
+
+const OPPONENT_HISTORY_ENDPOINT =
+  /^\/lol-match-history\/v1\/products\/lol\/[A-Za-z0-9_-]{20,120}\/matches\?begIndex=0&endIndex=9$/
+const MAX_LCU_RESPONSE_BYTES = 2 * 1024 * 1024
+
+export function isLcuReadOnlyEndpoint(endpoint: string): boolean {
+  return READ_ONLY_ENDPOINTS.has(endpoint) || OPPONENT_HISTORY_ENDPOINT.test(endpoint)
+}
+
+const abortError = (): Error => Object.assign(new Error('Operation aborted'), { name: 'AbortError' })
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && error.name === 'AbortError'
 
 const KNOWN_GAMEFLOW_PHASES = new Set<GameflowPhase>([
   'None', 'Lobby', 'Matchmaking', 'ReadyCheck', 'ChampSelect', 'GameStart',
@@ -139,6 +162,7 @@ export interface LcuClientDependencies {
     endpoint: string,
     credentials: LcuCredentials,
     timeoutMs: number,
+    signal?: AbortSignal,
   ) => Promise<unknown | null>
   disableWebSocket?: boolean
 }
@@ -396,6 +420,7 @@ export class LcuClient extends EventEmitter {
   private lastHeartbeatAt = 0
   private lastContextSignature = ''
   private lastObservation: LcuObservationSummary | null = null
+  private readonly opponentScoutControllers = new Set<AbortController>()
 
   constructor(
     private readonly getManualDirectory: () => string,
@@ -410,6 +435,142 @@ export class LcuClient extends EventEmitter {
 
   getState(): LcuConnectionState {
     return { ...this.state }
+  }
+
+  async scoutOpponents(
+    expectedGeneration: number,
+    signal?: AbortSignal,
+  ): Promise<OpponentScoutState> {
+    const controller = new AbortController()
+    const forwardAbort = (): void => controller.abort()
+    if (signal?.aborted) controller.abort()
+    else signal?.addEventListener('abort', forwardAbort, { once: true })
+    this.opponentScoutControllers.add(controller)
+    try {
+      return await this.performOpponentScout(expectedGeneration, controller.signal)
+    } finally {
+      signal?.removeEventListener('abort', forwardAbort)
+      this.opponentScoutControllers.delete(controller)
+    }
+  }
+
+  private async performOpponentScout(
+    expectedGeneration: number,
+    signal: AbortSignal,
+  ): Promise<OpponentScoutState> {
+    const sampledAt = Date.now()
+    const credentials = this.credentials
+    const unavailable = (message: string): OpponentScoutState => ({
+      status: 'unavailable',
+      matchGeneration: expectedGeneration,
+      opponents: [],
+      sampledAt,
+      source: null,
+      message,
+    })
+    if (!credentials || !this.state.connected) {
+      return unavailable('当前 LCU 已交接或不可用，无法读取对手近期战绩')
+    }
+    if (
+      this.snapshot.matchGeneration !== expectedGeneration ||
+      this.snapshot.matchStage === 'none' ||
+      !this.snapshot.modeActive
+    ) {
+      return unavailable('当前没有可查询的海克斯大乱斗对局')
+    }
+
+    if (signal?.aborted) throw abortError()
+    const [currentSummonerResult, gameflowResult, champSelectResult] = await Promise.allSettled([
+      this.requestWithCredentials<unknown>(
+        '/lol-summoner/v1/current-summoner',
+        credentials,
+        2_000,
+        signal,
+      ),
+      this.requestWithCredentials<unknown>('/lol-gameflow/v1/session', credentials, 2_000, signal),
+      this.requestWithCredentials<unknown>('/lol-champ-select/v1/session', credentials, 2_000, signal),
+    ])
+    const currentSummoner = currentSummonerResult.status === 'fulfilled'
+      ? currentSummonerResult.value
+      : null
+    if (signal?.aborted) throw abortError()
+    const gameflowSession = gameflowResult.status === 'fulfilled' ? gameflowResult.value : null
+    const champSelectSession = champSelectResult.status === 'fulfilled' ? champSelectResult.value : null
+    const identities = extractVisibleOpponentIdentities({
+      currentSummoner,
+      gameflowSession,
+      champSelectSession,
+      matchStage: this.snapshot.matchStage,
+    })
+    if (!identities.length) {
+      return unavailable('当前阶段没有公开、可验证的对手身份；不会反查或猜测')
+    }
+    if (identities.length !== 5) {
+      return unavailable(`仅确认 ${identities.length}/5 位公开身份；为避免补猜或混用隐藏身份，本轮不查询`)
+    }
+
+    const opponents: OpponentFormSummary[] = new Array(identities.length)
+    let cursor = 0
+    const worker = async (): Promise<void> => {
+      while (cursor < identities.length) {
+        if (signal?.aborted) throw abortError()
+        const index = cursor
+        cursor += 1
+        const identity = identities[index]
+        if (!identity) continue
+        try {
+          const history = await this.requestWithCredentials<unknown>(
+            `/lol-match-history/v1/products/lol/${identity.puuid}/matches?begIndex=0&endIndex=9`,
+            credentials,
+            3_000,
+            signal,
+          )
+          opponents[index] = summarizeOpponentHistory(
+            history,
+            index + 1,
+            identity.championId,
+            identity.puuid,
+          )
+        } catch (error) {
+          if (isAbortError(error)) throw error
+          opponents[index] = summarizeOpponentHistory(null, index + 1, identity.championId)
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(2, identities.length) }, () => worker()))
+    if (signal?.aborted) throw abortError()
+
+    const currentSnapshot = this.getSnapshot()
+    if (
+      currentSnapshot.matchGeneration !== expectedGeneration ||
+      currentSnapshot.matchStage === 'none'
+    ) {
+      return unavailable('对局已切换，上一局的查询结果已丢弃')
+    }
+    const availableCount = opponents.filter((entry) => entry?.status === 'ready').length
+    const status = identities.length === 5 && availableCount === identities.length
+      ? 'ready'
+      : availableCount > 0
+        ? 'partial'
+        : 'unavailable'
+    logger.info('Local opponent form scan completed', {
+      matchGeneration: expectedGeneration,
+      opponentCount: opponents.length,
+      availableCount,
+      durationMs: Date.now() - sampledAt,
+    })
+    return {
+      status,
+      matchGeneration: expectedGeneration,
+      opponents,
+      sampledAt: Date.now(),
+      source: 'local-lcu',
+      message: status === 'ready'
+        ? '已本地汇总 5 位对手的近期可用对局'
+        : status === 'partial'
+          ? `仅取得 ${identities.length}/5 位公开身份，或部分近期战绩不可用`
+          : '当前客户端未返回可用的对手战绩',
+    }
   }
 
   confirmGameActive(
@@ -467,6 +628,7 @@ export class LcuClient extends EventEmitter {
   }
 
   stop(): void {
+    this.abortOpponentScouts()
     if (this.pollTimer) clearInterval(this.pollTimer)
     this.pollTimer = null
     this.socket?.close()
@@ -484,6 +646,7 @@ export class LcuClient extends EventEmitter {
     immediate = false,
     observation: LcuObservationSummary | null = null,
   ): void {
+    this.abortOpponentScouts()
     this.credentials = null
     this.activeAuthorityEpoch = null
     this.candidatePool = []
@@ -557,7 +720,7 @@ export class LcuClient extends EventEmitter {
   }
 
   private request<T>(endpoint: string): Promise<T | null> {
-    if (!READ_ONLY_ENDPOINTS.has(endpoint)) {
+    if (!isLcuReadOnlyEndpoint(endpoint)) {
       return Promise.reject(new Error(`Blocked non-whitelisted LCU endpoint: ${endpoint}`))
     }
     if (!this.credentials) return Promise.resolve(null)
@@ -568,12 +731,28 @@ export class LcuClient extends EventEmitter {
     endpoint: string,
     credentials: LcuCredentials,
     timeoutMs: number,
+    signal?: AbortSignal,
   ): Promise<T | null> {
-    if (!READ_ONLY_ENDPOINTS.has(endpoint)) {
+    if (!isLcuReadOnlyEndpoint(endpoint)) {
       return Promise.reject(new Error(`Blocked non-whitelisted LCU endpoint: ${endpoint}`))
     }
+    if (signal?.aborted) return Promise.reject(abortError())
     if (this.dependencies.request) {
-      return this.dependencies.request(endpoint, credentials, timeoutMs) as Promise<T | null>
+      return new Promise<T | null>((resolve, reject) => {
+        let settled = false
+        const finish = <Value>(callback: (value: Value) => void, value: Value): void => {
+          if (settled) return
+          settled = true
+          signal?.removeEventListener('abort', onAbort)
+          callback(value)
+        }
+        const onAbort = (): void => finish(reject, abortError())
+        signal?.addEventListener('abort', onAbort, { once: true })
+        void this.dependencies.request?.(endpoint, credentials, timeoutMs, signal).then(
+          (value) => finish(resolve, value as T | null),
+          (error) => finish(reject, error),
+        )
+      })
     }
     const authorization = Buffer.from(`riot:${credentials.token}`).toString('base64')
 
@@ -584,7 +763,11 @@ export class LcuClient extends EventEmitter {
         if (settled) return
         settled = true
         if (hardTimeout) clearTimeout(hardTimeout)
+        signal?.removeEventListener('abort', onAbort)
         callback(value)
+      }
+      const onAbort = (): void => {
+        request.destroy(abortError())
       }
       const request = https.request(
         {
@@ -598,7 +781,16 @@ export class LcuClient extends EventEmitter {
         },
         (response) => {
           const chunks: Buffer[] = []
-          response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+          let responseBytes = 0
+          response.on('data', (chunk) => {
+            const buffer = Buffer.from(chunk)
+            responseBytes += buffer.byteLength
+            if (responseBytes > MAX_LCU_RESPONSE_BYTES) {
+              request.destroy(new Error('LCU response exceeded safe size limit'))
+              return
+            }
+            chunks.push(buffer)
+          })
           response.on('end', () => {
             if (response.statusCode === 404) return finish(resolve, null)
             if (response.statusCode === 401) return finish(reject, new Error('LCU authorization expired'))
@@ -617,6 +809,7 @@ export class LcuClient extends EventEmitter {
       hardTimeout = setTimeout(() => {
         request.destroy(new Error('LCU request hard timeout'))
       }, timeoutMs)
+      signal?.addEventListener('abort', onAbort, { once: true })
       request.on('timeout', () => request.destroy(new Error('LCU request timeout')))
       request.on('error', (error) => finish(reject, error))
       request.end()
@@ -806,6 +999,7 @@ export class LcuClient extends EventEmitter {
     const selectedProbe = selection.probe as LcuCredentialProbeResult
 
     const previousSource = this.credentials.source
+    this.abortOpponentScouts()
     this.credentials = next
     this.activeAuthorityEpoch = nextAuthorityEpoch
     this.transportEpoch += 1
@@ -822,6 +1016,11 @@ export class LcuClient extends EventEmitter {
     })
     this.connectSocket(next)
     return selectedProbe.rawPhase
+  }
+
+  private abortOpponentScouts(): void {
+    for (const controller of this.opponentScoutControllers) controller.abort()
+    this.opponentScoutControllers.clear()
   }
 
   private refreshCandidatePoolInBackground(): void {

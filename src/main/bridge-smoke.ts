@@ -54,12 +54,17 @@ const smokeState: RuntimeState = {
   champions: [],
   candidates: [],
   currentBuild: null,
+  opponentScout: {
+    status: 'disabled', matchGeneration: null, opponents: [], sampledAt: null,
+    source: null, message: '对手近期状态实验未开启',
+  },
   overlay: { visible: false, championId: null, slots: [], detectedAt: null, message: 'smoke' },
   settings: {
     visualMode: 'eco',
     autoOcr: false,
     showChampionPanel: false,
     showInGameRecommendations: true,
+    opponentScouting: false,
     hotkey: 'F8',
     gameDirectory: '',
     displayId: '',

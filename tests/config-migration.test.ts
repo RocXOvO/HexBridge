@@ -11,6 +11,7 @@ const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): AppS
   autoOcr,
   showChampionPanel: true,
   showInGameRecommendations: true,
+  opponentScouting: true,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -23,22 +24,22 @@ describe('settings migration', () => {
     'disables legacy automatic OCR and removes the obsolete %s visual override',
     (visualMode) => {
       const migrated = migrateSettingsForRevision(settings(visualMode, true), 0)
-      expect(migrated).toMatchObject({ revision: 4, settings: { visualMode: 'auto', autoOcr: false, showInGameRecommendations: true } })
+      expect(migrated).toMatchObject({ revision: 5, settings: { visualMode: 'auto', autoOcr: false, showInGameRecommendations: true, opponentScouting: false } })
     },
   )
 
   it('migrates a revision-one manual override without changing OCR again', () => {
     expect(migrateSettingsForRevision(settings('eco', true), 1)).toEqual({
-      settings: settings('auto', true),
-      revision: 4,
+      settings: { ...settings('auto', true), opponentScouting: false },
+      revision: 5,
     })
   })
 
   it('does not repeat the migration at the current revision', () => {
     const current = { ...settings('auto', true), showInGameRecommendations: false }
-    expect(migrateSettingsForRevision(current, 4)).toEqual({
+    expect(migrateSettingsForRevision(current, 5)).toEqual({
       settings: current,
-      revision: 4,
+      revision: 5,
     })
   })
 
@@ -55,8 +56,8 @@ describe('settings migration', () => {
       },
     }
     expect(migrateSettingsForRevision(previous, 3)).toEqual({
-      settings: { ...previous, showInGameRecommendations: true },
-      revision: 4,
+      settings: { ...previous, showInGameRecommendations: true, opponentScouting: false },
+      revision: 5,
     })
   })
 })
