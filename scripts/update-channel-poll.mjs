@@ -36,6 +36,7 @@ const fetchTextWithTimeout = async (url, options, { fetchImpl, timeoutMs }) => {
 export async function pollText({
   url,
   acceptText,
+  requestOptions = {},
   totalTimeoutMs = DEFAULT_TOTAL_TIMEOUT_MS,
   requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
   fetchImpl = fetch,
@@ -51,7 +52,7 @@ export async function pollText({
     try {
       const { response, text: actual } = await fetchTextWithTimeout(
         `${url}${url.includes('?') ? '&' : '?'}noCache=${nowImpl()}`,
-        { cache: 'no-store' },
+        { ...requestOptions, cache: 'no-store' },
         { fetchImpl, timeoutMs: Math.min(requestTimeoutMs, totalTimeoutMs - (nowImpl() - startedAt)) },
       )
       if (response.ok) {

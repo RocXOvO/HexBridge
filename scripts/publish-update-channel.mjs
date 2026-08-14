@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fetchWithTimeout, pollExactText } from './update-channel-poll.mjs'
+import { fetchWithTimeout, pollExactText, pollText } from './update-channel-poll.mjs'
 import { classifyUpdateChannelContent } from './update-channel-policy.mjs'
 
 const repository = process.env.GITHUB_REPOSITORY
@@ -71,21 +71,32 @@ const publishPath = async (channelPath) => {
   if (typeof expectedBlobSha !== 'string' || typeof expectedCommitSha !== 'string') {
     throw new Error(`${channelPath} publish response is incomplete`)
   }
-  const readbackResponse = await api(`${apiUrl}?ref=${branch}`)
-  if (!readbackResponse.ok) throw new Error(`Unable to read back ${channelPath}: HTTP ${readbackResponse.status}`)
-  const readback = await readbackResponse.json()
-  const readbackContent = typeof readback?.content === 'string'
-    ? Buffer.from(readback.content.replace(/\s+/g, ''), 'base64').toString('utf8')
-    : null
-  if (readback?.sha !== expectedBlobSha || readbackContent !== content) {
-    throw new Error(`${channelPath} authoritative readback differs from the published content`)
-  }
-  const refResponse = await api(`https://api.github.com/repos/${repository}/git/ref/heads/${branch}`)
-  if (!refResponse.ok) throw new Error(`Unable to verify ${branch} commit: HTTP ${refResponse.status}`)
-  const ref = await refResponse.json()
-  if (ref?.object?.sha !== expectedCommitSha) {
-    throw new Error(`${channelPath} branch commit did not match the publish result`)
-  }
+  await pollText({
+    url: `${apiUrl}?ref=${branch}`,
+    requestOptions: { headers },
+    acceptText: (actual) => {
+      try {
+        const readback = JSON.parse(actual)
+        const readbackContent = typeof readback?.content === 'string'
+          ? Buffer.from(readback.content.replace(/\s+/g, ''), 'base64').toString('utf8')
+          : null
+        return readback?.sha === expectedBlobSha && readbackContent === content
+      } catch {
+        return false
+      }
+    },
+  })
+  await pollText({
+    url: `https://api.github.com/repos/${repository}/git/ref/heads/${branch}`,
+    requestOptions: { headers },
+    acceptText: (actual) => {
+      try {
+        return JSON.parse(actual)?.object?.sha === expectedCommitSha
+      } catch {
+        return false
+      }
+    },
+  })
   return true
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error Executable release helper intentionally has no TypeScript declaration file.
-import { pollExactText } from '../scripts/update-channel-poll.mjs'
+import { pollExactText, pollText } from '../scripts/update-channel-poll.mjs'
 
 const response = (status: number, body = '', headers: Record<string, string> = {}) => ({
   ok: status >= 200 && status < 300,
@@ -66,5 +66,28 @@ describe('stable update channel propagation poll', () => {
         options.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
       }),
     })).rejects.toThrow(/request timed out/)
+  })
+
+  it('polls authenticated API JSON through stale authoritative readbacks', async () => {
+    let now = 0
+    const authorization = 'Bearer test-token'
+    const replies = [
+      response(200, JSON.stringify({ sha: 'old' })),
+      response(200, JSON.stringify({ sha: 'expected' })),
+    ]
+    const result = await pollText({
+      url: 'https://api.example.test/contents/latest.yml?ref=update-channel',
+      requestOptions: { headers: { Authorization: authorization } },
+      acceptText: (actual: string) => JSON.parse(actual).sha === 'expected',
+      fetchImpl: async (_url: string, options: RequestInit) => {
+        expect(new Headers(options.headers).get('authorization')).toBe(authorization)
+        expect(options.cache).toBe('no-store')
+        return replies.shift()
+      },
+      sleepImpl: async (milliseconds: number) => { now += milliseconds },
+      nowImpl: () => now,
+    })
+    expect(result.attempts).toBe(2)
+    expect(now).toBe(1_000)
   })
 })
