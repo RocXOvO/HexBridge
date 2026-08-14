@@ -65,6 +65,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .page-flow-leave-to { opacity:0; transform:translateY(-2px); }
 .bridge-error { position: sticky; z-index: 30; top: 0; padding: 11px 16px; border-bottom: 1px solid rgba(200,121,107,.35); color: #e0aaa0; background: rgba(68,28,27,.96); font-size: 14px; text-align: center; }
 .live-page { min-height: 100%; position: relative; isolation: isolate; overflow: hidden; }
+.lobby-background { position:absolute; z-index:-4; inset:0; background-position:center; background-size:cover; opacity:.78; transform:scale(1.015); pointer-events:none; }
 .hero-backdrop { position: absolute; z-index: -3; inset: -6px; background-position: 55% 16%; background-size: cover; filter: blur(1.5px) saturate(1.06) contrast(1.03); opacity: .66; transform: scale(1.008); }
 .hero-scrim { position: absolute; z-index: -2; inset: 0; background: linear-gradient(90deg, rgba(9,11,16,.36), rgba(9,11,16,.12) 52%, rgba(9,11,16,.42)), linear-gradient(180deg, rgba(9,11,16,.16), #090b10 90%); }
 .live-page::after { content: ""; z-index: -1; position: absolute; width: 55vw; height: 55vw; left: -18vw; top: -35vw; background: radial-gradient(circle,rgba(112,214,198,.08),transparent 68%); border-radius: 50%; animation: ambience 16s ease-in-out infinite alternate; }

@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showChampionPanel: true,
   showInGameRecommendations: true,
   opponentScouting: false,
+  lobbyBackground: false,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -62,6 +63,12 @@ export function migrateSettingsForRevision(
     // opt in; upgrades never start the extra LCU reads automatically.
     next = { ...next, opponentScouting: false }
     nextRevision = 5
+  }
+  if (nextRevision < 6) {
+    // A live client-window background is an explicit privacy/performance
+    // choice. Existing installations must never start capturing on upgrade.
+    next = { ...next, lobbyBackground: false }
+    nextRevision = 6
   }
   return { settings: next, revision: nextRevision }
 }

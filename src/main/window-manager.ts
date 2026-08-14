@@ -1,10 +1,17 @@
-import { app, BrowserWindow, desktopCapturer, screen } from 'electron'
+import { app, BrowserWindow, desktopCapturer, screen, systemPreferences } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { AugmentOverlayViewState, CalibrationContext, RuntimeState } from '../shared/contracts.js'
+import type {
+  AugmentOverlayViewState,
+  CalibrationContext,
+  LobbyBackgroundFrame,
+  LobbyBackgroundPresentation,
+  RuntimeState,
+} from '../shared/contracts.js'
 import { calculateAugmentOverlayBounds, calculateAugmentOverlayColumns } from '../shared/augment-overlay-layout.js'
 import { ConfigStore } from './config-store.js'
 import { LeagueWindowObserver } from './league-window-observer.js'
+import { LobbyBackgroundController, shouldDiscoverLobbyBackground } from './lobby-background.js'
 import { logger } from './logger.js'
 import { shouldShowAugmentCompanion, shouldShowChampionCompanion } from './runtime-guards.js'
 
@@ -40,6 +47,11 @@ export function applicationIconPath(): string {
     : path.resolve(process.cwd(), 'build/icon.png')
 }
 
+export interface WindowManagerOptions {
+  platform?: NodeJS.Platform
+  systemReducedMotion?: () => boolean
+}
+
 export class WindowManager {
   private windows = new Map<ManagedWindow, BrowserWindow>()
   private quitting = false
@@ -57,8 +69,22 @@ export class WindowManager {
   private championDismissedGeneration: number | null = null
   private leagueClientProcessId: number | null = null
   private readonly leagueWindows = new LeagueWindowObserver(() => this.notifyActivityChanged())
+  private lobbyBackgroundPresentation: LobbyBackgroundPresentation = {
+    livePageVisible: false,
+    reducedMotion: true,
+  }
+  private readonly lobbyBackground = new LobbyBackgroundController((frame) => {
+    this.sendLobbyBackground(frame)
+  })
 
-  constructor(private readonly config: ConfigStore) {}
+  private readonly platform: NodeJS.Platform
+
+  constructor(
+    private readonly config: ConfigStore,
+    private readonly options: WindowManagerOptions = {},
+  ) {
+    this.platform = options.platform ?? process.platform
+  }
 
   setActivityChangedHandler(handler: () => void): void {
     this.activityChanged = handler
@@ -181,12 +207,22 @@ export class WindowManager {
       : null
   }
 
+  setLobbyBackgroundPresentation(presentation: LobbyBackgroundPresentation): void {
+    if (this.quitting) return
+    this.lobbyBackgroundPresentation = { ...presentation }
+    this.notifyActivityChanged()
+  }
+
   sync(state: RuntimeState): void {
     if (this.quitting) return
     this.latestState = state
-    if (this.captureWindowsHidden) return
+    if (this.captureWindowsHidden) {
+      this.lobbyBackground.stop()
+      return
+    }
     const champion = this.getLiveWindow('champion')
     const augment = this.getLiveWindow('augment')
+    const mainActivity = this.getMainActivity()
     if (
       state.snapshot.matchStage === 'none' ||
       state.snapshot.matchGeneration !== this.championDismissedGeneration
@@ -203,11 +239,35 @@ export class WindowManager {
       state.snapshot.matchStage === 'active' &&
       (state.settings.autoOcr || state.overlay.visible)
     )
-    this.leagueWindows.setEnabled(
-      shouldObserveLeague,
-      shouldShowChampion ? champion : augment,
-      shouldShowChampion,
-      shouldShowChampion ? this.leagueClientProcessId : null,
+    const shouldDiscoverLobby = shouldDiscoverLobbyBackground({
+      platform: this.platform,
+      settingEnabled: state.settings.lobbyBackground,
+      lcuConnected: Boolean(state.lcu?.connected),
+      phase: state.snapshot.phase,
+      matchStage: state.snapshot.matchStage,
+      mainVisible: mainActivity.visible,
+      mainFocused: mainActivity.focused,
+      mainMinimized: mainActivity.minimized,
+      livePageVisible: this.lobbyBackgroundPresentation.livePageVisible,
+      rendererReducedMotion: this.lobbyBackgroundPresentation.reducedMotion,
+      systemReducedMotion: this.systemReducedMotion(),
+      activeVisualMode: state.diagnostics?.activeVisualMode ?? 'eco',
+      authorityClientPid: this.leagueClientProcessId,
+    })
+    this.leagueWindows.setEnabled({
+      enabled: shouldObserveLeague || shouldDiscoverLobby,
+      target: shouldShowChampion ? champion : null,
+      dockTarget: shouldShowChampion,
+      discoverClient: shouldShowChampion || shouldDiscoverLobby,
+      clientProcessId: shouldShowChampion || shouldDiscoverLobby ? this.leagueClientProcessId : null,
+    })
+    const lobbyWindowReady = shouldDiscoverLobby &&
+      this.leagueWindows.hasObservation() &&
+      this.leagueWindows.isClientVisible()
+    this.lobbyBackground.update(
+      lobbyWindowReady,
+      this.leagueClientProcessId,
+      lobbyWindowReady ? this.leagueWindows.getClientWindowHandle() : null,
     )
     const clientVisible = process.platform !== 'win32' || (
       this.leagueWindows.hasObservation() &&
@@ -250,6 +310,7 @@ export class WindowManager {
     })
     this.captureTransactionInFlight = true
     this.captureWindowsHidden = true
+    this.lobbyBackground.stop()
     let restored = false
     const restoreWindows = (): void => {
       if (restored) return
@@ -310,6 +371,24 @@ export class WindowManager {
   private sendLatest(window: BrowserWindow): void {
     if (this.latestState && !window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.send('hexbridge:state', this.latestState)
+    }
+    if (this.windows.get('main') === window) {
+      this.sendLobbyBackground(this.lobbyBackground.getFrame())
+    }
+  }
+
+  private sendLobbyBackground(frame: LobbyBackgroundFrame | null): void {
+    const main = this.getLiveWindow('main')
+    if (!main || main.webContents.isDestroyed()) return
+    main.webContents.send('hexbridge:lobby-background', frame)
+  }
+
+  private systemReducedMotion(): boolean {
+    if (this.options.systemReducedMotion) return this.options.systemReducedMotion()
+    try {
+      return Boolean(systemPreferences.getAnimationSettings().prefersReducedMotion)
+    } catch {
+      return true
     }
   }
 
@@ -500,6 +579,7 @@ export class WindowManager {
     this.suspendedActivityChanged = this.activityChanged
     this.activityChanged = null
     this.leagueWindows.stop()
+    this.lobbyBackground.stop()
     this.getLiveWindow('calibration')?.destroy()
   }
 
@@ -513,13 +593,18 @@ export class WindowManager {
     this.windows.set(name, window)
     window.once('closed', () => {
       if (this.windows.get(name) === window) this.windows.delete(name)
+      if (name === 'main') this.resetLobbyBackgroundPresentation()
     })
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     window.webContents.on('preload-error', (_event, _preloadPath, error) => {
+      if (name === 'main') this.resetLobbyBackgroundPresentation()
       logger.error('HB_PRELOAD_LOAD_FAILED', {
         window: name,
         errorName: error?.name || 'Error',
       })
+    })
+    window.webContents.on('render-process-gone', () => {
+      if (name === 'main') this.resetLobbyBackgroundPresentation()
     })
     const guardNavigation = (event: Electron.Event, url: string): void => {
       if (!this.isAllowedNavigation(url)) event.preventDefault()
@@ -530,6 +615,11 @@ export class WindowManager {
       logger.error('HexBridge renderer failed to load', error instanceof Error ? error.message : error)
     })
     return window
+  }
+
+  private resetLobbyBackgroundPresentation(): void {
+    this.lobbyBackgroundPresentation = { livePageVisible: false, reducedMotion: true }
+    this.lobbyBackground.stop()
   }
 
   private waitForRenderer(window: BrowserWindow): Promise<void> {

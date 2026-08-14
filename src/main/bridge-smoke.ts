@@ -8,6 +8,7 @@ import {
   smokeLeagueWindowObserverFollow,
   smokeLeagueWindowObserverScript,
 } from './league-window-observer.js'
+import { smokeLobbyBackgroundCapture } from './lobby-background.js'
 
 const CHANNEL = 'hexbridge:get-state'
 const TIMEOUT_MS = 24_000
@@ -36,7 +37,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.27',
+    currentVersion: '0.1.28',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -65,6 +66,7 @@ const smokeState: RuntimeState = {
     showChampionPanel: false,
     showInGameRecommendations: true,
     opponentScouting: false,
+    lobbyBackground: false,
     hotkey: 'F8',
     gameDirectory: '',
     displayId: '',
@@ -98,6 +100,7 @@ export interface BridgeSmokeResult {
   windowsDisplayCapture: true | null
   windowObserverScript: true | null
   windowObserverFollow: true | null
+  lobbyBackgroundCapture: true | null
   shutdownLifecycle: true
   security: {
     sandbox: true
@@ -205,12 +208,16 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
     let windowsDisplayCapture: true | null = null
     let windowObserverScript: true | null = null
     let windowObserverFollow: true | null = null
+    let lobbyBackgroundCapture: true | null = null
     if (process.platform === 'win32') {
       await smokeLeagueWindowObserverScript()
       windowObserverScript = true
       if (process.env.HEXBRIDGE_SMOKE_FAKE_LEAGUE === '1') {
         await smokeLeagueWindowObserverFollow(window)
         windowObserverFollow = true
+        const smokeClientPid = Number(process.env.HEXBRIDGE_SMOKE_FAKE_LEAGUE_PID)
+        await smokeLobbyBackgroundCapture(smokeClientPid)
+        lobbyBackgroundCapture = true
       }
       const display = screen.getPrimaryDisplay()
       const sources = await desktopCapturer.getSources({
@@ -265,6 +272,7 @@ export async function runBridgeSmokeTest(): Promise<BridgeSmokeResult> {
       windowsDisplayCapture,
       windowObserverScript,
       windowObserverFollow,
+      lobbyBackgroundCapture,
       shutdownLifecycle: true,
       security: {
         sandbox: true,

@@ -9,13 +9,21 @@ import {
 } from '../src/main/league-window-observer.js'
 
 describe('League window observation transport', () => {
-  it('accepts only the three bounded boolean fields', () => {
-    expect(parseLeagueWindowObservation('{"gameForeground":true,"clientVisible":false,"targetPlaced":false}')).toEqual({
+  it('accepts only the bounded observation fields and decimal HWND', () => {
+    expect(parseLeagueWindowObservation('{"gameForeground":true,"clientVisible":true,"targetPlaced":false,"clientWindowHandle":"12345"}')).toEqual({
       gameForeground: true,
+      clientVisible: true,
+      targetPlaced: false,
+      clientWindowHandle: '12345',
+    })
+    expect(parseLeagueWindowObservation('{"gameForeground":false,"clientVisible":false,"targetPlaced":false,"clientWindowHandle":null}')).toEqual({
+      gameForeground: false,
       clientVisible: false,
       targetPlaced: false,
+      clientWindowHandle: null,
     })
-    expect(parseLeagueWindowObservation('{"gameForeground":"true","clientVisible":false,"targetPlaced":false}')).toBeNull()
+    expect(parseLeagueWindowObservation('{"gameForeground":"true","clientVisible":false,"targetPlaced":false,"clientWindowHandle":null}')).toBeNull()
+    expect(parseLeagueWindowObservation('{"gameForeground":true,"clientVisible":false,"targetPlaced":false,"clientWindowHandle":"window:1"}')).toBeNull()
     expect(parseLeagueWindowObservation('{"gameForeground":true,"clientVisible":false}')).toBeNull()
     expect(parseLeagueWindowObservation('not-json')).toBeNull()
   })

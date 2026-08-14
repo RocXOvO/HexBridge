@@ -204,7 +204,88 @@ describe('WindowManager shutdown lifecycle', () => {
       },
     } as any)
 
-    expect(setEnabled).toHaveBeenCalledWith(true, augment, false, null)
+    expect(setEnabled).toHaveBeenCalledWith({
+      enabled: true,
+      target: null,
+      dockTarget: false,
+      discoverClient: false,
+      clientProcessId: null,
+    })
+  })
+
+  it('stops Lobby discovery for eco, reduced-motion, lost focus and ChampSelect', () => {
+    const manager = new WindowManager({} as any, {
+      platform: 'win32',
+      systemReducedMotion: () => false,
+    })
+    const leagueWindows = (manager as any).leagueWindows
+    vi.spyOn(leagueWindows, 'setEnabled').mockImplementation(() => {})
+    vi.spyOn(leagueWindows, 'hasObservation').mockReturnValue(true)
+    vi.spyOn(leagueWindows, 'isClientVisible').mockReturnValue(true)
+    vi.spyOn(leagueWindows, 'getClientWindowHandle').mockReturnValue('777')
+    const updateBackground = vi.spyOn((manager as any).lobbyBackground, 'update').mockImplementation(() => {})
+    ;(manager as any).windows.set('main', {
+      ...fakeWindow({ visible: true, focused: true }),
+      webContents: { isDestroyed: () => false, send: vi.fn() },
+    })
+    manager.setLeagueClientProcessId(123)
+    manager.setLobbyBackgroundPresentation({ livePageVisible: true, reducedMotion: false })
+    const lobbyState = {
+      settings: {
+        lobbyBackground: true,
+        showChampionPanel: false,
+        showInGameRecommendations: false,
+      },
+      snapshot: {
+        phase: 'Lobby', matchStage: 'none', matchGeneration: 0,
+        modeActive: false, currentChampionId: null,
+      },
+      lcu: { connected: true },
+      diagnostics: { activeVisualMode: 'balanced' },
+      overlay: { visible: false, slots: [] },
+    } as any
+
+    manager.sync(lobbyState)
+    expect(updateBackground).toHaveBeenLastCalledWith(true, 123, '777')
+
+    manager.sync({
+      ...lobbyState,
+      diagnostics: { activeVisualMode: 'eco' },
+    })
+    expect(updateBackground).toHaveBeenLastCalledWith(false, 123, null)
+
+    const main = (manager as any).windows.get('main')
+    main.isFocused.mockReturnValue(false)
+    manager.sync(lobbyState)
+    expect(updateBackground).toHaveBeenLastCalledWith(false, 123, null)
+    main.isFocused.mockReturnValue(true)
+
+    manager.setLobbyBackgroundPresentation({ livePageVisible: true, reducedMotion: true })
+    manager.sync(lobbyState)
+    expect(updateBackground).toHaveBeenLastCalledWith(false, 123, null)
+    manager.setLobbyBackgroundPresentation({ livePageVisible: true, reducedMotion: false })
+
+    manager.sync({
+      ...lobbyState,
+      snapshot: { ...lobbyState.snapshot, phase: 'ChampSelect', matchStage: 'selecting' },
+    })
+    expect(updateBackground).toHaveBeenLastCalledWith(false, 123, null)
+  })
+
+  it('stops the Lobby capture controller for capture transactions and shutdown', async () => {
+    const manager = new WindowManager({} as any)
+    const stopBackground = vi.spyOn((manager as any).lobbyBackground, 'stop').mockImplementation(() => {})
+    const main = {
+      ...fakeWindow({ visible: true, focused: false }),
+      webContents: { isDestroyed: () => false, send: vi.fn() },
+    }
+    ;(manager as any).windows.set('main', main)
+
+    await manager.captureWithoutHexBridgeWindows(async () => undefined)
+    expect(stopBackground).toHaveBeenCalled()
+    const callsAfterCapture = stopBackground.mock.calls.length
+    manager.prepareToQuit()
+    expect(stopBackground.mock.calls.length).toBeGreaterThan(callsAfterCapture)
   })
 
   it('keeps a manually closed champion companion hidden for the current match only', () => {

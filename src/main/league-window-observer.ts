@@ -6,6 +6,15 @@ export interface LeagueWindowObservation {
   gameForeground: boolean
   clientVisible: boolean
   targetPlaced: boolean
+  clientWindowHandle: string | null
+}
+
+export interface LeagueWindowObserverOptions {
+  enabled: boolean
+  target: BrowserWindow | null
+  dockTarget: boolean
+  discoverClient: boolean
+  clientProcessId: number | null
 }
 
 export type CompanionDockSide = 'right' | 'left' | 'inside-right'
@@ -61,7 +70,8 @@ public static class HexBridgeWindowNative {
   [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr value);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
-  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attribute, out RECT rect, int size);
+  [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] public static extern int DwmGetWindowAttributeRect(IntPtr hWnd, int attribute, out RECT rect, int size);
+  [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] public static extern int DwmGetWindowAttributeInt(IntPtr hWnd, int attribute, out int value, int size);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
@@ -74,6 +84,7 @@ $dpiReady = $false
 try { $dpiReady = [HexBridgeWindowNative]::SetThreadDpiAwarenessContext([IntPtr](-4)) -ne [IntPtr]::Zero } catch {}
 $target = [IntPtr]([Int64]$env:HEXBRIDGE_TARGET_HWND)
 $followClient = $env:HEXBRIDGE_FOLLOW_CLIENT -eq '1'
+$discoverClient = $env:HEXBRIDGE_DISCOVER_CLIENT -eq '1'
 [int]$authorityClientPid = 0
 [void][int]::TryParse($env:HEXBRIDGE_CLIENT_PID, [ref]$authorityClientPid)
 $lastState = ''
@@ -84,7 +95,7 @@ $lastClientDiscoveryAt = 0L
 function Get-HexBridgeVisualRect([IntPtr]$handle) {
   $rect = New-Object HexBridgeWindowNative+RECT
   try {
-    $result = [HexBridgeWindowNative]::DwmGetWindowAttribute(
+    $result = [HexBridgeWindowNative]::DwmGetWindowAttributeRect(
       $handle,
       9,
       [ref]$rect,
@@ -97,6 +108,11 @@ function Get-HexBridgeVisualRect([IntPtr]$handle) {
 }
 function Get-HexBridgeClientCandidate([IntPtr]$handle) {
   if ($handle -eq [IntPtr]::Zero -or -not [HexBridgeWindowNative]::IsWindowVisible($handle) -or [HexBridgeWindowNative]::IsIconic($handle)) { return $null }
+  [int]$cloaked = 0
+  try {
+    $cloakResult = [HexBridgeWindowNative]::DwmGetWindowAttributeInt($handle, 14, [ref]$cloaked, 4)
+    if ($cloakResult -ne 0 -or $cloaked -ne 0) { return $null }
+  } catch { return $null }
   [uint32]$processId = 0
   [void][HexBridgeWindowNative]::GetWindowThreadProcessId($handle, [ref]$processId)
   if ($processId -le 0 -or ($authorityClientPid -gt 0 -and [int]$processId -ne $authorityClientPid)) { return $null }
@@ -131,7 +147,7 @@ while ($true) {
     }
 
     $best = $null
-    if ($followClient -and $dpiReady) {
+    if (($followClient -or $discoverClient) -and $dpiReady) {
       # Window movement uses the already verified HWND fast path. Full process
       # enumeration remains bounded to once per second so faster docking does
       # not multiply LeagueClientUx discovery cost.
@@ -147,13 +163,10 @@ while ($true) {
         foreach ($process in [System.Diagnostics.Process]::GetProcessesByName('LeagueClientUx')) {
           if ($authorityClientPid -gt 0 -and $process.Id -ne $authorityClientPid) { continue }
           $handle = $process.MainWindowHandle
-          if ($handle -eq [IntPtr]::Zero -or -not [HexBridgeWindowNative]::IsWindowVisible($handle) -or [HexBridgeWindowNative]::IsIconic($handle)) { continue }
-          $rect = Get-HexBridgeVisualRect $handle
-          if ($null -eq $rect) { continue }
-          $width = $rect.Right - $rect.Left
-          $height = $rect.Bottom - $rect.Top
-          if ($width -lt 600 -or $height -lt 400) { continue }
-          $candidate = @{ Handle = $handle; Rect = $rect; Pid = $process.Id }
+          $candidate = Get-HexBridgeClientCandidate $handle
+          if ($null -eq $candidate) { continue }
+          $width = $candidate.Rect.Right - $candidate.Rect.Left
+          $height = $candidate.Rect.Bottom - $candidate.Rect.Top
           if ($handle -eq $preferredClientHandle) { $sticky = $candidate }
           $area = [int64]$width * [int64]$height
           $priority = if ($authorityClientPid -gt 0 -and $process.Id -eq $authorityClientPid) { 3 } elseif ($process.Id -eq $foregroundClientPid) { 2 } elseif ($process.Id -eq $preferredClientPid) { 1 } else { 0 }
@@ -169,10 +182,13 @@ while ($true) {
       }
     }
 
-    if ($followClient -and $null -ne $best) {
+    if (($followClient -or $discoverClient) -and $null -ne $best) {
       $clientVisible = $true
       $preferredClientPid = $best.Pid
       $preferredClientHandle = $best.Handle
+    }
+
+    if ($followClient -and $null -ne $best) {
       $targetRect = Get-HexBridgeVisualRect $target
       if ($null -ne $targetRect) {
         $width = $targetRect.Right - $targetRect.Left
@@ -213,7 +229,8 @@ while ($true) {
       }
     }
   } catch {}
-  $state = @{ gameForeground = $gameForeground; clientVisible = $clientVisible; targetPlaced = $targetPlaced } | ConvertTo-Json -Compress
+  $clientWindowHandle = if ($clientVisible -and $preferredClientHandle -ne [IntPtr]::Zero) { $preferredClientHandle.ToInt64().ToString() } else { $null }
+  $state = @{ gameForeground = $gameForeground; clientVisible = $clientVisible; targetPlaced = $targetPlaced; clientWindowHandle = $clientWindowHandle } | ConvertTo-Json -Compress
   if ($state -ne $lastState) { Write-Output $state; $lastState = $state }
   if ($env:HEXBRIDGE_OBSERVER_ONESHOT -eq '1') { break }
   $interval = if ($followClient) { ${LEAGUE_WINDOW_FOLLOW_INTERVAL_MS} } else { ${LEAGUE_WINDOW_GUARD_INTERVAL_MS} }
@@ -227,12 +244,16 @@ export function parseLeagueWindowObservation(line: string): LeagueWindowObservat
     if (
       typeof value.gameForeground !== 'boolean' ||
       typeof value.clientVisible !== 'boolean' ||
-      typeof value.targetPlaced !== 'boolean'
+      typeof value.targetPlaced !== 'boolean' ||
+      !(value.clientWindowHandle === null || (
+        typeof value.clientWindowHandle === 'string' && /^[1-9]\d{0,19}$/.test(value.clientWindowHandle)
+      ))
     ) return null
     return {
       gameForeground: value.gameForeground,
       clientVisible: value.clientVisible,
       targetPlaced: value.targetPlaced,
+      clientWindowHandle: value.clientWindowHandle,
     }
   } catch {
     return null
@@ -273,7 +294,7 @@ function powershellExecutable(): { executable: string; environment: NodeJS.Proce
 }
 
 export async function smokeLeagueWindowObserverScript(): Promise<LeagueWindowObservation> {
-  if (process.platform !== 'win32') return { gameForeground: false, clientVisible: false, targetPlaced: false }
+  if (process.platform !== 'win32') return { gameForeground: false, clientVisible: false, targetPlaced: false, clientWindowHandle: null }
   const { executable, environment } = powershellExecutable()
   const child = spawn(executable, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', OBSERVER_SCRIPT], {
     windowsHide: true,
@@ -281,6 +302,7 @@ export async function smokeLeagueWindowObserverScript(): Promise<LeagueWindowObs
       ...environment,
       HEXBRIDGE_TARGET_HWND: '1',
       HEXBRIDGE_FOLLOW_CLIENT: '0',
+      HEXBRIDGE_DISCOVER_CLIENT: '0',
       HEXBRIDGE_CLIENT_PID: '0',
       HEXBRIDGE_OBSERVER_ONESHOT: '1',
     },
@@ -327,12 +349,13 @@ export async function smokeLeagueWindowObserverFollow(target: BrowserWindow): Pr
     if (observation.clientVisible) clientVisible = true
     if (observation.targetPlaced) targetPlaced = true
   })
-  observer.setEnabled(
-    true,
+  observer.setEnabled({
+    enabled: true,
     target,
-    true,
-    Number.isInteger(smokeClientPid) && smokeClientPid > 0 ? smokeClientPid : null,
-  )
+    dockTarget: true,
+    discoverClient: true,
+    clientProcessId: Number.isInteger(smokeClientPid) && smokeClientPid > 0 ? smokeClientPid : null,
+  })
   const deadlineAt = Date.now() + 10_000
   let firstFollowedBounds: Rectangle | null = null
   let recoveredFromDisplacement = false
@@ -368,6 +391,7 @@ export class LeagueWindowObserver {
   private wanted = false
   private targetHandle = ''
   private followClient = false
+  private discoverClient = false
   private clientProcessId: number | null = null
   private restartFailures = 0
   private observed = false
@@ -375,29 +399,33 @@ export class LeagueWindowObserver {
     gameForeground: false,
     clientVisible: false,
     targetPlaced: false,
+    clientWindowHandle: null,
   }
 
   constructor(private readonly onChanged: (observation: LeagueWindowObservation) => void) {}
 
-  setEnabled(
-    enabled: boolean,
-    target: BrowserWindow | null,
-    followClient: boolean,
-    clientProcessId: number | null = null,
-  ): void {
+  setEnabled(options: LeagueWindowObserverOptions): void {
     if (process.platform !== 'win32') return
-    const handle = target && !target.isDestroyed() ? nativeHandle(target) : null
-    if (!enabled || !handle) {
+    const handle = options.target && !options.target.isDestroyed()
+      ? nativeHandle(options.target)
+      : null
+    const boundedProcessId = Number.isInteger(options.clientProcessId) && Number(options.clientProcessId) > 0
+      ? Number(options.clientProcessId)
+      : null
+    if (
+      !options.enabled ||
+      (options.dockTarget && !handle) ||
+      (options.discoverClient && boundedProcessId == null)
+    ) {
       this.stop()
       return
     }
     this.wanted = true
-    const boundedProcessId = Number.isInteger(clientProcessId) && Number(clientProcessId) > 0
-      ? Number(clientProcessId)
-      : null
+    const targetHandle = options.dockTarget ? handle ?? '' : '0'
     if (
-      this.targetHandle === handle &&
-      this.followClient === followClient &&
+      this.targetHandle === targetHandle &&
+      this.followClient === options.dockTarget &&
+      this.discoverClient === options.discoverClient &&
       this.clientProcessId === boundedProcessId
     ) {
       if (this.child || this.restartTimer) return
@@ -407,10 +435,11 @@ export class LeagueWindowObserver {
     if (this.restartTimer) clearTimeout(this.restartTimer)
     this.restartTimer = null
     this.stopChild()
-    this.targetHandle = handle
-    this.followClient = followClient
+    this.targetHandle = targetHandle
+    this.followClient = options.dockTarget
+    this.discoverClient = options.discoverClient
     this.clientProcessId = boundedProcessId
-    this.observed = false
+    this.resetObservation()
     this.restartFailures = 0
     this.spawnObserver()
   }
@@ -427,6 +456,10 @@ export class LeagueWindowObserver {
     return this.observation.targetPlaced
   }
 
+  getClientWindowHandle(): string | null {
+    return this.observation.clientWindowHandle
+  }
+
   hasObservation(): boolean {
     return this.observed
   }
@@ -435,16 +468,13 @@ export class LeagueWindowObserver {
     this.wanted = false
     this.targetHandle = ''
     this.followClient = false
+    this.discoverClient = false
     this.clientProcessId = null
     if (this.restartTimer) clearTimeout(this.restartTimer)
     this.restartTimer = null
     this.restartFailures = 0
     this.stopChild()
-    const changed = this.observation.gameForeground ||
-      this.observation.clientVisible || this.observation.targetPlaced
-    this.observation = { gameForeground: false, clientVisible: false, targetPlaced: false }
-    this.observed = false
-    if (changed) this.onChanged(this.observation)
+    this.resetObservation()
   }
 
   private spawnObserver(): void {
@@ -452,6 +482,7 @@ export class LeagueWindowObserver {
     const { executable, environment } = powershellExecutable()
     const targetHandle = this.targetHandle
     const followClient = this.followClient
+    const discoverClient = this.discoverClient
     const clientProcessId = this.clientProcessId
     const child = spawn(executable, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', OBSERVER_SCRIPT], {
       windowsHide: true,
@@ -459,6 +490,7 @@ export class LeagueWindowObserver {
         ...environment,
         HEXBRIDGE_TARGET_HWND: targetHandle,
         HEXBRIDGE_FOLLOW_CLIENT: followClient ? '1' : '0',
+        HEXBRIDGE_DISCOVER_CLIENT: discoverClient ? '1' : '0',
         HEXBRIDGE_CLIENT_PID: String(clientProcessId ?? 0),
       },
     })
@@ -474,6 +506,7 @@ export class LeagueWindowObserver {
         if (
           next && this.wanted && this.child === child &&
           this.targetHandle === targetHandle && this.followClient === followClient
+          && this.discoverClient === discoverClient
           && this.clientProcessId === clientProcessId
         ) {
           this.restartFailures = 0
@@ -512,8 +545,23 @@ export class LeagueWindowObserver {
       next.gameForeground === this.observation.gameForeground &&
       next.clientVisible === this.observation.clientVisible &&
       next.targetPlaced === this.observation.targetPlaced
+      && next.clientWindowHandle === this.observation.clientWindowHandle
     ) return
     this.observation = next
     this.onChanged(next)
+  }
+
+  private resetObservation(): void {
+    const changed = this.observed || this.observation.gameForeground ||
+      this.observation.clientVisible || this.observation.targetPlaced ||
+      this.observation.clientWindowHandle !== null
+    this.observation = {
+      gameForeground: false,
+      clientVisible: false,
+      targetPlaced: false,
+      clientWindowHandle: null,
+    }
+    this.observed = false
+    if (changed) this.onChanged(this.observation)
   }
 }

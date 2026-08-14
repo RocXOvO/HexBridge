@@ -1,5 +1,19 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, AugmentOverlayBridge, AugmentOverlayViewState, CalibrationRects, HexBridgeApi, RuntimeState } from '../shared/contracts.js'
+import type {
+  AppSettings,
+  AugmentOverlayBridge,
+  AugmentOverlayViewState,
+  CalibrationRects,
+  HexBridgeApi,
+  LobbyBackgroundBridge,
+  LobbyBackgroundFrame,
+  RuntimeState,
+} from '../shared/contracts.js'
+
+const rendererRoute = process.argv
+  .filter((argument) => argument.startsWith('--hexbridge-renderer='))
+  .at(-1)
+  ?.slice('--hexbridge-renderer='.length)
 
 const overlayCallbacks = new Set<(state: AugmentOverlayViewState) => void>()
 let latestOverlay: AugmentOverlayViewState | null = null
@@ -14,6 +28,25 @@ const overlayApi: AugmentOverlayBridge = {
     if (latestOverlay) queueMicrotask(() => callback(latestOverlay as AugmentOverlayViewState))
     return () => overlayCallbacks.delete(callback)
   },
+}
+
+const lobbyBackgroundCallbacks = new Set<(frame: LobbyBackgroundFrame | null) => void>()
+let latestLobbyBackground: LobbyBackgroundFrame | null = null
+if (rendererRoute === 'main') {
+  ipcRenderer.on('hexbridge:lobby-background', (_event, frame: LobbyBackgroundFrame | null) => {
+    latestLobbyBackground = frame
+    for (const callback of lobbyBackgroundCallbacks) callback(frame)
+  })
+}
+
+const lobbyBackgroundApi: LobbyBackgroundBridge = {
+  onChanged: (callback) => {
+    lobbyBackgroundCallbacks.add(callback)
+    queueMicrotask(() => callback(latestLobbyBackground))
+    return () => lobbyBackgroundCallbacks.delete(callback)
+  },
+  setPresentation: (presentation) =>
+    ipcRenderer.invoke('hexbridge:set-lobby-background-presentation', presentation),
 }
 
 const api: HexBridgeApi = {
@@ -48,9 +81,8 @@ const api: HexBridgeApi = {
     ipcRenderer.invoke('hexbridge:window-action', action),
 }
 
-const rendererRoute = process.argv
-  .filter((argument) => argument.startsWith('--hexbridge-renderer='))
-  .at(-1)
-  ?.slice('--hexbridge-renderer='.length)
 if (rendererRoute === 'augment') contextBridge.exposeInMainWorld('hexbridgeOverlay', overlayApi)
-else contextBridge.exposeInMainWorld('hexbridge', api)
+else {
+  contextBridge.exposeInMainWorld('hexbridge', api)
+  if (rendererRoute === 'main') contextBridge.exposeInMainWorld('hexbridgeLobbyBackground', lobbyBackgroundApi)
+}

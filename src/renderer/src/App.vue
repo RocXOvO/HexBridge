@@ -25,6 +25,10 @@ const calibrationBusy = ref(false)
 const updateBusy = ref(false)
 const pageVisible = ref(!document.hidden)
 const windowFocused = ref(document.hasFocus())
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+const reducedMotion = ref(reducedMotionQuery.matches)
+const lobbyBackgroundUrl = ref('')
+let unsubscribeLobbyBackground: (() => void) | null = null
 const recordingHotkey = ref(false)
 const hotkeyFeedback = ref('')
 const scoutDetails = ref<ScoutPlayerDetails | null>(null)
@@ -244,6 +248,22 @@ function navigate(nextPage: Page): void {
   page.value = nextPage
 }
 
+function replaceLobbyBackground(frame: import('../../shared/contracts').LobbyBackgroundFrame | null): void {
+  if (lobbyBackgroundUrl.value) URL.revokeObjectURL(lobbyBackgroundUrl.value)
+  lobbyBackgroundUrl.value = ''
+  if (!frame || frame.mimeType !== 'image/jpeg' || frame.bytes.byteLength > 500_000) return
+  const bytes = new Uint8Array(frame.bytes)
+  const blob = new Blob([bytes.slice().buffer], { type: frame.mimeType })
+  lobbyBackgroundUrl.value = URL.createObjectURL(blob)
+}
+
+function syncLobbyBackgroundPresentation(): void {
+  void window.hexbridgeLobbyBackground?.setPresentation({
+    livePageVisible: page.value === 'live' && pageVisible.value,
+    reducedMotion: reducedMotion.value,
+  }).catch(() => undefined)
+}
+
 async function applyUpdate(): Promise<void> {
   if (updateBusy.value) return
   updateBusy.value = true
@@ -422,12 +442,16 @@ async function recordHotkey(event: KeyboardEvent): Promise<void> {
 
 const visibilityChanged = (): void => { pageVisible.value = !document.hidden }
 const focusChanged = (): void => { windowFocused.value = document.hasFocus() }
+const reducedMotionChanged = (event: MediaQueryListEvent): void => { reducedMotion.value = event.matches }
 onMounted(() => {
   document.addEventListener('visibilitychange', visibilityChanged)
   window.addEventListener('focus', focusChanged)
   window.addEventListener('blur', focusChanged)
   window.addEventListener('keydown', recordHotkey, true)
   window.addEventListener('keydown', handleScoutDialogKey)
+  reducedMotionQuery.addEventListener('change', reducedMotionChanged)
+  unsubscribeLobbyBackground = window.hexbridgeLobbyBackground?.onChanged(replaceLobbyBackground) ?? null
+  syncLobbyBackgroundPresentation()
 })
 onBeforeUnmount(() => {
   dismissToast()
@@ -436,7 +460,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('blur', focusChanged)
   window.removeEventListener('keydown', recordHotkey, true)
   window.removeEventListener('keydown', handleScoutDialogKey)
+  reducedMotionQuery.removeEventListener('change', reducedMotionChanged)
+  unsubscribeLobbyBackground?.()
+  unsubscribeLobbyBackground = null
+  void window.hexbridgeLobbyBackground?.setPresentation({ livePageVisible: false, reducedMotion: true }).catch(() => undefined)
+  replaceLobbyBackground(null)
 })
+
+watch([page, pageVisible, reducedMotion], syncLobbyBackgroundPresentation)
 
 watch(
   () => [
@@ -490,6 +521,12 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
       </div>
       <Transition name="page-flow" mode="out-in">
         <section v-if="page === 'live'" :key="'live'" class="live-page">
+          <div
+            v-if="lobbyBackgroundUrl && !current"
+            class="lobby-background"
+            :style="{ backgroundImage: `url(${lobbyBackgroundUrl})` }"
+            aria-hidden="true"
+          />
           <Transition name="hero-backdrop-fade">
             <div :key="current?.id ?? 'empty'" class="hero-backdrop" :style="heroStyle" />
           </Transition>
@@ -679,7 +716,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             </article>
             <article class="settings-card"><h3>目标显示器</h3><p>三卡位置不准时再校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">依次框住左、中、右整张卡片。</small></article>
             <article class="settings-card"><h3>识别快捷键</h3><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? 'Esc 取消录制。' : '快捷键不可用，请重新录制。') }}</small></article>
-            <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>只在海克斯对局且游戏或主窗口可见时低频识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人期间跟随英雄联盟客户端，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>三卡上方推荐</b><small>识别成功后显示点击穿透小窗，选卡或切屏时自动隐藏</small></div><input type="checkbox" :checked="state.settings.showInGameRecommendations" @change="updateSettings({ showInGameRecommendations: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>队友与对手近期状态（本地实验）</b><small>默认关闭。仅身份明确公开时读取本机 LCU；近期样本不限定队列，可能违反 Riot 分发政策，不上传、不持久化。</small></div><input type="checkbox" :checked="state.settings.opponentScouting" @change="updateSettings({ opponentScouting: ($event.target as HTMLInputElement).checked })" /></label></article>
+            <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>只在海克斯对局且游戏或主窗口可见时低频识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>等待页客户端背景（实验）</b><small>默认关闭。仅大厅、匹配与接受对局阶段低频截取已绑定客户端窗口；画面只在内存中模糊处理。</small></div><input type="checkbox" :checked="state.settings.lobbyBackground" @change="updateSettings({ lobbyBackground: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人期间跟随英雄联盟客户端，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>三卡上方推荐</b><small>识别成功后显示点击穿透小窗，选卡或切屏时自动隐藏</small></div><input type="checkbox" :checked="state.settings.showInGameRecommendations" @change="updateSettings({ showInGameRecommendations: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>队友与对手近期状态（本地实验）</b><small>默认关闭。仅身份明确公开时读取本机 LCU；近期样本不限定队列，可能违反 Riot 分发政策，不上传、不持久化。</small></div><input type="checkbox" :checked="state.settings.opponentScouting" @change="updateSettings({ opponentScouting: ($event.target as HTMLInputElement).checked })" /></label></article>
           </div>
         </section>
 

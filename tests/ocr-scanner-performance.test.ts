@@ -24,6 +24,7 @@ const settings = (): AppSettings => ({
   showChampionPanel: true,
   showInGameRecommendations: true,
   opponentScouting: false,
+  lobbyBackground: false,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',

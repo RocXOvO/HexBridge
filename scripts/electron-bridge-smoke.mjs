@@ -197,7 +197,8 @@ try {
   if (process.platform === 'win32' && (
     result.windowsDisplayCapture !== true ||
     result.windowObserverScript !== true ||
-    result.windowObserverFollow !== true
+    result.windowObserverFollow !== true ||
+    result.lobbyBackgroundCapture !== true
   )) {
     throw new Error(`Electron Windows bridge smoke test failed: ${JSON.stringify(result)}`)
   }

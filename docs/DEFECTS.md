@@ -70,7 +70,7 @@
 | HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 已发布） |
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
-| HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS（已登记、未实现） |
+| HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS / UNVERIFIED（v0.1.28 本地候选） |
 | HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
 | HB-061 | 发布 channel 传播检查假阴性 | VERIFIED（v0.1.27 fresh PUT） |
 | HB-062 | GitHub Release 滚动保留与双通道 | VERIFIED（v0.1.26 实际执行） |
@@ -163,10 +163,10 @@
 
 ### HB-059：Lobby 客户端画面背景
 
-- 安全解释：仅把权威 LeagueClientUx 的 Lobby / Matchmaking / ReadyCheck 可见画面低频截帧，作为 HexBridge 自己等待页的内存背景；不嵌入、注入、覆盖或改写 League 客户端。
-- 绑定权威 PID / 窗口且只截该窗口；单任务、硬超时、低频或事件触发、尺寸上限、只在内存使用，不保存诊断图、不记录画面 / 路径 / 标题 / 身份。
-- HexBridge hidden / minimized / unfocused、LeagueClientUx 最小化 / 不可见、reduced-motion、进入 ChampSelect / launching / active、退出或捕获失败时立即停止并清除；不得让 Lobby 背景捕获延续到游戏或制造 GPU / DWM 峰值。
-- UI 需保留足够 scrim 与文字对比，静态 fallback 明确；验收覆盖 1080p～4K、100%～150% DPI、多屏、窗口移动、隐私遮罩、CPU / GPU / 帧时间和无客户端状态。
+- v0.1.28 本地候选默认关闭；仅 win32 + LCU connected + `matchStage=none` + Lobby / Matchmaking / ReadyCheck + Main live 页可见 / 聚焦 / 非最小化 + 非 reduced-motion + 非 eco + authority PID / HWND 唯一时，每 5s PrintWindow 精确截权威 LeagueClientUx。不得整屏捕获、SetWindowPos 或注入。
+- Main 限 `16,777,216` 像素、缩至 `<=960x540`、强模糊 / 暗化、JPEG `<=500KB`；Main-only IPC 只传 sanitized bytes，raw / frames 不进 RuntimeState / 日志 / 磁盘 / 伴随窗。切页 / 失焦 / 最小化 / eco / 选人 / launching / active / capture 事务 / 失败 / 退出立即停清。
+- controller 为 child + epoch、3s sanitize timeout、9s watchdog、single-flight；Sharp 未 settle 不开第二任务，迟到 drop，15 / 30 / 60s 退避，重启可恢复同一 raw。最终审查 P0 / P1 = 0；audit 0、OCR synthetic、真实 4K 160ms、41 files / 436 passed + 1 skipped、typecheck / lint / icon / rolling retention / source bridge / UI / diff-check 全过；版本 / release / lobby 定向 5 files / 55 tests 通过。
+- 尚未 commit / push / Windows / tag / Release，Latest 仍 v0.1.27。Windows bridge smoke 将以 fake 权威 HWND 实跑 PrintWindow + sanitize 并拒绝错误 PID，但 fake 不等于真实 WeGame Chromium；状态保持 `IN PROGRESS / UNVERIFIED`。
 
 ## 追溯
 

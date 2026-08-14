@@ -43,6 +43,7 @@ export interface AppSettings {
   showChampionPanel: boolean
   showInGameRecommendations: boolean
   opponentScouting: boolean
+  lobbyBackground: boolean
   hotkey: string
   gameDirectory: string
   displayId: string
@@ -256,6 +257,21 @@ export interface OpponentScoutState {
 
 export interface AugmentOverlayBridge {
   onChanged(callback: (state: AugmentOverlayViewState) => void): () => void
+}
+
+export interface LobbyBackgroundFrame {
+  mimeType: 'image/jpeg'
+  bytes: Uint8Array
+}
+
+export interface LobbyBackgroundPresentation {
+  livePageVisible: boolean
+  reducedMotion: boolean
+}
+
+export interface LobbyBackgroundBridge {
+  onChanged(callback: (frame: LobbyBackgroundFrame | null) => void): () => void
+  setPresentation(presentation: LobbyBackgroundPresentation): Promise<void>
 }
 
 export interface ApiConnectionState {

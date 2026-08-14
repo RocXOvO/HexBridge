@@ -11,6 +11,7 @@ const defaultViewSettings: AppSettings = {
   showChampionPanel: true,
   showInGameRecommendations: true,
   opponentScouting: false,
+  lobbyBackground: false,
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -49,7 +50,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.27',
+    currentVersion: '0.1.28',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',

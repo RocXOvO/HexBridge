@@ -7,6 +7,7 @@ const allowedSettingKeys = new Set<keyof AppSettings>([
   'showChampionPanel',
   'showInGameRecommendations',
   'opponentScouting',
+  'lobbyBackground',
   'displayId',
   'calibration',
   'diagnosticsScreenshots',
@@ -17,7 +18,7 @@ function sanitizeSettings(value: unknown): Partial<AppSettings> {
   const patch: Partial<AppSettings> = {}
   for (const [key, entry] of Object.entries(value)) {
     if (!allowedSettingKeys.has(key as keyof AppSettings)) continue
-    if (['autoOcr', 'showChampionPanel', 'showInGameRecommendations', 'opponentScouting', 'diagnosticsScreenshots'].includes(key)) {
+    if (['autoOcr', 'showChampionPanel', 'showInGameRecommendations', 'opponentScouting', 'lobbyBackground', 'diagnosticsScreenshots'].includes(key)) {
       if (typeof entry === 'boolean') Object.assign(patch, { [key]: entry })
     } else if (key === 'displayId' && typeof entry === 'string') {
       patch.displayId = entry.slice(0, 80)
@@ -59,6 +60,14 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
   ipcMain.handle('hexbridge:update-settings', (event, patch) => {
     requireSender(event, 'main')
     return runtime.updateSettings(sanitizeSettings(patch))
+  })
+  ipcMain.handle('hexbridge:set-lobby-background-presentation', (event, presentation) => {
+    requireSender(event, 'main')
+    if (!presentation || typeof presentation !== 'object' || Array.isArray(presentation)) return
+    const livePageVisible = (presentation as Record<string, unknown>).livePageVisible
+    const reducedMotion = (presentation as Record<string, unknown>).reducedMotion
+    if (typeof livePageVisible !== 'boolean' || typeof reducedMotion !== 'boolean') return
+    runtime.getWindowManager().setLobbyBackgroundPresentation({ livePageVisible, reducedMotion })
   })
   ipcMain.handle('hexbridge:set-ocr-hotkey', (_event, hotkey) => {
     if (typeof hotkey !== 'string' || hotkey.length > 40) {

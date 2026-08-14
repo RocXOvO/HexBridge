@@ -52,6 +52,7 @@ export function createDemoApi(): HexBridgeApi {
     showChampionPanel: true,
     showInGameRecommendations: true,
     opponentScouting: true,
+    lobbyBackground: false,
     hotkey: 'F8',
     gameDirectory: '',
     displayId: '',
@@ -82,7 +83,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.27',
+      currentVersion: '0.1.28',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',

@@ -9,6 +9,7 @@ const mainProcess = readFileSync(new URL('../src/main/index.ts', import.meta.url
 const preloadSource = readFileSync(new URL('../src/preload/index.ts', import.meta.url), 'utf8')
 const ipcSource = readFileSync(new URL('../src/main/ipc.ts', import.meta.url), 'utf8')
 const augmentOverlaySource = readFileSync(new URL('../src/renderer/src/AugmentOverlay.vue', import.meta.url), 'utf8')
+const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.meta.url), 'utf8')
 
 describe('main-window recommendation presentation', () => {
   it('routes only a bounded click-through augment recommendation strip', () => {
@@ -22,7 +23,20 @@ describe('main-window recommendation presentation', () => {
     expect(windowManager).toContain("additionalArguments: [`--hexbridge-renderer=${route}`]")
     expect(preloadSource).toContain("rendererRoute === 'augment'")
     expect(preloadSource).toContain("exposeInMainWorld('hexbridgeOverlay', overlayApi)")
-    expect(preloadSource).toContain("else contextBridge.exposeInMainWorld('hexbridge', api)")
+    expect(preloadSource).toContain("contextBridge.exposeInMainWorld('hexbridge', api)")
+    expect(preloadSource).toContain("rendererRoute === 'main'")
+    expect(preloadSource).toContain("exposeInMainWorld('hexbridgeLobbyBackground', lobbyBackgroundApi)")
+  })
+
+  it('keeps the opt-in Lobby frame on a dedicated Main-only, revocable bridge', () => {
+    expect(appSource).toContain('window.hexbridgeLobbyBackground?.onChanged')
+    expect(appSource).toContain('URL.revokeObjectURL')
+    expect(appSource).toContain('frame.bytes.byteLength > 500_000')
+    expect(appSource).toContain('state.settings.lobbyBackground')
+    expect(preloadSource).toContain("if (rendererRoute === 'main')")
+    expect(ipcSource).toContain("ipcMain.handle('hexbridge:set-lobby-background-presentation'")
+    expect(ipcSource).toContain("requireSender(event, 'main')")
+    expect(rendererHtml).toContain("img-src 'self' data: blob: https:")
   })
 
   it('starts the guarded shutdown path before the tray asks Electron to quit', () => {
