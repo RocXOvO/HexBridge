@@ -135,4 +135,13 @@ describe('main-window recommendation presentation', () => {
     expect(stylesSource).toContain('scrollbar-gutter: stable')
     expect(stylesSource).not.toContain('.page-flow-enter-from { opacity:0; transform:translateY(10px) scale(.995); }')
   })
+
+  it('keeps the selected hero artwork clear without weakening the eco fallback', () => {
+    expect(stylesSource).toContain('filter: blur(1.5px) saturate(1.06) contrast(1.03); opacity: .66')
+    expect(stylesSource).toContain('[data-performance="balanced"] .hero-backdrop { filter: blur(1px) saturate(1.04) contrast(1.02); opacity: .56; }')
+    expect(stylesSource).toContain('[data-performance="eco"] .hero-backdrop { inset: 0; filter: none; opacity: .20; transform: none; }')
+    expect(stylesSource).toContain('[data-performance="eco"] .hero-scrim { background: linear-gradient(90deg, rgba(9,11,16,.42), rgba(9,11,16,.18) 52%, rgba(9,11,16,.48)), linear-gradient(180deg, rgba(9,11,16,.20), #090b10 88%); }')
+    expect(stylesSource).toContain('linear-gradient(180deg, rgba(9,11,16,.16), #090b10 90%)')
+    expect(stylesSource).not.toContain('filter: blur(3px)')
+  })
 })

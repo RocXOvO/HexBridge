@@ -3,6 +3,7 @@
 > 最后更新：2026-08-15
 > 当前正式版：[v0.1.26](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.26)，public / Latest / non-draft / non-prerelease；Release ID `370711644`。annotated tag object `699bdef449500ec0c014dbc8845df9d3abb72411` 解引用产品 / 记忆 commit `5bef3e8697102a2a2e794e91be5c8686e893dd84`；当前 main / origin main 为发布基础设施修复 commit `1713ccb5a951439cdcb1c77abd2561649761b16c`。
 > 正式边界：v0.1.26 tag run attempt 2 已通过 39 files / 398 passed、双通道、public packaged 与五版滚动清理；本地 release 为空。真实 installed 自动更新与真实 WeGame / 96px 仍未验证。HB-061 为 `FIXED / UNVERIFIED`，HB-062 / HB-063 为 `VERIFIED`；不得把发布基础设施证据外推为游戏实机证据。
+> 当前未发布候选：本地 `v0.1.27` 仅实现 HB-056 背景清晰度；尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.26。audit 0、OCR synthetic、真实 4K 141ms、39 files / 399 passed + 1 skipped、typecheck、lint、icon、retention、source bridge / UI、diff-check 全过；第一轮 eco scrim P1 与 README / 记忆旧状态已修，最终候选审查无 P0 / P1 并批准 Windows workflow_dispatch。HB-056 保持 `IN PROGRESS / UNVERIFIED`。
 > 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
 
 ## 1. 产品定位与硬边界
@@ -102,6 +103,7 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 - 96px compact 透明、点击穿透、不聚焦；只在可靠 3/3、游戏前台和卡面存在时显示。v0.1.26 正式版改为卡面上方定位并记录 matched frame 指纹；检测到变化后经 500ms + 280ms 稳定确认先撤旧条，两次 probe error 通过 `beginNextRound` 恢复。前台丢失仍只 pause / hide，回前台 cheap probe；两次 absence、刷新、禁用、终局或 45 秒 expiry 清除。
 - 选人伴随窗绑定权威 LeagueClientUx PID，Win32 / DWM bounds 跟随；synthetic fake 不是实际 WeGame / DPI / 多屏证据。
 - 主窗背景、页面动效与轨道球必须服从 Main 自动 visual policy、eco、hidden / minimized / unfocused、InProgress 和 reduced-motion；不得持续粒子或全屏高频重绘。
+- v0.1.27 本地候选只调整静态英雄背景：cinematic blur `3→1.5`、opacity `.58→.66` 并减轻 scrim；balanced 使用 blur `1`、opacity `.56` 和独立 scrim；eco 明确无 filter / transform 并恢复原有 scrim。launching / active / hidden 等状态仍由 Main policy 强制 eco；候选不新增持续任务、截图或捕获。
 
 ### 5.1 Lobby 画面作为 HexBridge 背景（HB-059，未实现）
 
@@ -140,12 +142,13 @@ HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大�
 
 ## 9. 当前优先级
 
-1. HB-061：下一正式版以全新 channel PUT 验证有界 authenticated Contents / ref poll；当前保持 `FIXED / UNVERIFIED`。
-2. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
-3. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
-4. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
-5. HB-059：先做只读 capture 可行性 / 性能 / 隐私评估；默认关闭，绝不注入 League 客户端。
-6. HB-056 / HB-057：背景清晰度和 Wallpaper Engine 分别独立评估，不与数据源或 Lobby 捕获捆绑发布。
+1. HB-056 / v0.1.27：完成最终候选审查与 Windows 视觉 / 性能候选门禁；真实亮暗原画、长中文和 100% / 125% / 150% DPI 在此之前不得写完成。
+2. HB-061：下一正式版以全新 channel PUT 验证有界 authenticated Contents / ref poll；当前保持 `FIXED / UNVERIFIED`。
+3. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
+4. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
+5. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
+6. HB-059：先做只读 capture 可行性 / 性能 / 隐私评估；默认关闭，绝不注入 League 客户端。
+7. HB-057：Wallpaper Engine 独立评估，不与背景清晰度、数据源或 Lobby 捕获捆绑发布。
 
 ## 10. 协作与迁移边界
 

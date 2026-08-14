@@ -67,7 +67,7 @@
 | HB-053 | 对局中途启动恢复英雄 | IN PROGRESS / UNVERIFIED |
 | HB-054 | 队友 + 对手总览 / 头像详情 | IN PROGRESS / UNVERIFIED；政策 ACCEPTED RISK |
 | HB-055 | 真实对局 96px 提示缺失 | IN PROGRESS / UNVERIFIED |
-| HB-056 | 主背景清晰度 | IN PROGRESS（未实现） |
+| HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 本地候选） |
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
 | HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS（已登记、未实现） |
@@ -137,8 +137,9 @@
 
 ### HB-056：背景清晰度
 
-- 目标是减轻 HexBridge 英雄原画 blur / scrim，同时保证长中文、Tier、出装与推荐可读。
-- cinematic / balanced / eco、hidden、InProgress、reduced-motion 和真实对局性能都必须验收，不能用持续重型滤镜换清晰度。
+- v0.1.27 本地候选：cinematic blur `3→1.5`、opacity `.58→.66` 并减轻 scrim；balanced 使用 blur `1`、opacity `.56` 和独立 scrim；eco 明确无 filter / transform 且恢复旧 scrim。launching / active / hidden 等仍由 Main policy 强制 eco；没有新增持续任务或捕获。
+- audit 0、OCR synthetic、真实 4K 141ms、39 files / 399 passed + 1 skipped、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过。第一轮 eco scrim P1 与 README / 记忆旧状态已修，最终候选审查无 P0 / P1 并批准 Windows workflow_dispatch；当前未 commit / push / Windows / tag / Release，Latest 仍 v0.1.26。
+- 状态保持 `IN PROGRESS / UNVERIFIED`：仍须真实亮 / 暗原画、长中文、100% / 125% / 150% DPI、Windows cinematic / balanced / eco 截图与 CPU / GPU / 帧时间；不得用自动化外推视觉或性能完成。
 
 ### HB-057：Wallpaper Engine
 
