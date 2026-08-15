@@ -10,7 +10,7 @@
 - GitHub 当前只保留 v0.1.28～v0.1.32 五个正式 Releases；v0.1.0～v0.1.32 共 33 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.32 已正式发布；Release 说明准确列出相较 v0.1.31 的 Main sender IPC 授权修复，public v2 / root 为 `0.1.32 / 199281116` bytes，正式五资产完整。`clear-diagnostics` 与 `retry-lcu` 均在 Runtime 副作用前强制校验当前 Main sender，拒绝 champion、calibration、未知及已失效窗口；HB-065 保持 `FIXED / UNVERIFIED`，不得用发布结果替代真实环境验收。
-- v0.1.33 本地候选仅修复 HB-066：旧配置中的 `gameDirectory` 继续供 Main 内部 LCU 发现使用，但公开设置、RuntimeState、IPC 响应和窗口广播均以显式白名单重建；普通界面仍无目录入口。终审 `P0=0 / P1=0`，本地 audit 0、47 files / 517 passed + 1 skipped、真实 4K OCR 313ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过；尚未 commit / push / Windows / tag / Release。
+- v0.1.33 candidate `fa7494f284c28aab0250e1167cfc146e0e94aa8b` 已 push，仅修复 HB-066：旧 `gameDirectory` 留在 Main 内部，公开设置 / RuntimeState / IPC 响应 / 广播均以白名单重建，普通界面仍无目录入口。Windows run `31874022739` / job `94986901599` 于 5m34s 成功：audit 0、47 files / 518 tests、4K OCR 243ms、lint / typecheck、EXE `199281339` bytes、packaged UI / bridge、差分 `1,275,050 / 199,281,339` bytes、checksums 与 artifact `9244286245`（`473,517,668` bytes，digest `4f75c556…fb084`）全过；tag-only 步骤按预期跳过，尚无 v0.1.33 tag / Release，公开 Latest 仍为 v0.1.32。
 
 ## 记忆模块
 
@@ -30,7 +30,7 @@
 
 ## 当前优先级
 
-1. HB-066：提交 v0.1.33 候选并完成 Windows workflow；正式发布前不得把本地公开设置隔离测试冒充 packaged 证据。
+1. HB-066：Windows 候选已通过；创建正式 v0.1.33 tag / Release 并核验双通道、public packaged 与五版滚动。
 2. HB-058：完成真实 Windows 下的腾讯接口、切源、当前英雄 / OCR / 紧凑条同源与 stale / error 显示验收；不以书面授权或 Release 成功替代技术验证。
 3. 真实 WeGame 验收：`GAME_STARTING` 后取消 / 启动、终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
 4. HB-057 Wallpaper Engine：v0.1.30 已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义正式发布；待真实 Wallpaper Engine / Steam 多库实机验收。
