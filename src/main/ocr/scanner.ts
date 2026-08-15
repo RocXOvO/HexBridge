@@ -195,7 +195,7 @@ export class AugmentScanner {
         const gateCrops = await this.captureTitleCrops(display, AUTO_GATE_WIDTH, rects, false)
         const gates = await Promise.all(gateCrops.probe.map((crop) => this.analyzeInterfaceSignal(crop)))
         if (gates.filter((analysis) => analysis.detected).length < 2) {
-          return this.finish('not-detected', [], [], startedAt, null)
+          return this.finish('not-detected', [], [], startedAt, null, performanceEpoch)
         }
       }
 
@@ -216,7 +216,7 @@ export class AugmentScanner {
 
       if (manual) {
         if (analyses.filter((analysis) => analysis.detected).length < 2) {
-          return this.finish('not-detected', [], [], startedAt, null)
+          return this.finish('not-detected', [], [], startedAt, null, performanceEpoch)
         }
       }
 
@@ -235,13 +235,13 @@ export class AugmentScanner {
       const fingerprints = allReliable
         ? analyses.map((analysis) => analysis.fingerprint)
         : []
-      return this.finish(allReliable ? 'matched' : 'unreliable', recognized, fingerprints, startedAt, null)
+      return this.finish(allReliable ? 'matched' : 'unreliable', recognized, fingerprints, startedAt, null, performanceEpoch)
     } catch (error) {
       const message = 'OCR 截图或识别失败'
       logger.warn('OCR scan failed', {
         errorName: error instanceof Error ? error.name : 'Error',
       })
-      return this.finish('error', [], [], startedAt, message)
+      return this.finish('error', [], [], startedAt, message, performanceEpoch)
     } finally {
       this.releaseIdleWaiters()
     }
@@ -313,10 +313,13 @@ export class AugmentScanner {
     fingerprints: string[],
     startedAt: number,
     error: string | null,
+    performanceEpoch: number,
   ): ScanResult {
     const durationMs = Date.now() - startedAt
-    this.lastDurationMs = durationMs
-    this.lastError = error
+    if (performanceEpoch === this.performanceEpoch) {
+      this.lastDurationMs = durationMs
+      this.lastError = error
+    }
     return { status, slots, fingerprints, durationMs, error }
   }
 

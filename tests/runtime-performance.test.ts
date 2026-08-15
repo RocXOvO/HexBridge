@@ -43,6 +43,7 @@ function initializeAutomaticState(runtime: any): void {
   runtime.automaticScanNextDelayMs = null
   runtime.ocrScheduleLastOutcome = 'none'
   runtime.ocrDiagnosticsSyncAt = 0
+  runtime.ocrDiagnosticsSyncTimer = null
   runtime.manualScanInFlight = false
   runtime.manualOverlayMonitorDeadlineAt = null
   runtime.manualOverlayExpiryTimer = null
@@ -133,6 +134,130 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
     expect(runtime.automaticScanPaused).toBe(false)
     expect(runtime.ocrScheduleLastOutcome).toBe('none')
+  })
+
+  it('publishes the final scheduled delay after a probe settles', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true }) }
+    runtime.windows = { getMainActivity: () => ({ visible: true, minimized: false }) }
+    runtime.scanner = {
+      probeInterface: vi.fn().mockResolvedValue({ status: 'error', durationMs: 10 }),
+      resetPerformanceDiagnostics: vi.fn(),
+    }
+    const published: Array<{ delay: number | null; outcome: string }> = []
+    runtime.sync = vi.fn(() => published.push({
+      delay: runtime.automaticScanNextDelayMs,
+      outcome: runtime.ocrScheduleLastOutcome,
+    }))
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(published.at(-1)).toEqual({ delay: 4_000, outcome: 'error' })
+    runtime.stopScanLoop()
+  })
+
+  it('coalesces rapid latched-probe diagnostics broadcasts to at most once per second', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticFingerprint = ['1111', '1111', '1111']
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 10 }, { augmentId: 11 }, { augmentId: 12 }],
+      detectedAt: 1,
+      message: '上一轮推荐',
+    }
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.scanner = {
+      probeInterface: vi.fn().mockResolvedValue({
+        status: 'detected',
+        durationMs: 10,
+        fingerprints: ['1111', '1111', '1111'],
+      }),
+      resetPerformanceDiagnostics: vi.fn(),
+    }
+    runtime.sync = vi.fn()
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(700)
+    await vi.advanceTimersByTimeAsync(700)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.sync).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(runtime.sync).toHaveBeenCalledTimes(2)
+    runtime.stopScanLoop()
+  })
+
+  it('hard-resets OCR diagnostics when a new match generation arrives during manual OCR', () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    runtime.lcuState = { connected: false, source: null, lastError: null, lastConnectedAt: null }
+    runtime.lcu = { getActiveProcessId: () => null }
+    runtime.leagueClientProcessId = null
+    runtime.config = { getSettings: () => ({ autoOcr: false, showChampionPanel: true }) }
+    runtime.windows = { setLeagueClientProcessId: vi.fn() }
+    runtime.wallpaper = { reconcile: vi.fn() }
+    runtime.dataReady = false
+    runtime.augmentRound = { reset: vi.fn() }
+    runtime.updateScanLoop = vi.fn()
+    runtime.updateGameProcessLoop = vi.fn()
+    runtime.resetCurrentChampionLevel = vi.fn()
+    runtime.refreshOpponentScoutPresentation = vi.fn(() => false)
+    runtime.opponentScout = null
+    runtime.sync = vi.fn()
+    runtime.manualScanInFlight = true
+    runtime.ocrScheduleLastOutcome = 'error'
+    runtime.scanner = { resetPerformanceDiagnostics: vi.fn() }
+    const nextSnapshot = { ...activeSnapshot, matchGeneration: 2 }
+    const nextLcuState = { ...runtime.lcuState }
+
+    runtime.handleLcuUpdate(nextSnapshot, nextLcuState)
+
+    expect(runtime.scanner.resetPerformanceDiagnostics).toHaveBeenCalledOnce()
+    expect(runtime.ocrScheduleLastOutcome).toBe('none')
+  })
+
+  it('keeps completed manual-scan diagnostics when the automatic loop is not restarted', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: false, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.scanTimer = setTimeout(() => undefined, 10_000)
+    runtime.scanner = {
+      waitUntilIdle: vi.fn().mockResolvedValue(true),
+      resetPerformanceDiagnostics: vi.fn(),
+      cheapProbeCount: 3,
+    }
+    runtime.runScan = vi.fn().mockResolvedValue({
+      ok: false,
+      code: 'NOT_DETECTED',
+      message: '未检测到三张海克斯标题',
+    })
+
+    const result = await runtime.captureManualScan()
+
+    expect(result.code).toBe('NOT_DETECTED')
+    expect(runtime.scanner.resetPerformanceDiagnostics).not.toHaveBeenCalled()
+    expect(runtime.scanner.cheapProbeCount).toBe(3)
+    expect(runtime.manualScanInFlight).toBe(false)
+    runtime.stopScanLoop()
   })
 
   it('runs full OCR once for the same visible cards and rearms after two absences', async () => {
@@ -524,7 +649,7 @@ describe('runtime performance scheduling', () => {
     expect(runtime.overlay.slots[0]).toBe(firstSlots[0])
     expect(runtime.overlay.slots[1]).not.toBe(firstSlots[1])
     expect(runtime.overlay.slots[2]).toMatchObject({ augmentId: 3 })
-    expect(runtime.sync).toHaveBeenCalledTimes(4)
+    expect(runtime.sync).toHaveBeenCalledTimes(3)
   })
 
   it('does not resurrect a hidden retained surface after an incomplete manual refresh', async () => {

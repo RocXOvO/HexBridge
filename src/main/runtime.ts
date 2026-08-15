@@ -210,6 +210,7 @@ export class HexBridgeRuntime {
   private automaticScanNextDelayMs: number | null = null
   private ocrScheduleLastOutcome: OcrScheduleOutcome = 'none'
   private ocrDiagnosticsSyncAt = 0
+  private ocrDiagnosticsSyncTimer: NodeJS.Timeout | null = null
   private manualScanInFlight = false
   private manualOverlayMonitorDeadlineAt: number | null = null
   private manualOverlayExpiryTimer: NodeJS.Timeout | null = null
@@ -442,9 +443,28 @@ export class HexBridgeRuntime {
 
   private syncOcrDiagnostics(): void {
     const now = Date.now()
-    if (now - this.ocrDiagnosticsSyncAt < 1_000) return
+    const elapsed = now - this.ocrDiagnosticsSyncAt
+    if (this.ocrDiagnosticsSyncTimer) return
+    if (this.ocrDiagnosticsSyncAt > 0 && elapsed < 1_000) {
+      const waitMs = Math.max(1, 1_000 - elapsed)
+      this.ocrDiagnosticsSyncTimer = setTimeout(() => {
+        this.ocrDiagnosticsSyncTimer = null
+        if (this.stopping) return
+        this.ocrDiagnosticsSyncAt = Date.now()
+        this.sync()
+      }, waitMs)
+      return
+    }
     this.ocrDiagnosticsSyncAt = now
     this.sync()
+  }
+
+  private resetOcrDiagnostics(): void {
+    if (this.ocrDiagnosticsSyncTimer) clearTimeout(this.ocrDiagnosticsSyncTimer)
+    this.ocrDiagnosticsSyncTimer = null
+    this.ocrScheduleLastOutcome = 'none'
+    this.ocrDiagnosticsSyncAt = 0
+    this.scanner?.resetPerformanceDiagnostics?.()
   }
 
   updateSettings(patch: Partial<AppSettings>): AppSettings {
@@ -914,12 +934,17 @@ export class HexBridgeRuntime {
     const oldChampion = this.snapshot.modeActive ? this.snapshot.currentChampionId : null
     const nextChampion = snapshot.modeActive ? snapshot.currentChampionId : null
     const previousGeneration = this.snapshot.matchGeneration
+    const previousOcrEligible = isMatchContextOcrEligible(this.snapshot)
     const wasConnected = this.lcuState.connected
     const previousSource = this.lcuState.source
     const previousConnectedAt = this.lcuState.lastConnectedAt
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
     this.leagueClientProcessId = nextLeagueClientProcessId
+    const ocrContextChanged = nextChampion !== oldChampion ||
+      snapshot.matchGeneration !== previousGeneration ||
+      (previousOcrEligible && !isMatchContextOcrEligible(snapshot))
+    if (ocrContextChanged) this.resetOcrDiagnostics()
     if (
       nextChampion !== oldChampion ||
       snapshot.matchGeneration !== previousGeneration ||
@@ -1386,19 +1411,19 @@ export class HexBridgeRuntime {
     await Promise.all([recommendationTask, buildTask])
   }
 
-  private updateScanLoop(): void {
+  private updateScanLoop(resetDiagnostics = true): void {
     if (this.stopping) {
-      this.stopScanLoop()
+      this.stopScanLoop(resetDiagnostics)
       return
     }
     if (this.manualScanInFlight) return
     if (this.expireManualOverlayMonitor()) {
-      this.stopScanLoop()
+      this.stopScanLoop(resetDiagnostics)
       return
     }
     if (!this.shouldRunAutomaticSurfaceLoop()) {
       if (this.shouldPauseAutomaticSurfaceLoop()) this.pauseScanLoop()
-      else this.stopScanLoop()
+      else this.stopScanLoop(resetDiagnostics)
       return
     }
     this.automaticScanPaused = false
@@ -1411,7 +1436,7 @@ export class HexBridgeRuntime {
       this.snapshot.currentChampionId ?? 0,
     )
     if (this.automaticScanContextKey !== contextKey) {
-      this.stopScanLoop()
+      this.stopScanLoop(resetDiagnostics)
       this.automaticScanContextKey = contextKey
     }
     if (this.scanTimer || this.automaticScanInFlightEpoch != null) return
@@ -1458,7 +1483,6 @@ export class HexBridgeRuntime {
       const probe = await this.scanner.probeInterface()
       if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
       this.setOcrScheduleOutcome(probe.status === 'detected' ? 'detected' : probe.status)
-      this.syncOcrDiagnostics()
       if (probe.status === 'error') {
         this.automaticScanErrors = Math.min(3, this.automaticScanErrors + 1)
         nextDelay = automaticOcrErrorDelay(this.automaticScanErrors - 1)
@@ -1604,8 +1628,10 @@ export class HexBridgeRuntime {
       if (this.automaticScanInFlightEpoch === epoch) this.automaticScanInFlightEpoch = null
       if (!this.stopping && this.isAutomaticScanCurrent(epoch, generation, championId)) {
         this.scheduleAutomaticScan(nextDelay)
+        this.syncOcrDiagnostics()
       } else if (!this.stopping) {
         this.updateScanLoop()
+        this.syncOcrDiagnostics()
       }
     }
   }
@@ -1698,7 +1724,7 @@ export class HexBridgeRuntime {
     this.automaticFingerprintSamples = 0
   }
 
-  private stopScanLoop(): void {
+  private stopScanLoop(resetDiagnostics = true): void {
     this.automaticScanEpoch += 1
     if (this.scanTimer) clearTimeout(this.scanTimer)
     this.scanTimer = null
@@ -1713,9 +1739,7 @@ export class HexBridgeRuntime {
     this.automaticFingerprintCandidate = null
     this.automaticFingerprintSamples = 0
     this.manualSurfaceFirstProbePending = false
-    this.ocrScheduleLastOutcome = 'none'
-    this.ocrDiagnosticsSyncAt = 0
-    this.scanner?.resetPerformanceDiagnostics?.()
+    if (resetDiagnostics) this.resetOcrDiagnostics()
   }
 
   private async runScan(
@@ -1758,7 +1782,6 @@ export class HexBridgeRuntime {
       return { ok: false, code: 'CONTEXT_SWITCHED', message: '识别结果已过期，新对局扫描继续运行' }
     }
     this.setOcrScheduleOutcome(result.status)
-    this.syncOcrDiagnostics()
     if (result.status === 'busy') return { ok: false, code: 'BUSY', message: '识别任务正在运行' }
     if (result.status === 'matched') {
       this.lcu.confirmGameActive('augment-interface', scanGeneration, scanChampionId)
@@ -1861,9 +1884,13 @@ export class HexBridgeRuntime {
   }
 
   private async captureManualScan(): Promise<ScanActionResult> {
-    const managesAutomaticLoop = this.scanTimer !== undefined && typeof this.scanner?.waitUntilIdle === 'function'
+    const managesAutomaticLoop = typeof this.scanner?.waitUntilIdle === 'function' && (
+      this.scanTimer !== null ||
+      this.automaticScanInFlightEpoch != null ||
+      this.config.getSettings().autoOcr
+    )
     if (managesAutomaticLoop) this.manualScanInFlight = true
-    if (managesAutomaticLoop) this.stopScanLoop()
+    if (managesAutomaticLoop) this.stopScanLoop(false)
     try {
       const idle = managesAutomaticLoop ? await this.scanner.waitUntilIdle() : true
       if (!idle) {
@@ -1876,7 +1903,7 @@ export class HexBridgeRuntime {
     } finally {
       if (managesAutomaticLoop) {
         this.manualScanInFlight = false
-        this.updateScanLoop()
+        this.updateScanLoop(false)
       }
     }
   }

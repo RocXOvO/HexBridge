@@ -202,6 +202,33 @@ describe('low-cost OCR capture plan', () => {
     expect(scanner.getDiagnostics().cheapProbeCount).toBe(0)
   })
 
+  it('drops full-OCR duration and last-result writes from an older performance epoch', async () => {
+    const { scanner } = await scannerFixture()
+    vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')
+      .mockResolvedValue({ detected: true, fingerprint: '1111' })
+    const pendingRecognitions: Array<(value: string) => void> = []
+    vi.mocked(scanner.engine.recognize)
+      .mockReset()
+      .mockImplementation(() => new Promise((resolve) => pendingRecognitions.push(resolve)))
+
+    const scan = scanner.scan(augments, true)
+    await vi.waitFor(() => expect(pendingRecognitions).toHaveLength(1))
+    scanner.resetPerformanceDiagnostics()
+    pendingRecognitions.shift()?.('由心及物')
+    await vi.waitFor(() => expect(pendingRecognitions).toHaveLength(1))
+    pendingRecognitions.shift()?.('冰寒')
+    await vi.waitFor(() => expect(pendingRecognitions).toHaveLength(1))
+    pendingRecognitions.shift()?.('虹吸')
+    await scan
+
+    expect(scanner.getDiagnostics()).toMatchObject({
+      lastDurationMs: null,
+      fullOcrCount: 0,
+      fullOcrLastDurationMs: null,
+      fullOcrMaxDurationMs: null,
+    })
+  })
+
   it('validates three recognized titles before calibration can be saved', async () => {
     const { scanner } = await scannerFixture()
     const screenshot = await sharp({ create: { width: 960, height: 540, channels: 3, background: '#24463f' } })

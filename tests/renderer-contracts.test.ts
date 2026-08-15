@@ -44,7 +44,11 @@ describe('main-window recommendation presentation', () => {
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
     expect(appSource).toContain('data-testid="ocr-schedule-diagnostic"')
     expect(appSource).toContain('cheapProbeCount')
+    expect(appSource).toContain('cheapProbeLastDurationMs')
     expect(appSource).toContain('fullOcrCount')
+    expect(appSource).toContain('fullOcrLastDurationMs')
+    expect(appSource).toContain('cheapProbeMaxDurationMs')
+    expect(appSource).toContain('fullOcrMaxDurationMs')
     expect(appSource).toContain('nextDelayMs')
     expect(appSource).not.toContain('ocrSchedule.screenshot')
     expect(appSource).not.toContain('ocrSchedule.rawText')
