@@ -4,6 +4,7 @@ import { previousStableReleaseTag, renderStableReleaseNotes } from '../scripts/r
 
 describe('stable Release notes', () => {
   const releases = [
+    { tag_name: 'v0.1.31', draft: false, prerelease: false },
     { tag_name: 'v0.1.30', draft: false, prerelease: false },
     { tag_name: 'v0.1.29', draft: false, prerelease: false },
     { tag_name: 'v0.1.28', draft: false, prerelease: false },
@@ -17,31 +18,31 @@ describe('stable Release notes', () => {
   ]
 
   it('selects the immediately preceding public stable version', () => {
-    expect(previousStableReleaseTag(releases, '0.1.31')).toBe('v0.1.30')
+    expect(previousStableReleaseTag(releases, '0.1.32')).toBe('v0.1.31')
   })
 
   it('renders curated changes relative to the previous stable Release', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',
-      version: '0.1.31',
+      version: '0.1.32',
       releases,
     })
-    expect(body).toContain('### 相较 v0.1.30 的更新')
-    expect(body).toContain('修复 GAME_STARTING 后取消对局')
-    expect(body).toContain('/compare/v0.1.30...v0.1.31')
-    expect(body).not.toContain('v0.1.29：')
+    expect(body).toContain('### 相较 v0.1.31 的更新')
+    expect(body).toContain('限制诊断截图清理与 LCU 重新发现只能由主窗口发起')
+    expect(body).toContain('/compare/v0.1.31...v0.1.32')
+    expect(body).not.toContain('v0.1.30：')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',
-      version: '0.1.31',
+      version: '0.1.32',
       releases: [{ tag_name: 'v0.1.24', draft: false, prerelease: false }],
     })
     expect(body).toContain('### 相较 v0.1.24 的更新')
     expect(body).toContain('v0.1.25：')
     expect(body).toContain('v0.1.26：')
-    expect(body).toContain('v0.1.31：')
+    expect(body).toContain('v0.1.32：')
   })
 
   it('fails closed when a version has no curated notes', () => {

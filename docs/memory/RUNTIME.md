@@ -16,7 +16,7 @@
 - `src/main/lcu/`：多来源凭据发现、只读 HTTPS / WebSocket、authority / gameId / generation 隔离。
 - `src/main/ocr/`：标题 ROI、PaddleOCR / ONNX、显示器捕获；自动 OCR 默认关闭。
 - `src/main/window-manager.ts`：主窗、选人伴随窗、96px compact、校准窗和 Lobby 背景呈现。
-- `src/main/ipc.ts` / preload：按 sender 限制的结构化 IPC；Renderer 不得获取 Node、网络客户端、文件系统、凭据、任意 URL / path / query。
+- `src/main/ipc.ts` / preload：按 sender 限制的结构化 IPC；设置、诊断截图清理、LCU 重发现及其他有副作用操作只能由当前 Main sender 发起，校准操作仅接受当前 calibration sender。Renderer 不得获取 Node、网络客户端、文件系统、凭据、任意 URL / path / query。
 
 ## 对局上下文
 

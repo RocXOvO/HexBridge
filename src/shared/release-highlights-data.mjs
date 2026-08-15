@@ -132,4 +132,7 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '0.1.31': Object.freeze([
     '修复 GAME_STARTING 后取消对局或游戏进程未启动时，旧英雄、推荐、伴随窗与 Wallpaper Engine 目标可能保留过久；真实启动证据仍会延续本局上下文。',
   ]),
+  '0.1.32': Object.freeze([
+    '限制诊断截图清理与 LCU 重新发现只能由主窗口发起；伴随窗、校准窗、未知窗口或已失效的旧主窗口不再具备这些副作用权限。',
+  ]),
 })

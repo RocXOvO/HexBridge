@@ -14,7 +14,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.31'")
+    expect(rendererState).toContain("currentVersion: '0.1.32'")
   })
 
   it('routes only a bounded click-through augment recommendation strip', () => {
@@ -72,6 +72,15 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('championStrengthValue(item.tier)')
     expect(appSource).not.toContain('强度顶尖')
     expect(appSource).not.toContain('tierLabel(')
+  })
+
+  it('keeps diagnostics deletion and LCU rediscovery behind the Main sender guard', () => {
+    expect(ipcSource).toMatch(
+      /ipcMain\.handle\('hexbridge:clear-diagnostics', \(event\) => \{\s*requireSender\(event, 'main'\)/,
+    )
+    expect(ipcSource).toMatch(
+      /ipcMain\.handle\('hexbridge:retry-lcu', \(event\) => \{\s*requireSender\(event, 'main'\)/,
+    )
   })
 
   it('keeps dtodo champion metrics and Tencent global metrics explicitly separated', () => {

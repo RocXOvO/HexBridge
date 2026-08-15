@@ -147,8 +147,14 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
     requireSender(event, 'main')
     return runtime.retryWallpaperEngine()
   })
-  ipcMain.handle('hexbridge:clear-diagnostics', () => runtime.clearDiagnosticScreenshots())
-  ipcMain.handle('hexbridge:retry-lcu', () => runtime.retryLcuConnection())
+  ipcMain.handle('hexbridge:clear-diagnostics', (event) => {
+    requireSender(event, 'main')
+    return runtime.clearDiagnosticScreenshots()
+  })
+  ipcMain.handle('hexbridge:retry-lcu', (event) => {
+    requireSender(event, 'main')
+    return runtime.retryLcuConnection()
+  })
   ipcMain.handle('hexbridge:start-calibration', (event) => {
     requireSender(event, 'main')
     return runtime.startCalibration()

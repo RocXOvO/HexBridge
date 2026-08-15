@@ -76,6 +76,7 @@
 | HB-062 | GitHub Release 滚动保留与双通道 | VERIFIED（v0.1.26 实际执行） |
 | HB-063 | 跨版本升级 / Release 说明 | VERIFIED（v0.1.26 正式说明） |
 | HB-064 | Electron public packaged CDN 假阴性 | FIXED / UNVERIFIED（main 已 push） |
+| HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 本地候选） |
 
 ## 当前重点验收
 
@@ -173,6 +174,11 @@
 - controller 为 child + epoch、3s sanitize timeout、9s watchdog、single-flight；Sharp 未 settle 不开第二任务，迟到 drop，15 / 30 / 60s 退避，重启可恢复同一 raw。最终审查 P0 / P1 = 0；audit 0、OCR synthetic、真实 4K 160ms、41 files / 436 passed + 1 skipped、typecheck / lint / icon / rolling retention / source bridge / UI / diff-check 全过；版本 / release / lobby 定向 5 files / 55 tests 通过。
 - Windows candidate 首跑因缺 `lobbyBackground` 返回 `undefined` 而在 npm test 失败；fail-closed 修复后的第二次 candidate 全链成功。v0.1.28 正式 attempt 2 又通过 Windows 41 files / 438 tests、真实 4K 266ms、packaged UI / bridge 与完整发布门禁；Release ID `370764802` 为 Latest，v2 / root / public packaged 和五版滚动均通过。
 - fake WinForms 不等于真实 WeGame Chromium；仍须真实画面 / DPI / 性能验证，HB-059 保持 `IN PROGRESS / UNVERIFIED`。
+
+### HB-065：有副作用 IPC sender 授权
+
+- v0.1.32 本地候选将诊断截图清理与 LCU 重新发现限制为当前 Main sender；champion、calibration、未知或已被替换的旧 Main sender 均在调用 Runtime 前拒绝。
+- 行为级测试通过真实 `registerIpc` 捕获并执行 handler，证明 Main 成功且拒绝路径无副作用；calibration 专属 IPC、champion 状态读取与本窗关闭不变。终审无 P0 / P1，本地完整源码门禁已过；Windows packaged workflow、tag 与 Release 尚未发生，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

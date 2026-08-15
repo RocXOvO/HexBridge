@@ -10,6 +10,7 @@
 - GitHub 当前只保留 v0.1.27～v0.1.31 五个正式 Releases；v0.1.0～v0.1.31 共 32 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.31 已正式发布；Release 说明准确列出相较 v0.1.30 的取消对局清理修复，public v2 / root 为 `0.1.31 / 199281055` bytes，正式五资产完整。修复将 `GAME_STARTING` 限为首次信号起 60s 不续租短交接，稳定终止 15s 清理，强启动证据优先升级；HB-048 仍 `IN PROGRESS / UNVERIFIED`，不得用发布结果替代真实 WeGame 同机验收。
+- v0.1.32 本地候选只修 HB-065：`clear-diagnostics` 与 `retry-lcu` 在 Runtime 副作用前强制校验当前 Main sender，拒绝 champion、calibration、未知及已失效窗口。行为级授权测试执行真实注册 handler；终审 `P0=0 / P1=0`。本地 47 files / 514 passed + 1 skipped、audit 0、真实 4K 135ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过；版本与 Release 定向 4 files / 32 tests 通过。尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.31。
 
 ## 记忆模块
 

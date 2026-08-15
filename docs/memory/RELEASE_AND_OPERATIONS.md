@@ -10,6 +10,7 @@
 - public v2 / root：version `0.1.31`、size `199281055`、SHA-512 `xtzhSIGtho1DVgfQ6PdO+aMjNMAg/ALWl9O4VxOrtuBth7+plvEDx4GwrTx/KvCDAu4eil8j2FE73tRfWrhslQ==`；权威 / raw 精确一致，packaged public 为 `updateAvailable=false`。
 - 正式资产 SHA-256：EXE `3acbf3c0ff296f1fb729af7c935804eae82a535b5ed77b28ab464304e67bfc02`（`199281055` bytes）；blockmap `44a09cff9e32d25fcb0639bac3bd93fb7e879536a496b16b07b2f229d3972ed5`（`201182`）；ZIP `2dd9ddcb2fee60abfdbbda0e2dbb153a728dc98e2dacd23d51b71c33e47efbe2`（`274446434`）；latest.yml `54846d8d3648bec0644ee96e42b8ffdd9f54c4c9d26a2ff2600afedbe91b274c`（`346`）；SHA256SUMS `dfd97e113883cbd076d8db1e1345d9c755b87600bbf03a6cec712f90a9d33043`（`182`）。
 - 当前只保留 v0.1.27～v0.1.31 五个 public stable Releases；v0.1.0～v0.1.31 共 32 个 tags 都保留。本地 `release/` 为空。v0.1.26 Release / assets 已删除但 tag / source 保留。
+- v0.1.32 本地候选仅修复 Main sender IPC 授权；终审无 P0 / P1，本地源码完整门禁和版本 / Release 定向测试通过。尚未 commit / push / Windows / tag / Release，不改变上述 public 基线。
 
 ## 更新契约
 
