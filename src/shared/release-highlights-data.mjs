@@ -228,4 +228,7 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '0.1.55': Object.freeze([
     '修正打包 UI smoke 对新增 OCR 调度诊断卡数量的门禁断言，确保候选构建能继续进入桥接、差分与公开更新验证。',
   ]),
+  '0.1.56': Object.freeze([
+    '修正 Release notes 测试与真实稳定 Release 列表一致：没有公开 Release 的中间 tag 仍会累计其变更，并使用上一公开 Release 作为 compare 基线。',
+  ]),
 })

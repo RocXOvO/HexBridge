@@ -16,7 +16,6 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.51', draft: false, prerelease: false },
     { tag_name: 'v0.1.52', draft: false, prerelease: false },
     { tag_name: 'v0.1.53', draft: false, prerelease: false },
-    { tag_name: 'v0.1.54', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -206,9 +205,25 @@ describe('stable Release notes', () => {
       version: '0.1.55',
       releases,
     })
-    expect(body).toContain('### 相较 v0.1.54 的更新')
+    expect(body).toContain('### 相较 v0.1.53 的更新')
+    expect(body).toContain('v0.1.54：')
+    expect(body).toContain('脱敏 OCR 调度摘要')
+    expect(body).toContain('v0.1.55：')
     expect(body).toContain('打包 UI smoke')
-    expect(body).toContain('/compare/v0.1.54...v0.1.55')
+    expect(body).toContain('/compare/v0.1.53...v0.1.55')
+  })
+
+  it('keeps the no-Release intermediate tags in the v0.1.56 cumulative notes', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.56',
+      releases: [...releases, { tag_name: 'v0.1.55', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.55 的更新')
+    expect(body).toContain('修正 Release notes 测试')
+    expect(body).not.toContain('v0.1.54：')
+    expect(body).not.toContain('v0.1.55：')
+    expect(body).toContain('/compare/v0.1.55...v0.1.56')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
