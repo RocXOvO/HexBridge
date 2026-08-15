@@ -5,7 +5,8 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.44](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.44)，Release ID `RE_kwDOT1eQs84WHuNV`；annotated tag 已解引用 tagged commit `eda3d76adc216293393ff951df1f6ba73475396d`。v0.1.45 为本地候选，包含高置信度冗余清理，尚未 commit/push、Windows、tag 或 Release。
+- 当前公开正式版：[v0.1.44](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.44)，Release ID `RE_kwDOT1eQs84WHuNV`；annotated tag 已解引用 tagged commit `eda3d76adc216293393ff951df1f6ba73475396d`。v0.1.45 为已推送候选，包含高置信度冗余清理。
+- v0.1.45 Windows workflow_dispatch `31901192560` 成功（48 files / 568 passed，artifact `9251192566` / 473533614 bytes）；尚未 tag 或 Release，不能写成正式发布。
 - v0.1.44 正式 workflow `31900414946` 首次仅因稳定 channel 传播窗口超时，幂等重跑成功；Windows 48 files / 566 passed + 1 skipped，Release 五资产、双通道、packaged public check 与五版滚动保留均成功。正式补丁将选人助手备战席滚动锁在面板内部，自动化不等于真实 WeGame / Windows 视觉性能验证。
 - v0.1.43 正式 workflow 首次仅因稳定 channel 传播窗口超时，失败后按幂等流程重跑成功；Windows 48 files / 564 passed + 1 skipped，Release 五资产、双通道、packaged public check 与五版滚动保留均成功。正式补丁让手动刷新期间已有可靠三卡保持挂载，只替换真正变化的槽位；自动化不等于真实 WeGame、Windows 性能或 installed updater 验证。
 - v0.1.41 正式 workflow 首次遇到 Raw 传播超时后按幂等流程重跑成功，Release / 五资产、双通道、packaged UI / bridge、差分和滚动保留均通过；自动化不等于真实 WeGame、腾讯接口或 installed 迁移验证。
