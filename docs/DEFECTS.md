@@ -81,7 +81,7 @@
 | HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 已发布） |
 | HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 已发布） |
 | HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 已发布） |
-| HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 本地候选） |
+| HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 Windows 候选） |
 
 ## 当前重点验收
 
@@ -211,7 +211,7 @@
 ### HB-070：实时助手来源徽标信息过多
 
 - v0.1.37 候选将实时助手右上角限制为只显示当前推荐来源名称；不再显示日期、dataVersion、“未就绪”、缓存后缀或 stale 样式。
-- 日期、新鲜度和错误仍保留在推荐详情、英雄榜、设置与诊断页。终审 `P0=0 / P1=0`；本地 audit 0、48 files / 533 passed + 1 skipped、真实 4K OCR 597ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过；Windows 与正式发布尚未完成。
+- 日期、新鲜度和错误仍保留在推荐详情、英雄榜、设置与诊断页。终审 `P0=0 / P1=0`；Windows run `31888079459` 通过 48 files / 534 tests、4K OCR 269ms、packaged UI / bridge、差分更新与产物门禁。候选不等于正式发布，用户同机视觉仍未验。
 
 ## 追溯
 

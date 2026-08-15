@@ -12,7 +12,7 @@
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
 - v0.1.35 已正式发布，仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录且不含 PID、HWND、路径、坐标或标题。Release 说明准确列出相较 v0.1.34 的两项变化；public v2 / root 为 `0.1.35 / 199283491` bytes，五资产完整。HB-068 保持 `FIXED / UNVERIFIED`，等待真实 WeGame 复现时验证诊断有效性。
 - v0.1.36 已正式发布，仅修复 HB-069：腾讯当前强化榜的极小选取率使用科学计数法，静态海克斯目录根节点为数组；旧解析器依次误拒两者。真实四端点受限验证已达 `ready / 20260814 / 172 英雄 / 246 强化`；正式 EXE `199283652` bytes，v2 / root 精确为 `0.1.36`，五资产完整。HB-069 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端切源复测。
-- v0.1.37 本地候选仅实现 HB-070：实时助手右上角只显示当前推荐来源名称，不再附带统计日期、dataVersion、“未就绪”或缓存后缀；详情、英雄榜、设置和诊断中的日期 / stale / error 保持不变。审查 `P0=0 / P1=0`；本地 audit 0、48 files / 533 passed + 1 skipped、真实 4K OCR 597ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过。尚未 commit / push、Windows、tag 或 Release。
+- v0.1.37 Windows 候选仅实现 HB-070：实时助手右上角只显示当前推荐来源名称，不再附带统计日期、dataVersion、“未就绪”或缓存后缀；详情、英雄榜、设置和诊断中的日期 / stale / error 保持不变。审查 `P0=0 / P1=0`；commit `36fc8b9d3d32578da32360552760646dbe52d218` 已 push，run `31888079459` / job `95020176876` 于 6m3s 成功：Windows 48 files / 534 tests、4K OCR 269ms、EXE `199283720` bytes、packaged UI / bridge、差分 `1220969 / 199283720` bytes 与校验和全过；artifact `9247862705` / `473521924` bytes。tag-only 发布步骤按预期跳过，尚无 tag / Release，公开 Latest 仍为 v0.1.36。
 
 ## 记忆模块
 
