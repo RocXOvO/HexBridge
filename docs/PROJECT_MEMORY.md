@@ -5,16 +5,16 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.38](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.38)，Release ID `371071883`；annotated tag object `03ce6432547e6cafbfd671467dc96000bcf12527` 解引用 tagged commit `f575265cd1c4cbd8e9d0bea8f659f8dc0b2fc958`。
-- 正式 run `31890345180` / job `95025571117` 先创建 Release / 五资产，后因 GitHub Raw 100s 未传播而 fail closed 且未 prune；幂等复跑 `31890763548` / job `95026572988` 于 5m29s 成功：Windows 48 files / 548 tests、真实 4K OCR 279ms、packaged UI / bridge、public v2 / root / packaged 与滚动保留全过。复跑 artifact `9248537164` 为 `473,524,797` bytes。自动化不等于真实 WeGame、DPI、性能或 installed updater 验证。
-- GitHub 当前只保留 v0.1.34～v0.1.38 五个正式 Releases；v0.1.0～v0.1.38 共 39 个 tags 全部保留。本地 `release/` 为空。
+- 当前公开正式版：[v0.1.39](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.39)，Release ID `371084336`；annotated tag object `3f70c7419178fa722854ce7ef44241c73fe45ab3` 解引用 tagged commit `596987227c83cd66284637f3b6f78591ea248c95`。
+- 正式 run `31892787540` / job `95031463050` 创建 Release / 五资产与双通道后因 root Raw 100s 未传播而 fail closed 且未 prune；幂等复跑 `31893186863` / job `95032413096` 于 5m24s 成功：Windows 48 files / 557 tests、真实 4K OCR 264ms、packaged UI / bridge、public v2 / root / packaged 与滚动保留全过。复跑 artifact `9249146242` 为 `473528785` bytes。自动化不等于真实 WeGame、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.35～v0.1.39 五个正式 Releases；v0.1.0～v0.1.39 共 40 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
 - v0.1.35 已正式发布，仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录且不含 PID、HWND、路径、坐标或标题。Release 说明准确列出相较 v0.1.34 的两项变化；public v2 / root 为 `0.1.35 / 199283491` bytes，五资产完整。HB-068 保持 `FIXED / UNVERIFIED`，等待真实 WeGame 复现时验证诊断有效性。
 - v0.1.36 已正式发布，仅修复 HB-069：腾讯当前强化榜的极小选取率使用科学计数法，静态海克斯目录根节点为数组；旧解析器依次误拒两者。真实四端点受限验证已达 `ready / 20260814 / 172 英雄 / 246 强化`；正式 EXE `199283652` bytes，v2 / root 精确为 `0.1.36`，五资产完整。HB-069 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端切源复测。
 - v0.1.37 已正式发布，仅实现 HB-070：实时助手右上角只显示当前推荐来源名称，不再附带统计日期、dataVersion、“未就绪”或缓存后缀；详情、英雄榜、设置和诊断中的日期 / stale / error 保持不变。正式 EXE `199283718` bytes，v2 / root 精确为 `0.1.37`，五资产完整。HB-070 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端视觉确认。
 - v0.1.38 已正式发布，仅修复 HB-071：单英雄详情失败不再污染全局 data.dtodo 状态；目录 429 保留同源旧缓存但不自动重试；离线按 15s / 60s / 5min 有界恢复；正文统一 10s / 2MiB；同 dataVersion 目录不可变且新版本仅在文件、pointer 全提交后切 active。正式 EXE `199284622` bytes，public v2 / root 精确为 `0.1.38`，五资产完整。HB-071 保持 `FIXED / UNVERIFIED`，等待 installed 客户端网络波动复测。
-- v0.1.39 Windows 候选仅修复 HB-072：同 generation 的队友 / 对手换英雄或交换备战席时，已有历史指标和 opaque key 按 Main-only 身份保持，公开头像、relation / slot 与详情跟随最新权威 roster；拒绝分组暂时从 Renderer 撤下，恢复时不因 roster 更新重查历史。commit `6e9b184078d15abf4394257c65096f894894f75c` 已 push；run `31892397418` / job `95030523935` 于 5m34s 成功，Windows 48 files / 557 tests、真实 4K OCR 262ms、EXE `199286227` bytes、packaged UI / bridge 与 synthetic v0.1.40 差分 `1196837 / 199286227` bytes 全过；artifact `9248949702` 为 `473528720` bytes。尚未 tag / Release，Latest 仍为 v0.1.38；CI 不等于真实 WeGame，HB-072 保持 `FIXED / UNVERIFIED`。
+- v0.1.39 已正式发布，仅修复 HB-072：同 generation 的队友 / 对手换英雄或交换备战席时，已有历史指标和 opaque key 按 Main-only 身份保持，公开头像、relation / slot 与详情跟随最新权威 roster；拒绝分组暂时从 Renderer 撤下，恢复时不因 roster 更新重查历史。正式 EXE `199286227` bytes，public v2 / root 精确为 `0.1.39`，五资产完整；CI 不等于真实 WeGame，HB-072 保持 `FIXED / UNVERIFIED`。
 
 ## 记忆模块
 
@@ -34,7 +34,7 @@
 
 ## 当前优先级
 
-1. HB-072：将已通过 Windows workflow 的 v0.1.39 候选完成正式发布；随后在真实选人局验证换英雄、备战席换位、hidden / partial 恢复和零新增历史请求。
+1. HB-072：在 v0.1.39 正式版的真实选人局验证换英雄、备战席换位、hidden / partial 恢复和零新增历史请求。
 2. HB-058：完成真实 Windows 下的腾讯接口、切源、当前英雄 / OCR / 紧凑条同源与 stale / error 显示验收；不以书面授权或 Release 成功替代技术验证。
 3. 真实 WeGame 验收：`GAME_STARTING` 后取消 / 启动、终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
 4. HB-057 Wallpaper Engine：v0.1.30 已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义正式发布；待真实 Wallpaper Engine / Steam 多库实机验收。

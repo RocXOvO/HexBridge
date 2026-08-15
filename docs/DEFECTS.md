@@ -83,7 +83,7 @@
 | HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 已发布） |
 | HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 已发布） |
 | HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 已发布） |
-| HB-072 | 同局换英雄 / 备战席换位后队伍头像冻结 | FIXED / UNVERIFIED（v0.1.39 Windows 候选） |
+| HB-072 | 同局换英雄 / 备战席换位后队伍头像冻结 | FIXED / UNVERIFIED（v0.1.39 已发布） |
 
 ## 当前重点验收
 
@@ -109,12 +109,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.38 全验证后删除 v0.1.33 Release / assets、保留 tag；当前仅 v0.1.34～v0.1.38 五个 public stable Releases，39 个 tags（v0.1.0～v0.1.38）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.39 全验证后删除 v0.1.34 Release / assets、保留 tag；当前仅 v0.1.35～v0.1.39 五个 public stable Releases，40 个 tags（v0.1.0～v0.1.39）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.38 Release 已准确列出相较 v0.1.37 的变化，跨版累计链延伸至 0.1.38，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.39 Release 已准确列出相较 v0.1.38 的变化，跨版累计链延伸至 0.1.39，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -224,8 +224,8 @@
 ### HB-072：同局队伍头像冻结
 
 - 根因是首次历史查询把 champion / relation / slot 与战绩一起固化，Runtime 对同 generation 的 ready 状态又停止刷新；换英雄或交换备战席后一直显示首次头像。
-- v0.1.39 Windows 候选改为 Main-only 身份绑定：实时 roster 更新不重新查询已有历史且保持既有 opaque key，champ-select 与 active gameflow 仅更新完整脱敏 presentation；hidden、partial 或歧义分组从公开状态撤下，成员恢复后沿用原明细。用户主动重新读取或阶段补全仍可发起新查询。PUUID、self 和原始 roster 不出 Main / IPC / 日志 / 磁盘。
-- 终审 `P0=0 / P1=0`；commit `6e9b184078d15abf4394257c65096f894894f75c` 已 push，Windows run `31892397418` / job `95030523935` 通过 48 files / 557 tests、真实 4K OCR 262ms、packaged UI / bridge、差分和产物门禁。尚未 tag / Release，真实 WeGame 换英雄与备战席换位仍待验，状态保持 `FIXED / UNVERIFIED`。
+- v0.1.39 改为 Main-only 身份绑定：实时 roster 更新不重新查询已有历史且保持既有 opaque key，champ-select 与 active gameflow 仅更新完整脱敏 presentation；hidden、partial 或歧义分组从公开状态撤下，成员恢复后沿用原明细。用户主动重新读取或阶段补全仍可发起新查询。PUUID、self 和原始 roster 不出 Main / IPC / 日志 / 磁盘。
+- 终审 `P0=0 / P1=0`；Windows candidate `31892397418` 与正式幂等复跑 `31893186863` 均通过 48 files / 557 tests、真实 4K OCR、packaged UI / bridge、差分 / public 更新与五版滚动门禁。v0.1.39 已发布，但真实 WeGame 换英雄与备战席换位仍待验，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

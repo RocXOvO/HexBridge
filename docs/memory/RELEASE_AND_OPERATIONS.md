@@ -4,12 +4,12 @@
 
 ## 当前正式基线
 
-- public Latest：[v0.1.38](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.38)，non-draft / non-prerelease；Release ID `371071883`，publishedAt `2026-08-15T14:42:18Z`。
-- annotated tag object `03ce6432547e6cafbfd671467dc96000bcf12527` 解引用 commit `f575265cd1c4cbd8e9d0bea8f659f8dc0b2fc958`。
-- 正式 run `31890345180` / job `95025571117` 创建 Release / 五资产后因 Raw 100s 未传播而 fail closed，未 prune；幂等复跑 `31890763548` / job `95026572988` 于 5m29s 成功且不重发 Release / channel。48 files / 548 tests、audit、真实 4K 279ms、lint、typecheck、packaged UI / bridge、public packaged 全过；synthetic v0.1.39 差分为 `1,157,023 / 199,284,622` bytes、11 个 Range 与 3 个 redirect。复跑 artifact `9248537164` 为 `473,524,797` bytes，digest `sha256:12987cafa1369d83248bcad85d083bf7586ce54fd36407a504c735fed0d0fa32`。
-- public v2 / root：version `0.1.38`、size `199284622`、SHA-512 `kiRyXLMh1CuigPUo7PgXY8KZWlriWTA0+TGTWozSgBnHXR/SRf/wM+P4Qa+qx1utiMeZnuYAz6Gr+hnEoDvbvg==`；两通道精确一致，packaged public 为 `updateAvailable=false`。
-- 正式资产 SHA-256：EXE `21f78d4921abf953077172bb46b586614305c3623979d1333502fa564a1e94cd`（`199284622` bytes）；blockmap `20418377b5987e18b2beebe84edd1db2305fa42adba2442c9237e05608797995`（`201438`）；ZIP `b3c6f730ce646acc6a9acfb98f2c08faba1c34bf1efce0db62572cd158d96f73`（`274451346`）；latest.yml `a724229bcfb1a948eca833331add35818998db44fe162b98cf3ba2fb10a5609e`（`346`）；SHA256SUMS `1b7e86a476198e62588146584b94e6486c05f0ff01dea13e2b8f62a3a74ebf37`（`182`）。
-- 当前只保留 v0.1.34～v0.1.38 五个 public stable Releases；v0.1.0～v0.1.38 共 39 个 tags 都保留。本地 `release/` 为空。v0.1.33 Release / assets 已删除但 tag / source 保留。
+- public Latest：[v0.1.39](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.39)，non-draft / non-prerelease；Release ID `371084336`，publishedAt `2026-08-15T15:33:46Z`。
+- annotated tag object `3f70c7419178fa722854ce7ef44241c73fe45ab3` 解引用 commit `596987227c83cd66284637f3b6f78591ea248c95`。
+- 正式 run `31892787540` / job `95031463050` 创建 Release / 五资产与双通道后因 root Raw 100s 未传播而 fail closed，未 prune；幂等复跑 `31893186863` / job `95032413096` 于 5m24s 成功且不重发 Release / channel。48 files / 557 tests、audit、真实 4K 264ms、lint、typecheck、packaged UI / bridge、public packaged 全过；synthetic v0.1.40 差分为 `1265970 / 199286294` bytes、9 个 Range 与 3 个 redirect。复跑 artifact `9249146242` 为 `473528785` bytes，digest `sha256:ccc226a632dfaa7bfdefcd7ddc8a1744f3dbcce634764f35475b44653718ad59`。
+- public v2 / root：version `0.1.39`、size `199286227`、SHA-512 `z74O2r7F5DnYTmpeQa4P771yVfQb4bY3tQh6/jDI1srT43tWfnDACkwizEulU6PYxTbPkWkRmVT4PgS4k/onCQ==`；两通道精确一致，packaged public 为 `updateAvailable=false`。
+- 正式资产 SHA-256：EXE `690781a29ea92d892a39008d52169efc8092990b79c93a3a95ad40ee494a2dc9`（`199286227` bytes）；blockmap `416bcbfc6e2b4d6ab3baed26624a87c00b9ac96dc599330ea6ec8af2d35fca2e`（`201225`）；ZIP `90b73375286f373df171142735dc42e3186aab79a433cb87942bde864a1740a0`（`274453329`）；latest.yml `7f5fd51af13ea884e5a5ee47bf39218baec543414bef83a6a3935b236ff78803`（`346`）；SHA256SUMS `08d4b113e179bbf2daa9cf53731ad1ed751c7dc2bdebea42876050ab1dc4ca2c`（`182`）。
+- 当前只保留 v0.1.35～v0.1.39 五个 public stable Releases；v0.1.0～v0.1.39 共 40 个 tags 都保留。本地 `release/` 为空。v0.1.34 Release / assets 已删除但 tag / source 保留。
 
 ## 更新契约
 
