@@ -38,7 +38,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.50'")
+    expect(rendererState).toContain("currentVersion: '0.1.51'")
   })
 
   it('keeps champion selection scrolling inside the assistant without horizontal overflow', () => {
@@ -133,6 +133,15 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('全局胜率')
     expect(appSource).toContain('不是该英雄专属统计')
     expect(appSource).toContain('state.currentRecommendation.cards.slice(0, 3)')
+  })
+
+  it('surfaces Tencent overall champion pick rate without using it for ranking', () => {
+    expect(appSource).toContain('英雄选取率')
+    expect(appSource).toContain('championPickRate(current.championPickRate)')
+    expect(appSource).toContain('championPickRate(item.championPickRate)')
+    expect(stylesSource).toContain('.rank-pick')
+    expect(stylesSource).toContain('grid-template-columns: 42px 48px minmax(170px,1fr) 72px 104px 104px')
+    expect(rendererDemoState).toContain('championPickRate: null')
   })
 
   it('keeps Tencent browsing source-bound, keyboard reachable and locally filterable', () => {

@@ -166,6 +166,7 @@ describe('Tencent101Adapter', () => {
     })
     expect(fetcher).toHaveBeenCalledTimes(4)
     expect(adapter.getChampions()).toHaveLength(100)
+    expect(adapter.getChampions()[0]).toMatchObject({ championPickRate: .1, source: 'tencent101' })
     expect(adapter.getAugments()).toHaveLength(100)
     const detail = adapter.getChampionRecommendation(1)
     expect(detail).toMatchObject({ source: 'tencent101', championId: 1, statisticsDate: '20260814' })
@@ -219,6 +220,21 @@ describe('Tencent101Adapter', () => {
     const snapshotPath = path.join(directory, pointer.file)
     const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8')) as { champions: Array<{ name: string }> }
     snapshot.champions[0]!.name = '被篡改的缓存'
+    await writeFile(snapshotPath, JSON.stringify(snapshot), 'utf8')
+    const offline = new Tencent101Adapter(directory, 'test', vi.fn(async () => { throw new TypeError('offline') }))
+
+    await expect(offline.initialize()).resolves.toMatchObject({ status: 'offline', snapshotId: '' })
+    expect(offline.getChampions()).toEqual([])
+  })
+
+  it('rejects an out-of-range Tencent champion pick rate in cache', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'hexbridge-tencent101-champion-pick-rate-'))
+    temporaryDirectories.push(directory)
+    await new Tencent101Adapter(directory, 'test', validFetcher(), () => 4_500).initialize()
+    const pointer = JSON.parse(await readFile(path.join(directory, 'current.json'), 'utf8')) as { file: string }
+    const snapshotPath = path.join(directory, pointer.file)
+    const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8')) as { champions: Array<{ championPickRate: number }> }
+    snapshot.champions[0]!.championPickRate = 1.1
     await writeFile(snapshotPath, JSON.stringify(snapshot), 'utf8')
     const offline = new Tencent101Adapter(directory, 'test', vi.fn(async () => { throw new TypeError('offline') }))
 

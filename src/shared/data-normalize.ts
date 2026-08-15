@@ -147,6 +147,10 @@ export function normalizeChampionCatalog(payload: unknown, fallbackPatch = ''): 
       splashUrl: `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${alias}_0.jpg`,
       tier: asNumber(stats.tier),
       winRate: ratio(stats.winRate),
+      // The dtodo catalog does not expose a verified champion-level pick-rate
+      // field. Keep the slot explicit and null rather than borrowing an
+      // augment or global metric from another source.
+      championPickRate: null,
       patch: String(stats.gamePatch ?? fallbackPatch),
       date: String(stats.date ?? ''),
       source: String(stats.source ?? 'tencent'),

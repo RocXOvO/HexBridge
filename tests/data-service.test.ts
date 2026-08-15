@@ -136,7 +136,7 @@ describe('DataService failures and fallback', () => {
     const directory = await cacheDirectory()
     const cachedChampion = {
       id: 103, alias: 'Ahri', name: '阿狸', title: '', roles: [], iconUrl: '', splashUrl: '',
-      tier: 2, winRate: .528, patch: '16.14', date: '', source: 'tencent',
+      tier: 2, winRate: .528, championPickRate: null, patch: '16.14', date: '', source: 'tencent',
     }
     await Promise.all([
       writeFile(path.join(directory, 'current.json'), JSON.stringify({ version: '16.14.1' })),
@@ -319,7 +319,7 @@ describe('DataService failures and fallback', () => {
 describe('DataService snapshot health and recovery', () => {
   const cachedChampion = {
     id: 103, alias: 'Ahri', name: '阿狸', title: '', roles: [], iconUrl: '', splashUrl: '',
-    tier: 2, winRate: .528, patch: '16.14', date: '', source: 'tencent',
+    tier: 2, winRate: .528, championPickRate: null, patch: '16.14', date: '', source: 'tencent',
   }
 
   async function seedCatalog(directory: string, version = '16.14.1'): Promise<void> {

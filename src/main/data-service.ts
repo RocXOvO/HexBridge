@@ -226,7 +226,7 @@ export class DataService {
   }
 
   getChampions(): ChampionSummary[] {
-    return [...this.champions]
+    return this.champions.map((entry) => ({ ...entry, championPickRate: entry.championPickRate ?? null }))
   }
 
   getAugments(): AugmentMeta[] {
@@ -504,7 +504,10 @@ export class DataService {
         readFile(this.cachePath(`champions-${pointer.version}.json`), 'utf8'),
         readFile(this.cachePath(`augments-${pointer.version}.json`), 'utf8'),
       ])
-      this.champions = JSON.parse(champions) as ChampionSummary[]
+      this.champions = (JSON.parse(champions) as ChampionSummary[]).map((entry) => ({
+        ...entry,
+        championPickRate: entry.championPickRate ?? null,
+      }))
       this.augments = JSON.parse(augments) as AugmentMeta[]
       this.cachedDataVersion = pointer.version
       if (!this.apiState.dataVersion) {

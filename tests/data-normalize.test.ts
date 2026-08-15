@@ -11,9 +11,17 @@ describe('upstream data sanitation', () => {
       id: 103, alias: 'Ahri', name: '阿狸', title: '九尾妖狐', roles: ['Mage'], iconUrl: 'icon',
       stats: { tier: '2', winRate: '52.8', gamePatch: '16.15', date: '2026-08-10', source: 'tencent', wins: 123, games: 456 },
     }] })
-    expect(rows[0]).toMatchObject({ id: 103, tier: 2, winRate: .528, patch: '16.15' })
+    expect(rows[0]).toMatchObject({ id: 103, tier: 2, winRate: .528, championPickRate: null, patch: '16.15' })
     expect(rows[0]).not.toHaveProperty('wins')
     expect(rows[0]).not.toHaveProperty('games')
+  })
+
+  it('does not borrow an unverified dtodo champion pick-rate field', () => {
+    const rows = normalizeChampionCatalog({ data: [{
+      id: 103, alias: 'Ahri', name: '阿狸', title: '九尾妖狐', roles: [], iconUrl: '',
+      stats: { tier: 2, winRate: .528, pickRate: .24 },
+    }] })
+    expect(rows[0]?.championPickRate).toBeNull()
   })
 
   it('strips augment HTML and discards win-rate fields', () => {

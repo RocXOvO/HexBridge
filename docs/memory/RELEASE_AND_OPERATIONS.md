@@ -4,6 +4,8 @@
 
 ## 当前正式基线
 
+- 当前候选 `v0.1.51` 尚未提交 / 推送 / 发布；仅记录本地 Tencent 英雄总体选取率展示改动。正式 Latest 仍为 `v0.1.50`，Windows / 真实腾讯接口门禁尚未发生。
+
 - 当前公开正式版 `v0.1.50` 已完成 tag / Release / 双通道 / 滚动保留。真实 WeGame / installed updater 仍不是自动化证据。
 
 - public Latest：[v0.1.50](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.50)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WH1T8`，publishedAt `2026-08-15T20:38:40Z`。

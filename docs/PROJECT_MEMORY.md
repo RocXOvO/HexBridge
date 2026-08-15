@@ -6,6 +6,7 @@
 ## 当前基线
 
 - 当前公开正式版：[v0.1.50](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.50)，Release ID `RE_kwDOT1eQs84WH1T8`，publishedAt `2026-08-15T20:38:40Z`；tagged commit `2ae206e75e341d74bb3ffafc33c57ba61e05c243`。本版修复自动 probe 在旧 surface 已隐藏时复活三卡的边界。
+- 当前候选 `v0.1.51` 尚未提交、推送或发布：将 Tencent 101 英雄榜总体 `pickRate` 以来源隔离的 `championPickRate` 贯通当前英雄、备战席与英雄榜；dtodo 明确为 `null`，该指标不参与排序。候选本地门禁为 `50` files / `593` passed + `1` skipped、typecheck 通过、变更文件 lint 无错误、diff-check 通过；Windows、真实 Tencent 接口与用户同机视觉仍未验，不能写成正式或 `VERIFIED`。
 - v0.1.50 正式 workflow `31907004019`（首次稳定通道传播超时，幂等重跑成功；成功 job `95067797353`）；Windows `50` files / `589` tests、真实 4K OCR `262ms`、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过。artifact `9252836643` / `473541534` bytes / `fc2af97007a69eb1f9cbbf12acfd4c9b4537e8d152cf0a69ff6eaa335b48de49`。真实游戏视觉仍未验证，不得写成已完成用户同机验收。
 - v0.1.50 五资产：EXE `199291254` / `a32e54338197d4c820dc9ff4a48a4a6a9c81334225d8004f7cd395f6b97c80b0`；blockmap `201346` / `7ae10fbf1af5aaefe49d0fe0659c14000004286a3b4cbd9d848c4f176f2d543a`；ZIP `274460169` / `aa082be360f80c47b76782e9512d613e6a3b253c850225aa378b65ce7d951ac1`；latest.yml `346` / `089b1ccd313a367d8c1910f08622a2949f566ce7a2551a394ff299079d3e7409`；SHA256SUMS `182` / `1d557f9731bfc8a6386155ec80ebc156594318ab710652e2e21c59793158836b`。差分 smoke 为 `1299245` bytes / full `199291339`，10 个 Range、3 个 redirect，基于 v0.1.49。
 - v0.1.49 正式 workflow `31906109063`（首次稳定通道传播超时，幂等重跑成功）；Windows `50` files / `587` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过，artifact `9252537013` / `473541312` bytes。真实游戏刷新视觉仍未验证，不得写成已完成用户同机验收。
@@ -17,6 +18,7 @@
 - v0.1.41 正式 workflow 首次遇到 Raw 传播超时后按幂等流程重跑成功，Release / 五资产、双通道、packaged UI / bridge、差分和滚动保留均通过；自动化不等于真实 WeGame、腾讯接口或 installed 迁移验证。
 - GitHub 当前只保留 v0.1.46～v0.1.50 五个正式 Releases；v0.1.0～v0.1.50 tags 全部保留。本地 `release/` 为空；旧 Release / assets 按滚动策略删除但 tag / source 保留（本轮删除 v0.1.45 Release，未删除 tag）。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
+- HB-085 当前候选只补充 Tencent 英雄总体选取率的公开展示：解析与缓存严格沿用 `0..1`，通过 provider snapshot 进入当前英雄 / 备战席 / 英雄榜；不与海克斯全局选取率混用，也不改变 Tier / 胜率排序。真实 Windows 切源、腾讯接口稳定性与 UI 可读性仍待验。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
 - v0.1.35 已正式发布，仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录且不含 PID、HWND、路径、坐标或标题。Release 说明准确列出相较 v0.1.34 的两项变化；public v2 / root 为 `0.1.35 / 199283491` bytes，五资产完整。HB-068 保持 `FIXED / UNVERIFIED`，等待真实 WeGame 复现时验证诊断有效性。
 - v0.1.36 已正式发布，仅修复 HB-069：腾讯当前强化榜的极小选取率使用科学计数法，静态海克斯目录根节点为数组；旧解析器依次误拒两者。真实四端点受限验证已达 `ready / 20260814 / 172 英雄 / 246 强化`；正式 EXE `199283652` bytes，v2 / root 精确为 `0.1.36`，五资产完整。HB-069 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端切源复测。
@@ -54,6 +56,7 @@
 8. HB-068：发布后用真实 WeGame 复现伴随窗 / 96px 条缺失或错位，并以脱敏枚举定位资格、authority、观察、前台和 3/3 结果边界。
 9. HB-069：在 v0.1.36 正式版完成用户 Windows 客户端切源复测；发布成功不代替真实接口与 UI 验证。
 10. HB-070 / 071：分别完成 v0.1.37 来源徽标视觉确认，以及 v0.1.38 installed 网络波动 / 429 / 恢复验证；Key / 响应正文不得进入日志或文档。
+11. HB-085：在候选 0.1.51 Windows 客户端切换 Tencent 101，确认英雄总体选取率在当前英雄、备战席和英雄榜显示且明确口径；缺失数据显示暂无数据，不得与海克斯全局指标混淆。
 
 ## 当前任务边界
 

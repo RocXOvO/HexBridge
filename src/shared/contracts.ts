@@ -131,6 +131,8 @@ export interface ChampionSummary {
   splashUrl: string
   tier: number | null
   winRate: number | null
+  /** Overall champion pick rate from the selected recommendation provider. */
+  championPickRate: number | null
   patch: string
   date: string
   source: string

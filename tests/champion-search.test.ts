@@ -4,7 +4,7 @@ import { matchesChampionSearch } from '../src/shared/champion-search.js'
 
 const vayne: ChampionSummary = {
   id: 67, alias: 'Vayne', name: '薇恩', title: '暗夜猎手', roles: ['marksman'],
-  iconUrl: '', splashUrl: '', tier: 1, winRate: .52, patch: '', date: '', source: '',
+  iconUrl: '', splashUrl: '', tier: 1, winRate: .52, championPickRate: null, patch: '', date: '', source: '',
 }
 
 describe('champion search aliases', () => {

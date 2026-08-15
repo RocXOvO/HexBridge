@@ -103,6 +103,7 @@ describe('LCU handoff through runtime state', () => {
       splashUrl: '',
       tier: 1,
       winRate: 0.53,
+      championPickRate: null,
       patch: '16.15',
       date: '',
       source: 'fixture',

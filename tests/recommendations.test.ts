@@ -4,7 +4,7 @@ import { buildChampionCandidates, compareChampions, dtodoRecommendationDetail, r
 
 const champion = (id: number, tier: number | null, winRate: number | null): ChampionSummary => ({
   id, alias: `Champion${id}`, name: `英雄${id}`, title: '', roles: [], iconUrl: '', splashUrl: '',
-  tier, winRate, patch: '16.15', date: '', source: 'fixture',
+  tier, winRate, championPickRate: null, patch: '16.15', date: '', source: 'fixture',
 })
 
 const snapshot: ChampSelectSnapshot = {

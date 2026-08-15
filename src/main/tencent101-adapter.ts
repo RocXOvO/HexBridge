@@ -264,6 +264,7 @@ function parseTencentHeroCatalog(payload: unknown, statistics: TencentHeroStatis
       splashUrl: `${TENCENT_STATIC_ORIGIN}/images/lol/act/img/skin/big${id}000.jpg`,
       tier: statistic.rank,
       winRate: statistic.winRate,
+      championPickRate: statistic.pickRate,
       patch: '',
       date,
       source: 'tencent101',
@@ -345,6 +346,7 @@ function validCachedChampion(value: unknown, date: string): boolean {
       item.searchAliases.every((alias) => typeof alias === 'string' && alias.length > 0 && alias.length <= 30)
     )) && icon === item.iconUrl && splash === item.splashUrl &&
     positiveInteger(item.tier) && ratio(item.winRate) != null && item.patch === '' &&
+    (item.championPickRate === undefined || ratio(item.championPickRate) != null) &&
     item.date === date && item.source === 'tencent101'
   )
 }
@@ -455,7 +457,14 @@ export class Tencent101Adapter {
   }
 
   getChampions(): ChampionSummary[] {
-    return this.snapshot ? this.snapshot.champions.map((entry) => ({ ...entry, roles: [...entry.roles], searchAliases: [...(entry.searchAliases ?? [])] })) : []
+    return this.snapshot
+      ? this.snapshot.champions.map((entry) => ({
+        ...entry,
+        championPickRate: ratio(entry.championPickRate) ?? null,
+        roles: [...entry.roles],
+        searchAliases: [...(entry.searchAliases ?? [])],
+      }))
+      : []
   }
 
   getAugments(): AugmentMeta[] {

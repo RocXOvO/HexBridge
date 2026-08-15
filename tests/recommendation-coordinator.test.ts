@@ -6,7 +6,7 @@ import type { Tencent101Adapter } from '../src/main/tencent101-adapter.js'
 
 const champions: ChampionSummary[] = [{
   id: 1, alias: 'Hero1', name: '英雄1', title: '称号1', roles: [], iconUrl: '', splashUrl: '',
-  tier: 1, winRate: .5, patch: '16.16', date: '2026-08-14', source: 'fixture',
+  tier: 1, winRate: .5, championPickRate: .22, patch: '16.16', date: '2026-08-14', source: 'fixture',
 }]
 const augments: AugmentMeta[] = [1, 2].map((id) => ({
   id, name: `强化${id}`, iconUrl: `https://game.gtimg.cn/${id}.png`, rarity: 2,
@@ -64,6 +64,11 @@ describe('RecommendationCoordinator source isolation', () => {
     expect(tencentView.cards[0]).toMatchObject({ augmentId: 2, recommendationRank: 1, globalPickRate: .3, globalWinRate: .6 })
     expect(dtodo.getChampionAugments).toHaveBeenCalledTimes(1)
     expect(tencent.getChampionRecommendation).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves the selected provider champion pick rate in the public catalog', () => {
+    const { coordinator } = fixtureCoordinator()
+    expect(coordinator.getChampions('tencent101')[0]?.championPickRate).toBe(.22)
   })
 
   it('drops a late hero result when the provider snapshot changes', async () => {

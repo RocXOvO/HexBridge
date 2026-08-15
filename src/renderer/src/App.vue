@@ -236,6 +236,10 @@ function winRate(value: number | null): string {
   return value == null ? '—' : `${(value * 100).toFixed(1)}%`
 }
 
+function championPickRate(value: number | null | undefined): string {
+  return value == null ? '暂无数据' : `${(value * 100).toFixed(1)}%`
+}
+
 function championStrengthLabel(): string {
   return state.value.recommendation.source === 'tencent101' ? '腾讯排名' : 'Tier'
 }
@@ -808,6 +812,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                     <div><small>{{ championStrengthLabel() }}</small><b class="tier-value">{{ championStrengthValue(current.tier) }}</b></div>
                     <div><small>{{ championWinRateLabel() }}</small><b>{{ winRate(current.winRate) }}</b></div>
                     <div><small>当前等级</small><b>{{ state.currentChampionLevel ?? '—' }}</b></div>
+                    <div v-if="state.recommendation.source === 'tencent101'"><small>英雄选取率</small><b>{{ championPickRate(current.championPickRate) }}</b></div>
                   </div>
                   <span v-if="current.isBest" class="best-badge">首选</span>
                 </div>
@@ -948,7 +953,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                 <article v-for="item in bench" :key="item.id" :class="['bench-card', { best: item.isBest }]">
                   <img :src="item.iconUrl" :alt="championAlt(item)" />
                   <div class="bench-info"><b>{{ item.name }}</b><small>{{ item.title || '可选英雄' }}</small></div>
-                  <div class="bench-stats"><b>{{ championStrengthValue(item.tier) }}</b><span>{{ winRate(item.winRate) }}</span></div>
+                  <div class="bench-stats"><b>{{ championStrengthValue(item.tier) }}</b><span>{{ winRate(item.winRate) }}</span><span v-if="state.recommendation.source === 'tencent101'">英雄选取率 {{ championPickRate(item.championPickRate) }}</span></div>
                   <div v-if="item.isBest" class="best-strip">首选 · 较当前 {{ item.winRateDelta != null && item.winRateDelta >= 0 ? '+' : '' }}{{ item.winRateDelta == null ? '—' : (item.winRateDelta * 100).toFixed(1) + '%' }}</div>
                 </article>
               </TransitionGroup>
@@ -972,7 +977,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           </aside>
           <div class="ranking-list">
             <article v-for="(item, index) in ranking" :key="item.id" :class="['tier-row', `tier-${item.tier || 0}`, { selected: selectedChampionId === item.id }]" :style="{ '--tier-level': String(item.tier || 0) }" role="button" tabindex="0" :aria-label="`查看 ${item.name} 的推荐海克斯`" @click="selectRankingChampion(item.id)" @keydown.enter.prevent="selectRankingChampion(item.id)" @keydown.space.prevent="selectRankingChampion(item.id)">
-              <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><div class="rank-name"><b>{{ item.name }}</b><small>{{ item.title || '海克斯大乱斗英雄' }}</small></div><div class="rank-tier"><small>{{ championStrengthLabel() }}</small><b>{{ championStrengthValue(item.tier) }}</b></div><div class="rank-wr"><small>{{ championWinRateLabel() }}</small><b>{{ winRate(item.winRate) }}</b></div>
+              <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><div class="rank-name"><b>{{ item.name }}</b><small>{{ item.title || '海克斯大乱斗英雄' }}</small></div><div class="rank-tier"><small>{{ championStrengthLabel() }}</small><b>{{ championStrengthValue(item.tier) }}</b></div><div class="rank-wr"><small>{{ championWinRateLabel() }}</small><b>{{ winRate(item.winRate) }}</b></div><div class="rank-pick"><template v-if="state.recommendation.source === 'tencent101'"><small>英雄选取率</small><b>{{ championPickRate(item.championPickRate) }}</b></template></div>
             </article>
           </div>
         </section>

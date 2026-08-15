@@ -13,6 +13,7 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.48', draft: false, prerelease: false },
     { tag_name: 'v0.1.49', draft: false, prerelease: false },
     { tag_name: 'v0.1.50', draft: false, prerelease: false },
+    { tag_name: 'v0.1.51', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -149,6 +150,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('### 相较 v0.1.49 的更新')
     expect(body).toContain('自动低成本 probe')
     expect(body).toContain('/compare/v0.1.49...v0.1.50')
+  })
+
+  it('renders Tencent champion pick rate for v0.1.51', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.51',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.50 的更新')
+    expect(body).toContain('总体选取率贯通当前英雄、备战席与英雄榜')
+    expect(body).toContain('/compare/v0.1.50...v0.1.51')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
