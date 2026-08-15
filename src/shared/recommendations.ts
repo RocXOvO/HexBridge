@@ -1,7 +1,6 @@
 import type {
   AugmentMeta,
   AugmentSlot,
-  ChampionAugmentRank,
   ChampionCandidate,
   ChampionSummary,
   ChampSelectSnapshot,
@@ -214,18 +213,4 @@ export function rankRecommendationSlots(
       statsRegion: rank?.statsRegion ?? null,
     }
   })
-}
-
-export function rankAugmentSlots(
-  slots: OcrSlotResult[],
-  ranks: ChampionAugmentRank[],
-  augments: AugmentMeta[],
-): RankedAugmentSlot[] {
-  const championId = 1
-  return rankRecommendationSlots(
-    slots,
-    dtodoRecommendationDetail({ championId, dataVersion: 'legacy', ranks, builds: [] }),
-    augments,
-    'dtodo',
-  )
 }

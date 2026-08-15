@@ -98,7 +98,3 @@ export async function inspectLeagueGameProcess(): Promise<LeagueGameProcessStatu
     )
   })
 }
-
-export async function isLeagueGameProcessRunning(): Promise<boolean> {
-  return (await inspectLeagueGameProcess()) === 'running'
-}

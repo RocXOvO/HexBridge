@@ -7,6 +7,7 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.39', draft: false, prerelease: false },
     { tag_name: 'v0.1.43', draft: false, prerelease: false },
     { tag_name: 'v0.1.44', draft: false, prerelease: false },
+    { tag_name: 'v0.1.45', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -76,6 +77,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('### 相较 v0.1.43 的更新')
     expect(body).toContain('备战席滚动现在完全收在面板内部')
     expect(body).toContain('/compare/v0.1.43...v0.1.44')
+  })
+
+  it('renders the redundant wrapper cleanup for v0.1.45', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.45',
+      releases: [...releases, { tag_name: 'v0.1.44', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.44 的更新')
+    expect(body).toContain('清理不再使用的旧推荐、详情和进程兼容包装器')
+    expect(body).toContain('/compare/v0.1.44...v0.1.45')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {

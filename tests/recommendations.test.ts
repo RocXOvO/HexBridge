@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { AugmentMeta, ChampionAugmentRank, ChampionSummary, ChampSelectSnapshot, RecommendationDetail } from '../src/shared/contracts.js'
-import { buildChampionCandidates, compareChampions, rankAugmentSlots, rankRecommendationSlots } from '../src/shared/recommendations.js'
+import type { AugmentMeta, ChampionSummary, ChampSelectSnapshot, RecommendationDetail } from '../src/shared/contracts.js'
+import { buildChampionCandidates, compareChampions, dtodoRecommendationDetail, rankRecommendationSlots } from '../src/shared/recommendations.js'
 
 const champion = (id: number, tier: number | null, winRate: number | null): ChampionSummary => ({
   id, alias: `Champion${id}`, name: `英雄${id}`, title: '', roles: [], iconUrl: '', splashUrl: '',
@@ -50,11 +50,16 @@ describe('augment recommendations', () => {
   ]
 
   it('uses champion rank before champion tier and global tier', () => {
-    const ranks: ChampionAugmentRank[] = [
+    const ranks = [
       { augmentId: 2, rank: 8, total: 100, tier: 2, pickRate: .27, statsSource: 'tencent', statsRegion: 'CN' },
       { augmentId: 3, rank: null, total: null, tier: 1, pickRate: null, statsSource: null, statsRegion: null },
-    ]
-    const result = rankAugmentSlots(slots, ranks, augments)
+    ] as const
+    const result = rankRecommendationSlots(
+      slots,
+      dtodoRecommendationDetail({ championId: 103, dataVersion: '16.15.6', ranks: [...ranks], builds: [] }),
+      augments,
+      'dtodo',
+    )
     expect(result.map((slot) => slot.position)).toEqual([3, 1, 2])
     expect(result[1]?.reason).toBe('该英雄适配度排名第 8（共 100 项）')
     expect(result[1]?.pickRate).toBe(.27)
@@ -63,11 +68,16 @@ describe('augment recommendations', () => {
 
   it('marks equal rank data as tied and never invents a position for missing data', () => {
     const noGlobal = augments.map((item) => ({ ...item, globalTier: null }))
-    const ranks: ChampionAugmentRank[] = [
+    const ranks = [
       { augmentId: 1, rank: 2, total: 50, tier: 1, pickRate: .1, statsSource: 'tencent', statsRegion: 'CN' },
       { augmentId: 2, rank: 2, total: 50, tier: 1, pickRate: .9, statsSource: 'tencent', statsRegion: 'CN' },
-    ]
-    const result = rankAugmentSlots(slots, ranks, noGlobal)
+    ] as const
+    const result = rankRecommendationSlots(
+      slots,
+      dtodoRecommendationDetail({ championId: 103, dataVersion: '16.15.6', ranks: [...ranks], builds: [] }),
+      noGlobal,
+      'dtodo',
+    )
     expect(result[0]).toMatchObject({ position: 1, tied: true })
     expect(result[1]).toMatchObject({ position: 1, tied: true })
     expect(result[2]).toMatchObject({ position: null, reason: '暂无可靠的推荐依据' })

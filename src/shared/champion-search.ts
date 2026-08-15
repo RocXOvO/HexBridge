@@ -34,5 +34,3 @@ export function matchesChampionSearch(champion: ChampionSummary, query: string):
   const normalized = normalize(query.trim())
   return !normalized || championSearchText(champion).includes(normalized)
 }
-
-export const championCommonAliases = COMMON_ALIASES

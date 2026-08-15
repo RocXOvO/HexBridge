@@ -1,7 +1,6 @@
 import type {
   AppSettings,
   ChampionAugmentData,
-  ChampionAugmentRank,
   ChampionBuildRecommendation,
   ChampSelectSnapshot,
   LcuConnectionState,
@@ -126,22 +125,6 @@ export function classifyScanContext(
 ): 'current' | 'switched' | 'ended' {
   if (!isMatchContextOcrEligible(snapshot)) return 'ended'
   return isCurrentScanContext(snapshot, generation, championId) ? 'current' : 'switched'
-}
-
-export function detailRanksForCurrentChampion(
-  detail: ChampionAugmentData | null,
-  currentChampionId: number | null,
-  dataVersion: string,
-): ChampionAugmentRank[] {
-  if (
-    !detail ||
-    detail.championId !== currentChampionId ||
-    !dataVersion ||
-    detail.dataVersion !== dataVersion
-  ) {
-    return []
-  }
-  return detail.ranks
 }
 
 export function detailBuildForCurrentChampion(

@@ -1,5 +1,3 @@
-export const OFFICIAL_RELEASE_PAGE_URL = 'https://github.com/RocXOvO/HexBridge/releases/latest'
-
 export const STABLE_UPDATE_FEEDS = [
   {
     provider: 'generic' as const,

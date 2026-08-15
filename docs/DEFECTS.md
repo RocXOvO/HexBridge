@@ -89,6 +89,7 @@
 | HB-075 | 单卡刷新导致三张卡片 / 标签一起跳动 | FIXED / UNVERIFIED（v0.1.43 已发布） |
 | HB-076 | 选人伴随窗恢复后脱离客户端图层 | FIXED / UNVERIFIED（v0.1.42 已发布） |
 | HB-077 | 选人助手备战席出现不必要的横向滚动 | FIXED / UNVERIFIED（v0.1.44 已发布） |
+| HB-078 | 高置信度冗余包装器与未引用导出 | FIXED / UNVERIFIED（v0.1.45 候选） |
 
 ## 当前重点验收
 
@@ -261,6 +262,12 @@
 - v0.1.44 将 `panel-window`、`panel-bench` 和 `panel-list` 的宽度收缩与横向溢出设为 fail-closed；列表只保留内部纵向滚动，长中文标题在网格列内省略，不再把选人伴随窗撑出横向滚动条。
 - 滚动边界使用 `overscroll-behavior: contain`、稳定 gutter 和克制的细滚动条样式；不改变伴随窗的 authority、跟随层级或 LCU 状态。
 - 定向 renderer 合约 / release-notes 测试、typecheck、lint、diff-check 已通过；正式 workflow `31900414946` 的 Windows packaged / UI / bridge 门禁通过。真实 WeGame 横向视觉、DPI 与性能仍未验，状态保持 `FIXED / UNVERIFIED`。
+
+### HB-078：高置信度冗余清理
+
+- v0.1.45 候选删除五项已由全仓生产引用审计确认的残留：旧 `rankAugmentSlots`、`detailRanksForCurrentChampion`、布尔进程 wrapper、未引用正式 Release URL 常量和未使用的 alias 对外导出。
+- 对应旧测试改为调用当前 `dtodoRecommendationDetail` / `rankRecommendationSlots` 或 tri-state `inspectLeagueGameProcess`；bridge/update/lobby/observer smoke、旧缓存 / LCU discovery 兼容分支均未触碰。
+- 定向 21 tests（含 1 Windows skip）、typecheck、lint、diff-check 已通过；候选尚未 Windows / tag / Release，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

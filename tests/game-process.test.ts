@@ -10,7 +10,7 @@ import {
   GAME_PROCESS_LAUNCHING_POLL_MS,
   GameProcessExitGuard,
   gameProcessPollInterval,
-  isLeagueGameProcessRunning,
+  inspectLeagueGameProcess,
   tasklistShowsLeagueGame,
 } from '../src/main/game-process.js'
 
@@ -91,7 +91,7 @@ describe('League game process evidence', () => {
         const deadline = Date.now() + 5_000
         let detected = false
         while (!detected && Date.now() < deadline) {
-          detected = await isLeagueGameProcessRunning()
+          detected = (await inspectLeagueGameProcess()) === 'running'
           if (!detected) await delay(100)
         }
         expect(detected).toBe(true)
