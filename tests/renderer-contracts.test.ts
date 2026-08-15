@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { nextAugmentAnimationState } from '../src/shared/augment-animation.js'
 
 const appSource = readFileSync(new URL('../src/renderer/src/App.vue', import.meta.url), 'utf8')
 const stylesSource = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8')
@@ -15,8 +16,29 @@ const augmentOverlaySource = readFileSync(new URL('../src/renderer/src/AugmentOv
 const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.meta.url), 'utf8')
 
 describe('main-window recommendation presentation', () => {
+  it('animates only the slot whose augment identity changed in each update', () => {
+    const first = nextAugmentAnimationState(new Map(), 0, [
+      { slot: 'left', augmentId: 10 },
+      { slot: 'center', augmentId: 11 },
+      { slot: 'right', augmentId: 12 },
+    ])
+    expect(first.changedBySlot).toEqual({ left: 1, center: 1, right: 1 })
+    const second = nextAugmentAnimationState(first.signatures, first.cycle, [
+      { slot: 'left', augmentId: 10 },
+      { slot: 'center', augmentId: 99 },
+      { slot: 'right', augmentId: 12 },
+    ])
+    expect(second.changedBySlot).toEqual({ center: 2 })
+    const metadataOnly = nextAugmentAnimationState(second.signatures, second.cycle, [
+      { slot: 'left', augmentId: 10 },
+      { slot: 'center', augmentId: 99 },
+      { slot: 'right', augmentId: 12 },
+    ])
+    expect(metadataOnly.changedBySlot).toEqual({})
+  })
+
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.46'")
+    expect(rendererState).toContain("currentVersion: '0.1.47'")
   })
 
   it('keeps champion selection scrolling inside the assistant without horizontal overflow', () => {
@@ -150,11 +172,12 @@ describe('main-window recommendation presentation', () => {
   it('animates only changed augment cards and exposes the tray update action', () => {
     expect(appSource).toContain('`${slot.slot}-${slot.augmentId ?? \'unknown\'}`')
     expect(appSource).toContain('overlayCardAnimationBySlot.value[slot.slot] === overlayCardAnimationCycle.value')
-    expect(appSource).toContain('const changed = {} as Record<string, number>')
+    expect(appSource).toContain('nextAugmentAnimationState(overlayCardSignatures')
     expect(appSource).toContain('name="augment-surface"')
     expect(appSource).toContain('augment-card-refresh')
     expect(appSource).not.toContain('<TransitionGroup v-if="state.overlay.visible && state.overlay.slots.length"')
     expect(augmentOverlaySource).toContain('overlay-card-refresh')
+    expect(augmentOverlaySource).toContain('slotAnimationBySlot[slot.slot] === slotAnimationCycle')
     expect(augmentOverlaySource).toContain('slotKey(slot)')
     expect(stylesSource).toContain('.augment-card-refresh')
     expect(stylesSource).toContain('.overlay-card-refresh')

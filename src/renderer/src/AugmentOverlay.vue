@@ -1,23 +1,22 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import type { AugmentOverlayViewState } from '../../shared/contracts'
+import { nextAugmentAnimationState } from '../../shared/augment-animation'
 
 const view = ref<AugmentOverlayViewState>({ slots: [], layout: [], message: '' })
 const unsubscribe = window.hexbridgeOverlay?.onChanged((next) => { view.value = next }) ?? (() => undefined)
 onBeforeUnmount(unsubscribe)
-const slotRevisions = ref<Record<string, number>>({})
+const slotAnimationCycle = ref(0)
+const slotAnimationBySlot = ref<Record<string, number>>({})
 const slotSignatures = new Map<string, string>()
 watch(
   () => view.value.slots.map((slot) => ({ slot: slot.slot, augmentId: slot.augmentId })),
   (slots) => {
-    const nextSignatures = new Map(slots.map((slot) => [slot.slot, String(slot.augmentId ?? 'unknown')]))
-    const revisions = { ...slotRevisions.value }
-    for (const [slot, signature] of nextSignatures) {
-      if (slotSignatures.get(slot) !== signature) revisions[slot] = (revisions[slot] ?? 0) + 1
-    }
+    const animation = nextAugmentAnimationState(slotSignatures, slotAnimationCycle.value, slots)
     slotSignatures.clear()
-    nextSignatures.forEach((signature, slot) => slotSignatures.set(slot, signature))
-    slotRevisions.value = revisions
+    animation.signatures.forEach((signature, slot) => slotSignatures.set(slot, signature))
+    slotAnimationCycle.value = animation.cycle
+    slotAnimationBySlot.value = animation.changedBySlot
   },
   { immediate: true, deep: true },
 )
@@ -44,7 +43,7 @@ const slotKey = (slot: AugmentOverlayViewState['slots'][number]): string =>
   <div class="augment-overlay-window" data-performance="eco" aria-live="polite">
     <div v-for="slot in view.slots" :key="slotKey(slot)" class="augment-overlay-slot" :style="slotStyle(slot.slot)">
         <article
-          :class="[{ unknown: !slot.augmentId }, { 'overlay-card-refresh': slotRevisions[slot.slot] }]"
+          :class="[{ unknown: !slot.augmentId }, { 'overlay-card-refresh': slotAnimationBySlot[slot.slot] === slotAnimationCycle }]"
         >
           <span class="overlay-rank"><b>{{ rankLabel(slot.position, slot.tied) }}</b><small>推荐</small></span>
           <span class="overlay-pick-rate"><b>{{ pickRate(displayPickRate(slot)) }}</b><small>{{ pickRateLabel(slot) }}</small><em v-if="slot.recommendationSource === 'tencent101'">全局胜率 {{ pickRate(slot.globalWinRate) }}</em></span>

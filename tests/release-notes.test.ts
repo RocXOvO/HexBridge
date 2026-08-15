@@ -9,6 +9,7 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.44', draft: false, prerelease: false },
     { tag_name: 'v0.1.45', draft: false, prerelease: false },
     { tag_name: 'v0.1.46', draft: false, prerelease: false },
+    { tag_name: 'v0.1.47', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -101,6 +102,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('当前英雄等级')
     expect(body).toContain('脱敏采样')
     expect(body).toContain('/compare/v0.1.45...v0.1.46')
+  })
+
+  it('renders the compact overlay animation-cycle fix for v0.1.47', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.47',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.46 的更新')
+    expect(body).toContain('96px 推荐条')
+    expect(body).toContain('/compare/v0.1.46...v0.1.47')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {

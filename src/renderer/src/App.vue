@@ -6,6 +6,7 @@ import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
 import { matchesChampionSearch } from '../../shared/champion-search'
 import { describeUpdateAction, shouldShowUpdateAction } from '../../shared/update-presentation'
+import { nextAugmentAnimationState } from '../../shared/augment-animation'
 
 type Page = 'live' | 'ranking' | 'settings' | 'diagnostics'
 const { state, isPreview, bridgeError } = useRuntime()
@@ -173,16 +174,11 @@ watch(
       overlayCardSignatures.clear()
       return
     }
-    const nextSignatures = new Map(next.slots.map((slot) => [slot.slot, String(slot.augmentId ?? 'unknown')]))
-    const cycle = overlayCardAnimationCycle.value + 1
-    const changed = {} as Record<string, number>
-    for (const [slot, signature] of nextSignatures) {
-      if (overlayCardSignatures.get(slot) !== signature) changed[slot] = cycle
-    }
+    const animation = nextAugmentAnimationState(overlayCardSignatures, overlayCardAnimationCycle.value, next.slots)
     overlayCardSignatures.clear()
-    nextSignatures.forEach((signature, slot) => overlayCardSignatures.set(slot, signature))
-    overlayCardAnimationCycle.value = cycle
-    overlayCardAnimationBySlot.value = changed
+    animation.signatures.forEach((signature, slot) => overlayCardSignatures.set(slot, signature))
+    overlayCardAnimationCycle.value = animation.cycle
+    overlayCardAnimationBySlot.value = animation.changedBySlot
   },
   { immediate: true, deep: true },
 )

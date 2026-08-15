@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
-  app: { getVersion: () => '0.1.46' },
+  app: { getVersion: () => '0.1.47' },
   screen: {},
   safeStorage: {},
   BrowserWindow: class {},
@@ -74,7 +74,7 @@ describe('Runtime Live Client level guards', () => {
     expect(result.ok).toBe(true)
     expect(result.sample).toMatchObject({
       step: 'cards-visible',
-      clientVersion: '0.1.46',
+      clientVersion: '0.1.47',
       currentChampionLevel: 10,
       matchGeneration: 2,
       ocrSurface: 'inactive',

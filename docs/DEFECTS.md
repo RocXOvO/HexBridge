@@ -92,6 +92,7 @@
 | HB-078 | 高置信度冗余包装器与未引用导出 | FIXED / UNVERIFIED（v0.1.45 已发布） |
 | HB-079 | 当前英雄等级与海克斯可选卡状态缺少受限探测 | IN PROGRESS |
 | HB-080 | 单卡刷新时三张标签仍一起跳动 | FIXED / UNVERIFIED（v0.1.46 已发布） |
+| HB-081 | 96px 推荐条某槽位变化后持续重复播放动画 | IN PROGRESS |
 
 ## 当前重点验收
 
@@ -281,6 +282,11 @@
 
 - v0.1.46 已发布，将渲染动画周期改为“本次变化槽位集合”，不再用永久 revision 标记；卡片 key 继续按槽位 + augmentId，未变化的两个标签保持原位。
 - renderer contract、Runtime 性能、Live Client 定向测试、typecheck/lint/diff-check 已通过；真实游戏刷新视觉仍待用户复测，状态保持 `FIXED / UNVERIFIED`。
+
+### HB-081：点击穿透推荐条动画周期
+
+- v0.1.47 候选让主窗口与 96px 点击穿透小窗共用按本轮槽位变化计算的动画状态；旧的永久 slot revision 不再让已变化卡片在后续更新中反复播放。
+- 定向 renderer / Runtime 测试、typecheck、lint、diff-check 已通过；真实 Windows 游戏内刷新视觉仍待用户复测，未宣称已验证。
 
 ## 追溯
 
