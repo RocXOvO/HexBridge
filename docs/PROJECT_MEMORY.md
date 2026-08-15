@@ -5,11 +5,11 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.28](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.28)，Release ID `370764802`，产品 commit `deb8b573f96cc60d2c63a316a5e3b740e50df998`。
-- 正式 Windows run `31830322299` attempt 2 已通过 41 files / 438 tests、packaged UI / bridge、public v2 / root 与五版滚动；这些不等于真实 WeGame、DPI、性能或 installed updater 验证。
-- GitHub 当前只保留 v0.1.24～v0.1.28 五个正式 Releases；v0.1.0～v0.1.28 共 29 个 tags 全部保留。本地 `release/` 为空。
+- 当前公开正式版：[v0.1.29](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.29)，Release ID `370967612`；annotated tag object `57ec7515a657502ceac379e8a915ffabdf0534e3` 解引用产品 / 记忆 commit `f506de56bedf29493a9f36e7d04e66990f5cbd8b`。
+- 正式 Windows run `31866876217` attempt 1 已创建 Release / 五资产与双通道，但 public packaged 在 100s 内仍读到 v0.1.28，fail closed 且未 prune；attempt 2 / job `94970078474` 幂等跳过发布并通过 44 files / 470 tests、packaged UI / bridge、public packaged 与五版滚动。这些不等于真实 WeGame、腾讯接口、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.25～v0.1.29 五个正式 Releases；v0.1.0～v0.1.29 共 30 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
-- `v0.1.29` candidate commit `69eb1fec14fb110b8c21f7a4e1ec900287a06e7b` 已 push main；Windows workflow_dispatch run `31866571591` / job `94968511853` success（5m50s），44 files / 470 passed、audit、OCR、lint、typecheck、packaged UI / bridge、差分与 artifact 全过。tag-only 步骤按预期 skipped，尚无 v0.1.29 tag / Release，公开 Latest 仍为 `v0.1.28`。
+- v0.1.29 已正式发布；Release 说明准确列出相较 v0.1.28 的三项变化，public v2 / root 为 `0.1.29 / 199274613` bytes，正式五资产完整。HB-058 仍为 `FIXED / UNVERIFIED`，不得用发布结果替代真实 Windows / 腾讯接口与 WeGame 同机验收。
 
 ## 记忆模块
 
@@ -29,7 +29,7 @@
 
 ## 当前优先级
 
-1. HB-058：Windows 候选门禁已通过，下一步发布独立 v0.1.29 patch Release；真实腾讯接口验收仍须独立完成，不以书面授权替代技术验证。
+1. HB-058：完成真实 Windows 下的腾讯接口、切源、当前英雄 / OCR / 紧凑条同源与 stale / error 显示验收；不以书面授权或 Release 成功替代技术验证。
 2. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
 3. HB-057 Wallpaper Engine：先由用户明确目标是“仅检测 / pause-play”“切换桌面 Profile / Playlist 并离局恢复”，还是“作为 HexBridge 窗口背景”；官方 CLI 只控制桌面壁纸，不能假定可嵌入 Electron。
 4. HB-056、HB-059、HB-060、HB-064 继续保持各自 `IN PROGRESS / UNVERIFIED` 或 `FIXED / UNVERIFIED`，直到对应真实环境门禁完成。

@@ -69,7 +69,7 @@
 | HB-055 | 真实对局 96px 提示缺失 | IN PROGRESS / UNVERIFIED |
 | HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 已发布） |
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
-| HB-058 | 腾讯 101 推荐 provider | FIXED / UNVERIFIED（v0.1.29 Windows 候选已通过；适用书面授权已在仓库外确认） |
+| HB-058 | 腾讯 101 推荐 provider | FIXED / UNVERIFIED（v0.1.29 已发布；适用书面授权已在仓库外确认） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS / UNVERIFIED（v0.1.28 已发布） |
 | HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
 | HB-061 | 发布 channel 传播检查假阴性 | VERIFIED（v0.1.27 fresh PUT） |
@@ -101,12 +101,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.28 全验证后删除 v0.1.23 Release / assets、保留 tag；当前仅 v0.1.24～v0.1.28 五个 public stable Releases，29 个 tags（v0.1.0～v0.1.28）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.29 全验证后删除 v0.1.24 Release / assets、保留 tag；当前仅 v0.1.25～v0.1.29 五个 public stable Releases，30 个 tags（v0.1.0～v0.1.29）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.28 正式 highlights 为两项且累计链延伸至 0.1.28，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.29 Release 已准确列出相较 v0.1.28 的三项变化，跨版累计链延伸至 0.1.29，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -146,8 +146,7 @@
 
 - v0.1.27 attempt 1 在 Release / channel 成功后，Electron public packaged one-shot 于约 15s 仍读到 CDN 缓存的 0.1.26 而失败；未 prune，attempt 2 后读取 0.1.27 / `updateAvailable=false` 并成功。这与 HB-061 的权威 Contents / ref poll 不同。
 - main commit `5aac5e3d8463c401d1ce5a5ee4573f89dab31148` 的实现仅在子进程以非 0 整数退出且稳定码为 `HB_PUBLIC_UPDATE_SMOKE_VERSION_MISMATCH` 时重试；每次 fresh temp / userData，100s absolute deadline、20s attempt、8s cleanup reserve、PID 门禁与 `finally` 清理。exit 0 异常 JSON、signal / null、timeout、spawn 或预算耗尽均 fail closed；失败在 prune 前终止且不移动 tag、不改写 Release / assets。
-- commit 已 push main；最终审查无 P0 / P1，node-check、target 5、40 files / 404 passed + 1 skipped、typecheck / lint / diff-check 通过。后续 Windows 正式链已运行，但尚无下一次真实 first-attempt packaged public smoke，状态仍为 `FIXED / UNVERIFIED`。
-- v0.1.28 attempt 1 在 stable raw poll 超时后即终止，未到 Electron packaged public smoke；attempt 2 的 one-shot 成功但不是 first-attempt 传播验证。HB-064 不升级。
+- commit 已 push main；最终审查无 P0 / P1，node-check、target 5、40 files / 404 passed + 1 skipped、typecheck / lint / diff-check 通过。v0.1.29 attempt 1 的 public packaged 在完整 100s 预算内持续读到 v0.1.28，按设计 fail closed 且未 prune；稍后 attempt 2 首次即读到 v0.1.29 / `updateAvailable=false` 并完成滚动。超长 CDN 传播仍需幂等重跑，状态保持 `FIXED / UNVERIFIED`。
 
 ### HB-057：Wallpaper Engine
 
@@ -162,7 +161,7 @@
 - 英雄 `lowest_rank_runes` 只给有序推荐 ID；augment 接口的 pick / win 是全局口径。UI 必须写“全局选取率 / 全局胜率”，缺失为“暂无数据”而不是 0。
 - 腾讯模式下选人、当前英雄、英雄详情、OCR 三卡、96px compact 与理由必须同源：命中英雄推荐的卡按列表顺序，未命中再按腾讯全局 rank；并列保留，缺数据无名次，绝不借 data.dtodo 排名。
 - `source + championId + sequence + dataVersion/dtstatdate + generation` 任一变化即撤旧，迟到请求不能污染切源、换英雄或第二局。无 data.dtodo Key 时腾讯推荐仍可用，只有出装区域单独提示 Key。
-- 实现最终审查 `P0=0 / P1=0`；candidate `69eb1fec…` 已 push main。Windows run `31866571591` / job `94968511853` success（5m50s）：clean install、audit、OCR synthetic / 真实 4K 276ms、44 files / 470 passed、lint / typecheck / retention、packaged UI / bridge、synthetic v0.1.30 差分 `1,211,359 / 199,274,613` bytes、checksums 与 artifact `9242254017` 全过。tag-only 发布步骤按预期跳过；尚未 tag / Release，真实腾讯接口与 WeGame 仍未验证。
+- 实现最终审查 `P0=0 / P1=0`；v0.1.29 已正式发布。run `31866876217` attempt 1 完整创建 Release / 五资产与双通道后因 CDN 仍返回 v0.1.28 而 fail closed；attempt 2 / job `94970078474` 通过 44 files / 470 tests、真实 4K 276ms、packaged UI / bridge、public packaged 和五版滚动。Release 成功不等于真实腾讯接口与 WeGame 验证，状态保持 `FIXED / UNVERIFIED`。
 
 ### HB-059：Lobby 客户端画面背景
 
