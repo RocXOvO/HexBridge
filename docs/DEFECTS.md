@@ -77,7 +77,7 @@
 | HB-063 | 跨版本升级 / Release 说明 | VERIFIED（v0.1.26 正式说明） |
 | HB-064 | Electron public packaged CDN 假阴性 | FIXED / UNVERIFIED（main 已 push） |
 | HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 正式版） |
-| HB-066 | legacy 游戏目录进入 Renderer 状态 | FIXED / UNVERIFIED（v0.1.33 Windows 候选） |
+| HB-066 | legacy 游戏目录进入 Renderer 状态 | VERIFIED（v0.1.33 正式版） |
 
 ## 当前重点验收
 
@@ -103,12 +103,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.31 全验证后删除 v0.1.26 Release / assets、保留 tag；当前仅 v0.1.27～v0.1.31 五个 public stable Releases，32 个 tags（v0.1.0～v0.1.31）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.33 全验证后删除 v0.1.28 Release / assets、保留 tag；当前仅 v0.1.29～v0.1.33 五个 public stable Releases，34 个 tags（v0.1.0～v0.1.33）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.29 Release 已准确列出相较 v0.1.28 的三项变化，跨版累计链延伸至 0.1.29，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.33 Release 已准确列出相较 v0.1.32 的变化，跨版累计链延伸至 0.1.33，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -185,7 +185,7 @@
 
 - 旧配置中的目录值仅保留在 Main `InternalAppSettings` 并继续供 LCU 发现使用；普通 UI、preload 与业务 IPC 均不提供读取、选择或清除目录的入口。
 - `AppSettings`、RuntimeState、get-state、设置响应和所有窗口广播以公开字段白名单重建；IPC 伪造 `gameDirectory` 会在 Runtime 前丢弃，路径不进日志或公开错误。
-- 终审 `P0=0 / P1=0`；本地 47 files / 517 passed + 1 skipped 与 Windows run `31874022739` 的 47 files / 518 tests、packaged UI / bridge、差分和 artifact 全过。正式 tag / Release 尚未完成，状态保持 `FIXED / UNVERIFIED`。
+- 终审 `P0=0 / P1=0`；本地 47 files / 517 passed + 1 skipped、Windows candidate 47 files / 518 tests，以及正式 run `31874316733` attempt 2 的 packaged UI / bridge、public v2 / root / packaged 与滚动保留全过。该问题的公开类型、序列化与 IPC 边界可由自动化完整验证，v0.1.33 正式版后状态升为 `VERIFIED`。
 
 ## 追溯
 

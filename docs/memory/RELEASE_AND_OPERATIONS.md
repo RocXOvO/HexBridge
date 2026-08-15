@@ -4,12 +4,12 @@
 
 ## 当前正式基线
 
-- public Latest：[v0.1.32](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.32)，non-draft / non-prerelease；Release ID `370991273`，publishedAt `2026-08-15T07:48:34Z`。
-- annotated tag object `c3eb4bd989035ae82550bc4e1b5cb05e87b0bb6c` 解引用 commit `7e9c0edbf60a79fb997d7ed4db9d8261cb15d93f`。
-- 正式 run `31872643509` attempt 1 已完成 47 files / 515 tests、创建 Release / 五资产和写入 channel，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune。attempt 2 / job `94984422579` 于 5m52s 幂等成功，Release / channel 发布步骤按 canonical 现状跳过；audit、真实 4K 236ms、lint、typecheck、retention、packaged UI / bridge 全过。synthetic v0.1.33 差分为 `1,336,869 / 199,281,116` bytes、9 个 Range 与 3 个 redirect；artifact `9244013098` 为 `473,516,957` bytes，digest `sha256:ae097050c715e8756859433be91a8b6f7234832297898331c3a4a842ef844cbe`。fake / synthetic 不等于真实 WeGame、Wallpaper Engine、DPI、性能或 installed updater。
-- public v2 / root：version `0.1.32`、size `199281116`、SHA-512 `PyJRa2Xp7ZvdMwA7PIHREohYTFZTrgxwAVdnu8f2C/pQeeBB0xE9jL6R0ciO7k3EZkocpgMcOTpYuWMiz6tRWA==`；权威 / raw 精确一致，packaged public 为 `updateAvailable=false`。
-- 正式资产 SHA-256：EXE `cf5aaba573f2ef89d099f84080ac6d9010c99db40d4b5b55729d39c88c1bcf01`（`199281116` bytes）；blockmap `4d8cc0b1bd7225c6f033ee873430017736a91de8a7ab0dcd378d2f1ae62762cb`（`201233`）；ZIP `cfb7ef7d8611bef5e690d5a2a78f289d779c078c4b40c2ba1629281121a1976f`（`274446238`）；latest.yml `154b04a413bf22f1cd4212d321a86e448f59854ea5167991baa435d72c939317`（`346`）；SHA256SUMS `bc05da32aa15bdf86b9d65d260700ecdf407970e413b6186b3d48530a2189905`（`182`）。
-- 当前只保留 v0.1.28～v0.1.32 五个 public stable Releases；v0.1.0～v0.1.32 共 33 个 tags 都保留。本地 `release/` 为空。v0.1.27 Release / assets 已删除但 tag / source 保留。
+- public Latest：[v0.1.33](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.33)，non-draft / non-prerelease；Release ID `370998749`，publishedAt `2026-08-15T08:28:16Z`。
+- annotated tag object `ed1cc0b5e461aa27a44ff23135d589c00142522b` 解引用 commit `073f1f610c6671001ca6a9ad01947120e4bdbbf9`。
+- 正式 run `31874316733` attempt 1 已完成测试并创建 Release / 五资产，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune。attempt 2 / job `94988452941` 于 5m31s 幂等成功，preflight 识别已有 canonical Release / channel 而不重发；47 files / 518 tests、audit、真实 4K 252ms、lint、typecheck、retention、packaged UI / bridge 全过。synthetic v0.1.34 差分为 `1,296,785 / 199,281,334` bytes、8 个 Range 与 3 个 redirect；artifact `9244453292` 为 `473,517,662` bytes，digest `sha256:93fe8fbcee049e0eef28461a000930c8911f7faa4b686f1238368fb66fff77be`。fake / synthetic 不等于真实 WeGame、Wallpaper Engine、DPI、性能或 installed updater。
+- public v2 / root：version `0.1.33`、size `199281338`、SHA-512 `mPJ3a3e3qOa8KEWGhSvKznALpdhg6CnV8mZZzCFhFSC2aFSuTe7EThqE6dD5ttCGqXBgAdQHTU/wBoh7ucBXqQ==`；权威 / raw 精确一致，packaged public 为 `updateAvailable=false`。
+- 正式资产 SHA-256：EXE `235a9b713586cbbfded210c9213c8af78c744cc964db4e90c50426301f0fdc72`（`199281338` bytes）；blockmap `3e0a3d8b6d5aa65941ab145b5640e746aeafea735d0251af2886303979f9d742`（`201408`）；ZIP `4ff5251c1697e24cf50a1be93c92e2f704cba2a65a3e1594f5d1e383cdb82632`（`274446675`）；latest.yml `d9313955613533f990f4eeb768a29070812eaee5cad5d757690a17d4777d09e0`（`346`）；SHA256SUMS `4aa1f196dba8a25f27bc7332a81d4b483d0211e7f662d4a9d5816a474d38a1fc`（`182`）。
+- 当前只保留 v0.1.29～v0.1.33 五个 public stable Releases；v0.1.0～v0.1.33 共 34 个 tags 都保留。本地 `release/` 为空。v0.1.28 Release / assets 已删除但 tag / source 保留。
 
 ## 更新契约
 
