@@ -65,7 +65,7 @@ class FakeUpdater extends EventEmitter implements UpdateAdapter {
   }
 }
 
-const setup = (inGame = false, lifecycle?: { begin: () => unknown; cancel: (token: unknown) => void }) => {
+const setup = (inGame = false, lifecycle?: { begin: () => unknown | Promise<unknown>; cancel: (token: unknown) => void }) => {
   const adapter = new FakeUpdater()
   const changed = vi.fn()
   const manager = new UpdateManager({
@@ -221,7 +221,7 @@ describe('client update manager', () => {
       downloadMode: 'differential',
       downloadModeMessage: '差分下载',
     })
-    expect(manager.install()).toMatchObject({ ok: true })
+    expect(await manager.install()).toMatchObject({ ok: true })
     expect(adapter.install).toHaveBeenCalledWith(true, true)
   })
 
@@ -265,7 +265,7 @@ describe('client update manager', () => {
       downloadModeMessage: '差分不可用，已改用完整安装包',
       message: '差分不可用，完整安装包已下载，可在退出对局后重启安装',
     })
-    expect(manager.install()).toMatchObject({ ok: true })
+    expect(await manager.install()).toMatchObject({ ok: true })
     expect(adapter.install).toHaveBeenCalledWith(true, true)
   })
 
@@ -285,7 +285,7 @@ describe('client update manager', () => {
       downloadModeMessage: '已使用本机缓存',
       message: '已找到本机缓存的更新，可在退出对局后重启安装',
     })
-    expect(manager.install()).toMatchObject({ ok: true })
+    expect(await manager.install()).toMatchObject({ ok: true })
     expect(adapter.install).toHaveBeenCalledWith(true, true)
   })
 
@@ -294,7 +294,7 @@ describe('client update manager', () => {
     adapter.check.mockResolvedValueOnce(availableResult())
     await manager.check()
     adapter.emit('update-downloaded', { version: '0.1.5' })
-    expect(manager.install()).toEqual({
+    expect(await manager.install()).toEqual({
       ok: false,
       message: '对局进行中不会安装更新，请在对局结束后重试',
     })
@@ -369,7 +369,7 @@ describe('client update manager', () => {
       order.push('install')
       throw new Error('installer failed')
     })
-    expect(manager.install()).toMatchObject({ ok: false })
+    expect(await manager.install()).toMatchObject({ ok: false })
     expect(manager.getState()).toMatchObject({ status: 'error', errorCode: 'UPDATE_FAILED' })
     expect(order).toEqual(['prepare', 'install', 'cancel:7'])
   })
@@ -385,8 +385,35 @@ describe('client update manager', () => {
     adapter.emit('update-downloaded', { version: '0.1.5' })
     adapter.install.mockImplementationOnce(() => order.push('install'))
 
-    expect(manager.install()).toMatchObject({ ok: true })
+    expect(await manager.install()).toMatchObject({ ok: true })
     expect(order).toEqual(['prepare', 'install'])
+  })
+
+  it('waits for asynchronous desktop restoration before launching the installer', async () => {
+    let finishRestore!: () => void
+    const restore = new Promise<void>((resolve) => { finishRestore = resolve })
+    const order: string[] = []
+    const { adapter, manager } = setup(false, {
+      begin: async () => {
+        order.push('restore-start')
+        await restore
+        order.push('restore-finished')
+        return 10
+      },
+      cancel: (token) => order.push(`cancel:${token}`),
+    })
+    adapter.check.mockResolvedValueOnce(availableResult())
+    await manager.check()
+    adapter.emit('update-downloaded', { version: '0.1.5' })
+    adapter.install.mockImplementationOnce(() => order.push('install'))
+
+    const installing = manager.install()
+    await Promise.resolve()
+    expect(order).toEqual(['restore-start'])
+    expect(adapter.install).not.toHaveBeenCalled()
+    finishRestore()
+    await expect(installing).resolves.toMatchObject({ ok: true })
+    expect(order).toEqual(['restore-start', 'restore-finished', 'install'])
   })
 
   it('reports failure when quitAndInstall synchronously emits an updater error', async () => {
@@ -400,7 +427,7 @@ describe('client update manager', () => {
     adapter.emit('update-downloaded', { version: '0.1.5' })
     adapter.install.mockImplementationOnce(() => adapter.emit('error', new Error('installer failed')))
 
-    expect(manager.install()).toMatchObject({ ok: false })
+    expect(await manager.install()).toMatchObject({ ok: false })
     expect(manager.getState()).toMatchObject({ status: 'error', errorCode: 'UPDATE_FAILED' })
     expect(order).toEqual(['prepare', 'cancel:9'])
   })
@@ -524,7 +551,7 @@ describe('client update manager', () => {
     expect(manager.getState().status).toBe('unsupported')
     expect(await manager.check()).toMatchObject({ ok: false })
     expect(await manager.download()).toMatchObject({ ok: false })
-    expect(manager.install()).toMatchObject({ ok: false })
+    expect(await manager.install()).toMatchObject({ ok: false })
   })
 })
 

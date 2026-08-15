@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
-  app: { isPackaged: false },
+  app: { isPackaged: false, quit: vi.fn() },
   BrowserWindow: class {},
   desktopCapturer: { getSources: vi.fn() },
   screen: { getAllDisplays: vi.fn(), getPrimaryDisplay: vi.fn() },
@@ -13,7 +13,7 @@ vi.mock('../src/main/logger.js', () => ({
 
 vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 
-import { desktopCapturer, screen } from 'electron'
+import { app, desktopCapturer, screen } from 'electron'
 import { WindowManager } from '../src/main/window-manager.js'
 
 const state = {
@@ -315,6 +315,26 @@ describe('WindowManager shutdown lifecycle', () => {
       snapshot: { ...state.snapshot, matchGeneration: 2 },
     })
     expect(champion.showInactive).toHaveBeenCalledTimes(2)
+  })
+
+  it('routes quit through Electron without committing WindowManager shutdown first', () => {
+    const manager = new WindowManager({} as any)
+    vi.mocked(app.quit).mockClear()
+    manager.handleAction({} as any, 'quit')
+    expect(app.quit).toHaveBeenCalledOnce()
+    expect((manager as any).quitting).toBe(false)
+  })
+
+  it('keeps ordinary main-window close as hide-to-tray without requesting application quit', () => {
+    const manager = new WindowManager({} as any)
+    const sender = { isDestroyed: () => false, send: vi.fn() }
+    const main = { ...fakeWindow({ visible: true, focused: true }), webContents: sender }
+    ;(manager as any).windows.set('main', main)
+    vi.mocked(app.quit).mockClear()
+    manager.handleAction(sender as any, 'close')
+    expect(main.hide).toHaveBeenCalledOnce()
+    expect(app.quit).not.toHaveBeenCalled()
+    expect((manager as any).quitting).toBe(false)
   })
 
   it('does not create a calibration window when shutdown starts during capture', async () => {

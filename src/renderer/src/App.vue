@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ApiConnectionState, ChampionRecommendationView, ChampionSummary, OpponentFormSummary, RankedAugmentSlot, RecommendationDataState, RuntimeDiagnostics, ScoutPlayerDetails } from '../../shared/contracts'
+import type { ApiConnectionState, ChampionRecommendationView, ChampionSummary, OpponentFormSummary, RankedAugmentSlot, RecommendationDataState, RuntimeDiagnostics, ScoutPlayerDetails, WallpaperEngineTargetType } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -37,6 +37,11 @@ const lobbyBackgroundUrl = ref('')
 let unsubscribeLobbyBackground: (() => void) | null = null
 const recordingHotkey = ref(false)
 const hotkeyFeedback = ref('')
+const wallpaperTargetType = ref<WallpaperEngineTargetType>('profile')
+const wallpaperTemplate = ref('HexBridge-{id}')
+const wallpaperRestoreType = ref<WallpaperEngineTargetType>('profile')
+const wallpaperRestoreName = ref('')
+const wallpaperBusy = ref(false)
 const scoutDetails = ref<ScoutPlayerDetails | null>(null)
 const scoutDetailsBusy = ref(false)
 const scoutDetailsMessage = ref('')
@@ -290,6 +295,62 @@ async function selectRankingChampion(championId: number): Promise<void> {
 
 async function updateSettings(patch: Parameters<typeof api.updateSettings>[0]): Promise<void> {
   await api.updateSettings(patch)
+}
+
+async function loadWallpaperEnginePreferences(): Promise<void> {
+  try {
+    const preferences = await api.getWallpaperEnginePreferences()
+    wallpaperTargetType.value = preferences.championTargetType
+    wallpaperTemplate.value = preferences.championTargetTemplate
+    wallpaperRestoreType.value = preferences.restoreTarget?.type ?? 'profile'
+    wallpaperRestoreName.value = preferences.restoreTarget?.name ?? ''
+  } catch {
+    // The status card already exposes an unavailable bridge without leaking
+    // any persisted target names into the general RuntimeState.
+  }
+}
+
+async function saveWallpaperEnginePreferences(): Promise<boolean> {
+  if (wallpaperBusy.value) return false
+  wallpaperBusy.value = true
+  try {
+    const result = await api.saveWallpaperEnginePreferences({
+      championTargetType: wallpaperTargetType.value,
+      championTargetTemplate: wallpaperTemplate.value,
+      restoreTarget: wallpaperRestoreName.value.trim()
+        ? { type: wallpaperRestoreType.value, name: wallpaperRestoreName.value }
+        : null,
+    })
+    showToast(result.message, !result.ok)
+    return result.ok
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : 'Wallpaper Engine 配置保存失败', true)
+    return false
+  } finally {
+    wallpaperBusy.value = false
+  }
+}
+
+async function toggleWallpaperEngine(enabled: boolean): Promise<void> {
+  if (enabled && (!wallpaperTemplate.value.includes('{id}') || !wallpaperRestoreName.value.trim())) {
+    showToast('请先保存包含 {id} 的英雄模板和恢复目标', true)
+    return
+  }
+  if (enabled && !await saveWallpaperEnginePreferences()) return
+  await updateSettings({ wallpaperEngineEnabled: enabled })
+}
+
+async function retryWallpaperEngine(): Promise<void> {
+  if (wallpaperBusy.value) return
+  wallpaperBusy.value = true
+  try {
+    const result = await api.retryWallpaperEngine()
+    showToast(result.message, !result.ok)
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : 'Wallpaper Engine 重试失败', true)
+  } finally {
+    wallpaperBusy.value = false
+  }
 }
 
 async function validateKey(): Promise<void> {
@@ -556,6 +617,7 @@ onMounted(() => {
   reducedMotionQuery.addEventListener('change', reducedMotionChanged)
   unsubscribeLobbyBackground = window.hexbridgeLobbyBackground?.onChanged(replaceLobbyBackground) ?? null
   syncLobbyBackgroundPresentation()
+  void loadWallpaperEnginePreferences()
 })
 onBeforeUnmount(() => {
   dismissToast()
@@ -875,6 +937,17 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             </article>
             <article class="settings-card"><h3>目标显示器</h3><p>三卡位置不准时再校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '正在准备校准…' : '框选三张完整海克斯卡片' }}</button><small class="calibration-entry-hint">依次框住左、中、右整张卡片。</small></article>
             <article class="settings-card"><h3>识别快捷键</h3><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制新快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? 'Esc 取消录制。' : '快捷键不可用，请重新录制。') }}</small></article>
+            <article class="settings-card wide wallpaper-engine-card">
+              <header><div><h3>Wallpaper Engine 英雄桌面</h3><p>默认关闭。Wallpaper Engine 必须已运行；HexBridge 只发送受限的 Profile / Playlist 切换命令，不会自动启动或关闭它。</p></div><span :class="['connection-pill', state.wallpaperEngine.status === 'active' || state.wallpaperEngine.status === 'idle' ? 'ready' : state.wallpaperEngine.status === 'error' ? 'error' : 'stale']">{{ state.wallpaperEngine.message }}</span></header>
+              <div class="wallpaper-engine-fields">
+                <label><span>英雄目标类型</span><select v-model="wallpaperTargetType"><option value="profile">Profile</option><option value="playlist">Playlist</option></select></label>
+                <label><span>英雄命名模板</span><input v-model="wallpaperTemplate" maxlength="79" autocomplete="off" placeholder="HexBridge-{id}" /><small>必须包含 {id}，例如英雄 103 会使用 HexBridge-103。</small></label>
+                <label><span>离局恢复类型</span><select v-model="wallpaperRestoreType"><option value="profile">Profile</option><option value="playlist">Playlist</option></select></label>
+                <label><span>离局恢复目标</span><input v-model="wallpaperRestoreName" maxlength="80" autocomplete="off" placeholder="你在 Wallpaper Engine 中保存的名称" /><small>多屏建议使用 Profile。Playlist 只能重新进入列表，不保证回到原条目和播放位置。</small></label>
+              </div>
+              <div class="wallpaper-engine-actions"><button class="primary" :disabled="wallpaperBusy" @click="saveWallpaperEnginePreferences">{{ wallpaperBusy ? '处理中…' : '保存配置' }}</button><button class="ghost" :disabled="wallpaperBusy || !state.wallpaperEngine.supported" @click="retryWallpaperEngine">重新检测</button><label class="wallpaper-engine-toggle"><span>启用对局英雄切换</span><input type="checkbox" :checked="state.settings.wallpaperEngineEnabled" :disabled="!state.wallpaperEngine.supported" @change="toggleWallpaperEngine(($event.target as HTMLInputElement).checked)" /></label></div>
+              <small>仅使用 Steam app 431960 的固定安装路径和 openProfile / openPlaylist。对局中手动更改的桌面不会被当作新的恢复点；离局或退出时仍会恢复上方指定的目标。目标名、命令与安装路径不会进入普通运行状态或日志。</small>
+            </article>
             <article class="settings-card wide switches"><label><div><b>自动 OCR（实验）</b><small>只在海克斯对局且游戏或主窗口可见时低频识别</small></div><input type="checkbox" :checked="state.settings.autoOcr" @change="updateSettings({ autoOcr: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>等待页客户端背景（实验）</b><small>默认关闭。仅大厅、匹配与接受对局阶段低频截取已绑定客户端窗口；画面只在内存中模糊处理。</small></div><input type="checkbox" :checked="state.settings.lobbyBackground" @change="updateSettings({ lobbyBackground: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>选人浮窗</b><small>选人期间跟随英雄联盟客户端，进入对局后隐藏</small></div><input type="checkbox" :checked="state.settings.showChampionPanel" @change="updateSettings({ showChampionPanel: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>三卡上方推荐</b><small>识别成功后显示点击穿透小窗，选卡或切屏时自动隐藏</small></div><input type="checkbox" :checked="state.settings.showInGameRecommendations" @change="updateSettings({ showInGameRecommendations: ($event.target as HTMLInputElement).checked })" /></label><label><div><b>队友与对手近期状态（本地实验）</b><small>默认关闭。仅身份明确公开时读取本机 LCU；近期样本不限定队列，可能违反 Riot 分发政策，不上传、不持久化。</small></div><input type="checkbox" :checked="state.settings.opponentScouting" @change="updateSettings({ opponentScouting: ($event.target as HTMLInputElement).checked })" /></label></article>
           </div>
         </section>

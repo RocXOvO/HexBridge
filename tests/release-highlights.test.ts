@@ -22,8 +22,8 @@ describe('release highlights', () => {
   })
 
   it('keeps the complete historical chain available after old GitHub Releases are pruned', () => {
-    const result = resolveReleaseHighlights('0.1.0', '0.1.29')
-    for (let patch = 1; patch <= 29; patch += 1) {
+    const result = resolveReleaseHighlights('0.1.0', '0.1.30')
+    for (let patch = 1; patch <= 30; patch += 1) {
       expect(result?.items.some((item) => item.startsWith(`v0.1.${patch}：`))).toBe(true)
     }
   })

@@ -34,7 +34,7 @@ interface UpdateManagerOptions {
   adapterLoader?: () => Promise<UpdateAdapter>
   feeds?: readonly UpdateFeedConfiguration[]
   scheduleAutomaticChecks?: boolean
-  beginInstallShutdown?: () => unknown
+  beginInstallShutdown?: () => unknown | Promise<unknown>
   cancelInstallShutdown?: (token: unknown) => void
 }
 
@@ -426,7 +426,7 @@ export class UpdateManager {
     return this.install()
   }
 
-  install(): { ok: boolean; message: string } {
+  async install(): Promise<{ ok: boolean; message: string }> {
     if (!this.adapter || this.state.status !== 'downloaded') {
       return { ok: false, message: '尚无已下载的更新' }
     }
@@ -438,7 +438,7 @@ export class UpdateManager {
       message: '正在退出并完成更新…',
     })
     try {
-      this.installShutdownToken = this.options.beginInstallShutdown?.() ?? null
+      this.installShutdownToken = await this.options.beginInstallShutdown?.() ?? null
       // A click on the single update action authorizes this one update. NSIS
       // stays silent for both differential and verified full-package fallback;
       // Windows may still show its own UAC or SmartScreen UI.

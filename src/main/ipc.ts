@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import type { AppSettings, CalibrationRects } from '../shared/contracts.js'
+import { sanitizeWallpaperEnginePreferences } from './config-store.js'
 import { HexBridgeRuntime } from './runtime.js'
 
 const allowedSettingKeys = new Set<keyof AppSettings>([
@@ -8,6 +9,7 @@ const allowedSettingKeys = new Set<keyof AppSettings>([
   'showInGameRecommendations',
   'opponentScouting',
   'lobbyBackground',
+  'wallpaperEngineEnabled',
   'recommendationDataSource',
   'displayId',
   'calibration',
@@ -19,7 +21,7 @@ function sanitizeSettings(value: unknown): Partial<AppSettings> {
   const patch: Partial<AppSettings> = {}
   for (const [key, entry] of Object.entries(value)) {
     if (!allowedSettingKeys.has(key as keyof AppSettings)) continue
-    if (['autoOcr', 'showChampionPanel', 'showInGameRecommendations', 'opponentScouting', 'lobbyBackground', 'diagnosticsScreenshots'].includes(key)) {
+    if (['autoOcr', 'showChampionPanel', 'showInGameRecommendations', 'opponentScouting', 'lobbyBackground', 'wallpaperEngineEnabled', 'diagnosticsScreenshots'].includes(key)) {
       if (typeof entry === 'boolean') Object.assign(patch, { [key]: entry })
     } else if (key === 'displayId' && typeof entry === 'string') {
       patch.displayId = entry.slice(0, 80)
@@ -131,6 +133,20 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
     }
     return runtime.getScoutPlayerDetails(opaqueKey, matchGeneration)
   })
+  ipcMain.handle('hexbridge:get-wallpaper-engine-preferences', (event) => {
+    requireSender(event, 'main')
+    return runtime.getWallpaperEnginePreferences()
+  })
+  ipcMain.handle('hexbridge:save-wallpaper-engine-preferences', (event, preferences) => {
+    requireSender(event, 'main')
+    const safe = sanitizeWallpaperEnginePreferences(preferences)
+    if (!safe) return { ok: false, message: '配置无效：英雄模板需包含 {id}，且目标名不得为空' }
+    return runtime.saveWallpaperEnginePreferences(safe)
+  })
+  ipcMain.handle('hexbridge:retry-wallpaper-engine', (event) => {
+    requireSender(event, 'main')
+    return runtime.retryWallpaperEngine()
+  })
   ipcMain.handle('hexbridge:clear-diagnostics', () => runtime.clearDiagnosticScreenshots())
   ipcMain.handle('hexbridge:retry-lcu', () => runtime.retryLcuConnection())
   ipcMain.handle('hexbridge:start-calibration', (event) => {
@@ -157,6 +173,7 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
   })
   ipcMain.handle('hexbridge:window-action', (event, action) => {
     if (!['minimize', 'maximize', 'close', 'quit'].includes(String(action))) return
+    if (action === 'quit') requireSender(event, 'main')
     runtime.getWindowManager().handleAction(event.sender, action)
   })
 }

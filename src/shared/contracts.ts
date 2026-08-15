@@ -16,6 +16,36 @@ export type VisualMode = 'cinematic' | 'balanced' | 'eco'
 export type VisualModePreference = VisualMode | 'auto'
 export type MatchContextStage = 'none' | 'selecting' | 'launching' | 'active'
 export type RecommendationDataSource = 'dtodo' | 'tencent101'
+export type WallpaperEngineTargetType = 'profile' | 'playlist'
+
+export interface WallpaperEngineTarget {
+  type: WallpaperEngineTargetType
+  name: string
+}
+
+export interface WallpaperEnginePreferences {
+  championTargetType: WallpaperEngineTargetType
+  championTargetTemplate: string
+  restoreTarget: WallpaperEngineTarget | null
+}
+
+export interface WallpaperEngineState {
+  supported: boolean
+  configured: boolean
+  status:
+    | 'disabled'
+    | 'unconfigured'
+    | 'not-installed'
+    | 'not-running'
+    | 'idle'
+    | 'applying'
+    | 'active'
+    | 'restoring'
+    | 'error'
+  championId: number | null
+  errorCode: string | null
+  message: string
+}
 
 export interface NormalizedRect {
   x: number
@@ -45,6 +75,7 @@ export interface AppSettings {
   showInGameRecommendations: boolean
   opponentScouting: boolean
   lobbyBackground: boolean
+  wallpaperEngineEnabled: boolean
   recommendationDataSource: RecommendationDataSource
   hotkey: string
   gameDirectory: string
@@ -440,6 +471,7 @@ export interface RuntimeState {
   currentBuild: ChampionBuildRecommendation | null
   opponentScout: OpponentScoutState
   overlay: AugmentOverlayState
+  wallpaperEngine: WallpaperEngineState
   settings: AppSettings
   displays: DisplayOption[]
   diagnostics: RuntimeDiagnostics
@@ -460,6 +492,9 @@ export interface HexBridgeApi {
   triggerOcr(): Promise<{ ok: boolean; message: string }>
   retryOpponentScout(): Promise<{ ok: boolean; message: string }>
   getScoutPlayerDetails(opaqueKey: string, matchGeneration: number): Promise<ScoutPlayerDetailsResult>
+  getWallpaperEnginePreferences(): Promise<WallpaperEnginePreferences>
+  saveWallpaperEnginePreferences(preferences: WallpaperEnginePreferences): Promise<{ ok: boolean; message: string }>
+  retryWallpaperEngine(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>
   startCalibration(): Promise<void>

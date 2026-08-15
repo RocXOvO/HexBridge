@@ -14,6 +14,8 @@ import type {
   RecommendationDataSource,
   RecommendationDataState,
   RecommendationDetail,
+  WallpaperEnginePreferences,
+  WallpaperEngineState,
 } from '../shared/contracts.js'
 import {
   buildChampionCandidates,
@@ -49,6 +51,7 @@ import { UpdateManager, type UpdateAdapter } from './update-manager.js'
 import { STABLE_UPDATE_FEEDS } from './update-channel.js'
 import { resolveAutomaticVisualMode } from './visual-policy.js'
 import { AugmentRoundTracker } from './augment-round.js'
+import { WallpaperEngineController, type WallpaperEngineContext } from './wallpaper-engine.js'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -89,6 +92,15 @@ const DISABLED_OPPONENT_SCOUT: OpponentScoutState = {
   message: '对手近期状态实验未开启',
 }
 
+const UNSUPPORTED_WALLPAPER_ENGINE: WallpaperEngineState = {
+  supported: false,
+  configured: false,
+  status: 'not-installed',
+  championId: null,
+  errorCode: 'WE_UNSUPPORTED',
+  message: 'Wallpaper Engine 联动仅支持 Windows',
+}
+
 type ManualOcrCode = RuntimeState['diagnostics']['manualOcrCode']
 interface ScanActionResult {
   ok: boolean
@@ -112,6 +124,7 @@ export class HexBridgeRuntime {
   private readonly lcu: LcuClient
   private readonly scanner: AugmentScanner
   private readonly windows: WindowManager
+  private readonly wallpaper: WallpaperEngineController
   private readonly updates: UpdateManager
   private snapshot: ChampSelectSnapshot = { ...EMPTY_SNAPSHOT }
   private lcuState: LcuConnectionState = { ...EMPTY_LCU }
@@ -144,6 +157,9 @@ export class HexBridgeRuntime {
   private manualOverlayExpiryTimer: NodeJS.Timeout | null = null
   private manualSurfaceFirstProbePending = false
   private stopping = false
+  private quitPreparation: Promise<void> | null = null
+  private quitPrepared = false
+  private quitCommitted = false
   private gameProcessTimer: NodeJS.Timeout | null = null
   private gameProcessPollMs: number | null = null
   private gameProcessCheckInFlight = false
@@ -179,6 +195,13 @@ export class HexBridgeRuntime {
       path.join(userData, 'ocr-diagnostics'),
     )
     this.windows = new WindowManager(this.config)
+    this.wallpaper = new WallpaperEngineController({
+      getEnabled: () => this.config.getSettings().wallpaperEngineEnabled,
+      getPreferences: () => this.config.getWallpaperEnginePreferences(),
+      isLeaseHeld: () => this.config.isWallpaperEngineLeaseHeld(),
+      setLeaseHeld: (held) => this.config.setWallpaperEngineLeaseHeld(held),
+      onStateChanged: () => this.sync(),
+    })
     this.updates = new UpdateManager({
       currentVersion: app.getVersion(),
       supported: app.isPackaged && process.platform === 'win32',
@@ -190,8 +213,8 @@ export class HexBridgeRuntime {
       isGameInProgress: () =>
         this.snapshot.matchStage !== 'none',
       onStateChanged: () => this.sync(),
-      beginInstallShutdown: () => this.windows.prepareForUpdateInstall(),
-      cancelInstallShutdown: (token) => this.windows.cancelPreparedQuit(Number(token)),
+      beginInstallShutdown: () => this.prepareForUpdateInstall(),
+      cancelInstallShutdown: (token) => this.cancelPreparedUpdateInstall(Number(token)),
     })
   }
 
@@ -207,6 +230,7 @@ export class HexBridgeRuntime {
     this.lcu.on('diagnostic', () => this.sync())
     this.lcu.start()
     this.updates.initialize()
+    await this.wallpaper.initialize(this.wallpaperContext())
     await Promise.all([
       this.data.initialize(),
       this.initializeRecommendationSource(false),
@@ -291,6 +315,7 @@ export class HexBridgeRuntime {
           }
         : { ...DISABLED_OPPONENT_SCOUT },
       overlay: { ...this.overlay, slots: [...this.overlay.slots] },
+      wallpaperEngine: this.wallpaper?.getState?.() ?? { ...UNSUPPORTED_WALLPAPER_ENGINE },
       settings,
       displays: screen.getAllDisplays().map((display, index) => ({
         id: String(display.id),
@@ -316,11 +341,22 @@ export class HexBridgeRuntime {
 
   updateSettings(patch: Partial<AppSettings>): AppSettings {
     const previous = this.config.getSettings()
-    const normalizedPatch =
+    let normalizedPatch =
       patch.displayId !== undefined && patch.displayId !== previous.displayId
         ? { ...patch, calibration: null }
         : patch
+    if (
+      normalizedPatch.wallpaperEngineEnabled === true &&
+      !this.config.getWallpaperEnginePreferences().restoreTarget
+    ) {
+      const { wallpaperEngineEnabled: _rejected, ...safePatch } = normalizedPatch
+      void _rejected
+      normalizedPatch = safePatch
+    }
     const next = this.config.updateSettings(normalizedPatch)
+    if (next.wallpaperEngineEnabled !== previous.wallpaperEngineEnabled) {
+      this.wallpaper?.reconcile?.(this.wallpaperContext(), true)
+    }
     if (next.recommendationDataSource !== previous.recommendationDataSource) {
       this.switchRecommendationSource(next.recommendationDataSource)
     }
@@ -366,6 +402,35 @@ export class HexBridgeRuntime {
     }
     this.sync()
     return next
+  }
+
+  getWallpaperEnginePreferences(): WallpaperEnginePreferences {
+    return this.config.getWallpaperEnginePreferences()
+  }
+
+  saveWallpaperEnginePreferences(
+    preferences: WallpaperEnginePreferences,
+  ): { ok: boolean; message: string } {
+    if (
+      !preferences.restoreTarget &&
+      (this.config.getSettings().wallpaperEngineEnabled || this.config.isWallpaperEngineLeaseHeld())
+    ) {
+      return { ok: false, message: '联动已启用或尚待恢复桌面，不能清空离局恢复目标' }
+    }
+    try {
+      this.config.saveWallpaperEnginePreferences(preferences)
+      this.wallpaper.preferencesChanged()
+      this.sync()
+      return { ok: true, message: 'Wallpaper Engine 配置已保存' }
+    } catch {
+      return { ok: false, message: '配置无效：英雄模板需包含 {id}，且目标名不得为空' }
+    }
+  }
+
+  async retryWallpaperEngine(): Promise<{ ok: boolean; message: string }> {
+    const result = await this.wallpaper.retry()
+    this.sync()
+    return result
   }
 
   setOcrHotkey(hotkey: string): HotkeyRegistrationResult {
@@ -659,6 +724,33 @@ export class HexBridgeRuntime {
     return this.windows
   }
 
+  isApplicationQuitPrepared(): boolean {
+    return this.quitPrepared
+  }
+
+  async prepareForApplicationQuit(): Promise<void> {
+    if (this.quitPrepared || this.quitCommitted) return
+    if (this.quitPreparation) return this.quitPreparation
+    const operation = this.wallpaper.prepareForExit().catch((error) => {
+      logger.warn('Wallpaper Engine quit restore failed', {
+        errorName: error instanceof Error ? error.name : 'Error',
+      })
+    }).then(() => {
+      this.windows.prepareToQuit()
+      this.quitPrepared = true
+    }).finally(() => {
+      if (this.quitPreparation === operation) this.quitPreparation = null
+    })
+    this.quitPreparation = operation
+    return operation
+  }
+
+  commitApplicationQuit(): void {
+    this.quitCommitted = true
+    this.quitPrepared = true
+    this.windows.prepareToQuit()
+  }
+
   stop(): void {
     this.stopping = true
     this.recommendationProviderAbort?.abort()
@@ -669,6 +761,7 @@ export class HexBridgeRuntime {
     this.browseRecommendationAbort = null
     this.setManualOverlayMonitorDeadline(null)
     this.cancelOpponentScoutRequest()
+    this.wallpaper?.dispose?.()
     this.windows.prepareToQuit()
     this.stopScanLoop()
     this.stopGameProcessLoop()
@@ -687,6 +780,7 @@ export class HexBridgeRuntime {
     const previousConnectedAt = this.lcuState.lastConnectedAt
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
+    this.wallpaper?.reconcile?.(this.wallpaperContext())
     this.windows?.setLeagueClientProcessId?.(this.lcu?.getActiveProcessId?.() ?? null)
     if (nextChampion !== oldChampion || snapshot.matchGeneration !== previousGeneration) {
       const sequence = ++this.championRequestSequence
@@ -732,6 +826,28 @@ export class HexBridgeRuntime {
     if (this.opponentScout) this.updateOpponentScout(transportChanged)
     if (!snapshotChanged && !stateChanged) return
     this.sync()
+  }
+
+  private wallpaperContext(): WallpaperEngineContext {
+    return {
+      modeActive: this.snapshot.modeActive,
+      matchStage: this.snapshot.matchStage,
+      matchGeneration: this.snapshot.matchGeneration,
+      championId: this.snapshot.modeActive ? this.snapshot.currentChampionId : null,
+    }
+  }
+
+  private async prepareForUpdateInstall(): Promise<number> {
+    await this.wallpaper.prepareForExit()
+    this.quitPrepared = true
+    return this.windows.prepareForUpdateInstall()
+  }
+
+  private cancelPreparedUpdateInstall(token: number): void {
+    if (this.quitCommitted) return
+    this.windows.cancelPreparedQuit(token)
+    this.quitPrepared = false
+    this.wallpaper.resume(this.wallpaperContext())
   }
 
   private async updateOpponentScout(force = false, waitForResult = false): Promise<void> {

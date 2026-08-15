@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 const appSource = readFileSync(new URL('../src/renderer/src/App.vue', import.meta.url), 'utf8')
 const stylesSource = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8')
 const rendererEntry = readFileSync(new URL('../src/renderer/src/main.ts', import.meta.url), 'utf8')
+const rendererState = readFileSync(new URL('../src/renderer/src/state.ts', import.meta.url), 'utf8')
 const windowManager = readFileSync(new URL('../src/main/window-manager.ts', import.meta.url), 'utf8')
 const mainProcess = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8')
 const preloadSource = readFileSync(new URL('../src/preload/index.ts', import.meta.url), 'utf8')
@@ -12,6 +13,10 @@ const augmentOverlaySource = readFileSync(new URL('../src/renderer/src/AugmentOv
 const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.meta.url), 'utf8')
 
 describe('main-window recommendation presentation', () => {
+  it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
+    expect(rendererState).toContain("currentVersion: '0.1.30'")
+  })
+
   it('routes only a bounded click-through augment recommendation strip', () => {
     expect(rendererEntry).toContain("route === 'augment'")
     expect(windowManager).toContain("createWindow('augment'")
@@ -39,10 +44,26 @@ describe('main-window recommendation presentation', () => {
     expect(rendererHtml).toContain("img-src 'self' data: blob: https:")
   })
 
-  it('starts the guarded shutdown path before the tray asks Electron to quit', () => {
+  it('waits for the guarded desktop restore before Electron commits the quit', () => {
     expect(mainProcess).toContain("{ label: '退出', click: quitApplication }")
-    expect(mainProcess).toContain('runtime?.getWindowManager().prepareToQuit()')
+    expect(mainProcess).toContain('runtime.prepareForApplicationQuit()')
+    expect(mainProcess).toContain('runtime?.commitApplicationQuit()')
+    expect(mainProcess).toContain('event.preventDefault()')
     expect(windowManager).toContain('this.activityChanged = null')
+  })
+
+  it('keeps Wallpaper Engine target names and controls behind the Main-only bridge', () => {
+    expect(appSource).toContain('Wallpaper Engine 英雄桌面')
+    expect(appSource).toContain('HexBridge-{id}')
+    expect(appSource).toContain('不会自动启动或关闭它')
+    expect(preloadSource).toContain("rendererRoute === 'main' ? {")
+    expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-wallpaper-engine-preferences')")
+    expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:save-wallpaper-engine-preferences', preferences)")
+    expect(ipcSource).toContain("ipcMain.handle('hexbridge:get-wallpaper-engine-preferences'")
+    expect(ipcSource).toContain("ipcMain.handle('hexbridge:save-wallpaper-engine-preferences'")
+    expect(ipcSource).toContain("ipcMain.handle('hexbridge:retry-wallpaper-engine'")
+    expect(ipcSource.match(/requireSender\(event, 'main'\)/g)?.length).toBeGreaterThanOrEqual(12)
+    expect(ipcSource).toContain("if (action === 'quit') requireSender(event, 'main')")
   })
 
   it('keeps the raw Tier label visibly rendered instead of replacing it with a strength adjective', () => {

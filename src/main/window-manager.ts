@@ -528,7 +528,6 @@ export class WindowManager {
 
   handleAction(sender: Electron.WebContents, action: 'minimize' | 'maximize' | 'close' | 'quit'): void {
     if (action === 'quit') {
-      this.prepareToQuit()
       app.quit()
       return
     }

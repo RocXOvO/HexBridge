@@ -49,7 +49,7 @@ const lobbyBackgroundApi: LobbyBackgroundBridge = {
     ipcRenderer.invoke('hexbridge:set-lobby-background-presentation', presentation),
 }
 
-const api: HexBridgeApi = {
+const api = {
   getState: () => ipcRenderer.invoke('hexbridge:get-state'),
   onStateChanged: (callback: (state: RuntimeState) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, state: RuntimeState): void => callback(state)
@@ -81,7 +81,14 @@ const api: HexBridgeApi = {
   cancelCalibration: () => ipcRenderer.invoke('hexbridge:cancel-calibration'),
   windowAction: (action: 'minimize' | 'maximize' | 'close' | 'quit') =>
     ipcRenderer.invoke('hexbridge:window-action', action),
-}
+  ...(rendererRoute === 'main' ? {
+    getWallpaperEnginePreferences: () =>
+      ipcRenderer.invoke('hexbridge:get-wallpaper-engine-preferences'),
+    saveWallpaperEnginePreferences: (preferences: import('../shared/contracts.js').WallpaperEnginePreferences) =>
+      ipcRenderer.invoke('hexbridge:save-wallpaper-engine-preferences', preferences),
+    retryWallpaperEngine: () => ipcRenderer.invoke('hexbridge:retry-wallpaper-engine'),
+  } : {}),
+} as HexBridgeApi
 
 if (rendererRoute === 'augment') contextBridge.exposeInMainWorld('hexbridgeOverlay', overlayApi)
 else {

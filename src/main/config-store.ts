@@ -1,6 +1,12 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
-import type { AppSettings, ReleaseHighlights } from '../shared/contracts.js'
+import type {
+  AppSettings,
+  ReleaseHighlights,
+  WallpaperEnginePreferences,
+  WallpaperEngineTarget,
+  WallpaperEngineTargetType,
+} from '../shared/contracts.js'
 import { resolveReleaseHighlights } from '../shared/release-highlights.js'
 
 interface PersistedConfig {
@@ -10,6 +16,14 @@ interface PersistedConfig {
   settingsRevision: number
   lastLaunchedVersion: string
   pendingReleaseHighlights: ReleaseHighlights | null
+  wallpaperEnginePreferences: WallpaperEnginePreferences
+  wallpaperEngineLeaseHeld: boolean
+}
+
+export const DEFAULT_WALLPAPER_ENGINE_PREFERENCES: WallpaperEnginePreferences = {
+  championTargetType: 'profile',
+  championTargetTemplate: 'HexBridge-{id}',
+  restoreTarget: null,
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -19,6 +33,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showInGameRecommendations: true,
   opponentScouting: false,
   lobbyBackground: false,
+  wallpaperEngineEnabled: false,
   recommendationDataSource: 'dtodo',
   hotkey: 'F8',
   gameDirectory: '',
@@ -78,6 +93,12 @@ export function migrateSettingsForRevision(
     next = { ...next, recommendationDataSource: 'dtodo' }
     nextRevision = 7
   }
+  if (nextRevision < 8) {
+    // Wallpaper Engine control is an explicit desktop-side effect. Existing
+    // users must opt in and configure a restore target before it can run.
+    next = { ...next, wallpaperEngineEnabled: false }
+    nextRevision = 8
+  }
   if (next.recommendationDataSource !== 'dtodo' && next.recommendationDataSource !== 'tencent101') {
     next = { ...next, recommendationDataSource: 'dtodo' }
   }
@@ -94,6 +115,8 @@ export class ConfigStore {
       settingsRevision: 0,
       lastLaunchedVersion: '',
       pendingReleaseHighlights: null,
+      wallpaperEnginePreferences: DEFAULT_WALLPAPER_ENGINE_PREFERENCES,
+      wallpaperEngineLeaseHeld: false,
     },
   })
 
@@ -146,6 +169,25 @@ export class ConfigStore {
     return next
   }
 
+  getWallpaperEnginePreferences(): WallpaperEnginePreferences {
+    const stored = sanitizeWallpaperEnginePreferences(this.store.get('wallpaperEnginePreferences'))
+    return stored ?? structuredClone(DEFAULT_WALLPAPER_ENGINE_PREFERENCES)
+  }
+
+  saveWallpaperEnginePreferences(preferences: WallpaperEnginePreferences): void {
+    const safe = sanitizeWallpaperEnginePreferences(preferences)
+    if (!safe) throw new Error('壁纸配置无效')
+    this.store.set('wallpaperEnginePreferences', safe)
+  }
+
+  isWallpaperEngineLeaseHeld(): boolean {
+    return this.store.get('wallpaperEngineLeaseHeld') === true
+  }
+
+  setWallpaperEngineLeaseHeld(held: boolean): void {
+    this.store.set('wallpaperEngineLeaseHeld', held)
+  }
+
   hasApiKey(): boolean {
     return this.getApiKey() !== null
   }
@@ -178,5 +220,50 @@ export class ConfigStore {
 
   saveWindowBounds(name: 'main' | 'champion', bounds: Electron.Rectangle): void {
     this.store.set(`windowBounds.${name}`, bounds)
+  }
+}
+
+function safeTargetType(value: unknown): value is WallpaperEngineTargetType {
+  return value === 'profile' || value === 'playlist'
+}
+
+function safeTargetName(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const name = value.trim()
+  const hasControlCharacter = Array.from(name).some((character) => {
+    const code = character.codePointAt(0) ?? 0
+    return code <= 31 || code === 127
+  })
+  if (!name || name.length > 80 || name.startsWith('-') || hasControlCharacter) return null
+  return name
+}
+
+function sanitizeTarget(value: unknown): WallpaperEngineTarget | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const name = safeTargetName(record.name)
+  if (!safeTargetType(record.type) || !name) return null
+  return { type: record.type, name }
+}
+
+export function sanitizeWallpaperEnginePreferences(value: unknown): WallpaperEnginePreferences | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const template = safeTargetName(record.championTargetTemplate)
+  const withoutSupportedPlaceholders = template?.replaceAll('{id}', '') ?? ''
+  if (
+    !safeTargetType(record.championTargetType) ||
+    !template ||
+    template.length > 79 ||
+    !template.includes('{id}') ||
+    withoutSupportedPlaceholders.includes('{') ||
+    withoutSupportedPlaceholders.includes('}')
+  ) return null
+  const restoreTarget = record.restoreTarget == null ? null : sanitizeTarget(record.restoreTarget)
+  if (record.restoreTarget != null && !restoreTarget) return null
+  return {
+    championTargetType: record.championTargetType,
+    championTargetTemplate: template,
+    restoreTarget,
   }
 }

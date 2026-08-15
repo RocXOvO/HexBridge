@@ -40,7 +40,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.29',
+    currentVersion: '0.1.30',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -64,6 +64,14 @@ const smokeState: RuntimeState = {
     source: null, message: '对手近期状态实验未开启',
   },
   overlay: { visible: false, championId: null, slots: [], detectedAt: null, message: 'smoke' },
+  wallpaperEngine: {
+    supported: true,
+    configured: false,
+    status: 'disabled',
+    championId: null,
+    errorCode: null,
+    message: 'smoke',
+  },
   settings: {
     visualMode: 'eco',
     autoOcr: false,
@@ -71,6 +79,7 @@ const smokeState: RuntimeState = {
     showInGameRecommendations: true,
     opponentScouting: false,
     lobbyBackground: false,
+    wallpaperEngineEnabled: false,
     recommendationDataSource: 'dtodo',
     hotkey: 'F8',
     gameDirectory: '',

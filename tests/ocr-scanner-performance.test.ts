@@ -25,6 +25,7 @@ const settings = (): AppSettings => ({
   showInGameRecommendations: true,
   opponentScouting: false,
   lobbyBackground: false,
+  wallpaperEngineEnabled: false,
   recommendationDataSource: 'dtodo',
   hotkey: 'F8',
   gameDirectory: '',

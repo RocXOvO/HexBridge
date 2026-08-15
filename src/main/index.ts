@@ -12,6 +12,7 @@ import { applicationIconPath } from './window-manager.js'
 let runtime: HexBridgeRuntime | null = null
 let tray: Tray | null = null
 let hotkeys: OcrHotkeyManager | null = null
+let quitPreparationRunning = false
 
 function triggerOcrFrom(source: 'hotkey' | 'tray'): void {
   void runtime?.triggerOcr(source).catch((error) => {
@@ -23,7 +24,6 @@ function triggerOcrFrom(source: 'hotkey' | 'tray'): void {
 }
 
 function quitApplication(): void {
-  runtime?.getWindowManager().prepareToQuit()
   app.quit()
 }
 
@@ -138,8 +138,19 @@ async function finishUpdateSmoke(result: object, exitCode: number): Promise<void
 
 app.on('second-instance', () => runtime?.getWindowManager().showMain())
 app.on('window-all-closed', () => undefined)
-app.on('before-quit', () => {
-  runtime?.getWindowManager().prepareToQuit()
+app.on('before-quit', (event) => {
+  if (runtime && !runtime.isApplicationQuitPrepared()) {
+    event.preventDefault()
+    if (!quitPreparationRunning) {
+      quitPreparationRunning = true
+      void runtime.prepareForApplicationQuit().finally(() => {
+        quitPreparationRunning = false
+        app.quit()
+      })
+    }
+    return
+  }
+  runtime?.commitApplicationQuit()
   runtime?.stop()
   hotkeys?.dispose()
 })
