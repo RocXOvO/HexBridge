@@ -15,7 +15,7 @@ vi.mock('../src/main/logger.js', () => ({
 
 vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 
-import { HexBridgeRuntime } from '../src/main/runtime.js'
+import { HexBridgeRuntime, reuseUnchangedAugmentSlots } from '../src/main/runtime.js'
 import { AugmentRoundTracker } from '../src/main/augment-round.js'
 
 const activeSnapshot = {
@@ -54,6 +54,38 @@ afterEach(() => {
 })
 
 describe('runtime performance scheduling', () => {
+  it('reuses unchanged card objects while replacing only changed slots', () => {
+    const slot = (name: string, augmentId: number) => ({
+      slot: name,
+      rawText: name,
+      augmentId,
+      name: `海克斯${augmentId}`,
+      confidence: 1,
+      position: augmentId,
+      tied: false,
+      reason: '推荐序',
+      iconUrl: `https://example.test/${augmentId}.png`,
+      rarityName: '白银',
+      pickRate: null,
+      globalPickRate: null,
+      globalWinRate: null,
+      globalPickRank: null,
+      globalWinRank: null,
+      recommendationSource: 'tencent101',
+      statisticsDate: '20260816',
+      metricScope: 'global',
+      statsSource: null,
+      statsRegion: null,
+    })
+    const previous = [slot('left', 1), slot('center', 2), slot('right', 3)]
+    const next = [slot('left', 1), slot('center', 9), slot('right', 3)]
+    const merged = reuseUnchangedAugmentSlots(previous as any, next as any)
+
+    expect(merged[0]).toBe(previous[0])
+    expect(merged[1]).toBe(next[1])
+    expect(merged[2]).toBe(previous[2])
+  })
+
   it('does not capture immediately and keeps waiting probes responsive after misses', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
@@ -134,7 +166,11 @@ describe('runtime performance scheduling', () => {
 
     runtime.updateScanLoop()
     await vi.advanceTimersByTimeAsync(700)
-    await vi.advanceTimersByTimeAsync(280)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledOnce()
+    expect(runtime.runScan).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(99)
+    expect(runtime.runScan).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
     expect(runtime.runScan).toHaveBeenCalledTimes(1)
     expect(runtime.augmentRound.beginNextRound).toHaveBeenCalledOnce()
     expect(runtime.overlay).toMatchObject({
@@ -232,7 +268,7 @@ describe('runtime performance scheduling', () => {
       .mockResolvedValueOnce({ ok: true, code: 'MATCHED', message: 'matched' })
 
     runtime.updateScanLoop()
-    await vi.advanceTimersByTimeAsync(2_000 + 280 + 2_000 + 4_000)
+    await vi.advanceTimersByTimeAsync(2_000 + 100 + 2_000 + 4_000)
     expect(runtime.runScan).toHaveBeenCalledTimes(4)
     expect(runtime.automaticScanPhase).toBe('latched')
     await vi.advanceTimersByTimeAsync(10_000)
@@ -301,7 +337,7 @@ describe('runtime performance scheduling', () => {
     runtime.updateScanLoop()
     await vi.advanceTimersByTimeAsync(500)
     expect(runtime.overlay.visible).toBe(true)
-    await vi.advanceTimersByTimeAsync(280)
+    await vi.advanceTimersByTimeAsync(100)
 
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
     expect(runtime.overlay.visible).toBe(false)
@@ -440,7 +476,7 @@ describe('runtime performance scheduling', () => {
     runtime.setManualOverlayMonitorDeadline(Date.now() + 45_000)
 
     runtime.updateScanLoop()
-    await vi.advanceTimersByTimeAsync(1_000 + 280)
+    await vi.advanceTimersByTimeAsync(1_000 + 100)
 
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
     expect(runtime.overlay.visible).toBe(true)
@@ -537,7 +573,7 @@ describe('runtime performance scheduling', () => {
     expect(runtime.automaticFingerprint).toEqual(['aaaa', 'bbbb', 'cccc'])
     gameForeground = true
     runtime.handleWindowActivityChanged()
-    await vi.advanceTimersByTimeAsync(700 + 280)
+    await vi.advanceTimersByTimeAsync(700 + 100)
 
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
     expect(runtime.augmentRound.beginNextRound).toHaveBeenCalledOnce()
@@ -613,7 +649,7 @@ describe('runtime performance scheduling', () => {
 
     runtime.updateSettings({ autoOcr: false })
     expect(runtime.manualOverlayMonitorDeadlineAt).toBe(Date.now() + 45_000)
-    await vi.advanceTimersByTimeAsync(1_280)
+    await vi.advanceTimersByTimeAsync(1_100)
 
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
     expect(runtime.runScan).not.toHaveBeenCalled()
@@ -659,7 +695,7 @@ describe('runtime performance scheduling', () => {
     runtime.runScan = vi.fn()
 
     runtime.updateScanLoop()
-    await vi.advanceTimersByTimeAsync(1_280)
+    await vi.advanceTimersByTimeAsync(1_100)
 
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
     expect(runtime.runScan).not.toHaveBeenCalled()

@@ -20,13 +20,15 @@ const pickRateLabel = (slot: AugmentOverlayViewState['slots'][number]): string =
   slot.recommendationSource === 'tencent101' ? '全局选取率' : '该英雄选取率'
 const sourceLabel = (slot: AugmentOverlayViewState['slots'][number]): string =>
   `${slot.recommendationSource === 'tencent101' ? '腾讯数据站' : 'data.dtodo'}${slot.statisticsDate ? ` · ${slot.statisticsDate}` : ''}`
+const slotKey = (slot: AugmentOverlayViewState['slots'][number]): string =>
+  `${slot.slot}-${slot.augmentId ?? 'unknown'}`
 </script>
 
 <template>
-  <div class="augment-overlay-window" data-performance="eco" aria-live="polite">
+  <TransitionGroup name="overlay-card" tag="div" class="augment-overlay-window" data-performance="eco" aria-live="polite">
     <article
       v-for="slot in view.slots"
-      :key="slot.slot"
+      :key="slotKey(slot)"
       :class="{ unknown: !slot.augmentId }"
       :style="slotStyle(slot.slot)"
     >
@@ -38,5 +40,5 @@ const sourceLabel = (slot: AugmentOverlayViewState['slots'][number]): string =>
         <em>{{ sourceLabel(slot) }}</em>
       </div>
     </article>
-  </div>
+  </TransitionGroup>
 </template>

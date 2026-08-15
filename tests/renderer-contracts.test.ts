@@ -16,7 +16,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.40'")
+    expect(rendererState).toContain("currentVersion: '0.1.41'")
   })
 
   it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {
@@ -129,6 +129,24 @@ describe('main-window recommendation presentation', () => {
   it('keeps the live assistant source badge limited to the provider name', () => {
     expect(appSource).toContain('<span class="data-version">{{ recommendationSourceName }}</span>')
     expect(appSource).not.toContain(':class="{ stale: state.recommendation.stale }"')
+  })
+
+  it('keeps release highlights dismissible only through the explicit button', () => {
+    expect(appSource).toContain('class="release-highlights-backdrop"')
+    expect(appSource).toContain('@click="dismissReleaseHighlights"')
+    expect(appSource).not.toContain('@click.self="dismissReleaseHighlights"')
+  })
+
+  it('animates only changed augment cards and exposes the tray update action', () => {
+    expect(appSource).toContain('`${slot.slot}-${slot.augmentId ?? \'unknown\'}`')
+    expect(appSource).toContain('name="augment-surface"')
+    expect(augmentOverlaySource).toContain('name="overlay-card"')
+    expect(augmentOverlaySource).toContain('slotKey(slot)')
+    expect(stylesSource).toContain('.augment-card-move')
+    expect(stylesSource).toContain('.augment-refreshing')
+    expect(stylesSource).toContain('refresh-orbit')
+    expect(mainProcess).toContain("{ label: '立即更新', click: applyUpdateFromTray }")
+    expect(mainProcess).toContain('runtime?.applyUpdate()')
   })
 
   it('does not promise automatic recovery after an API rate limit', () => {

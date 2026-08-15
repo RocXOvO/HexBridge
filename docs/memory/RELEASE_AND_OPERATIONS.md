@@ -4,6 +4,8 @@
 
 ## 当前正式基线
 
+- 当前候选 `v0.1.41` 尚未 tag / Release；本地门禁已记录为 48 files / 562 passed + 1 skipped、OCR smoke、真实 4K fixture 157ms、build、source bridge/UI smoke、typecheck、lint、diff-check。正式发布前仍须 Windows workflow_dispatch，不能预写外部结果。
+
 - public Latest：[v0.1.40](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.40)，non-draft / non-prerelease；Release ID `371093525`，publishedAt `2026-08-15T16:04:13Z`。
 - annotated tag object `de848471fe4139c16c99f5a8bb20774512d9c1f7` 解引用 commit `d2b6b91d6536229e84e16bf04984341c5c7823a9`。
 - 正式 run `31894224065` attempt 1 / job `95034905041` 创建 Release / 五资产与双通道后因 Raw 100s 未传播而 fail closed，未 prune；attempt 2 / job `95035875831` 于 5m35s 幂等成功且不重发 Release / channel。48 files / 560 tests、audit、真实 4K 265ms、lint、typecheck、packaged UI / bridge、public packaged 全过；synthetic v0.1.41 差分为 `1284628 / 199286308` bytes、9 个 Range 与 3 个 redirect。复跑 artifact `9249511215` 为 `473529084` bytes，digest `sha256:1ae7d6b26488fe046aea4d1c48070797816523395f1e7a244bfe76e3fd83152d`。

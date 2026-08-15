@@ -14,6 +14,7 @@ import type {
   RecommendationDataSource,
   RecommendationDataState,
   RecommendationDetail,
+  RankedAugmentSlot,
   WallpaperEnginePreferences,
   WallpaperEngineState,
 } from '../shared/contracts.js'
@@ -111,12 +112,55 @@ interface ScanActionResult {
 
 const AUTO_OCR_WAIT_MS = 2_000
 const AUTO_OCR_VISIBLE_MS = 700
-const AUTO_OCR_CHANGE_CONFIRM_MS = 280
+// Stable cards are sampled slowly. Once a fingerprint changes, use a short
+// 100ms confirmation window so the next full OCR starts on the first stable
+// frame instead of waiting through another long polling interval.
+const AUTO_OCR_CHANGE_CONFIRM_MS = 100
 const AUTO_OCR_UNRELIABLE_RETRY_LIMIT = 4
 const MANUAL_OVERLAY_FIRST_PROBE_MS = 500
 const MANUAL_OVERLAY_PROBE_MS = 1_000
 const MANUAL_OVERLAY_MONITOR_MAX_MS = 45_000
 const OPPONENT_SCOUT_ACTIVE_RETRY_MS = [3_000, 5_000, 10_000, 15_000, 15_000] as const
+
+const SAME_DISPLAYED_AUGMENT_FIELDS: Array<keyof RankedAugmentSlot> = [
+  'slot',
+  'augmentId',
+  'name',
+  'position',
+  'tied',
+  'reason',
+  'iconUrl',
+  'rarityName',
+  'pickRate',
+  'globalPickRate',
+  'globalWinRate',
+  'globalPickRank',
+  'globalWinRank',
+  'recommendationSource',
+  'statisticsDate',
+  'metricScope',
+]
+
+function sameDisplayedAugment(left: RankedAugmentSlot | undefined, right: RankedAugmentSlot): boolean {
+  return Boolean(left) && SAME_DISPLAYED_AUGMENT_FIELDS.every((field) => left?.[field] === right[field])
+}
+
+/**
+ * Reuse unchanged card objects across a refresh. Vue can then keep their DOM
+ * nodes (and their small tags) while only changed cards receive enter/leave
+ * animation. OCR confidence/raw text are intentionally omitted because they
+ * are not rendered and should not cause visual churn.
+ */
+export function reuseUnchangedAugmentSlots(
+  previous: RankedAugmentSlot[],
+  next: RankedAugmentSlot[],
+): RankedAugmentSlot[] {
+  const previousBySlot = new Map(previous.map((slot) => [slot.slot, slot]))
+  return next.map((slot) => {
+    const prior = previousBySlot.get(slot.slot)
+    return sameDisplayedAugment(prior, slot) ? prior as RankedAugmentSlot : slot
+  })
+}
 
 export class HexBridgeRuntime {
   private readonly config = new ConfigStore(app.getVersion())
@@ -1584,6 +1628,9 @@ export class HexBridgeRuntime {
       })
       if (decision.commitMatched) {
         const ranked = rankRecommendationSlots(result.slots, detail, augments, scanSource)
+        const stableSlots = reuseUnchangedAugmentSlots(this.overlay.slots, ranked)
+        const slotsChanged = stableSlots.some((slot, index) => slot !== this.overlay.slots[index]) ||
+          stableSlots.length !== this.overlay.slots.length
         if (manual && result.fingerprints?.length === 3) {
           this.automaticScanContextKey = this.scanContextKey(
             scanSource,
@@ -1601,14 +1648,20 @@ export class HexBridgeRuntime {
         this.setManualOverlayMonitorDeadline(manual && !this.config.getSettings().autoOcr
           ? Date.now() + MANUAL_OVERLAY_MONITOR_MAX_MS
           : null)
-        this.overlay = {
-          visible: true,
-          championId: this.snapshot.currentChampionId,
-          slots: ranked,
-          detectedAt: Date.now(),
-          message: ranked.some((slot) => slot.position != null) ? '推荐已更新' : '暂无可靠数据',
+        // A refresh can legitimately OCR the same three cards again. Keep the
+        // existing surface in that case so unchanged tags do not re-render or
+        // replay their entrance animation. A hidden surface still needs to be
+        // published to make the next round visible again.
+        if (!this.overlay.visible || slotsChanged) {
+          this.overlay = {
+            visible: true,
+            championId: this.snapshot.currentChampionId,
+            slots: stableSlots,
+            detectedAt: Date.now(),
+            message: stableSlots.some((slot) => slot.position != null) ? '推荐已更新' : '暂无可靠数据',
+          }
+          this.sync()
         }
-        this.sync()
       }
       return { ok: true, code: 'MATCHED', message: '已识别三张海克斯' }
     }

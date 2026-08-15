@@ -6,6 +6,7 @@
 ## 当前基线
 
 - 当前公开正式版：[v0.1.40](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.40)，Release ID `371093525`；annotated tag object `de848471fe4139c16c99f5a8bb20774512d9c1f7` 解引用 tagged commit `d2b6b91d6536229e84e16bf04984341c5c7823a9`。
+- 当前候选版 `v0.1.41` 尚未 tag / push / Windows 验证 / Release；本地已完成 48 files / 562 passed + 1 skipped、OCR smoke、真实 4K fixture 157ms、typecheck、lint、build、source bridge/UI smoke 与 diff-check。候选只包含 HB-074，不能把这些证据外推为真实 WeGame、Windows 性能或 installed updater 验证。
 - 正式 run `31894224065` attempt 1 / job `95034905041` 创建 Release / 五资产与双通道后因 Raw 100s 未传播而 fail closed 且未 prune；attempt 2 / job `95035875831` 于 5m35s 幂等成功：Windows 48 files / 560 tests、真实 4K OCR 265ms、packaged UI / bridge、public v2 / root / packaged 与滚动保留全过。复跑 artifact `9249511215` 为 `473529084` bytes。自动化不等于真实 WeGame、腾讯接口或 installed 迁移验证。
 - GitHub 当前只保留 v0.1.36～v0.1.40 五个正式 Releases；v0.1.0～v0.1.40 共 41 个 tags 全部保留。本地 `release/` 为空；v0.1.35 Release / assets 已删除但 tag / source 保留。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
@@ -35,8 +36,9 @@
 
 ## 当前优先级
 
-1. HB-073：用 v0.1.40 installed 客户端验证新安装默认腾讯、既有显式 dtodo 选择不被升级改写，并复核真实腾讯接口可用性。
-2. HB-072：在 v0.1.39 正式版的真实选人局验证换英雄、备战席换位、hidden / partial 恢复和零新增历史请求。
+1. HB-074：用 v0.1.41 Windows installed 客户端验证卡面刷新 100ms 确认、未变化卡片不重绘、动画与托盘立即更新；必须同时复核真实游戏帧耗时。
+2. HB-073：用 v0.1.40 installed 客户端验证新安装默认腾讯、既有显式 dtodo 选择不被升级改写，并复核真实腾讯接口可用性。
+3. HB-072：在 v0.1.39 正式版的真实选人局验证换英雄、备战席换位、hidden / partial 恢复和零新增历史请求。
 3. HB-058：完成真实 Windows 下的腾讯接口、切源、当前英雄 / OCR / 紧凑条同源与 stale / error 显示验收；不以书面授权或 Release 成功替代技术验证。
 4. 真实 WeGame 验收：`GAME_STARTING` 后取消 / 启动、终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
 5. HB-057 Wallpaper Engine：v0.1.30 已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义正式发布；待真实 Wallpaper Engine / Steam 多库实机验收。

@@ -27,6 +27,18 @@ function quitApplication(): void {
   app.quit()
 }
 
+function applyUpdateFromTray(): void {
+  void runtime?.applyUpdate().then((result) => {
+    if (!result.ok) logger.warn('Tray update action did not complete', { message: result.message })
+    refreshTrayMenu()
+  }).catch((error) => {
+    logger.warn('Tray update action failed', {
+      errorName: error instanceof Error ? error.name : 'Error',
+    })
+    refreshTrayMenu()
+  })
+}
+
 const bridgeSmokeMode = process.argv.includes('--hexbridge-smoke-test')
 const updateSmokeMode = process.argv.includes('--hexbridge-update-smoke-test')
 const publicUpdateSmokeMode = process.argv.includes('--hexbridge-public-update-smoke-test')
@@ -53,6 +65,7 @@ function refreshTrayMenu(): void {
       label: activeHotkey ? `${activeHotkey} 立即识别` : '手动立即识别（快捷键未注册）',
       click: () => triggerOcrFrom('tray'),
     },
+    { label: '立即更新', click: applyUpdateFromTray },
     { type: 'separator' },
     { label: '退出', click: quitApplication },
   ]))

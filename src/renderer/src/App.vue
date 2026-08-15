@@ -872,18 +872,23 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                   </button>
                 </header>
                 <p :class="['manual-ocr-state', state.diagnostics.manualOcrStatus]">{{ state.diagnostics.manualOcrMessage }}</p>
-                <TransitionGroup v-if="state.overlay.slots.length" name="augment-card" tag="div" class="augment-live-grid" appear>
-                  <article v-for="slot in state.overlay.slots" :key="slot.slot" :class="[`place-${slot.position ?? 0}`, { tied: slot.tied, unknown: !slot.augmentId }]">
-                    <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
-                    <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />
-                    <span v-else class="augment-icon" aria-hidden="true">◇</span>
-                    <div class="augment-card-copy"><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? augmentReason(slot.reason) : '该位置尚未可靠识别' }}</p></div>
-                    <div class="augment-pick-rate" :title="slot.recommendationSource === 'tencent101' ? `腾讯英雄联盟数据站 · 全局统计 · ${slot.statisticsDate || '日期未标注'}` : `data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>{{ slotPickRateLabel(slot) }}<template v-if="slot.recommendationSource === 'dtodo'"> · {{ augmentStatsScope(slot) }}</template></small><b>{{ augmentPickRate(slotPickRate(slot)) }}</b><em v-if="slot.recommendationSource === 'tencent101'">全局胜率 {{ augmentPickRate(slot.globalWinRate) }}</em></div>
-                  </article>
-                </TransitionGroup>
-                <div v-else class="augment-waiting">
-                  <span>◇</span><div><b>等待三张海克斯</b><p>停在三卡界面后按 {{ state.settings.hotkey || '主窗口按钮' }}，识别完成后将在此排序。</p></div>
-                </div>
+                <Transition name="augment-surface" mode="out-in">
+                  <TransitionGroup v-if="state.overlay.visible && state.overlay.slots.length" key="cards" name="augment-card" tag="div" class="augment-live-grid" appear>
+                    <article v-for="slot in state.overlay.slots" :key="`${slot.slot}-${slot.augmentId ?? 'unknown'}`" :class="[`place-${slot.position ?? 0}`, { tied: slot.tied, unknown: !slot.augmentId }]">
+                      <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
+                      <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />
+                      <span v-else class="augment-icon" aria-hidden="true">◇</span>
+                      <div class="augment-card-copy"><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? augmentReason(slot.reason) : '该位置尚未可靠识别' }}</p></div>
+                      <div class="augment-pick-rate" :title="slot.recommendationSource === 'tencent101' ? `腾讯英雄联盟数据站 · 全局统计 · ${slot.statisticsDate || '日期未标注'}` : `data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>{{ slotPickRateLabel(slot) }}<template v-if="slot.recommendationSource === 'dtodo'"> · {{ augmentStatsScope(slot) }}</template></small><b>{{ augmentPickRate(slotPickRate(slot)) }}</b><em v-if="slot.recommendationSource === 'tencent101'">全局胜率 {{ augmentPickRate(slot.globalWinRate) }}</em></div>
+                    </article>
+                  </TransitionGroup>
+                  <div v-else-if="state.overlay.slots.length" key="refreshing" class="augment-refreshing" aria-live="polite">
+                    <span class="augment-refresh-orbit" aria-hidden="true">◇</span><div><b>正在确认卡面变化</b><p>{{ state.overlay.message || '等待下一轮三卡稳定' }}</p></div>
+                  </div>
+                  <div v-else key="waiting" class="augment-waiting">
+                    <span>◇</span><div><b>等待三张海克斯</b><p>停在三卡界面后按 {{ state.settings.hotkey || '主窗口按钮' }}，识别完成后将在此排序。</p></div>
+                  </div>
+                </Transition>
               </section>
             </Transition>
 
@@ -1019,7 +1024,6 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
         v-if="state.releaseHighlights"
         class="release-highlights-backdrop"
         role="presentation"
-        @click.self="dismissReleaseHighlights"
       >
         <section class="release-highlights-dialog" role="dialog" aria-modal="true" aria-labelledby="release-highlights-title">
           <small>刚刚更新</small>
