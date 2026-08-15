@@ -31,7 +31,7 @@
 证据与发布阻断：
 
 - v0.1.29 最新本地全量 44 files / 469 passed + 1 skipped，typecheck / lint / diff-check 通过；此前 OCR synthetic 和真实 4K fixture 135ms 通过，最终代码审查 `P0=0 / P1=0`。
-- 当前产品版本已提升为 v0.1.29 本地候选，版本 / provider / Release notes 定向 7 files / 50 tests 通过；公开正式版仍为 v0.1.28，Windows workflow / tag / Release 尚未发生。
+- v0.1.29 candidate `69eb1fec…` 已 push main；Windows run `31866571591` 通过 44 files / 470 tests、真实 4K 276ms、packaged UI / bridge 与差分更新。公开正式版仍为 v0.1.28，tag / Release 尚未发生。
 - npm audit 因 sandbox DNS `ENOTFOUND registry.npmjs.org` 未取得本轮证据；macOS Electron 在 AppKit `_RegisterApplication` 进入 HexBridge 前 SIGABRT，不记为 source UI / bridge 或 Windows 证据。
 - 该接口是腾讯页面当前使用的未文档化 Web 接口，没有公开 SLA。用户已确认适用书面授权已在仓库外取得；仓库不得保存或转述书信正文、授权方身份、条款与附件。授权不改变 fail-closed、限频、来源标注、撤回能力和真实接口验收要求。
 

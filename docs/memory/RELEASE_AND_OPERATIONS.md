@@ -11,7 +11,7 @@
 - public v2 / root：version `0.1.28`、size `199264048`、SHA-512 `SNY7Oh9zYRWebTv5Plzf9WfxARoA2JiAMcA0VLr4wL/i0jvVRawPFJ9HuS4Mdv5jqifiPRMwulo5Iiu8f9xasg==`。
 - 正式资产 SHA-256：EXE `03ddd051bd688198a56487f9139a117b04148923f2aae6da89e8771517d38684`；blockmap `2d8705a96912c6c4e3f9ed102ec938b8a4aff267cb495631fe26d063f10b6e5b`；ZIP `5e78d3ff7a285775a42861892f2b4949e790f6e0c8d4f99c6cadc830c74a8591`；latest.yml `8c71e40fc0ca9e56fc86b771df7c0cbaf97b5345719316a17a9d0ff697090cc2`；SHA256SUMS `ca90d8447a9ede03f9c403fe221e655ce8a789e3f5ccbb9d72633dcfd4a9392d`。
 - 当前只保留 v0.1.24～v0.1.28 五个 public stable Releases；v0.1.0～v0.1.28 共 29 个 tags 都保留。本地 `release/` 为空。
-- 当前本地产品版本为 v0.1.29 候选，独立承载腾讯推荐 provider；尚未 commit / push / Windows workflow / tag / Release，公开 Latest 不变。
+- v0.1.29 candidate commit `69eb1fec…` 已 push main；workflow_dispatch run `31866571591` / job `94968511853` success（5m50s），Windows 44 files / 470 tests、packaged UI / bridge、差分与 artifact `9242254017` 全过。tag-only 步骤按预期 skip；尚无 v0.1.29 tag / Release，公开 Latest 不变。
 
 ## 更新契约
 
