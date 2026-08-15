@@ -81,7 +81,7 @@
 | HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 已发布） |
 | HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 已发布） |
 | HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 已发布） |
-| HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 Windows 候选） |
+| HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 已发布） |
 
 ## 当前重点验收
 
@@ -107,12 +107,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.36 全验证后删除 v0.1.31 Release / assets、保留 tag；当前仅 v0.1.32～v0.1.36 五个 public stable Releases，37 个 tags（v0.1.0～v0.1.36）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.37 全验证后删除 v0.1.32 Release / assets、保留 tag；当前仅 v0.1.33～v0.1.37 五个 public stable Releases，38 个 tags（v0.1.0～v0.1.37）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.36 Release 已准确列出相较 v0.1.35 的变化，跨版累计链延伸至 0.1.36，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.37 Release 已准确列出相较 v0.1.36 的变化，跨版累计链延伸至 0.1.37，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -211,7 +211,7 @@
 ### HB-070：实时助手来源徽标信息过多
 
 - v0.1.37 候选将实时助手右上角限制为只显示当前推荐来源名称；不再显示日期、dataVersion、“未就绪”、缓存后缀或 stale 样式。
-- 日期、新鲜度和错误仍保留在推荐详情、英雄榜、设置与诊断页。终审 `P0=0 / P1=0`；Windows run `31888079459` 通过 48 files / 534 tests、4K OCR 269ms、packaged UI / bridge、差分更新与产物门禁。候选不等于正式发布，用户同机视觉仍未验。
+- 日期、新鲜度和错误仍保留在推荐详情、英雄榜、设置与诊断页。终审 `P0=0 / P1=0`；Windows candidate `31888079459` 与正式幂等复跑 `31888761186` 均通过 48 files / 534 tests、4K OCR、packaged UI / bridge、差分 / public 更新和产物门禁；v0.1.37 已发布，但用户同机视觉仍未验。
 
 ## 追溯
 
