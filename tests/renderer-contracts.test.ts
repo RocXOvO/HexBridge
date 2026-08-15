@@ -16,7 +16,17 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.43'")
+    expect(rendererState).toContain("currentVersion: '0.1.44'")
+  })
+
+  it('keeps champion selection scrolling inside the assistant without horizontal overflow', () => {
+    expect(stylesSource).toContain('.panel-window { width: 100%; min-width: 0;')
+    expect(stylesSource).toContain('.panel-bench { flex: 1; min-width: 0; min-height: 0; overflow: hidden;')
+    expect(stylesSource).toContain('.panel-list { width: 100%; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden;')
+    expect(stylesSource).toContain('overscroll-behavior: contain')
+    expect(stylesSource).toContain('scrollbar-gutter: stable')
+    expect(stylesSource).toContain('.panel-list::-webkit-scrollbar')
+    expect(stylesSource).toContain('grid-template-columns: 37px minmax(0, 1fr) 34px 48px')
   })
 
   it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {

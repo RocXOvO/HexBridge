@@ -88,6 +88,7 @@
 | HB-074 | 卡面刷新响应、未变卡片重绘与更新交互 | FIXED / UNVERIFIED（v0.1.43 已发布） |
 | HB-075 | 单卡刷新导致三张卡片 / 标签一起跳动 | FIXED / UNVERIFIED（v0.1.43 已发布） |
 | HB-076 | 选人伴随窗恢复后脱离客户端图层 | FIXED / UNVERIFIED（v0.1.42 已发布） |
+| HB-077 | 选人助手备战席出现不必要的横向滚动 | FIXED / UNVERIFIED（v0.1.44 候选） |
 
 ## 当前重点验收
 
@@ -254,6 +255,12 @@
 - 新安装和尚未持久化 revision 7 来源选择的配置默认 `tencent101`；revision 7 / 8 中已保存的合法 `dtodo` 或 `tencent101` 选择不被升级重写，未知值 fail-closed 到腾讯默认。无 auto、无跨源回退；出装继续独立使用 data.dtodo。
 - 设置 UI、Renderer 安全 fallback、Main bridge smoke、README 与隐私记忆统一默认口径。Release 说明只描述该独立 patch，跨版本累计规则不变。
 - 本地完整门禁与 candidate `31893923167` 均通过。正式 run `31894224065` attempt 1 创建 Release / 五资产和双通道后因 Raw 100s 未传播而 fail closed、未 prune；attempt 2 / job `95035875831` 于 5m35s 幂等通过 48 files / 560 tests、真实 4K 265ms、packaged UI / bridge、public packaged 与五版滚动门禁。v0.1.40 已发布；真实 installed 迁移与腾讯接口仍待验，状态 `FIXED / UNVERIFIED`。
+
+### HB-077：选人助手备战席横向滚动
+
+- v0.1.44 候选将 `panel-window`、`panel-bench` 和 `panel-list` 的宽度收缩与横向溢出设为 fail-closed；列表只保留内部纵向滚动，长中文标题在网格列内省略，不再把选人伴随窗撑出横向滚动条。
+- 滚动边界使用 `overscroll-behavior: contain`、稳定 gutter 和克制的细滚动条样式；不改变伴随窗的 authority、跟随层级或 LCU 状态。
+- 定向 renderer 合约 / release-notes 测试、typecheck、lint、diff-check 已通过；候选尚未 Windows / 真实 WeGame 验收，状态保持 `FIXED / UNVERIFIED`，不得预写正式 Release。
 
 ## 追溯
 
