@@ -4,14 +4,13 @@
 
 ## 当前正式基线
 
-- 当前公开正式版 `v0.1.41` 已完成 tag / Release / 双通道 / 滚动保留；当前 `v0.1.42` 仅为本地候选，尚未 push / tag / Release。真实 WeGame / installed updater 仍不是自动化证据。
+- 当前公开正式版 `v0.1.42` 已完成 tag / Release / 双通道 / 滚动保留；当前 `v0.1.43` 仅为本地候选，尚未 push / tag / Release。真实 WeGame / installed updater 仍不是自动化证据。
 
-- public Latest：[v0.1.41](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.41)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHplp`，publishedAt `2026-08-15T16:47:07Z`。
-- tagged commit `2a2277d99d30064ad56c6afd44b052852745a02d`。
-- 正式 run `31896210318` 首次仅因 Raw 传播窗口 fail closed；重跑 job `95040843724` 约 5m25s 幂等成功且不重发 Release / channel。Windows 48 files / 563 tests、audit、真实 4K OCR、lint、typecheck、packaged UI / bridge、public packaged 与滚动保留全过；重跑 artifacts 为 `9250033384` 与 `9249922500`。自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
-- public v2 / root：version `0.1.41`；两通道精确一致，packaged public 为 `updateAvailable=false`。
-- 正式资产 SHA-256：EXE `7e8ac9274bee6ad36c793f984580c87d08cfd35850b268b72dfcae3954e8cd9a`（`199286307` bytes）；blockmap `ea9e58ecd3544064b9c47351e63dd9eec263199e362caf2b5010497c5b4e5dcb`（`201241`）；ZIP `520dac682103ffa49e623ee42ab3826994b711dc52ad253f958dfbfff893560c`（`274453455`）；latest.yml `d693d2c8bd9a757d9da594d83c9c0ad5b1bcdda29863725360884b54480672cd`（`346`）；SHA256SUMS `542beddbb5476c9adac75a0a303f96bc16f6362649f35c586dfe20fdf2bfb3eb`（`182`）。
-- 当前只保留 v0.1.37～v0.1.41 五个 public stable Releases；v0.1.0～v0.1.41 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
+- public Latest：[v0.1.42](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.42)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHrX8`，publishedAt `2026-08-15T17:20:04Z`。
+- tagged commit `2c366e14f3030bab3863fd5f4993569d6c3006df`；正式 run `31897731595` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows 41 files / 563 passed + 1 skipped，audit、OCR、lint、typecheck、packaged UI / bridge、差分、public packaged 与滚动保留全过；artifact 与 Release 五资产均通过。自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
+- public v2 / root：version `0.1.42`；两通道精确一致，packaged public 为 `updateAvailable=false`。
+- 正式资产：EXE `199287677` bytes / `d3abafba1237e1d1a98648308f32b17c4bbe5fa4e4785006e3dabe3b02e22e45c`；blockmap `201198` / `ced1a7304c64ffbf9176efd6673e30baa7b12690d2317561324649e03510619a`；ZIP `274455085` / `265dbc31259b4b774c2a723ff7e4edd4d84d19dc9f69bc0dc0767eab4a298657`；latest.yml `346` / `5ca725af2a4df61ae9b3bad385ef0f21637adf4006a5d0fe5fd3a8d92ca1db93`；SHA256SUMS `182` / `775fcb5ad924979824c43a468fc0db913a6e2b220f289454fe9bc14d314bf85a`。
+- 当前只保留 v0.1.38～v0.1.42 五个 public stable Releases；v0.1.0～v0.1.42 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
 
 ## 更新契约
 

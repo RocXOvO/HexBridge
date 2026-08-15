@@ -276,7 +276,7 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
   })
 
-  it('seeds the manual card fingerprint immediately and hides a post-selection frame before it can become the baseline', async () => {
+  it('seeds the manual card fingerprint immediately and keeps the reliable surface mounted during a refresh', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
     runtime.snapshot = { ...activeSnapshot }
@@ -340,9 +340,9 @@ describe('runtime performance scheduling', () => {
     await vi.advanceTimersByTimeAsync(100)
 
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
-    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.overlay.visible).toBe(true)
     expect(runtime.overlay.slots).toHaveLength(3)
-    expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
+    expect(runtime.manualOverlayMonitorDeadlineAt).not.toBeNull()
     expect(runtime.augmentRound.beginNextRound).toHaveBeenCalledOnce()
     runtime.stopScanLoop()
   })

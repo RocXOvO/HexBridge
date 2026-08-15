@@ -5,10 +5,11 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.41](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.41)，Release ID `RE_kwDOT1eQs84WHplp`；annotated tag object 已解引用 tagged commit `2a2277d99d30064ad56c6afd44b052852745a02d`。
-- 当前候选版 `v0.1.42` 仅在本地，尚未 push / tag / Release；本次改动固定三槽位 DOM，只为真正变化的卡牌播放动画，不能把本地门禁外推为真实 WeGame、Windows 性能或 installed updater 验证。
+- 当前公开正式版：[v0.1.42](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.42)，Release ID `RE_kwDOT1eQs84WHrX8`；annotated tag 已解引用 tagged commit `2c366e14f3030bab3863fd5f4993569d6c3006df`。
+- 当前候选版 `v0.1.43` 仅在本地，尚未 push / tag / Release；本次补丁让手动刷新期间已有可靠三卡保持挂载，只替换真正变化的槽位，不能把本地门禁外推为真实 WeGame、Windows 性能或 installed updater 验证。
+- v0.1.42 正式 workflow 首次仅因稳定 channel 传播窗口超时，重跑后公开稳定通道、镜像通道、packaged public check 与五版滚动保留均成功；Windows 41 files / 563 passed + 1 skipped，Release 五资产完整。自动化不等于真实 WeGame 或 installed 验证。
 - v0.1.41 正式 workflow 首次遇到 Raw 传播超时后按幂等流程重跑成功，Release / 五资产、双通道、packaged UI / bridge、差分和滚动保留均通过；自动化不等于真实 WeGame、腾讯接口或 installed 迁移验证。
-- GitHub 当前只保留 v0.1.37～v0.1.41 五个正式 Releases；v0.1.0～v0.1.41 tags 全部保留。本地 `release/` 为空；旧 Release / assets 按滚动策略删除但 tag / source 保留。
+- GitHub 当前只保留 v0.1.38～v0.1.42 五个正式 Releases；v0.1.0～v0.1.42 tags 全部保留。本地 `release/` 为空；旧 Release / assets 按滚动策略删除但 tag / source 保留。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
 - v0.1.35 已正式发布，仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录且不含 PID、HWND、路径、坐标或标题。Release 说明准确列出相较 v0.1.34 的两项变化；public v2 / root 为 `0.1.35 / 199283491` bytes，五资产完整。HB-068 保持 `FIXED / UNVERIFIED`，等待真实 WeGame 复现时验证诊断有效性。
@@ -36,7 +37,7 @@
 
 ## 当前优先级
 
-1. HB-074～HB-076：用 v0.1.42 Windows installed 客户端验证卡面刷新 100ms 确认、未变化卡片不重绘、单槽位动画、选人伴随窗图层跟随与托盘立即更新；必须同时复核真实游戏帧耗时。
+1. HB-074～HB-076：用 v0.1.43 Windows installed 客户端验证手动/自动卡面刷新均不撤下未变卡片、单槽位动画、选人伴随窗图层跟随与托盘立即更新；必须同时复核真实游戏帧耗时。
 2. HB-073：用 v0.1.40 installed 客户端验证新安装默认腾讯、既有显式 dtodo 选择不被升级改写，并复核真实腾讯接口可用性。
 3. HB-072：在 v0.1.39 正式版的真实选人局验证换英雄、备战席换位、hidden / partial 恢复和零新增历史请求。
 3. HB-058：完成真实 Windows 下的腾讯接口、切源、当前英雄 / OCR / 紧凑条同源与 stale / error 显示验收；不以书面授权或 Release 成功替代技术验证。

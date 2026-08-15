@@ -16,7 +16,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.42'")
+    expect(rendererState).toContain("currentVersion: '0.1.43'")
   })
 
   it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {

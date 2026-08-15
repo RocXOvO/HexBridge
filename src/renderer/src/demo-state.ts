@@ -93,7 +93,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.42',
+      currentVersion: '0.1.43',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',

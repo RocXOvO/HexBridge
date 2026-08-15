@@ -5,6 +5,7 @@ import { previousStableReleaseTag, renderStableReleaseNotes } from '../scripts/r
 describe('stable Release notes', () => {
   const releases = [
     { tag_name: 'v0.1.39', draft: false, prerelease: false },
+    { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
     { tag_name: 'v0.1.37', draft: false, prerelease: false },
@@ -51,6 +52,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('### 相较 v0.1.41 的更新')
     expect(body).toContain('修复单张海克斯刷新时三张卡片和标签一起跳动的问题')
     expect(body).toContain('/compare/v0.1.41...v0.1.42')
+  })
+
+  it('renders the manual refresh surface-retention fix for v0.1.43', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.43',
+      releases: [...releases, { tag_name: 'v0.1.41', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.42 的更新')
+    expect(body).toContain('手动识别检测到单张卡刷新时先撤下整组三卡')
+    expect(body).toContain('/compare/v0.1.42...v0.1.43')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {

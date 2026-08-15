@@ -1419,22 +1419,24 @@ export class HexBridgeRuntime {
               this.automaticFingerprintCandidate = null
               this.automaticFingerprintSamples = 0
               this.getAugmentRound().beginNextRound()
-              this.setManualOverlayMonitorDeadline(null)
-              // Keep the last reliable surface mounted while automatic OCR
-              // confirms the new round.  Toggling visible=false here makes
-              // the renderer tear down the whole three-card grid; when one
-              // card changes, all three tags then leave and re-enter together.
-              // Automatic mode can safely keep the old cards visible until
-              // the guarded full result arrives. Manual mode still withdraws
-              // the stale surface because it does not perform a full refresh.
-              const keepReliableSurface = automaticRecognitionEnabled && this.overlay.slots.length === 3
+              // Keep the last reliable surface mounted while OCR confirms the
+              // new round. Toggling visible=false tears down the whole
+              // three-card grid; when one card changes, all three tags leave
+              // and re-enter together. The renderer keys cards by slot and
+              // augment id, so only the changed card will be replaced once
+              // the guarded result arrives. This also applies to the bounded
+              // manual monitor, which otherwise used to flash all three tags.
+              const keepReliableSurface = this.overlay.slots.length === 3
+              this.setManualOverlayMonitorDeadline(
+                keepReliableSurface && !automaticRecognitionEnabled
+                  ? Date.now() + MANUAL_OVERLAY_MONITOR_MAX_MS
+                  : null,
+              )
               this.overlay = {
                 ...this.overlay,
                 visible: keepReliableSurface,
                 championId: this.snapshot.currentChampionId,
-                message: automaticRecognitionEnabled
-                  ? '检测到卡牌刷新，正在识别新一轮'
-                  : '卡牌画面已变化，已撤下游戏内提示',
+                message: keepReliableSurface ? '检测到卡牌刷新，正在识别新一轮' : '卡牌画面已变化，正在等待识别稳定',
               }
               this.sync()
             }
