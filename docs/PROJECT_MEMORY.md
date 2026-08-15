@@ -10,7 +10,7 @@
 - GitHub 当前只保留 v0.1.30～v0.1.34 五个正式 Releases；v0.1.0～v0.1.34 共 35 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
-- v0.1.35 本地候选仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录；禁止 PID、HWND、路径、坐标、标题进入 DTO / 日志。完整本地门禁为 48 files / 528 passed + 1 skipped、audit 0、真实 4K OCR 133ms、typecheck / lint / source bridge / UI / diff-check；终审 `P0=0 / P1=0`。尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.34，真实 WeGame 仍未验证。
+- v0.1.35 candidate commit `cd1e84ad4fef1a82d5dc131b6ae37d6f456cd459` 已 push；workflow_dispatch run `31877923520` / job `94996267170` 于 5m17s 成功：Windows 48 files / 529 tests、真实 4K OCR 282ms、lint / typecheck / pack（EXE `199,283,419` bytes）、packaged UI / bridge、差分 `1,269,668 / 199,283,419` bytes、checksums 与 artifact `9245292271` 全过，发布步骤按预期跳过。候选仅实现 HB-068 的有限枚举呈现诊断与脱敏去重日志；终审 `P0=0 / P1=0`。尚未 tag / Release，公开 Latest 仍为 v0.1.34，Windows runner 不等于真实 WeGame 验证。
 
 ## 记忆模块
 
