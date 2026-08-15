@@ -286,8 +286,13 @@ export class WindowManager {
       this.leagueWindows.isClientVisible() &&
       this.leagueWindows.isTargetPlaced()
     )
-    if (shouldShowChampion && clientVisible) champion?.showInactive()
-    else champion?.hide()
+    if (shouldShowChampion && clientVisible) {
+      // Reassert the floating layer after the native follower has moved the
+      // HWND. This is non-activating and keeps the panel in the client layer
+      // after a hidden/showInactive cycle on Windows.
+      champion?.setAlwaysOnTop?.(true, 'floating')
+      champion?.showInactive()
+    } else champion?.hide()
 
     const gameForeground = this.platform !== 'win32' || this.leagueWindows.isGameForeground()
     const shouldShowAugment = shouldShowAugmentCompanion(

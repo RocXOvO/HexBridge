@@ -1420,9 +1420,17 @@ export class HexBridgeRuntime {
               this.automaticFingerprintSamples = 0
               this.getAugmentRound().beginNextRound()
               this.setManualOverlayMonitorDeadline(null)
+              // Keep the last reliable surface mounted while automatic OCR
+              // confirms the new round.  Toggling visible=false here makes
+              // the renderer tear down the whole three-card grid; when one
+              // card changes, all three tags then leave and re-enter together.
+              // Automatic mode can safely keep the old cards visible until
+              // the guarded full result arrives. Manual mode still withdraws
+              // the stale surface because it does not perform a full refresh.
+              const keepReliableSurface = automaticRecognitionEnabled && this.overlay.slots.length === 3
               this.overlay = {
                 ...this.overlay,
-                visible: false,
+                visible: keepReliableSurface,
                 championId: this.snapshot.currentChampionId,
                 message: automaticRecognitionEnabled
                   ? '检测到卡牌刷新，正在识别新一轮'

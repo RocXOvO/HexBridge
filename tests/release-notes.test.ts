@@ -42,6 +42,17 @@ describe('stable Release notes', () => {
     expect(body).not.toContain('v0.1.39：')
   })
 
+  it('renders the single-card refresh fix for the next stable Release', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.42',
+      releases: [...releases, { tag_name: 'v0.1.41', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.41 的更新')
+    expect(body).toContain('修复单张海克斯刷新时三张卡片和标签一起跳动的问题')
+    expect(body).toContain('/compare/v0.1.41...v0.1.42')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

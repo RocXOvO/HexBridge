@@ -336,6 +336,7 @@ describe('WindowManager shutdown lifecycle', () => {
     const champion = {
       ...fakeWindow({ visible: false, focused: false }),
       webContents: { isDestroyed: () => false, send: vi.fn() },
+      setAlwaysOnTop: vi.fn(),
     }
     const augment = {
       ...fakeWindow({ visible: false, focused: false }),
@@ -386,6 +387,7 @@ describe('WindowManager shutdown lifecycle', () => {
     manager.sync(current)
     expect(manager.getPresentationDiagnostics().championCompanion).toBe('visible')
     expect(champion.showInactive).toHaveBeenCalled()
+    expect(champion.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating')
 
     vi.mocked(leagueWindows.isGameForeground).mockReturnValue(false)
     manager.sync({

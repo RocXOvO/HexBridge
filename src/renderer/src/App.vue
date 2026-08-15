@@ -35,6 +35,8 @@ const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
 const reducedMotion = ref(reducedMotionQuery.matches)
 const lobbyBackgroundUrl = ref('')
 let unsubscribeLobbyBackground: (() => void) | null = null
+const overlayCardRevisions = ref<Record<string, number>>({})
+const overlayCardSignatures = new Map<string, string>()
 const recordingHotkey = ref(false)
 const hotkeyFeedback = ref('')
 const wallpaperTargetType = ref<WallpaperEngineTargetType>('profile')
@@ -154,6 +156,38 @@ const opponentAssistantVisible = computed(() =>
   state.value.settings.opponentScouting && state.value.snapshot.matchStage !== 'none',
 )
 const selecting = computed(() => state.value.snapshot.matchStage === 'selecting')
+
+// Keep each visual slot mounted across a refresh. Only a changed augment id
+// gets a new DOM key and the arrival animation; rank/rate metadata updates on
+// the other two cards patch in place without making their tags jump.
+watch(
+  () => ({
+    visible: state.value.overlay.visible,
+    slots: state.value.overlay.slots.map((slot) => ({ slot: slot.slot, augmentId: slot.augmentId })),
+  }),
+  (next) => {
+    if (!next.visible) {
+      overlayCardSignatures.clear()
+      return
+    }
+    const nextSignatures = new Map(next.slots.map((slot) => [slot.slot, String(slot.augmentId ?? 'unknown')]))
+    const revisions = { ...overlayCardRevisions.value }
+    for (const [slot, signature] of nextSignatures) {
+      if (overlayCardSignatures.get(slot) !== signature) revisions[slot] = (revisions[slot] ?? 0) + 1
+    }
+    overlayCardSignatures.clear()
+    nextSignatures.forEach((signature, slot) => overlayCardSignatures.set(slot, signature))
+    overlayCardRevisions.value = revisions
+  },
+  { immediate: true, deep: true },
+)
+
+const augmentCardClass = (slot: RankedAugmentSlot): string[] => [
+  `place-${slot.position ?? 0}`,
+  ...(slot.tied ? ['tied'] : []),
+  ...(!slot.augmentId ? ['unknown'] : []),
+  ...(overlayCardRevisions.value[slot.slot] ? ['augment-card-refresh'] : []),
+]
 
 const ranking = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -873,15 +907,15 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                 </header>
                 <p :class="['manual-ocr-state', state.diagnostics.manualOcrStatus]">{{ state.diagnostics.manualOcrMessage }}</p>
                 <Transition name="augment-surface" mode="out-in">
-                  <TransitionGroup v-if="state.overlay.visible && state.overlay.slots.length" key="cards" name="augment-card" tag="div" class="augment-live-grid" appear>
-                    <article v-for="slot in state.overlay.slots" :key="`${slot.slot}-${slot.augmentId ?? 'unknown'}`" :class="[`place-${slot.position ?? 0}`, { tied: slot.tied, unknown: !slot.augmentId }]">
-                      <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
-                      <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />
-                      <span v-else class="augment-icon" aria-hidden="true">◇</span>
-                      <div class="augment-card-copy"><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? augmentReason(slot.reason) : '该位置尚未可靠识别' }}</p></div>
-                      <div class="augment-pick-rate" :title="slot.recommendationSource === 'tencent101' ? `腾讯英雄联盟数据站 · 全局统计 · ${slot.statisticsDate || '日期未标注'}` : `data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>{{ slotPickRateLabel(slot) }}<template v-if="slot.recommendationSource === 'dtodo'"> · {{ augmentStatsScope(slot) }}</template></small><b>{{ augmentPickRate(slotPickRate(slot)) }}</b><em v-if="slot.recommendationSource === 'tencent101'">全局胜率 {{ augmentPickRate(slot.globalWinRate) }}</em></div>
+                  <div v-if="state.overlay.visible && state.overlay.slots.length" key="cards" class="augment-live-grid">
+                    <article v-for="slot in state.overlay.slots" :key="`${slot.slot}-${slot.augmentId ?? 'unknown'}`" :class="augmentCardClass(slot)">
+                        <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
+                        <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />
+                        <span v-else class="augment-icon" aria-hidden="true">◇</span>
+                        <div class="augment-card-copy"><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? augmentReason(slot.reason) : '该位置尚未可靠识别' }}</p></div>
+                        <div class="augment-pick-rate" :title="slot.recommendationSource === 'tencent101' ? `腾讯英雄联盟数据站 · 全局统计 · ${slot.statisticsDate || '日期未标注'}` : `data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>{{ slotPickRateLabel(slot) }}<template v-if="slot.recommendationSource === 'dtodo'"> · {{ augmentStatsScope(slot) }}</template></small><b>{{ augmentPickRate(slotPickRate(slot)) }}</b><em v-if="slot.recommendationSource === 'tencent101'">全局胜率 {{ augmentPickRate(slot.globalWinRate) }}</em></div>
                     </article>
-                  </TransitionGroup>
+                  </div>
                   <div v-else-if="state.overlay.slots.length" key="refreshing" class="augment-refreshing" aria-live="polite">
                     <span class="augment-refresh-orbit" aria-hidden="true">◇</span><div><b>正在确认卡面变化</b><p>{{ state.overlay.message || '等待下一轮三卡稳定' }}</p></div>
                   </div>

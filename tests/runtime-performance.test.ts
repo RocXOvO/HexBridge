@@ -174,7 +174,7 @@ describe('runtime performance scheduling', () => {
     expect(runtime.runScan).toHaveBeenCalledTimes(1)
     expect(runtime.augmentRound.beginNextRound).toHaveBeenCalledOnce()
     expect(runtime.overlay).toMatchObject({
-      visible: false,
+      visible: true,
       slots: [{ augmentId: 10 }, { augmentId: 11 }, { augmentId: 12 }],
       message: '检测到卡牌刷新，正在识别新一轮',
     })

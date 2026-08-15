@@ -224,7 +224,10 @@ while ($true) {
           if ($alreadyPlaced) {
             $targetPlaced = $true
           } else {
-            $targetPlaced = [HexBridgeWindowNative]::SetWindowPos($target, [IntPtr]::Zero, $x, $y, 0, 0, 0x215)
+            # Reassert the companion's topmost layer while moving it. Electron's
+            # alwaysOnTop flag can be lost after a hidden/showInactive cycle;
+            # HWND_TOPMOST keeps the panel above the client without activating it.
+            $targetPlaced = [HexBridgeWindowNative]::SetWindowPos($target, [IntPtr](-1), $x, $y, 0, 0, 0x211)
           }
         }
       }

@@ -85,15 +85,28 @@
 | HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 已发布） |
 | HB-072 | 同局换英雄 / 备战席换位后队伍头像冻结 | FIXED / UNVERIFIED（v0.1.39 已发布） |
 | HB-073 | 腾讯 101 改为默认推荐来源 | FIXED / UNVERIFIED（v0.1.40 已发布） |
-| HB-074 | 卡面刷新响应、未变卡片重绘与更新交互 | FIXED / UNVERIFIED（v0.1.41 候选） |
+| HB-074 | 卡面刷新响应、未变卡片重绘与更新交互 | IN PROGRESS / UNVERIFIED（v0.1.42 候选） |
+| HB-075 | 单卡刷新导致三张卡片 / 标签一起跳动 | IN PROGRESS / UNVERIFIED（v0.1.42 候选） |
+| HB-076 | 选人伴随窗恢复后脱离客户端图层 | IN PROGRESS / UNVERIFIED（v0.1.42 候选） |
 
 ## 当前重点验收
 
 ### HB-074：OCR 刷新与更新交互
 
-- v0.1.41 候选在卡面指纹变化后使用 100ms 确认窗口启动完整 OCR；稳定卡面继续低成本探测，`reuseUnchangedAugmentSlots` 复用未变化卡片对象，避免小标签重复刷新。
-- 主窗口与 96px 窄条使用分层 Transition / TransitionGroup，仅变化槽位进出场；省电与 reduced-motion 门禁保持有效。版本更新提示移除空白处关闭路径，只允许“知道了”按钮；系统托盘新增“立即更新”，仍沿用对局禁止安装与 updater 生命周期守卫。
-- 本地证据为 48 files / 562 passed + 1 skipped、OCR smoke、真实 4K fixture 157ms、typecheck、lint、build、source bridge/UI smoke 与 diff-check；Windows workflow `31895887765` / job `95039031646` 另通过 48 files / 563 tests、4K 224ms、packaged UI / bridge 与差分 smoke。真实 WeGame 卡面刷新、动画帧耗时、托盘点击和 installed 更新仍未验证，不能升级为 `VERIFIED`。
+- v0.1.41 已正式发布卡面指纹 100ms 确认、稳定低成本探测与更新交互；用户实测仍发现单卡刷新时三卡标签一起跳动，因此本问题保持未闭环。
+- v0.1.42 候选改为固定三槽位和单卡 DOM key：未变化卡片原位 patch，只有变化卡片播放入场动画；省电与 reduced-motion 门禁保持有效。
+- 真实 WeGame 卡面刷新、动画帧耗时、托盘点击和 installed 更新仍未验证，不能升级为 `VERIFIED`。
+
+### HB-075：单卡刷新三卡联动动画
+
+- 根因收敛为三卡组级过渡与单槽位内容更新耦合：一张卡的识别结果变化时，其他两张卡也被重新挂载或参与移动动画。
+- v0.1.42 候选按 `slot + augmentId` 只替换变化槽位；推荐序、选取率等未变化卡片的元数据原位更新，不再触发三卡整体动画。
+- 定向 Runtime / Renderer 合约、typecheck、lint、diff-check 已通过；仍需 Windows installed 实测单卡刷新、换局、失焦与帧耗时。
+
+### HB-076：选人伴随窗图层跟随
+
+- v0.1.42 候选在原生 follower 移动时使用 `HWND_TOPMOST` 且不激活窗口；WindowManager 每次可见同步也重申 Electron `floating` 层级。
+- 定向窗口生命周期、观察器、typecheck、lint、diff-check 已通过；真实 WeGame 多窗口、DPI、多屏、最小化恢复和不抢焦点仍需 installed Windows 实测。
 
 ### HB-020 / 022：游戏交接
 

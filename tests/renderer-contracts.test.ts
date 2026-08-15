@@ -16,7 +16,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.41'")
+    expect(rendererState).toContain("currentVersion: '0.1.42'")
   })
 
   it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {
@@ -140,9 +140,12 @@ describe('main-window recommendation presentation', () => {
   it('animates only changed augment cards and exposes the tray update action', () => {
     expect(appSource).toContain('`${slot.slot}-${slot.augmentId ?? \'unknown\'}`')
     expect(appSource).toContain('name="augment-surface"')
-    expect(augmentOverlaySource).toContain('name="overlay-card"')
+    expect(appSource).toContain('augment-card-refresh')
+    expect(appSource).not.toContain('<TransitionGroup v-if="state.overlay.visible && state.overlay.slots.length"')
+    expect(augmentOverlaySource).toContain('overlay-card-refresh')
     expect(augmentOverlaySource).toContain('slotKey(slot)')
-    expect(stylesSource).toContain('.augment-card-move')
+    expect(stylesSource).toContain('.augment-card-refresh')
+    expect(stylesSource).toContain('.overlay-card-refresh')
     expect(stylesSource).toContain('.augment-refreshing')
     expect(stylesSource).toContain('refresh-orbit')
     expect(mainProcess).toContain("{ label: '立即更新', click: applyUpdateFromTray }")
@@ -241,7 +244,7 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('name="hero-backdrop-fade"')
     expect(appSource).toContain('name="hero-presence"')
     expect(appSource).toContain('name="assistant-reveal"')
-    expect(appSource).toContain('name="augment-card"')
+    expect(appSource).toContain('augment-card-refresh')
     expect(appSource).toContain('class="live-atmosphere"')
     expect(stylesSource).toContain('.animations-paused *')
     expect(stylesSource).toContain('transition-duration:.001ms!important')
