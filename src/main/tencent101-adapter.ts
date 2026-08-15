@@ -96,7 +96,10 @@ function integer(value: unknown): number | null {
 
 function ratio(value: unknown): number | null {
   const text = typeof value === 'number' ? String(value) : typeof value === 'string' ? value.trim() : ''
-  if (!/^(?:0(?:\.\d+)?|1(?:\.0+)?)$/.test(text)) return null
+  // Tencent occasionally serializes very small rates with scientific notation
+  // (for example 8e-05). Accept only the decimal/scientific number grammar here;
+  // the numeric range check below still rejects percentages and other units.
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(text)) return null
   const parsed = Number(text)
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : null
 }
@@ -270,23 +273,34 @@ function parseTencentHeroCatalog(payload: unknown, statistics: TencentHeroStatis
   return heroes
 }
 
-function parseTencentAugmentCatalog(payload: unknown): AugmentMeta[] {
+export function parseTencentAugmentCatalog(payload: unknown): AugmentMeta[] {
   const root = record(payload)
-  if (!root) throw new Error('腾讯海克斯静态目录结构无效')
-  const ids = new Set<number>()
-  const augments = Object.values(root).flatMap((entry): AugmentMeta[] => {
+  const entries = Array.isArray(payload) ? payload : root ? Object.values(root) : []
+  if (entries.length < 100 || entries.length > 500) {
+    throw new Error('腾讯海克斯静态目录条目数量异常')
+  }
+  const byId = new Map<number, AugmentMeta>()
+  for (const entry of entries) {
     const item = record(entry)
     const id = positiveInteger(item?.augmentID)
     const name = shortText(item?.name_cn, 100)
     const iconUrl = controlledTencentImage(item?.large_Icon)
-    if (!id || !name || !iconUrl || ids.has(id)) return []
+    if (!id || !name || !iconUrl) throw new Error('腾讯海克斯静态目录包含无效条目')
     const level = shortText(item?.level, 40)
     const rarity = level === 'kPrismatic' ? 3 : level === 'kGold' ? 2 : level === 'kSilver' ? 1 : null
     const rarityName = rarity === 3 ? '棱彩' : rarity === 2 ? '黄金' : rarity === 1 ? '白银' : '海克斯强化'
     const description = shortText(item?.tooltip, 1_500) ?? shortText(item?.desc, 1_500) ?? ''
-    ids.add(id)
-    return [{ id, name, iconUrl, rarity, rarityName, description, globalTier: null }]
-  })
+    const normalized: AugmentMeta = { id, name, iconUrl, rarity, rarityName, description, globalTier: null }
+    const existing = byId.get(id)
+    if (existing) {
+      if (JSON.stringify(existing) !== JSON.stringify(normalized)) {
+        throw new Error('腾讯海克斯静态目录重复 ID 存在冲突')
+      }
+      continue
+    }
+    byId.set(id, normalized)
+  }
+  const augments = [...byId.values()]
   if (augments.length < 100 || augments.length > 500) throw new Error('腾讯海克斯静态目录不完整')
   return augments
 }

@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  parseTencentAugmentCatalog,
   parseTencentHeroRank,
   parseTencentRuneRank,
   Tencent101Adapter,
@@ -25,11 +26,11 @@ const compressed = (value: Record<string, unknown>, duplicate?: string) => {
   }
 }
 
-const runePayload = (date = '20260814') => compressed({
+const runePayload = (date = '20260814', pickRates: Record<number, string> = {}) => compressed({
   dtstatdate: date,
   augmentlist: Array.from({ length: 60 }, (_, index) => {
     const id = 1001 + index
-    return `${id}_255_${(0.1 + index / 1000).toFixed(3)}_${index + 1}_0_${(0.4 + index / 1000).toFixed(3)}_${60 - index}_0_1,2`
+    return `${id}_255_${pickRates[index] ?? (0.1 + index / 1000).toFixed(3)}_${index + 1}_0_${(0.4 + index / 1000).toFixed(3)}_${60 - index}_0_1,2`
   }).join('#'),
 })
 
@@ -41,16 +42,16 @@ const heroPayload = (recommendation = '1003,1001,1002', count = 100) => compress
   }).join('#'),
 })
 
-const augmentCatalog = () => Object.fromEntries(Array.from({ length: 100 }, (_, index) => {
+const augmentCatalog = () => Array.from({ length: 100 }, (_, index) => {
   const id = 1001 + index
-  return [String(id), {
+  return {
     augmentID: String(id),
     name_cn: `强化${id}`,
     level: index % 3 === 0 ? 'kPrismatic' : index % 3 === 1 ? 'kGold' : 'kSilver',
     tooltip: `强化 ${id} 的描述`,
     large_Icon: `https://game.gtimg.cn/images/lol/act/img/augment/${id}.png`,
-  }]
-}))
+  }
+})
 
 const heroCatalog = (count = 100) => ({
   hero: Array.from({ length: count }, (_, index) => {
@@ -112,6 +113,44 @@ describe('Tencent 101 compressed fixtures', () => {
     const payload = runePayload()
     const encoded = payload.data.result
     expect(parseTencentRuneRank({ result: 0, data: { _fieldValues: encoded } }).statisticsDate).toBe('20260814')
+  })
+
+  it('accepts bounded scientific notation used by Tencent for very small rates', () => {
+    const parsed = parseTencentRuneRank(runePayload('20260814', {
+      0: '8e-05',
+      1: '1.2E-4',
+    }))
+
+    expect(parsed.rows[0]?.pickRate).toBe(0.00008)
+    expect(parsed.rows[1]?.pickRate).toBe(0.00012)
+    expect(() => parseTencentRuneRank(runePayload('20260814', { 0: '1e1' }))).toThrow(/\u65e0\u6548/)
+    expect(() => parseTencentRuneRank(runePayload('20260814', { 0: '12.5' }))).toThrow(/\u65e0\u6548/)
+  })
+})
+
+describe('Tencent 101 augment catalog fixtures', () => {
+  it('accepts the current array and the legacy object envelope', () => {
+    const current = augmentCatalog()
+    const legacy = Object.fromEntries(current.map((entry) => [String(entry.augmentID), entry]))
+
+    expect(parseTencentAugmentCatalog(current)).toHaveLength(100)
+    expect(parseTencentAugmentCatalog(legacy)).toEqual(parseTencentAugmentCatalog(current))
+  })
+
+  it('bounds raw work and rejects invalid catalog entries', () => {
+    expect(() => parseTencentAugmentCatalog([])).toThrow(/数量异常/)
+    expect(() => parseTencentAugmentCatalog(Array.from({ length: 501 }, () => null))).toThrow(/数量异常/)
+    expect(() => parseTencentAugmentCatalog([...augmentCatalog(), null])).toThrow(/无效条目/)
+  })
+
+  it('deduplicates only semantically identical IDs and rejects conflicts', () => {
+    const current = augmentCatalog()
+    const duplicate = { ...current[0]! }
+    expect(parseTencentAugmentCatalog([...current, duplicate])).toHaveLength(100)
+    expect(() => parseTencentAugmentCatalog([
+      ...current,
+      { ...duplicate, name_cn: '冲突的强化名称' },
+    ])).toThrow(/重复 ID 存在冲突/)
   })
 })
 
