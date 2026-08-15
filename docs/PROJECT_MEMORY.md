@@ -6,6 +6,7 @@
 ## 当前基线
 
 - 当前公开正式版：[v0.1.48](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.48)，Release ID `RE_kwDOT1eQs84WHzci`，publishedAt `2026-08-15T20:05:20Z`；tagged commit `d8bf0e9cc7fe12a651318add0603a586475b1c88`。本版修复手动刷新首轮识别不完整时整组三卡退场重进。
+- 当前候选版 v0.1.49 尚未提交、推送、打 tag 或发布；本地改动修复“旧三卡已隐藏后，不完整手动识别又把它重新显示”的边界，只有当前仍可见且可靠的三卡 surface 才允许保留过渡表面。正式基线仍为 v0.1.48，Windows、真实 WeGame 与用户同机视觉尚未验证。
 - v0.1.48 正式 workflow `31905462353` 成功；Windows `50` files / `585` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过，artifact `9252266044` / `473541441` bytes。真实游戏刷新视觉仍未验证，不得写成已完成用户同机验收。
 - v0.1.47 正式 workflow `31904367148` attempt 2 成功；Windows `50` files / `583` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过，artifact `9252096894` / `473540906` bytes。真实游戏刷新视觉仍未验证，不得写成已完成用户同机验收。
 - v0.1.44 正式 workflow `31900414946` 首次仅因稳定 channel 传播窗口超时，幂等重跑成功；Windows 48 files / 566 passed + 1 skipped，Release 五资产、双通道、packaged public check 与五版滚动保留均成功。正式补丁将选人助手备战席滚动锁在面板内部，自动化不等于真实 WeGame / Windows 视觉性能验证。

@@ -414,6 +414,51 @@ describe('runtime performance scheduling', () => {
     expect(runtime.sync).toHaveBeenCalledTimes(3)
   })
 
+  it('does not resurrect a hidden retained surface after an incomplete manual refresh', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.augmentRound = new AugmentRoundTracker()
+    runtime.augmentRound.observe('matched', { combination: '1:2:3', manual: true })
+    const augments = [1, 2, 3].map((id) => ({
+      id,
+      name: `海克斯${id}`,
+      iconUrl: '',
+      rarity: 1,
+      rarityName: '白银',
+      description: '',
+      globalTier: id,
+    }))
+    runtime.config = { getSettings: () => ({ autoOcr: false, showInGameRecommendations: true }) }
+    runtime.data = { getAugments: () => augments, getState: () => ({ dataVersion: 'fixture' }) }
+    runtime.detail = null
+    runtime.lcu = { confirmGameActive: vi.fn() }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: false,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '卡牌界面已关闭，已保留上次可靠结果',
+    }
+    runtime.scanner = {
+      scan: vi.fn(async () => ({
+        status: 'unreliable',
+        slots: [{ augmentId: 1 }, { augmentId: null }, { augmentId: 3 }],
+        fingerprints: ['a', 'b', 'c'],
+        durationMs: 10,
+        error: null,
+      })),
+    }
+
+    await expect(runtime.runScan(true)).resolves.toMatchObject({ ok: false, code: 'UNRELIABLE' })
+    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.overlay.slots).toHaveLength(3)
+  })
+
   it('recovers the same automatic recommendation after two probe errors withdraw the compact surface', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any

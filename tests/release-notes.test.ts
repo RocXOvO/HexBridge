@@ -11,6 +11,7 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.46', draft: false, prerelease: false },
     { tag_name: 'v0.1.47', draft: false, prerelease: false },
     { tag_name: 'v0.1.48', draft: false, prerelease: false },
+    { tag_name: 'v0.1.49', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -125,6 +126,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('### 相较 v0.1.47 的更新')
     expect(body).toContain('首轮识别不完整')
     expect(body).toContain('/compare/v0.1.47...v0.1.48')
+  })
+
+  it('renders the hidden-surface resurrection fix for v0.1.49', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.49',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.48 的更新')
+    expect(body).toContain('卡面已被可靠隐藏')
+    expect(body).toContain('/compare/v0.1.48...v0.1.49')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {

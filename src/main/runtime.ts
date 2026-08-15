@@ -1747,7 +1747,7 @@ export class HexBridgeRuntime {
       // here would make all three cards leave and re-enter when only one slot
       // eventually changes. The next matched result still replaces only the
       // changed slot through reuseUnchangedAugmentSlots().
-      const keepReliableSurface = this.overlay.slots.length === 3
+      const keepReliableSurface = this.overlay.visible && this.overlay.slots.length === 3
       this.overlay = {
         ...this.overlay,
         visible: keepReliableSurface,

@@ -6,6 +6,8 @@
 
 - 当前公开正式版 `v0.1.48` 已完成 tag / Release / 双通道 / 滚动保留。真实 WeGame / installed updater 仍不是自动化证据。
 
+- 当前候选 `v0.1.49` 仅包含 HB-083 的隐藏 surface 门禁修复；尚未提交、推送、打 tag 或创建 Release，正式基线仍为 v0.1.48。
+
 - public Latest：[v0.1.48](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.48)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHzci`，publishedAt `2026-08-15T20:05:20Z`。
 - tagged commit `d8bf0e9cc7fe12a651318add0603a586475b1c88`；正式 run `31905462353` 成功。Windows packaged / UI / bridge、差分、public packaged 与滚动保留全过；自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
 - public v2 / root：version `0.1.48`；两通道精确一致，packaged public 为 `updateAvailable=false`。

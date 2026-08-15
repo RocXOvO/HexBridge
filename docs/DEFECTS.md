@@ -94,6 +94,7 @@
 | HB-080 | 单卡刷新时三张标签仍一起跳动 | FIXED / UNVERIFIED（v0.1.46 已发布） |
 | HB-081 | 96px 推荐条某槽位变化后持续重复播放动画 | FIXED / UNVERIFIED（v0.1.47 已发布） |
 | HB-082 | 手动刷新首轮识别不完整导致整组三卡退场重进 | FIXED / UNVERIFIED（v0.1.48 已发布） |
+| HB-083 | 已隐藏的旧三卡在不完整手动识别后被重新显示 | IN PROGRESS |
 
 ## 当前重点验收
 
@@ -294,6 +295,12 @@
 - 根因是手动 OCR 首次只可靠识别部分卡面时，旧的可靠三卡被设为 `visible=false`；下一次成功结果会触发整个卡面容器重新进场，即使最终只改变一个槽位。
 - v0.1.48 保留已有三卡挂载，显示有界“正在确认变化”状态；重试成功后沿用槽位 + augmentId 与按本轮变化集合的动画判定，只替换真正变化的卡片。
 - 正式 workflow `31905462353` 通过 Windows `50` files / `585` tests、packaged UI / bridge、差分和 public packaged 门禁；真实 Windows / WeGame 卡面刷新仍未验证，不能标记 `VERIFIED`。
+
+### HB-083：已隐藏的旧三卡在不完整手动识别后被重新显示
+
+- 根因是保留旧 slots 与 surface 可见性没有同时作为门禁；选卡完成、两次 absence 或有界到期后，旧 slots 仍可留作回看，但不完整手动识别会误把它们当成当前可见三卡而重新显示。
+- v0.1.49 候选把保留条件收紧为“当前 surface 仍可见且 slots 恰好为 3”；隐藏状态只保留旧数据，不会被不完整结果复活，完整匹配后仍按单槽位更新。
+- 当前仅有本地定向回归、typecheck、lint 和 diff-check；Windows / 真实 WeGame 刷新视觉尚未验证，不能标记 `VERIFIED`。
 
 ## 追溯
 
