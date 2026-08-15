@@ -7,6 +7,7 @@ import type {
   HexBridgeApi,
   LobbyBackgroundBridge,
   LobbyBackgroundFrame,
+  LiveClientDiagnosticStep,
   RuntimeState,
 } from '../shared/contracts.js'
 
@@ -71,6 +72,8 @@ const api = {
   getScoutPlayerDetails: (opaqueKey: string, matchGeneration: number) =>
     ipcRenderer.invoke('hexbridge:get-scout-player-details', opaqueKey, matchGeneration),
   clearDiagnosticScreenshots: () => ipcRenderer.invoke('hexbridge:clear-diagnostics'),
+  sampleLiveClientDiagnostics: (step: LiveClientDiagnosticStep) =>
+    ipcRenderer.invoke('hexbridge:sample-live-client-diagnostics', step),
   retryLcuConnection: () => ipcRenderer.invoke('hexbridge:retry-lcu'),
   startCalibration: () => ipcRenderer.invoke('hexbridge:start-calibration'),
   getCalibrationContext: () => ipcRenderer.invoke('hexbridge:get-calibration-context'),

@@ -93,7 +93,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.45',
+      currentVersion: '0.1.46',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -124,6 +124,7 @@ export function createDemoApi(): HexBridgeApi {
         { augmentId: 3, name: '终极刷新', iconUrl: '', rarityName: '棱彩', description: '', recommendationRank: 3, reason: '该英雄适配度排名第 3', championPickRate: null, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, globalPickRankChange: null, globalWinRankChange: null },
       ],
     },
+    currentChampionLevel: 8,
     currentBuild: {
       label: '爆发法师',
       patch: '16.15',
@@ -257,6 +258,24 @@ export function createDemoApi(): HexBridgeApi {
     saveWallpaperEnginePreferences: async () => ({ ok: true, message: '预览模式：Wallpaper Engine 配置已保存' }),
     retryWallpaperEngine: async () => ({ ok: true, message: '预览模式：已重试 Wallpaper Engine' }),
     clearDiagnosticScreenshots: async () => ({ ok: true, message: '预览模式：没有诊断截图' }),
+    sampleLiveClientDiagnostics: async (step) => ({
+      ok: true,
+      message: '预览模式：已生成脱敏采样摘要',
+      sample: {
+        sessionId: 'demo-session',
+        step,
+        clientVersion: '0.1.46',
+        matchStage: 'selecting',
+        matchGeneration: 1,
+        currentChampionLevel: null,
+        endpointStatus: [
+          { endpoint: 'activeplayer', status: 'unavailable', fields: [] },
+          { endpoint: 'eventdata', status: 'unavailable', fields: [] },
+          { endpoint: 'gamestats', status: 'unavailable', fields: [] },
+        ],
+        ocrSurface: 'visible',
+      },
+    }),
     retryLcuConnection: async () => ({ ok: false, message: '预览模式：未连接客户端' }),
     startCalibration: async () => undefined,
     getCalibrationContext: async () => null,

@@ -40,7 +40,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.45',
+    currentVersion: '0.1.46',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -59,6 +59,7 @@ const smokeState: RuntimeState = {
   candidates: [],
   currentRecommendation: null,
   currentBuild: null,
+  currentChampionLevel: null,
   opponentScout: {
     status: 'disabled', reason: 'disabled', matchGeneration: null, allies: [], opponents: [], sampledAt: null,
     source: null, message: '对手近期状态实验未开启',

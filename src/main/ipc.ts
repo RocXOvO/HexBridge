@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import type { AppSettings, CalibrationRects } from '../shared/contracts.js'
+import type { AppSettings, CalibrationRects, LiveClientDiagnosticStep } from '../shared/contracts.js'
 import { sanitizeWallpaperEnginePreferences } from './config-store.js'
 import { HexBridgeRuntime } from './runtime.js'
 
@@ -150,6 +150,13 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
   ipcMain.handle('hexbridge:clear-diagnostics', (event) => {
     requireSender(event, 'main')
     return runtime.clearDiagnosticScreenshots()
+  })
+  ipcMain.handle('hexbridge:sample-live-client-diagnostics', (event, step) => {
+    requireSender(event, 'main')
+    if (step !== 'no-card' && step !== 'cards-visible' && step !== 'selection-complete') {
+      return { ok: false, message: '采样步骤无效', sample: null }
+    }
+    return runtime.sampleLiveClientDiagnostics(step as LiveClientDiagnosticStep)
   })
   ipcMain.handle('hexbridge:retry-lcu', (event) => {
     requireSender(event, 'main')

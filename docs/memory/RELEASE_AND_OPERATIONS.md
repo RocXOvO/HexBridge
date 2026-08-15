@@ -4,13 +4,13 @@
 
 ## 当前正式基线
 
-- 当前公开正式版 `v0.1.44` 已完成 tag / Release / 双通道 / 滚动保留；候选 `v0.1.45` 已推送并通过 Windows workflow_dispatch `31901192560`（48 files / 568 passed，artifact `9251192566`），尚未 tag / Release。真实 WeGame / installed updater 仍不是自动化证据。
+- 当前公开正式版 `v0.1.45` 已完成 tag / Release / 双通道 / 滚动保留；候选 `v0.1.46` 正在等待本地门禁和 Windows workflow。真实 WeGame / installed updater 仍不是自动化证据。
 
-- public Latest：[v0.1.44](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.44)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHuNV`，publishedAt `2026-08-15T18:16:14Z`。
-- tagged commit `eda3d76adc216293393ff951df1f6ba73475396d`；正式 run `31900414946` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows 48 files / 566 passed + 1 skipped，audit、OCR、lint、typecheck、packaged UI / bridge、差分、public packaged 与滚动保留全过；Release 五资产均通过。自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
-- public v2 / root：version `0.1.44`；两通道精确一致，packaged public 为 `updateAvailable=false`。
+- public Latest：[v0.1.45](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.45)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHvfR`，publishedAt `2026-08-15T18:40:44Z`。
+- tagged commit `ad634380bb060ceb610a589fd84e0eb547c17555`；正式 run `31901536004` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows 48 files / 568 passed，audit、OCR、lint、typecheck、packaged UI / bridge、差分、public packaged 与滚动保留全过；Release 五资产均通过。自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
+- public v2 / root：version `0.1.45`；两通道精确一致，packaged public 为 `updateAvailable=false`。
 - 正式资产：EXE `199288066` bytes / `7f77d1ffdca66302cd780bb9ace8f3064082e91a013cdd827d48d8a35623d944`；blockmap `201396` / `5d89f1b110c5b3ae40bc3661689f5f8c6af016636f9e20c47596ade42a1f1316`；ZIP `274455531` / `404818017b51e2131dc14d0ddfab686ea789f958ff4194354e51df10405d77ed`；latest.yml `346` / `357eb636c2024e71b3f9b4625af2c5183f34f0ff875a69c4a748b4bce2092032`；SHA256SUMS `182` / `59220e136228ea0011d134608ad7fdc7cb930792c8613b348de9678790bc909c`。
-- 当前只保留 v0.1.40～v0.1.44 五个 public stable Releases；v0.1.0～v0.1.44 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
+- 当前只保留 v0.1.41～v0.1.45 五个 public stable Releases；v0.1.0～v0.1.45 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
 
 ## 更新契约
 

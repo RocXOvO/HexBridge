@@ -15,6 +15,8 @@ import type {
   RecommendationDataState,
   RecommendationDetail,
   RankedAugmentSlot,
+  LiveClientDiagnosticStep,
+  LiveClientDiagnosticSampleResult,
   WallpaperEnginePreferences,
   WallpaperEngineState,
 } from '../shared/contracts.js'
@@ -54,6 +56,8 @@ import { STABLE_UPDATE_FEEDS } from './update-channel.js'
 import { resolveAutomaticVisualMode } from './visual-policy.js'
 import { AugmentRoundTracker } from './augment-round.js'
 import { WallpaperEngineController, type WallpaperEngineContext } from './wallpaper-engine.js'
+import { LiveClientAdapter } from './live-client.js'
+import { randomBytes } from 'node:crypto'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -170,6 +174,7 @@ export class HexBridgeRuntime {
   private readonly scanner: AugmentScanner
   private readonly windows: WindowManager
   private readonly wallpaper: WallpaperEngineController
+  private readonly liveClient = new LiveClientAdapter()
   private readonly updates: UpdateManager
   private snapshot: ChampSelectSnapshot = { ...EMPTY_SNAPSHOT }
   private lcuState: LcuConnectionState = { ...EMPTY_LCU }
@@ -208,6 +213,12 @@ export class HexBridgeRuntime {
   private gameProcessTimer: NodeJS.Timeout | null = null
   private gameProcessPollMs: number | null = null
   private gameProcessCheckInFlight = false
+  private liveClientLevelTimer: NodeJS.Timeout | null = null
+  private liveClientLevelInFlight = false
+  private liveClientLevelSequence = 0
+  private trustedGameProcessRunning = false
+  private currentChampionLevel: number | null = null
+  private liveClientDiagnosticSessionId: string | null = null
   private leagueClientProcessId: number | null = null
   private readonly gameProcessExitGuard = new GameProcessExitGuard()
   private augmentRound = new AugmentRoundTracker()
@@ -355,6 +366,7 @@ export class HexBridgeRuntime {
       candidates: buildChampionCandidates(publicSnapshot, recommendationChampions),
       currentRecommendation,
       currentBuild,
+      currentChampionLevel: this.currentChampionLevel,
       opponentScout: includeOpponentScout
         ? {
             ...this.opponentScout,
@@ -506,6 +518,38 @@ export class HexBridgeRuntime {
       })
     }
     return result
+  }
+
+  async sampleLiveClientDiagnostics(step: LiveClientDiagnosticStep): Promise<LiveClientDiagnosticSampleResult> {
+    if (!['no-card', 'cards-visible', 'selection-complete'].includes(step)) {
+      return { ok: false, message: '采样步骤无效', sample: null }
+    }
+    if (this.snapshot.matchStage !== 'active') {
+      return { ok: false, message: '仅在进行中的对局里采样', sample: null }
+    }
+    const generation = this.snapshot.matchGeneration
+    const result = await this.liveClient.sampleDiagnostics()
+    if (
+      this.stopping ||
+      this.snapshot.matchStage !== 'active' ||
+      generation !== this.snapshot.matchGeneration
+    ) return { ok: false, message: '对局已变化，已丢弃迟到采样', sample: null }
+    if (!result.endpoints.length) return { ok: false, message: 'Live Client 采样正在进行，请稍后重试', sample: null }
+    this.liveClientDiagnosticSessionId ??= randomBytes(6).toString('hex')
+    return {
+      ok: true,
+      message: '已生成脱敏采样摘要；它不代表已识别可选卡字段',
+      sample: {
+        sessionId: this.liveClientDiagnosticSessionId,
+        step,
+        clientVersion: app.getVersion(),
+        matchStage: this.snapshot.matchStage,
+        matchGeneration: generation,
+        currentChampionLevel: result.level,
+        endpointStatus: result.endpoints,
+        ocrSurface: this.windows.getPresentationDiagnostics().augmentCompanion,
+      },
+    }
   }
 
   clearApiKey(): void {
@@ -807,9 +851,12 @@ export class HexBridgeRuntime {
     this.windows.prepareToQuit()
     this.stopScanLoop()
     this.stopGameProcessLoop()
+    this.stopLiveClientLevelLoop()
     this.updates.stop()
     this.data.dispose()
     this.lcu.stop()
+    this.liveClient?.stop?.()
+    this.liveClientDiagnosticSessionId = null
   }
 
   private handleLcuUpdate(snapshot: ChampSelectSnapshot, state: LcuConnectionState): void {
@@ -826,6 +873,16 @@ export class HexBridgeRuntime {
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
     this.leagueClientProcessId = nextLeagueClientProcessId
+    if (
+      nextChampion !== oldChampion ||
+      snapshot.matchGeneration !== previousGeneration ||
+      snapshot.matchStage !== 'active'
+    ) {
+      this.resetCurrentChampionLevel()
+    }
+    if (snapshot.matchGeneration !== previousGeneration || snapshot.matchStage === 'none') {
+      this.liveClientDiagnosticSessionId = null
+    }
     this.wallpaper?.reconcile?.(this.wallpaperContext())
     this.windows?.setLeagueClientProcessId?.(nextLeagueClientProcessId)
     if (nextChampion !== oldChampion || snapshot.matchGeneration !== previousGeneration) {
@@ -1758,6 +1815,8 @@ export class HexBridgeRuntime {
     this.gameProcessTimer = null
     this.gameProcessPollMs = null
     this.gameProcessExitGuard.reset()
+    this.trustedGameProcessRunning = false
+    this.stopLiveClientLevelLoop()
   }
 
   private async checkGameProcess(): Promise<void> {
@@ -1778,6 +1837,13 @@ export class HexBridgeRuntime {
         this.gameProcessExitGuard.reset()
         return
       }
+      if (status === 'running') {
+        this.trustedGameProcessRunning = true
+        this.updateLiveClientLevelLoop()
+      } else if (status === 'not-running') {
+        this.trustedGameProcessRunning = false
+        this.resetCurrentChampionLevel()
+      }
       const confirmedExit = this.gameProcessExitGuard.observe(status, {
         matchStage: this.snapshot.matchStage,
         matchGeneration: generation,
@@ -1796,6 +1862,67 @@ export class HexBridgeRuntime {
       }
     } finally {
       this.gameProcessCheckInFlight = false
+    }
+  }
+
+  private updateLiveClientLevelLoop(): void {
+    if (
+      this.stopping ||
+      !this.trustedGameProcessRunning ||
+      this.snapshot.matchStage !== 'active' ||
+      this.snapshot.currentChampionId == null
+    ) {
+      this.stopLiveClientLevelLoop()
+      return
+    }
+    if (this.liveClientLevelTimer) return
+    this.liveClientLevelTimer = setInterval(() => void this.pollCurrentChampionLevel(), 1_500)
+    void this.pollCurrentChampionLevel()
+  }
+
+  private stopLiveClientLevelLoop(): void {
+    if (this.liveClientLevelTimer) clearInterval(this.liveClientLevelTimer)
+    this.liveClientLevelTimer = null
+    this.liveClientLevelSequence += 1
+    this.liveClientLevelInFlight = false
+    this.liveClient?.abort?.()
+  }
+
+  private resetCurrentChampionLevel(): void {
+    const hadLevel = this.currentChampionLevel != null
+    this.currentChampionLevel = null
+    this.stopLiveClientLevelLoop()
+    if (hadLevel) this.sync()
+  }
+
+  private async pollCurrentChampionLevel(): Promise<void> {
+    if (
+      this.liveClientLevelInFlight ||
+      this.stopping ||
+      !this.trustedGameProcessRunning ||
+      this.snapshot.matchStage !== 'active' ||
+      this.snapshot.currentChampionId == null
+    ) return
+    const generation = this.snapshot.matchGeneration
+    const championId = this.snapshot.currentChampionId
+    const sequence = ++this.liveClientLevelSequence
+    this.liveClientLevelInFlight = true
+    try {
+      const result = await this.liveClient.readActivePlayerLevel()
+      if (
+        this.stopping ||
+        sequence !== this.liveClientLevelSequence ||
+        generation !== this.snapshot.matchGeneration ||
+        championId !== this.snapshot.currentChampionId ||
+        this.snapshot.matchStage !== 'active'
+      ) return
+      const nextLevel = result.code === 'ready' ? result.level : null
+      if (nextLevel !== this.currentChampionLevel) {
+        this.currentChampionLevel = nextLevel
+        this.sync()
+      }
+    } finally {
+      this.liveClientLevelInFlight = false
     }
   }
 

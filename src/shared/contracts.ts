@@ -16,6 +16,7 @@ export type VisualMode = 'cinematic' | 'balanced' | 'eco'
 export type VisualModePreference = VisualMode | 'auto'
 export type MatchContextStage = 'none' | 'selecting' | 'launching' | 'active'
 export type RecommendationDataSource = 'dtodo' | 'tencent101'
+export type LiveClientDiagnosticStep = 'no-card' | 'cards-visible' | 'selection-complete'
 export type WallpaperEngineTargetType = 'profile' | 'playlist'
 
 export interface WallpaperEngineTarget {
@@ -495,12 +496,38 @@ export interface RuntimeState {
   candidates: ChampionCandidate[]
   currentRecommendation: ChampionRecommendationView | null
   currentBuild: ChampionBuildRecommendation | null
+  currentChampionLevel: number | null
   opponentScout: OpponentScoutState
   overlay: AugmentOverlayState
   wallpaperEngine: WallpaperEngineState
   settings: AppSettings
   displays: DisplayOption[]
   diagnostics: RuntimeDiagnostics
+}
+
+export interface LiveClientDiagnosticSample {
+  sessionId: string
+  step: LiveClientDiagnosticStep
+  clientVersion: string
+  matchStage: MatchContextStage
+  matchGeneration: number
+  currentChampionLevel: number | null
+  endpointStatus: Array<{
+    endpoint: 'activeplayer' | 'eventdata' | 'gamestats'
+    status: 'ready' | 'unavailable' | 'invalid' | 'aborted'
+    fields: Array<{
+      path: string
+      type: 'boolean' | 'number' | 'string' | 'null' | 'object' | 'array'
+      value?: boolean | number | string
+    }>
+  }>
+  ocrSurface: AugmentCompanionPresentationStatus
+}
+
+export interface LiveClientDiagnosticSampleResult {
+  ok: boolean
+  message: string
+  sample: LiveClientDiagnosticSample | null
 }
 
 export interface HexBridgeApi {
@@ -522,6 +549,7 @@ export interface HexBridgeApi {
   saveWallpaperEnginePreferences(preferences: WallpaperEnginePreferences): Promise<{ ok: boolean; message: string }>
   retryWallpaperEngine(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
+  sampleLiveClientDiagnostics(step: LiveClientDiagnosticStep): Promise<LiveClientDiagnosticSampleResult>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>
   startCalibration(): Promise<void>
   getCalibrationContext(): Promise<CalibrationContext | null>

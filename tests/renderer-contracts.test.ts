@@ -16,7 +16,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.45'")
+    expect(rendererState).toContain("currentVersion: '0.1.46'")
   })
 
   it('keeps champion selection scrolling inside the assistant without horizontal overflow', () => {
@@ -149,6 +149,8 @@ describe('main-window recommendation presentation', () => {
 
   it('animates only changed augment cards and exposes the tray update action', () => {
     expect(appSource).toContain('`${slot.slot}-${slot.augmentId ?? \'unknown\'}`')
+    expect(appSource).toContain('overlayCardAnimationBySlot.value[slot.slot] === overlayCardAnimationCycle.value')
+    expect(appSource).toContain('const changed = {} as Record<string, number>')
     expect(appSource).toContain('name="augment-surface"')
     expect(appSource).toContain('augment-card-refresh')
     expect(appSource).not.toContain('<TransitionGroup v-if="state.overlay.visible && state.overlay.slots.length"')

@@ -8,6 +8,7 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.43', draft: false, prerelease: false },
     { tag_name: 'v0.1.44', draft: false, prerelease: false },
     { tag_name: 'v0.1.45', draft: false, prerelease: false },
+    { tag_name: 'v0.1.46', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -88,6 +89,18 @@ describe('stable Release notes', () => {
     expect(body).toContain('### 相较 v0.1.44 的更新')
     expect(body).toContain('清理不再使用的旧推荐、详情和进程兼容包装器')
     expect(body).toContain('/compare/v0.1.44...v0.1.45')
+  })
+
+  it('renders the Live Client diagnostic sampling and single-card animation fix for v0.1.46', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.46',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.45 的更新')
+    expect(body).toContain('当前英雄等级')
+    expect(body).toContain('脱敏采样')
+    expect(body).toContain('/compare/v0.1.45...v0.1.46')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
