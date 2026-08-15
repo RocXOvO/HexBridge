@@ -1,8 +1,8 @@
-version: 0.1.33
+version: 0.1.34
 files:
-  - url: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.33/HexBridge-0.1.33-x64.exe
-    sha512: mPJ3a3e3qOa8KEWGhSvKznALpdhg6CnV8mZZzCFhFSC2aFSuTe7EThqE6dD5ttCGqXBgAdQHTU/wBoh7ucBXqQ==
-    size: 199281338
-path: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.33/HexBridge-0.1.33-x64.exe
-sha512: mPJ3a3e3qOa8KEWGhSvKznALpdhg6CnV8mZZzCFhFSC2aFSuTe7EThqE6dD5ttCGqXBgAdQHTU/wBoh7ucBXqQ==
-releaseDate: '2026-08-15T08:27:12.771Z'
+  - url: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.34/HexBridge-0.1.34-x64.exe
+    sha512: Ao7xZdhD/OoCtqCbcdfkBMbSpa0Bs2P5i9jrGtAbRJ02KPo/It6l9f6xddpzZvJzm/g5J2GLy97ZLWmG0/VPiw==
+    size: 199282299
+path: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.34/HexBridge-0.1.34-x64.exe
+sha512: Ao7xZdhD/OoCtqCbcdfkBMbSpa0Bs2P5i9jrGtAbRJ02KPo/It6l9f6xddpzZvJzm/g5J2GLy97ZLWmG0/VPiw==
+releaseDate: '2026-08-15T09:16:49.874Z'
