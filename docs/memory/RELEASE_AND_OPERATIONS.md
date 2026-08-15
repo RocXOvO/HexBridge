@@ -4,13 +4,12 @@
 
 ## 当前正式基线
 
-- public Latest：[v0.1.30](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.30)，non-draft / non-prerelease；Release ID `370978432`，publishedAt `2026-08-15T06:33:48Z`。
-- annotated tag object `d87ad14ba67525adcd573d6cf1eabb5baba4b1d4` 解引用 commit `1f172de0225cc6abde86fc04997442c9219acb51`。
-- 正式 run `31869511329` / job `94975841740` 首次即于 6m7s 成功；Windows 46 files / 499 tests、audit、真实 4K 185ms、lint、typecheck、retention、packaged UI / bridge 全过。synthetic v0.1.31 差分为 `1,200,432 / 199,280,687` bytes、9 个 Range 与 3 个 redirect；artifact `9243077215` 为 `473,516,251` bytes，digest `sha256:1c61882deedcf68be8cf16cd2e934301ae475b7c9a8833fbfb57dec644f687a4`。fake / synthetic 不等于真实 WeGame、Wallpaper Engine、DPI、性能或 installed updater。
-- public v2 / root：version `0.1.30`、size `199280687`、SHA-512 `Tm1BfPD+0k0H1IYr1ediM0l9Ce/OgGdqeeL6g69YMJ26HshQwwn78Th8p14Pi4wx3TAt69cE5/1/v7yVi7a3BA==`；权威 / raw 均首次通过，packaged public 为 `updateAvailable=false`。
-- 正式资产 SHA-256：EXE `adecf21eadfe9481c8e965afd87552699c54728fde0da180d6beea1af8401ecf`（`199280687` bytes）；blockmap `725854b8dffd79a4e8a6ac6ff7419a150e2db4fcf87404f19b3403165a79b77f`（`201338`）；ZIP `d4764e28afa31c67aaafbb9872ecae5d7cb2ed60313d3aeff9c74e8734d56614`（`274446034`）；latest.yml `2dea6f741dba0cc31728458531d092b548a4325788e2e49606ff1e47e74a4da8`（`346`）；SHA256SUMS `39deefc1d9bdcbb30c8a2796ddb108b4171036836664a08f41343380fdec6dc6`（`182`）。
-- 当前只保留 v0.1.26～v0.1.30 五个 public stable Releases；v0.1.0～v0.1.30 共 31 个 tags 都保留。本地 `release/` 为空。v0.1.25 Release / assets 已删除但 tag / source 保留。
-- v0.1.31 candidate `a4dc5bc3c1f443c505a588f51139aa5ce7418008` 已 push；workflow_dispatch `31870907932` / job `94979261092` 于 5m23s 成功，Windows 46 files / 508 tests、audit / OCR 280ms / lint / typecheck / retention / EXE `199281056` / packaged UI / bridge / synthetic 差分 `1266455` bytes / checksums / artifact `9243436896` 全过。tag-only 发布、channel、public 与 prune 步骤按预期 skip；尚未创建 v0.1.31 tag / Release，不改变上述 public 基线。
+- public Latest：[v0.1.31](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.31)，non-draft / non-prerelease；Release ID `370985162`，publishedAt `2026-08-15T07:13:53Z`。
+- annotated tag object `a581f7b233c677235b1405e861501e2bbc96f532` 解引用 commit `7738b29cb46ddf2bb92689504bc0b8f00f5704c1`。
+- 正式 run `31871200159` attempt 1 已完成 46 files / 508 tests、创建 Release / 五资产和写入 channel，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune。attempt 2 / job `94980941773` 于 5m29s 幂等成功，Release / channel 发布步骤按 canonical 现状跳过；audit、真实 4K 279ms、lint、typecheck、retention、packaged UI / bridge 全过。synthetic v0.1.32 差分为 `1,288,194 / 199,281,055` bytes、9 个 Range 与 3 个 redirect；artifact `9243622600` 为 `473,516,792` bytes，digest `sha256:dc3c396bcc4c3af976970f6262b7c64da04bcaa361724bcd316817c710fd3edb`。fake / synthetic 不等于真实 WeGame、Wallpaper Engine、DPI、性能或 installed updater。
+- public v2 / root：version `0.1.31`、size `199281055`、SHA-512 `xtzhSIGtho1DVgfQ6PdO+aMjNMAg/ALWl9O4VxOrtuBth7+plvEDx4GwrTx/KvCDAu4eil8j2FE73tRfWrhslQ==`；权威 / raw 精确一致，packaged public 为 `updateAvailable=false`。
+- 正式资产 SHA-256：EXE `3acbf3c0ff296f1fb729af7c935804eae82a535b5ed77b28ab464304e67bfc02`（`199281055` bytes）；blockmap `44a09cff9e32d25fcb0639bac3bd93fb7e879536a496b16b07b2f229d3972ed5`（`201182`）；ZIP `2dd9ddcb2fee60abfdbbda0e2dbb153a728dc98e2dacd23d51b71c33e47efbe2`（`274446434`）；latest.yml `54846d8d3648bec0644ee96e42b8ffdd9f54c4c9d26a2ff2600afedbe91b274c`（`346`）；SHA256SUMS `dfd97e113883cbd076d8db1e1345d9c755b87600bbf03a6cec712f90a9d33043`（`182`）。
+- 当前只保留 v0.1.27～v0.1.31 五个 public stable Releases；v0.1.0～v0.1.31 共 32 个 tags 都保留。本地 `release/` 为空。v0.1.26 Release / assets 已删除但 tag / source 保留。
 
 ## 更新契约
 

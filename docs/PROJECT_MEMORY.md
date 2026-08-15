@@ -5,12 +5,11 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.30](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.30)，Release ID `370978432`；annotated tag object `d87ad14ba67525adcd573d6cf1eabb5baba4b1d4` 解引用 tagged commit `1f172de0225cc6abde86fc04997442c9219acb51`。
-- 正式 Windows run `31869511329` / job `94975841740` 首次即于 6m7s 成功：46 files / 499 tests、真实 4K OCR 185ms、packaged UI / bridge、差分 `1,200,432 / 199,280,687` bytes、五资产、v2 / root、public packaged 与滚动保留全过。这些不等于真实 WeGame、Wallpaper Engine / Steam 多库、DPI、性能或 installed updater 验证。
-- GitHub 当前只保留 v0.1.26～v0.1.30 五个正式 Releases；v0.1.0～v0.1.30 共 31 个 tags 全部保留。本地 `release/` 为空。
+- 当前公开正式版：[v0.1.31](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.31)，Release ID `370985162`；annotated tag object `a581f7b233c677235b1405e861501e2bbc96f532` 解引用 tagged commit `7738b29cb46ddf2bb92689504bc0b8f00f5704c1`。
+- 正式 Windows run `31871200159` attempt 1 已完整创建 Release / 五资产，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune；同一 run attempt 2 / job `94980941773` 于 5m29s 幂等成功：46 files / 508 tests、真实 4K OCR 279ms、packaged UI / bridge、差分 `1,288,194 / 199,281,055` bytes、v2 / root、public packaged 与滚动保留全过。artifact `9243622600` 为 `473,516,792` bytes。自动化不等于真实 WeGame、Wallpaper Engine / Steam 多库、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.27～v0.1.31 五个正式 Releases；v0.1.0～v0.1.31 共 32 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
-- v0.1.30 已正式发布；Release 说明准确列出相较 v0.1.29 的三项 Wallpaper Engine 变化，public v2 / root 为 `0.1.30 / 199280687` bytes，正式五资产完整。HB-057 / 058 均保持 `FIXED / UNVERIFIED`，不得用发布结果替代真实外部程序 / 接口与 WeGame 同机验收。
-- v0.1.31 candidate `a4dc5bc3c1f443c505a588f51139aa5ce7418008` 已 push。Windows run `31870907932` / job `94979261092` 于 5m23s 成功：46 files / 508 tests、audit 0、真实 4K fixture 280ms、packaged UI / bridge、synthetic v0.1.32 差分 `1,266,455 / 199,281,056` bytes 和五文件 artifact `9243436896` 全过；tag-only 步骤按预期 skip，尚无 v0.1.31 tag / Release。修复将 `GAME_STARTING` 限为首次信号起 60s 不续租短交接，稳定终止 15s 清理，强启动证据优先升级。HB-048 仍 `IN PROGRESS / UNVERIFIED`。
+- v0.1.31 已正式发布；Release 说明准确列出相较 v0.1.30 的取消对局清理修复，public v2 / root 为 `0.1.31 / 199281055` bytes，正式五资产完整。修复将 `GAME_STARTING` 限为首次信号起 60s 不续租短交接，稳定终止 15s 清理，强启动证据优先升级；HB-048 仍 `IN PROGRESS / UNVERIFIED`，不得用发布结果替代真实 WeGame 同机验收。
 
 ## 记忆模块
 

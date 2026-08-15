@@ -101,7 +101,7 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.30 全验证后删除 v0.1.25 Release / assets、保留 tag；当前仅 v0.1.26～v0.1.30 五个 public stable Releases，31 个 tags（v0.1.0～v0.1.30）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.31 全验证后删除 v0.1.26 Release / assets、保留 tag；当前仅 v0.1.27～v0.1.31 五个 public stable Releases，32 个 tags（v0.1.0～v0.1.31）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
@@ -134,7 +134,7 @@
 
 - v0.1.21～0.1.23 已加入弱 / committed / active 租约、独立游戏心跳、刷新确认、96px compact、两次 absence、45 秒 expiry、切屏 pause / hide 与回前台 cheap probe。
 - v0.1.26 正式版把 96px 条定位到卡面上方，保存 matched frame 指纹；变化后经 500ms + 280ms 稳定确认先撤旧条，两次 probe error 调用 `beginNextRound` 恢复。审查无 P0 / P1 且正式 Windows 全链通过；真实 WeGame 未跑，HB-050 / 052 / 055 不得升级状态。
-- v0.1.31 candidate 修正 HB-048 的取消边界：`GAME_STARTING` 只获得固定 60s 不续租短租约，稳定终止 15s 清理 hero / detail / overlay / 伴随窗 / Wallpaper 目标；真实 InProgress / game client / process / augment 强证据优先升级且不换 generation。五入口边界与 Runtime 全链回放已进入本地 507+1 和 Windows 508 全量；终审 `P0=0 / P1=0`，candidate run `31870907932` 全绿。真实 WeGame 未验，HB-048 保持 `IN PROGRESS / UNVERIFIED`。
+- v0.1.31 正式版修正 HB-048 的取消边界：`GAME_STARTING` 只获得固定 60s 不续租短租约，稳定终止 15s 清理 hero / detail / overlay / 伴随窗 / Wallpaper 目标；真实 InProgress / game client / process / augment 强证据优先升级且不换 generation。五入口边界与 Runtime 全链回放已进入本地 507+1 和 Windows 508 全量；终审 `P0=0 / P1=0`，candidate run `31870907932` 与正式 run `31871200159` attempt 2 全绿。真实 WeGame 未验，HB-048 保持 `IN PROGRESS / UNVERIFIED`。
 - 真实 3270 退出、刷新、选择卡牌、小窗出现 / 消失、点击穿透、中途启动、英雄专属统计与性能仍需用户同机逐项闭环。
 
 ### HB-056：背景清晰度
