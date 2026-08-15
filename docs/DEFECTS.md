@@ -197,7 +197,7 @@
 
 ### HB-068：伴随窗 / 96px 呈现诊断
 
-- v0.1.35 本地候选在诊断页显示选人伴随窗、96px 推荐条和 League 窗口观察器的有限枚举状态；分类与实际 show / hide 条件共用输入，异常槽位数量 fail-closed，重启后的新观察器即使首帧与旧值相同也会重新发布状态。
+- v0.1.35 正式版在诊断页显示选人伴随窗、96px 推荐条和 League 窗口观察器的有限枚举状态；分类与实际 show / hide 条件共用输入，异常槽位数量 fail-closed，重启后的新观察器即使首帧与旧值相同也会重新发布状态。
 - DTO 与去重日志只含有限枚举，不含 PID、HWND、路径、窗口标题、坐标或截图。终审 `P0=0 / P1=0`；candidate run `31877923520` 与正式 run `31878189793` attempt 2 均通过 Windows 48 files / 529 tests、真实 4K OCR、packaged UI / bridge 和更新门禁。Release 成功不能替代真实 WeGame，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
