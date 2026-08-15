@@ -11,6 +11,8 @@ import { logger } from './logger.js'
 
 const API_ORIGIN = 'https://data.dtodo.cn'
 const API_PREFIX = '/api/v1/zh-CN'
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+const DEFAULT_RECOVERY_DELAYS_MS = [15_000, 60_000, 300_000] as const
 // Detail cache v1 omitted pickRate/provenance and v2 omitted documented build
 // recommendations. Keep the local schema in the filename so an unchanged
 // upstream dataVersion cannot pin an older shape.
@@ -28,6 +30,12 @@ interface ProviderConfig {
   gamePatch?: string
   dataVersion?: string
   publishedAt?: string
+}
+
+interface DataServiceOptions {
+  onStateChanged?: () => void
+  recoveryDelaysMs?: readonly number[]
+  requestTimeoutMs?: number
 }
 
 function isChampionDetailCache(value: unknown, version: string): value is ChampionAugmentData {
@@ -120,6 +128,68 @@ class ProviderError extends Error {
   }
 }
 
+function abortError(message = '请求超时'): Error {
+  const error = new Error(message)
+  error.name = 'AbortError'
+  return error
+}
+
+async function readJsonBody(response: Response, signal: AbortSignal): Promise<unknown> {
+  const declaredLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+    throw new Error('上游响应超过 2 MiB 限制')
+  }
+  if (!response.body) throw new Error('上游响应正文为空')
+  const reader = response.body.getReader()
+  let total = 0
+  const chunks: Uint8Array[] = []
+  const reading = (async () => {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      total += value.byteLength
+      if (total > MAX_RESPONSE_BYTES) {
+        await reader.cancel('response too large').catch(() => undefined)
+        throw new Error('上游响应超过 2 MiB 限制')
+      }
+      chunks.push(value)
+    }
+    const body = new Uint8Array(total)
+    let offset = 0
+    for (const chunk of chunks) {
+      body.set(chunk, offset)
+      offset += chunk.byteLength
+    }
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(body)) as unknown
+  })()
+  if (signal.aborted) {
+    await reader.cancel('aborted').catch(() => undefined)
+    throw abortError()
+  }
+  let onAbort: (() => void) | null = null
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => {
+      void reader.cancel('aborted').catch(() => undefined)
+      reject(abortError())
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    return await Promise.race([reading, aborted])
+  } finally {
+    if (onAbort) signal.removeEventListener('abort', onAbort)
+  }
+}
+
+function isTransientDetailError(error: unknown): boolean {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error && error.name === 'AbortError') ||
+    (error instanceof ProviderError && error.status >= 500)
+  )
+}
+
 function keyValidationMessage(error: unknown): string {
   if (error instanceof ProviderError && error.status === 401) return 'API Key 无效或已失效，请重新复制后再试'
   if (error instanceof ProviderError && error.status === 429) return '请求过于频繁，请稍后再验证'
@@ -138,11 +208,17 @@ export class DataService {
   private cachedDataVersion = ''
   private cacheLoaded = false
   private initializeInFlight: Promise<ApiConnectionState> | null = null
+  private recoveryTimer: NodeJS.Timeout | null = null
+  private recoveryAttempt = 0
+  private automaticRecoveryBlocked = false
+  private stopped = false
+  private readonly activeRequests = new Set<AbortController>()
 
   constructor(
     private readonly cacheDirectory: string,
     private readonly configStore: ConfigStore,
     private readonly clientVersion = 'development',
+    private readonly options: DataServiceOptions = {},
   ) {}
 
   getState(): ApiConnectionState {
@@ -161,30 +237,30 @@ export class DataService {
     return path.join(this.cacheDirectory, name)
   }
 
-  private async request(
+  private async requestHead(
     resource: string,
     options: {
-      method?: 'GET' | 'HEAD'
       authenticated?: boolean
       timeoutMs?: number
       apiKey?: string
     } = {},
   ): Promise<Response> {
+    if (this.stopped) throw abortError('数据服务已停止')
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10_000)
+    this.activeRequests.add(controller)
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? this.options.requestTimeoutMs ?? 10_000)
     const headers: Record<string, string> = {
       Accept: 'application/json',
       'User-Agent': `HexBridge/${this.clientVersion}`,
     }
-    if (options.authenticated !== false) {
-      const key = options.apiKey ?? this.configStore.getApiKey()
-      if (!key) throw new ProviderError('尚未配置 API Key', 401)
-      headers.Authorization = `Bearer ${key}`
-    }
-
     try {
+      if (options.authenticated !== false) {
+        const key = options.apiKey ?? this.configStore.getApiKey()
+        if (!key) throw new ProviderError('尚未配置 API Key', 401)
+        headers.Authorization = `Bearer ${key}`
+      }
       const response = await fetch(`${API_ORIGIN}${API_PREFIX}/${resource}`, {
-        method: options.method ?? 'GET',
+        method: 'HEAD',
         headers,
         signal: controller.signal,
       })
@@ -192,6 +268,42 @@ export class DataService {
       return response
     } finally {
       clearTimeout(timeout)
+      this.activeRequests.delete(controller)
+    }
+  }
+
+  private async requestJson(
+    resource: string,
+    options: {
+      authenticated?: boolean
+      timeoutMs?: number
+      apiKey?: string
+    } = {},
+  ): Promise<unknown> {
+    if (this.stopped) throw abortError('数据服务已停止')
+    const controller = new AbortController()
+    this.activeRequests.add(controller)
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? this.options.requestTimeoutMs ?? 10_000)
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': `HexBridge/${this.clientVersion}`,
+    }
+    try {
+      if (options.authenticated !== false) {
+        const key = options.apiKey ?? this.configStore.getApiKey()
+        if (!key) throw new ProviderError('尚未配置 API Key', 401)
+        headers.Authorization = `Bearer ${key}`
+      }
+      const response = await fetch(`${API_ORIGIN}${API_PREFIX}/${resource}`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      })
+      if (!response.ok) throw new ProviderError(`上游返回 HTTP ${response.status}`, response.status)
+      return await readJsonBody(response, controller.signal)
+    } finally {
+      clearTimeout(timeout)
+      this.activeRequests.delete(controller)
     }
   }
 
@@ -221,8 +333,7 @@ export class DataService {
 
     const previousState = this.getState()
     try {
-      await this.request('champions.json', {
-        method: 'HEAD',
+      await this.requestHead('champions.json', {
         authenticated: true,
         timeoutMs: 8_000,
         apiKey: candidate,
@@ -247,77 +358,140 @@ export class DataService {
   }
 
   initialize(force = false): Promise<ApiConnectionState> {
+    if (this.stopped) return Promise.resolve(this.getState())
+    if (force) this.cancelRecovery(true)
     if (this.initializeInFlight) return this.initializeInFlight
-    const operation = this.initializeInternal(force).finally(() => {
-      if (this.initializeInFlight === operation) this.initializeInFlight = null
-    })
+    const operation = this.initializeInternal()
+      .then((state) => {
+        if (!this.stopped) {
+          this.updateRecoverySchedule(state)
+          this.notifyStateChanged()
+        }
+        return state
+      })
+      .finally(() => {
+        if (this.initializeInFlight === operation) this.initializeInFlight = null
+      })
     this.initializeInFlight = operation
     return operation
   }
 
-  private async initializeInternal(force: boolean): Promise<ApiConnectionState> {
+  dispose(): void {
+    this.stopped = true
+    this.cancelRecovery(true)
+    for (const controller of this.activeRequests) controller.abort()
+    this.activeRequests.clear()
+  }
+
+  private cancelRecovery(resetAttempts: boolean): void {
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer)
+    this.recoveryTimer = null
+    if (resetAttempts) this.recoveryAttempt = 0
+  }
+
+  private updateRecoverySchedule(state = this.getState()): void {
+    if (this.stopped) return
+    if (state.status === 'ready' || state.status === 'missing' || state.status === 'unauthorized') {
+      this.cancelRecovery(true)
+      return
+    }
+    if (this.automaticRecoveryBlocked || state.status === 'limited' || this.recoveryTimer) return
+    const delays = this.options.recoveryDelaysMs ?? DEFAULT_RECOVERY_DELAYS_MS
+    const delay = delays[this.recoveryAttempt]
+    if (delay == null || !this.options.onStateChanged) return
+    this.recoveryAttempt += 1
+    this.recoveryTimer = setTimeout(() => {
+      this.recoveryTimer = null
+      if (this.stopped) return
+      void this.initialize(false).catch((error) => {
+        logger.warn('Data API recovery failed', {
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+      })
+    }, delay)
+    this.recoveryTimer.unref?.()
+  }
+
+  private notifyStateChanged(): void {
+    if (!this.stopped) this.options.onStateChanged?.()
+  }
+
+  private async initializeInternal(): Promise<ApiConnectionState> {
+    this.automaticRecoveryBlocked = false
     await mkdir(this.cacheDirectory, { recursive: true })
     if (!this.cacheLoaded) {
       await this.loadLatestCache()
       this.cacheLoaded = true
     }
     try {
-      const configResponse = await this.request('config.json', { authenticated: false })
-      const config = (await configResponse.json()) as ProviderConfig
+      const config = await this.requestJson('config.json', { authenticated: false }) as ProviderConfig
       const dataVersion = String(config.dataVersion ?? '').trim()
       if (!dataVersion) throw new Error('上游配置缺少 dataVersion')
-      this.apiState = {
-        configured: this.configStore.hasApiKey(),
-        status: this.configStore.hasApiKey() ? 'ready' : 'missing',
+      const configured = this.configStore.hasApiKey()
+      const observed = {
         gamePatch: String(config.gamePatch ?? ''),
         dataVersion,
         publishedAt: String(config.publishedAt ?? ''),
-        lastError: null,
       }
-
-      if (!this.configStore.hasApiKey()) return this.getState()
-      const version = this.apiState.dataVersion || 'unknown'
-      const haveVersion = this.cachedDataVersion === version
-      if (force || !haveVersion || !this.champions.length || !this.augments.length) {
-        await this.downloadCatalogs(version)
+      if (!configured) {
+        this.apiState = {
+          configured: false,
+          status: 'missing',
+          ...observed,
+          lastError: null,
+        }
+        return this.getState()
+      }
+      const haveVersion = this.cachedDataVersion === dataVersion && this.champions.length > 0 && this.augments.length > 0
+      if (!haveVersion || !this.champions.length || !this.augments.length) {
+        await this.downloadCatalogs(dataVersion, observed.gamePatch)
+      }
+      this.apiState = {
+        configured: true,
+        status: 'ready',
+        ...observed,
+        lastError: null,
       }
     } catch (error) {
       this.setError(error)
-      if (this.champions.length && ['offline', 'error', 'limited'].includes(this.apiState.status)) {
-        this.apiState.status = 'stale'
+      this.automaticRecoveryBlocked = this.apiState.status === 'limited' || this.apiState.status === 'unauthorized'
+      if (this.champions.length && this.augments.length && this.cachedDataVersion) {
+        const status = this.apiState.status === 'unauthorized' ? 'unauthorized' : 'stale'
+        this.apiState = {
+          ...this.apiState,
+          configured: this.configStore.hasApiKey(),
+          status,
+          dataVersion: this.cachedDataVersion,
+        }
       }
     }
     return this.getState()
   }
 
-  private normalizeChampions(payload: unknown): ChampionSummary[] {
-    return normalizeChampionCatalog(payload, this.apiState.gamePatch)
+  private normalizeChampions(payload: unknown, gamePatch = this.apiState.gamePatch): ChampionSummary[] {
+    return normalizeChampionCatalog(payload, gamePatch)
   }
 
   private normalizeAugments(payload: unknown): AugmentMeta[] {
     return normalizeAugmentCatalog(payload)
   }
 
-  private async downloadCatalogs(version: string): Promise<void> {
-    const [championsResponse, augmentsResponse] = await Promise.all([
-      this.request('champions.json'),
-      this.request('augments.json'),
-    ])
+  private async downloadCatalogs(version: string, gamePatch: string): Promise<void> {
     const [championsPayload, augmentsPayload] = await Promise.all([
-      championsResponse.json(),
-      augmentsResponse.json(),
+      this.requestJson('champions.json'),
+      this.requestJson('augments.json'),
     ])
-    const champions = this.normalizeChampions(championsPayload)
+    const champions = this.normalizeChampions(championsPayload, gamePatch)
     const augments = this.normalizeAugments(augmentsPayload)
     if (champions.length < 100 || augments.length < 50) throw new Error('上游目录数据不完整')
 
-    this.champions = champions
-    this.augments = augments
     await Promise.all([
       this.atomicWrite(`champions-${version}.json`, champions),
       this.atomicWrite(`augments-${version}.json`, augments),
     ])
     await this.atomicWrite('current.json', { version })
+    this.champions = champions
+    this.augments = augments
     this.cachedDataVersion = version
     logger.info('Data catalogs updated', { version, champions: champions.length, augments: augments.length })
   }
@@ -382,26 +556,50 @@ export class DataService {
     if (cached?.dataVersion === dataVersion) return cached
     if (!dataVersion) throw new Error('数据版本尚未就绪')
     try {
-      const response = await this.request(`champions/${championId}.json`)
+      let payload: unknown
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          payload = await this.requestJson(`champions/${championId}.json`)
+          break
+        } catch (error) {
+          if (attempt === 0 && !this.stopped && isTransientDetailError(error)) continue
+          throw error
+        }
+      }
       const normalized = normalizeChampionAugmentDetail(
-        await response.json(),
+        payload,
         championId,
         dataVersion,
       )
       this.details.set(championId, normalized)
       this.legacyDetails.delete(championId)
-      await this.atomicWrite(
-        `champion-detail-v${DETAIL_CACHE_SCHEMA}-${dataVersion}-${championId}.json`,
-        normalized,
-      )
+      try {
+        await this.atomicWrite(
+          `champion-detail-v${DETAIL_CACHE_SCHEMA}-${dataVersion}-${championId}.json`,
+          normalized,
+        )
+      } catch (error) {
+        logger.warn('Champion detail cache write failed', {
+          championId,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+      }
       return normalized
     } catch (error) {
-      this.setError(error)
-      const fallback = cached ?? legacy
-      if (fallback) {
-        if (['offline', 'error', 'limited'].includes(this.apiState.status)) this.apiState.status = 'stale'
-        return fallback
+      if (error instanceof ProviderError && error.status === 401) {
+        this.automaticRecoveryBlocked = true
+        this.cancelRecovery(true)
+        this.setError(error)
+        this.notifyStateChanged()
       }
+      else {
+        logger.warn('Champion detail request failed', {
+          championId,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+      }
+      const fallback = cached ?? legacy
+      if (fallback) return fallback
       throw error
     }
   }

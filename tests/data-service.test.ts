@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -129,7 +129,7 @@ describe('DataService failures and fallback', () => {
     }))
     const service = new DataService(await cacheDirectory(), config as any)
     await service.initialize()
-    expect(service.getState()).toMatchObject({ status: 'limited', dataVersion: '16.15.6' })
+    expect(service.getState()).toMatchObject({ status: 'limited', dataVersion: '' })
   })
 
   it('restores a complete old cache and marks it stale when offline', async () => {
@@ -251,7 +251,7 @@ describe('DataService failures and fallback', () => {
 
     const detail = await service.getChampionAugments(103)
 
-    expect(service.getState().status).toBe('stale')
+    expect(service.getState().status).toBe('ready')
     expect(detail).toEqual({
       championId: 103,
       dataVersion: '16.15.6',
@@ -277,7 +277,7 @@ describe('DataService failures and fallback', () => {
 
     const detail = await service.getChampionAugments(103)
 
-    expect(service.getState().status).toBe('stale')
+    expect(service.getState().status).toBe('ready')
     expect(detail.ranks[0]).toMatchObject({
       rank: 3,
       pickRate: null,
@@ -302,7 +302,7 @@ describe('DataService failures and fallback', () => {
 
     const detail = await service.getChampionAugments(103)
 
-    expect(service.getState().status).toBe('stale')
+    expect(service.getState().status).toBe('ready')
     expect(detail.ranks).toEqual([{
       augmentId: 7,
       rank: 3,
@@ -313,5 +313,355 @@ describe('DataService failures and fallback', () => {
       statsRegion: null,
     }])
     expect(detail.builds).toEqual([])
+  })
+})
+
+describe('DataService snapshot health and recovery', () => {
+  const cachedChampion = {
+    id: 103, alias: 'Ahri', name: '阿狸', title: '', roles: [], iconUrl: '', splashUrl: '',
+    tier: 2, winRate: .528, patch: '16.14', date: '', source: 'tencent',
+  }
+
+  async function seedCatalog(directory: string, version = '16.14.1'): Promise<void> {
+    await Promise.all([
+      writeFile(path.join(directory, 'current.json'), JSON.stringify({ version })),
+      writeFile(path.join(directory, `champions-${version}.json`), JSON.stringify([cachedChampion])),
+      writeFile(path.join(directory, `augments-${version}.json`), JSON.stringify([{ id: 1 }])),
+      writeFile(path.join(directory, `champion-detail-v3-${version}-103.json`), JSON.stringify({
+        championId: 103,
+        dataVersion: version,
+        ranks: [{
+          augmentId: 1,
+          rank: 1,
+          total: 100,
+          tier: 1,
+          pickRate: .2,
+          statsSource: 'tencent',
+          statsRegion: 'CN',
+        }],
+        builds: [],
+      })),
+    ])
+  }
+
+  async function runScheduledRecovery(service: any, delay: number): Promise<void> {
+    await vi.advanceTimersByTimeAsync(delay)
+    const inFlight = service.initializeInFlight as Promise<unknown> | null
+    if (inFlight) await inFlight
+  }
+
+  it('keeps the catalog ready after a transient detail failure and still requests another champion', async () => {
+    const config = new MemoryConfig()
+    config.key = 'hx_live_12345678'
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes('/champions/103.json')) throw new TypeError('temporary detail outage')
+      return Response.json({ data: { augments: [{
+        id: 7,
+        stats: { rank: 1, total: 100, tier: 1, pickRate: .2, source: 'tencent', region: 'CN' },
+      }] } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const service = new DataService(await cacheDirectory(), config as any) as any
+    service.apiState = { ...service.apiState, status: 'ready', dataVersion: '16.15.6' }
+    service.cachedDataVersion = '16.15.6'
+
+    await expect(service.getChampionAugments(103)).rejects.toThrow('temporary detail outage')
+    expect(service.getState().status).toBe('ready')
+    await expect(service.getChampionAugments(81)).resolves.toMatchObject({ championId: 81 })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('only lets a detail 401 invalidate the credential and keeps 429 local to that detail', async () => {
+    const unauthorizedConfig = new MemoryConfig()
+    unauthorizedConfig.key = 'hx_live_12345678'
+    const unauthorizedStateChanged = vi.fn()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 401 })))
+    const unauthorized = new DataService(await cacheDirectory(), unauthorizedConfig as any, 'test', {
+      onStateChanged: unauthorizedStateChanged,
+    }) as any
+    unauthorized.apiState = { ...unauthorized.apiState, status: 'ready', dataVersion: '16.15.6' }
+    unauthorized.cachedDataVersion = '16.15.6'
+    await expect(unauthorized.getChampionAugments(103)).rejects.toThrow(/HTTP 401/)
+    expect(unauthorized.getState().status).toBe('unauthorized')
+    expect(unauthorizedStateChanged).toHaveBeenCalledOnce()
+
+    const limitedConfig = new MemoryConfig()
+    limitedConfig.key = 'hx_live_12345678'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 429 })))
+    const limited = new DataService(await cacheDirectory(), limitedConfig as any) as any
+    limited.apiState = { ...limited.apiState, status: 'ready', dataVersion: '16.15.6' }
+    limited.cachedDataVersion = '16.15.6'
+    await expect(limited.getChampionAugments(103)).rejects.toThrow(/HTTP 429/)
+    expect(limited.getState().status).toBe('ready')
+  })
+
+  it('keeps the old active snapshot when a newly observed catalog version cannot download', async () => {
+    const directory = await cacheDirectory()
+    await seedCatalog(directory)
+    const config = new MemoryConfig()
+    config.key = 'hx_live_12345678'
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      if (String(input).endsWith('config.json')) {
+        return Response.json({ gamePatch: '16.15', dataVersion: '16.15.6', publishedAt: 'new' })
+      }
+      return new Response(null, { status: 500 })
+    }))
+    const service = new DataService(directory, config as any)
+
+    await service.initialize()
+
+    expect(service.getState()).toMatchObject({ status: 'stale', dataVersion: '16.14.1' })
+    expect(service.getChampions()).toEqual([cachedChampion])
+    expect(JSON.parse(await readFile(path.join(directory, 'current.json'), 'utf8'))).toEqual({ version: '16.14.1' })
+  })
+
+  it('keeps the old in-memory snapshot when the new pointer cannot commit', async () => {
+    const directory = await cacheDirectory()
+    await seedCatalog(directory)
+    await mkdir(path.join(directory, 'current.json.tmp'))
+    const config = new MemoryConfig()
+    config.key = 'hx_live_12345678'
+    const champions = Array.from({ length: 100 }, (_, index) => ({
+      id: index + 1, alias: `Hero${index + 1}`, name: `英雄${index + 1}`, title: '', roles: [],
+      iconUrl: 'https://example.invalid/icon.png', splashUrl: '',
+    }))
+    const augments = Array.from({ length: 50 }, (_, index) => ({
+      id: index + 1, name: `强化${index + 1}`, iconUrl: 'https://example.invalid/augment.png',
+    }))
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('config.json')) return Response.json({ gamePatch: '16.15', dataVersion: '16.15.6', publishedAt: 'new' })
+      if (url.endsWith('champions.json')) return Response.json({ data: { champions } })
+      return Response.json({ data: { augments } })
+    }))
+    const service = new DataService(directory, config as any)
+
+    await service.initialize()
+
+    expect(service.getState()).toMatchObject({ status: 'stale', dataVersion: '16.14.1' })
+    expect(service.getChampions()).toEqual([cachedChampion])
+  })
+
+  it('bounds every JSON response body and releases a stalled initialization after the deadline', async () => {
+    const config = new MemoryConfig()
+    let call = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      call += 1
+      if (call === 1) return new Response(new ReadableStream({ start() {} }))
+      return Response.json({ gamePatch: '16.15', dataVersion: '16.15.6', publishedAt: 'now' })
+    }))
+    const service = new DataService(await cacheDirectory(), config as any, 'test', { requestTimeoutMs: 20 })
+    await expect(service.initialize()).resolves.toMatchObject({ status: 'offline' })
+    await expect(service.initialize()).resolves.toMatchObject({ status: 'missing' })
+    expect(call).toBe(2)
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', {
+      headers: { 'content-length': String(2 * 1024 * 1024 + 1) },
+    })))
+    await expect(new DataService(await cacheDirectory(), config as any).initialize())
+      .resolves.toMatchObject({ status: 'error' })
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(1024 * 1024 + 1))
+        controller.enqueue(new Uint8Array(1024 * 1024 + 1))
+        controller.close()
+      },
+    }))))
+    await expect(new DataService(await cacheDirectory(), config as any).initialize())
+      .resolves.toMatchObject({ status: 'error' })
+  })
+
+  it('recovers a same-version stale cache using only public config and stops the bounded schedule', async () => {
+    vi.useFakeTimers()
+    try {
+      const directory = await cacheDirectory()
+      await seedCatalog(directory)
+      const config = new MemoryConfig()
+      config.key = 'hx_live_12345678'
+      let online = false
+      const onStateChanged = vi.fn()
+      const fetchMock = vi.fn(async () => {
+        if (!online) throw new TypeError('offline')
+        return Response.json({ gamePatch: '16.14', dataVersion: '16.14.1', publishedAt: 'now' })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const service = new DataService(directory, config as any, 'test', {
+        onStateChanged,
+        recoveryDelaysMs: [10, 20, 30],
+      })
+      await expect(service.initialize()).resolves.toMatchObject({ status: 'stale' })
+      online = true
+      await runScheduledRecovery(service, 10)
+      expect(service.getState().status).toBe('ready')
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(onStateChanged).toHaveBeenCalledTimes(2)
+      service.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('limits automatic recovery to three attempts and dispose prevents late requests', async () => {
+    vi.useFakeTimers()
+    try {
+      const config = new MemoryConfig()
+      config.key = 'hx_live_12345678'
+      const fetchMock = vi.fn(async () => { throw new TypeError('offline') })
+      vi.stubGlobal('fetch', fetchMock)
+      const service = new DataService(await cacheDirectory(), config as any, 'test', {
+        onStateChanged: vi.fn(),
+        recoveryDelaysMs: [10, 20, 30],
+      })
+      await service.initialize()
+      await runScheduledRecovery(service, 10)
+      await runScheduledRecovery(service, 20)
+      await runScheduledRecovery(service, 30)
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+
+      const stopped = new DataService(await cacheDirectory(), config as any, 'test', {
+        onStateChanged: vi.fn(),
+        recoveryDelaysMs: [10],
+      })
+      await stopped.initialize()
+      stopped.dispose()
+      await vi.advanceTimersByTimeAsync(100)
+      expect(fetchMock).toHaveBeenCalledTimes(5)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a cached catalog usable after rate limiting without automatically retrying it', async () => {
+    vi.useFakeTimers()
+    try {
+      const directory = await cacheDirectory()
+      await seedCatalog(directory)
+      const config = new MemoryConfig()
+      config.key = 'hx_live_12345678'
+      const fetchMock = vi.fn(async (input: string | URL | Request) => {
+        if (String(input).endsWith('config.json')) {
+          return Response.json({ gamePatch: '16.15', dataVersion: '16.15.6', publishedAt: 'new' })
+        }
+        return new Response(null, { status: 429 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const service = new DataService(directory, config as any, 'test', {
+        onStateChanged: vi.fn(),
+        recoveryDelaysMs: [10],
+      })
+
+      await expect(service.initialize()).resolves.toMatchObject({ status: 'stale', dataVersion: '16.14.1' })
+      expect(service.getChampions()).toEqual([cachedChampion])
+      await expect(service.getChampionAugments(103)).resolves.toMatchObject({
+        championId: 103,
+        dataVersion: '16.14.1',
+      })
+      const callsAfterInitialization = fetchMock.mock.calls.length
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(fetchMock).toHaveBeenCalledTimes(callsAfterInitialization)
+      service.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a cached catalog unauthorized after a catalog 401 without automatic retry', async () => {
+    vi.useFakeTimers()
+    try {
+      const directory = await cacheDirectory()
+      await seedCatalog(directory)
+      const config = new MemoryConfig()
+      config.key = 'hx_live_12345678'
+      const fetchMock = vi.fn(async (input: string | URL | Request) => {
+        if (String(input).endsWith('config.json')) {
+          return Response.json({ gamePatch: '16.15', dataVersion: '16.15.6', publishedAt: 'new' })
+        }
+        return new Response(null, { status: 401 })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const service = new DataService(directory, config as any, 'test', {
+        onStateChanged: vi.fn(),
+        recoveryDelaysMs: [10],
+      })
+
+      await expect(service.initialize()).resolves.toMatchObject({ status: 'unauthorized', dataVersion: '16.14.1' })
+      const callsAfterInitialization = fetchMock.mock.calls.length
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(fetchMock).toHaveBeenCalledTimes(callsAfterInitialization)
+      service.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('treats an existing same-version catalog as immutable during a forced refresh', async () => {
+    const directory = await cacheDirectory()
+    await seedCatalog(directory)
+    const config = new MemoryConfig()
+    config.key = 'hx_live_12345678'
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).endsWith('config.json')) {
+        return Response.json({ gamePatch: '16.14', dataVersion: '16.14.1', publishedAt: 'new' })
+      }
+      throw new Error('same-version catalog must not be overwritten')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const service = new DataService(directory, config as any)
+
+    await expect(service.initialize(true)).resolves.toMatchObject({ status: 'ready', dataVersion: '16.14.1' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(service.getChampions()).toEqual([cachedChampion])
+    expect(JSON.parse(await readFile(path.join(directory, 'current.json'), 'utf8'))).toEqual({ version: '16.14.1' })
+  })
+
+  it('aborts an in-flight response body on dispose without publishing a late state callback', async () => {
+    const config = new MemoryConfig()
+    const onStateChanged = vi.fn()
+    const fetchMock = vi.fn(async () => new Response(new ReadableStream({ start() {} })))
+    vi.stubGlobal('fetch', fetchMock)
+    const service = new DataService(await cacheDirectory(), config as any, 'test', {
+      onStateChanged,
+      requestTimeoutMs: 10_000,
+    })
+
+    const initialization = service.initialize()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    service.dispose()
+
+    await expect(initialization).resolves.toMatchObject({ status: 'offline' })
+    expect(onStateChanged).not.toHaveBeenCalled()
+    await expect(service.initialize()).resolves.toEqual(service.getState())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry an aborted detail or start new validation requests after dispose', async () => {
+    const config = new MemoryConfig()
+    config.key = 'hx_live_12345678'
+    const onStateChanged = vi.fn()
+    const fetchMock = vi.fn(async () => new Response(new ReadableStream({ start() {} })))
+    vi.stubGlobal('fetch', fetchMock)
+    const service = new DataService(await cacheDirectory(), config as any, 'test', {
+      onStateChanged,
+      requestTimeoutMs: 10_000,
+    }) as any
+    service.apiState = { ...service.apiState, status: 'ready', dataVersion: '16.15.6' }
+    service.cachedDataVersion = '16.15.6'
+
+    const detail = service.getChampionAugments(103)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    service.dispose()
+
+    await expect(detail).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(service.getChampionAugments(81)).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(service.validateKey('hx_live_candidate1')).resolves.toMatchObject({ ok: false })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(onStateChanged).not.toHaveBeenCalled()
+    await expect(readFile(path.join(service.cacheDirectory, 'champion-detail-v3-16.15.6-103.json'), 'utf8'))
+      .rejects.toThrow()
   })
 })

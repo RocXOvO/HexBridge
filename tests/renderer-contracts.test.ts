@@ -16,7 +16,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.37'")
+    expect(rendererState).toContain("currentVersion: '0.1.38'")
   })
 
   it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {
@@ -122,6 +122,11 @@ describe('main-window recommendation presentation', () => {
   it('keeps the live assistant source badge limited to the provider name', () => {
     expect(appSource).toContain('<span class="data-version">{{ recommendationSourceName }}</span>')
     expect(appSource).not.toContain(':class="{ stale: state.recommendation.stale }"')
+  })
+
+  it('does not promise automatic recovery after an API rate limit', () => {
+    expect(appSource).toContain("status === 'limited') return '请求受限，请稍后手动刷新'")
+    expect(appSource).not.toContain('请求受限，稍后自动恢复')
   })
 
   it('shows both recommendation order and champion-specific pick rate in the in-game strip', () => {

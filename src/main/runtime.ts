@@ -183,7 +183,9 @@ export class HexBridgeRuntime {
 
   constructor() {
     const userData = app.getPath('userData')
-    this.data = new DataService(path.join(userData, 'data-cache'), this.config, app.getVersion())
+    this.data = new DataService(path.join(userData, 'data-cache'), this.config, app.getVersion(), {
+      onStateChanged: () => this.sync(),
+    })
     this.recommendations = new RecommendationCoordinator(
       this.data,
       new Tencent101Adapter(
@@ -549,6 +551,7 @@ export class HexBridgeRuntime {
       if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
         return { ok: false, message: '英雄推荐请求已失效', detail: null }
       }
+      this.sync()
       return {
         ok: false,
         message: error instanceof Error ? error.message : '英雄推荐读取失败',
@@ -761,6 +764,7 @@ export class HexBridgeRuntime {
     this.stopScanLoop()
     this.stopGameProcessLoop()
     this.updates.stop()
+    this.data.dispose()
     this.lcu.stop()
   }
 

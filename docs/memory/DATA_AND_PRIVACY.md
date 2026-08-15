@@ -6,6 +6,9 @@
 
 - `https://data.dtodo.cn/api/v1/zh-CN/*` 是公开版默认的英雄 / 海克斯推荐统计与出装来源。用户自己申请 Key，Main 通过 safeStorage 保存，Renderer 永不见明文。
 - 目录与详情使用 dataVersion；detail cache schema v3，v1 / v2 仅 stale fallback。
+- 单英雄 detail 的 timeout / 429 / 5xx / 解析或本地缓存写入失败不得污染全局目录状态；只有 401 使 Key 失效并立即广播。目录 429 可继续使用同源旧缓存，但不自动重试。
+- JSON 的 fetch、流读取、UTF-8 与 parse 共用 10s deadline 和 2MiB 上限；离线只按 15s / 60s / 5min 单飞恢复，退出 abort 且不复活。
+- dataVersion 是不可变快照；同版本强制刷新只检查公开 config。新版本必须先原子提交英雄目录、强化目录和 current pointer，再切换 Main 内存与公开状态。
 - 三卡比较键：英雄专属 rank → hero tier → global tier。英雄专属 pickRate 只展示，不参与排序，不得由 rank / total 推导。
 - 出装只使用同一 `builds[0]` 的出门、核心和情境组；名称 / 图标必须来自已展开详情，缺失显示“暂无数据”，不按 ID 猜 URL / 名称。
 

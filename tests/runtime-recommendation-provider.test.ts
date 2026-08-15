@@ -273,4 +273,31 @@ describe('Runtime recommendation provider guards', () => {
 
     await expect(operation).resolves.toMatchObject({ ok: false, detail: null })
   })
+
+  it('broadcasts a provider state change when a browsed hero request is rejected', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    let state: RecommendationDataState = {
+      source: 'dtodo', status: 'ready', snapshotId: '16.15.6', dataVersion: '16.15.6',
+      statisticsDate: '2026-08-15', stale: false, lastError: null,
+    }
+    runtime.config = { getSettings: () => ({ recommendationDataSource: 'dtodo' }) }
+    runtime.browseRecommendationAbort = null
+    runtime.browseRecommendationSequence = 0
+    runtime.sync = vi.fn()
+    runtime.recommendations = {
+      getState: () => ({ ...state }),
+      getChampions: () => [{ id: 103 }],
+      getChampionView: vi.fn(async () => {
+        state = { ...state, status: 'unauthorized', lastError: 'API Key 无效或已失效' }
+        throw new Error('上游返回 HTTP 401')
+      }),
+    }
+
+    await expect(runtime.getChampionRecommendation(103)).resolves.toMatchObject({
+      ok: false,
+      detail: null,
+    })
+    expect(runtime.sync).toHaveBeenCalledOnce()
+    expect(state.status).toBe('unauthorized')
+  })
 })

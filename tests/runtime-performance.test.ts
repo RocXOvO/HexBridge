@@ -740,6 +740,7 @@ describe('runtime performance scheduling', () => {
     runtime.runScan = vi.fn()
     runtime.stopGameProcessLoop = vi.fn()
     runtime.updates = { stop: vi.fn() }
+    runtime.data = { dispose: vi.fn() }
     runtime.lcu = { stop: vi.fn() }
 
     const inFlight = runtime.runAutomaticScan()
@@ -749,6 +750,7 @@ describe('runtime performance scheduling', () => {
     expect(runtime.runScan).not.toHaveBeenCalled()
     expect(runtime.scanTimer).toBeNull()
     expect(runtime.stopping).toBe(true)
+    expect(runtime.data.dispose).toHaveBeenCalledOnce()
   })
 
   it('restores automatic scheduling after a manual scan times out waiting for the scanner', async () => {

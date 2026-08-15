@@ -75,7 +75,7 @@ const apiStatusDetail = computed(() => {
   if (state.value.api.lastError && state.value.api.status !== 'ready') return state.value.api.lastError
   if (state.value.api.status === 'ready') return `数据版本 ${state.value.api.dataVersion || '已同步'}`
   if (state.value.api.status === 'stale') return '本地缓存仍可使用'
-  if (state.value.api.status === 'limited') return '请求受限，稍后自动恢复'
+  if (state.value.api.status === 'limited') return '请求受限，请稍后手动刷新'
   if (state.value.api.status === 'offline') return '离线状态，本地缓存仍可使用'
   if (state.value.api.status === 'unauthorized') return '请重新填写有效密钥'
   if (state.value.api.status === 'error') return '数据服务暂不可用'
