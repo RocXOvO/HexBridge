@@ -97,7 +97,7 @@
 | HB-083 | 已隐藏的旧三卡在不完整手动识别后被重新显示 | FIXED / UNVERIFIED（v0.1.49 已发布） |
 | HB-084 | 自动 probe 在隐藏旧 surface 后复活三卡 | FIXED / UNVERIFIED（v0.1.50 已发布） |
 | HB-085 | Tencent 英雄总体 pickRate 未进入英雄目录 | FIXED / UNVERIFIED（v0.1.51 已发布） |
-| HB-086 | 自动刷新短暂 probe miss 导致三张标签一起跳动 | FIXED / UNVERIFIED（v0.1.52 本地候选） |
+| HB-086 | 自动刷新短暂 probe miss 导致三张标签一起跳动 | FIXED / UNVERIFIED（v0.1.52 已发布） |
 
 ## 当前重点验收
 
@@ -320,8 +320,8 @@
 ### HB-086：自动刷新短暂 probe miss 导致三张标签一起跳动
 
 - 根因是卡面指纹变化进入 `recognizing` 后，下一次低成本 probe 的短暂 `not-detected` 被当作整张卡面消失；旧三卡先撤下，识别恢复时三张标签一起重新进场。
-- v0.1.52 候选在 recognizing 状态保留可靠 surface，继续以 100ms 确认；只有连续两次 absence 才清除 visible / fingerprint。主窗口和 compact 仍沿用槽位 + augmentId key，只有实际变化槽位触发动画。
-- 本地定向 Runtime / Renderer / Release notes、typecheck、lint、diff-check 已通过；Windows、真实 WeGame 单卡刷新和帧时间仍未验，状态保持 `FIXED / UNVERIFIED`。
+- v0.1.52 在 recognizing 状态保留可靠 surface，继续以 100ms 确认；只有连续两次 absence 才清除 visible / fingerprint。主窗口和 compact 仍沿用槽位 + augmentId key，只有实际变化槽位触发动画。
+- 本地定向 Runtime / Renderer / Release notes、typecheck、lint、diff-check 已通过；正式 workflow `31910230347` / job `95074070896` 通过 Windows `50` files / `597` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁。真实 WeGame 单卡刷新和帧时间仍未验，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

@@ -4,9 +4,11 @@
 
 ## 当前正式基线
 
-- 当前公开正式版 `v0.1.51` 已完成 tag / Release / 双通道 / 滚动保留；本版新增 Tencent 英雄总体选取率展示。真实 Windows Tencent 接口、切源和用户同机视觉仍不是自动化证据。
+- 当前公开正式版 `v0.1.52` 已完成 tag / Release / 双通道 / 滚动保留；本版修复自动刷新确认空窗与三卡标签联动。真实 Windows WeGame 单卡刷新、帧时间与失焦恢复仍不是自动化证据。
 
-- 本地候选 `v0.1.52` 尚未发布；仅包含 HB-086 的刷新确认空窗与单槽动画隔离修复。完成本地门禁后才可 push / Windows workflow / tag / Release，不得把候选状态写成正式发布。
+- public Latest：[v0.1.52](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.52)，Release ID `RE_kwDOT1eQs84WH4iN`，publishedAt `2026-08-15T21:49:34Z`；tagged commit `5c497570ed732aaeb71a391c18321a8ef55a91d4`。
+- 正式 run `31910230347` / job `95074070896` 成功；Windows `50` files / `597` tests、真实 4K OCR `259ms`、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9253507912` / `473543056` bytes。
+- public v2 / root：version `0.1.52`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.48～v0.1.52，本地 `release/` 为空。
 
 - v0.1.50 是上一版正式基线；真实 WeGame / installed updater 仍不是自动化证据。
 
