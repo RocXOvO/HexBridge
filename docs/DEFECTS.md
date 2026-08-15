@@ -84,6 +84,7 @@
 | HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 已发布） |
 | HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 已发布） |
 | HB-072 | 同局换英雄 / 备战席换位后队伍头像冻结 | FIXED / UNVERIFIED（v0.1.39 已发布） |
+| HB-073 | 腾讯 101 改为默认推荐来源 | FIXED / UNVERIFIED（v0.1.40 本地候选） |
 
 ## 当前重点验收
 
@@ -167,7 +168,7 @@
 ### HB-058：腾讯 101 推荐 provider
 
 - 来源是腾讯官方 101 页面当前使用的未文档化 Web 接口，不是 Riot Developer API，也不是有 SLA 承诺的公开官方 API。用户已确认适用书面授权在仓库外取得；授权正文、身份、条款与附件属保密信息，本仓库不保存、不转述。技术实现可提交，真实 Windows / 腾讯接口验收前仍不得标记 `VERIFIED`。
-- 设置新增严格枚举 `recommendationDataSource=dtodo|tencent101`，现有用户迁移默认 dtodo，禁止 auto / 静默回退 / 跨源拼接。出装仍是独立 data.dtodo 模块。
+- v0.1.29 首次引入设置时，既有用户迁移采用 dtodo；该历史默认值在 v0.1.40 的 HB-073 中被后续产品决策取代。严格枚举、禁止 auto / 静默回退 / 跨源拼接及出装独立边界不变。
 - Tencent101Adapter 必须 Main-only、固定 host / path / query、2 MiB、timeout / Abort、单 in-flight、按 `dtstatdate` 独立原子缓存与 stale；Renderer 不得提供 URL / query 或读取原始 `_fieldValues`。
 - 英雄 `lowest_rank_runes` 只给有序推荐 ID；augment 接口的 pick / win 是全局口径。UI 必须写“全局选取率 / 全局胜率”，缺失为“暂无数据”而不是 0。
 - 腾讯模式下选人、当前英雄、英雄详情、OCR 三卡、96px compact 与理由必须同源：命中英雄推荐的卡按列表顺序，未命中再按腾讯全局 rank；并列保留，缺数据无名次，绝不借 data.dtodo 排名。
@@ -226,6 +227,12 @@
 - 根因是首次历史查询把 champion / relation / slot 与战绩一起固化，Runtime 对同 generation 的 ready 状态又停止刷新；换英雄或交换备战席后一直显示首次头像。
 - v0.1.39 改为 Main-only 身份绑定：实时 roster 更新不重新查询已有历史且保持既有 opaque key，champ-select 与 active gameflow 仅更新完整脱敏 presentation；hidden、partial 或歧义分组从公开状态撤下，成员恢复后沿用原明细。用户主动重新读取或阶段补全仍可发起新查询。PUUID、self 和原始 roster 不出 Main / IPC / 日志 / 磁盘。
 - 终审 `P0=0 / P1=0`；Windows candidate `31892397418` 与正式幂等复跑 `31893186863` 均通过 48 files / 557 tests、真实 4K OCR、packaged UI / bridge、差分 / public 更新与五版滚动门禁。v0.1.39 已发布，但真实 WeGame 换英雄与备战席换位仍待验，状态保持 `FIXED / UNVERIFIED`。
+
+### HB-073：腾讯 101 改为默认推荐来源
+
+- 新安装和尚未持久化 revision 7 来源选择的配置默认 `tencent101`；revision 7 / 8 中已保存的合法 `dtodo` 或 `tencent101` 选择不被升级重写，未知值 fail-closed 到腾讯默认。无 auto、无跨源回退；出装继续独立使用 data.dtodo。
+- 设置 UI、Renderer 安全 fallback、Main bridge smoke、README 与隐私记忆统一默认口径。Release 说明只描述该独立 patch，跨版本累计规则不变。
+- 本地 audit 0、OCR synthetic、真实 4K 159ms、48 files / 559 passed + 1 skipped、typecheck / lint / icon / rolling retention / source bridge / UI / diff-check 全过。尚未 commit / push / Windows / tag / Release；真实 installed 迁移与腾讯接口仍待验，状态 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

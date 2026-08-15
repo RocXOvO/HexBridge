@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: InternalAppSettings = {
   opponentScouting: false,
   lobbyBackground: false,
   wallpaperEngineEnabled: false,
-  recommendationDataSource: 'dtodo',
+  recommendationDataSource: 'tencent101',
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -93,10 +93,10 @@ export function migrateSettingsForRevision(
     nextRevision = 6
   }
   if (nextRevision < 7) {
-    // Existing users retain the documented data.dtodo recommendation
-    // semantics. Tencent 101 is an explicit opt-in because it is an
-    // undocumented website statistics interface with a different scope.
-    next = { ...next, recommendationDataSource: 'dtodo' }
+    // Installations that have never stored a recommendation-source choice use
+    // Tencent 101 by default. Once revision 7 has been persisted, either valid
+    // source remains an explicit user choice and is never rewritten here.
+    next = { ...next, recommendationDataSource: 'tencent101' }
     nextRevision = 7
   }
   if (nextRevision < 8) {
@@ -106,7 +106,7 @@ export function migrateSettingsForRevision(
     nextRevision = 8
   }
   if (next.recommendationDataSource !== 'dtodo' && next.recommendationDataSource !== 'tencent101') {
-    next = { ...next, recommendationDataSource: 'dtodo' }
+    next = { ...next, recommendationDataSource: 'tencent101' }
   }
   return { settings: next, revision: nextRevision }
 }

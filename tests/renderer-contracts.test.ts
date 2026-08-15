@@ -16,7 +16,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.39'")
+    expect(rendererState).toContain("currentVersion: '0.1.40'")
   })
 
   it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {
@@ -117,6 +117,13 @@ describe('main-window recommendation presentation', () => {
     expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-champion-recommendation', championId)")
     expect(ipcSource).toContain("ipcMain.handle('hexbridge:get-champion-recommendation'")
     expect(ipcSource).toContain("requireSender(event, 'main')")
+  })
+
+  it('presents Tencent 101 as the default without removing the explicit dtodo choice', () => {
+    expect(rendererState).toContain("recommendationDataSource: 'tencent101'")
+    expect(bridgeSmoke).toContain("recommendationDataSource: 'tencent101'")
+    expect(appSource).toContain('<b>腾讯英雄联盟数据站</b><small>默认来源，无需 dtodo Key')
+    expect(appSource).toContain('<b>data.dtodo</b><small>需要个人 API Key')
   })
 
   it('keeps the live assistant source badge limited to the provider name', () => {

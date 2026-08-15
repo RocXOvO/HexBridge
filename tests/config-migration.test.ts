@@ -6,6 +6,7 @@ vi.mock('electron', () => ({ safeStorage: {} }))
 vi.mock('electron-store', () => ({ default: class {} }))
 
 import {
+  DEFAULT_SETTINGS,
   type InternalAppSettings,
   migrateSettingsForRevision,
   sanitizeWallpaperEnginePreferences,
@@ -30,17 +31,23 @@ const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): Inte
 })
 
 describe('settings migration', () => {
+  it('uses Tencent 101 for fresh settings without rewriting saved valid choices', () => {
+    expect(DEFAULT_SETTINGS.recommendationDataSource).toBe('tencent101')
+    expect(migrateSettingsForRevision(settings('auto', false), 8).settings.recommendationDataSource).toBe('tencent101')
+    expect(migrateSettingsForRevision({ ...settings('auto', false), recommendationDataSource: 'dtodo' }, 8).settings.recommendationDataSource).toBe('dtodo')
+  })
+
   it.each(['eco', 'balanced', 'cinematic'] as const)(
     'disables legacy automatic OCR and removes the obsolete %s visual override',
     (visualMode) => {
       const migrated = migrateSettingsForRevision(settings(visualMode, true), 0)
-      expect(migrated).toMatchObject({ revision: 8, settings: { visualMode: 'auto', autoOcr: false, showInGameRecommendations: true, opponentScouting: false, lobbyBackground: false, wallpaperEngineEnabled: false, recommendationDataSource: 'dtodo' } })
+      expect(migrated).toMatchObject({ revision: 8, settings: { visualMode: 'auto', autoOcr: false, showInGameRecommendations: true, opponentScouting: false, lobbyBackground: false, wallpaperEngineEnabled: false, recommendationDataSource: 'tencent101' } })
     },
   )
 
   it('migrates a revision-one manual override without changing OCR again', () => {
     expect(migrateSettingsForRevision(settings('eco', true), 1)).toEqual({
-      settings: { ...settings('auto', true), opponentScouting: false, lobbyBackground: false, wallpaperEngineEnabled: false, recommendationDataSource: 'dtodo' },
+      settings: { ...settings('auto', true), opponentScouting: false, lobbyBackground: false, wallpaperEngineEnabled: false, recommendationDataSource: 'tencent101' },
       revision: 8,
     })
   })
@@ -53,6 +60,11 @@ describe('settings migration', () => {
     })
   })
 
+  it('preserves an existing explicit dtodo choice at the current revision', () => {
+    const current = { ...settings('auto', false), recommendationDataSource: 'dtodo' as const }
+    expect(migrateSettingsForRevision(current, 8)).toEqual({ settings: current, revision: 8 })
+  })
+
   it('keeps the legacy Main-only discovery directory without exposing it in public settings', () => {
     const migrated = migrateSettingsForRevision(settings('auto', false), 0)
     expect(migrated.settings.gameDirectory).toBe(PRIVATE_DIRECTORY)
@@ -62,11 +74,11 @@ describe('settings migration', () => {
     expect(JSON.stringify(publicSettings)).not.toContain(PRIVATE_DIRECTORY)
   })
 
-  it('fails closed to dtodo for an unknown persisted recommendation source', () => {
+  it('fails closed to the Tencent default for an unknown persisted recommendation source', () => {
     const invalid = { ...settings('auto', false), recommendationDataSource: 'auto' as AppSettings['recommendationDataSource'] }
     expect(migrateSettingsForRevision(invalid, 8)).toMatchObject({
       revision: 8,
-      settings: { recommendationDataSource: 'dtodo' },
+      settings: { recommendationDataSource: 'tencent101' },
     })
   })
 
@@ -83,7 +95,7 @@ describe('settings migration', () => {
       },
     }
     expect(migrateSettingsForRevision(previous, 3)).toEqual({
-      settings: { ...previous, showInGameRecommendations: true, opponentScouting: false, lobbyBackground: false, wallpaperEngineEnabled: false, recommendationDataSource: 'dtodo' },
+      settings: { ...previous, showInGameRecommendations: true, opponentScouting: false, lobbyBackground: false, wallpaperEngineEnabled: false, recommendationDataSource: 'tencent101' },
       revision: 8,
     })
   })

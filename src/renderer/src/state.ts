@@ -13,7 +13,7 @@ const defaultViewSettings: AppSettings = {
   opponentScouting: false,
   lobbyBackground: false,
   wallpaperEngineEnabled: false,
-  recommendationDataSource: 'dtodo',
+  recommendationDataSource: 'tencent101',
   hotkey: 'F8',
   displayId: '',
   calibration: null,
@@ -50,7 +50,7 @@ const unavailableState: RuntimeState = {
     lastError: 'Renderer preload bridge unavailable',
   },
   recommendation: {
-    source: 'dtodo',
+    source: 'tencent101',
     status: 'error',
     snapshotId: '',
     dataVersion: '',
@@ -60,7 +60,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.39',
+    currentVersion: '0.1.40',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',

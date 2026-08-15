@@ -36,11 +36,11 @@ const smokeState: RuntimeState = {
     lastError: null,
   },
   recommendation: {
-    source: 'dtodo', status: 'missing', snapshotId: '', dataVersion: '', statisticsDate: '', stale: false, lastError: null,
+    source: 'tencent101', status: 'missing', snapshotId: '', dataVersion: '', statisticsDate: '', stale: false, lastError: null,
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.39',
+    currentVersion: '0.1.40',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -80,7 +80,7 @@ const smokeState: RuntimeState = {
     opponentScouting: false,
     lobbyBackground: false,
     wallpaperEngineEnabled: false,
-    recommendationDataSource: 'dtodo',
+    recommendationDataSource: 'tencent101',
     hotkey: 'F8',
     displayId: '',
     calibration: null,

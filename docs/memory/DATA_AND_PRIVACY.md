@@ -4,7 +4,7 @@
 
 ## data.dtodo
 
-- `https://data.dtodo.cn/api/v1/zh-CN/*` 是公开版默认的英雄 / 海克斯推荐统计与出装来源。用户自己申请 Key，Main 通过 safeStorage 保存，Renderer 永不见明文。
+- `https://data.dtodo.cn/api/v1/zh-CN/*` 是可选的英雄 / 海克斯推荐统计与独立出装来源。用户自己申请 Key，Main 通过 safeStorage 保存，Renderer 永不见明文。
 - 目录与详情使用 dataVersion；detail cache schema v3，v1 / v2 仅 stale fallback。
 - 单英雄 detail 的 timeout / 429 / 5xx / 解析或本地缓存写入失败不得污染全局目录状态；只有 401 使 Key 失效并立即广播。目录 429 可继续使用同源旧缓存，但不自动重试。
 - JSON 的 fetch、流读取、UTF-8 与 parse 共用 10s deadline 和 2MiB 上限；离线只按 15s / 60s / 5min 单飞恢复，退出 abort 且不复活。
@@ -23,7 +23,7 @@
 
 现行本地实现：
 
-- `recommendationDataSource` 严格为 `dtodo | tencent101`，无 auto；revision 7 对既有用户默认 dtodo。两个 provider 不静默回退、不混合字段 / 名次。
+- `recommendationDataSource` 严格为 `dtodo | tencent101`，无 auto；新安装及尚未写入 revision 7 来源选择的配置默认腾讯，已经保存的合法选择不被升级改写。两个 provider 不静默回退、不混合字段 / 名次。
 - 选 Tencent 时，英雄榜 / 浏览、选人、当前英雄、OCR 三卡、96px compact 和理由只消费同一 Tencent snapshot；出装仍是独立 dtodo 模块。
 - 命中 `lowest_rank_runes` 的卡先按英雄推荐顺序，未命中再按腾讯全局 pick rank；有效指标相同时并列。pick / win 必须标注“全局选取率 / 全局胜率”，不得冒充英雄专属数据。
 - 浏览使用中文名、称号、alias 与显式别名，支持键盘选择、品质筛选和局部排序；不改变实时助手的当前英雄。
