@@ -116,7 +116,6 @@ describe('Runtime Wallpaper Engine lifecycle', () => {
       showInGameRecommendations: true,
       autoOcr: false,
       opponentScouting: false,
-      gameDirectory: '',
     }
     runtime.config = {
       getSettings: vi.fn(() => settings),

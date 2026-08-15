@@ -77,6 +77,7 @@
 | HB-063 | 跨版本升级 / Release 说明 | VERIFIED（v0.1.26 正式说明） |
 | HB-064 | Electron public packaged CDN 假阴性 | FIXED / UNVERIFIED（main 已 push） |
 | HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 正式版） |
+| HB-066 | legacy 游戏目录进入 Renderer 状态 | FIXED / UNVERIFIED（v0.1.33 本地候选） |
 
 ## 当前重点验收
 
@@ -179,6 +180,12 @@
 
 - v0.1.32 正式版将诊断截图清理与 LCU 重新发现限制为当前 Main sender；champion、calibration、未知或已被替换的旧 Main sender 均在调用 Runtime 前拒绝。
 - 行为级测试通过真实 `registerIpc` 捕获并执行 handler，证明 Main 成功且拒绝路径无副作用；calibration 专属 IPC、champion 状态读取与本窗关闭不变。终审无 P0 / P1；正式 run `31872643509` attempt 2 通过 47 files / 515 tests、packaged UI / bridge、public channel / packaged 与五版滚动门禁，Release ID `370991273` 为 Latest。状态保持 `FIXED / UNVERIFIED`。
+
+### HB-066：legacy 游戏目录隐私隔离
+
+- 旧配置中的目录值仅保留在 Main `InternalAppSettings` 并继续供 LCU 发现使用；普通 UI、preload 与业务 IPC 均不提供读取、选择或清除目录的入口。
+- `AppSettings`、RuntimeState、get-state、设置响应和所有窗口广播以公开字段白名单重建；IPC 伪造 `gameDirectory` 会在 Runtime 前丢弃，路径不进日志或公开错误。
+- 终审 `P0=0 / P1=0`；本地 47 files / 517 passed + 1 skipped 及完整 source 门禁通过。Windows packaged 与正式发布尚未完成，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

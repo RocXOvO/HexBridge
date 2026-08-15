@@ -28,7 +28,6 @@ const settings = (): AppSettings => ({
   wallpaperEngineEnabled: false,
   recommendationDataSource: 'dtodo',
   hotkey: 'F8',
-  gameDirectory: '',
   displayId: '',
   calibration: null,
   diagnosticsScreenshots: false,

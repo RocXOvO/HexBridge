@@ -5,7 +5,9 @@ const appSource = readFileSync(new URL('../src/renderer/src/App.vue', import.met
 const stylesSource = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8')
 const rendererEntry = readFileSync(new URL('../src/renderer/src/main.ts', import.meta.url), 'utf8')
 const rendererState = readFileSync(new URL('../src/renderer/src/state.ts', import.meta.url), 'utf8')
+const rendererDemoState = readFileSync(new URL('../src/renderer/src/demo-state.ts', import.meta.url), 'utf8')
 const windowManager = readFileSync(new URL('../src/main/window-manager.ts', import.meta.url), 'utf8')
+const bridgeSmoke = readFileSync(new URL('../src/main/bridge-smoke.ts', import.meta.url), 'utf8')
 const mainProcess = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8')
 const preloadSource = readFileSync(new URL('../src/preload/index.ts', import.meta.url), 'utf8')
 const ipcSource = readFileSync(new URL('../src/main/ipc.ts', import.meta.url), 'utf8')
@@ -14,7 +16,14 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.32'")
+    expect(rendererState).toContain("currentVersion: '0.1.33'")
+  })
+
+  it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {
+    expect(rendererState).not.toContain('gameDirectory')
+    expect(rendererDemoState).not.toContain('gameDirectory')
+    expect(bridgeSmoke).not.toContain('gameDirectory')
+    expect(preloadSource).not.toContain('gameDirectory')
   })
 
   it('routes only a bounded click-through augment recommendation strip', () => {

@@ -8,9 +8,15 @@ import type {
   WallpaperEngineTargetType,
 } from '../shared/contracts.js'
 import { resolveReleaseHighlights } from '../shared/release-highlights.js'
+import { toPublicAppSettings } from '../shared/settings.js'
+
+export interface InternalAppSettings extends AppSettings {
+  /** Legacy Main-only discovery fallback. Never expose this value to a Renderer. */
+  gameDirectory: string
+}
 
 interface PersistedConfig {
-  settings: AppSettings
+  settings: InternalAppSettings
   encryptedApiKey: string
   windowBounds: Partial<Record<'main' | 'champion', Electron.Rectangle>>
   settingsRevision: number
@@ -26,7 +32,7 @@ export const DEFAULT_WALLPAPER_ENGINE_PREFERENCES: WallpaperEnginePreferences = 
   restoreTarget: null,
 }
 
-export const DEFAULT_SETTINGS: AppSettings = {
+export const DEFAULT_SETTINGS: InternalAppSettings = {
   visualMode: 'auto',
   autoOcr: false,
   showChampionPanel: true,
@@ -43,14 +49,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
 }
 
 export function migrateSettingsForRevision(
-  settings: AppSettings,
+  settings: InternalAppSettings,
   revision: number,
-): { settings: AppSettings; revision: number } {
-  const { showAugmentOverlay: _obsoleteOverlay, ...supported } = settings as AppSettings & {
+): { settings: InternalAppSettings; revision: number } {
+  const { showAugmentOverlay: _obsoleteOverlay, ...supported } = settings as InternalAppSettings & {
     showAugmentOverlay?: boolean
   }
   void _obsoleteOverlay
-  let next: AppSettings = { ...supported }
+  let next: InternalAppSettings = { ...supported }
   let nextRevision = revision
   if (nextRevision < 1) {
     next = { ...next, autoOcr: false }
@@ -126,7 +132,7 @@ export class ConfigStore {
       { ...DEFAULT_SETTINGS, ...this.store.get('settings') },
       storedRevision,
     )
-    const storedSettings = this.store.get('settings') as AppSettings & { recommendationDataSource?: unknown }
+    const storedSettings = this.store.get('settings') as InternalAppSettings & { recommendationDataSource?: unknown }
     if (
       migration.revision !== this.store.get('settingsRevision') ||
       storedSettings.recommendationDataSource !== migration.settings.recommendationDataSource
@@ -160,13 +166,28 @@ export class ConfigStore {
   }
 
   getSettings(): AppSettings {
-    return { ...DEFAULT_SETTINGS, ...this.store.get('settings') }
+    return toPublicAppSettings(this.getInternalSettings())
   }
 
   updateSettings(patch: Partial<AppSettings>): AppSettings {
-    const next = { ...this.getSettings(), ...patch }
+    const current = this.getInternalSettings()
+    const publicNext = toPublicAppSettings({ ...toPublicAppSettings(current), ...patch })
+    const next = { ...current, ...publicNext }
     this.store.set('settings', next)
-    return next
+    return publicNext
+  }
+
+  getGameDirectory(): string {
+    return this.getInternalSettings().gameDirectory
+  }
+
+  private getInternalSettings(): InternalAppSettings {
+    const stored = this.store.get('settings')
+    return {
+      ...DEFAULT_SETTINGS,
+      ...stored,
+      gameDirectory: typeof stored?.gameDirectory === 'string' ? stored.gameDirectory : '',
+    }
   }
 
   getWallpaperEnginePreferences(): WallpaperEnginePreferences {

@@ -135,4 +135,7 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '0.1.32': Object.freeze([
     '限制诊断截图清理与 LCU 重新发现只能由主窗口发起；伴随窗、校准窗、未知窗口或已失效的旧主窗口不再具备这些副作用权限。',
   ]),
+  '0.1.33': Object.freeze([
+    '加强本地路径隐私：旧版保存的游戏目录仅留在 Main 进程用于 LCU 发现，不再进入界面状态、设置响应或窗口广播。',
+  ]),
 })

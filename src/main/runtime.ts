@@ -22,6 +22,7 @@ import {
   dtodoRecommendationDetail,
   rankRecommendationSlots,
 } from '../shared/recommendations.js'
+import { toPublicAppSettings } from '../shared/settings.js'
 import { ConfigStore } from './config-store.js'
 import { DataService } from './data-service.js'
 import { RecommendationCoordinator } from './recommendation-coordinator.js'
@@ -189,7 +190,7 @@ export class HexBridgeRuntime {
         app.getVersion(),
       ),
     )
-    this.lcu = new LcuClient(() => this.config.getSettings().gameDirectory)
+    this.lcu = new LcuClient(() => this.config.getGameDirectory())
     this.scanner = new AugmentScanner(
       () => this.config.getSettings(),
       path.join(userData, 'ocr-diagnostics'),
@@ -262,7 +263,7 @@ export class HexBridgeRuntime {
   }
 
   getState(includeOpponentScout = true): RuntimeState {
-    const storedSettings = this.config.getSettings()
+    const storedSettings = toPublicAppSettings(this.config.getSettings())
     const settings = this.activeHotkeyOverride !== null
       ? { ...storedSettings, hotkey: this.activeHotkeyOverride }
       : storedSettings
@@ -353,7 +354,7 @@ export class HexBridgeRuntime {
       void _rejected
       normalizedPatch = safePatch
     }
-    const next = this.config.updateSettings(normalizedPatch)
+    const next = toPublicAppSettings(this.config.updateSettings(normalizedPatch))
     if (next.wallpaperEngineEnabled !== previous.wallpaperEngineEnabled) {
       this.wallpaper?.reconcile?.(this.wallpaperContext(), true)
     }
@@ -391,14 +392,6 @@ export class HexBridgeRuntime {
     } else if (!previous.opponentScouting) {
       this.opponentScoutAttemptKey = null
       this.updateOpponentScout(true)
-    }
-    if (next.gameDirectory !== previous.gameDirectory) {
-      void this.retryLcuConnection().catch((error) => {
-        logger.warn('LCU manual directory retry failed', {
-          errorName: error instanceof Error ? error.name : 'Error',
-        })
-        this.sync()
-      })
     }
     this.sync()
     return next

@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AppSettings } from '../src/shared/contracts.js'
+import { toPublicAppSettings } from '../src/shared/settings.js'
 
 vi.mock('electron', () => ({ safeStorage: {} }))
 vi.mock('electron-store', () => ({ default: class {} }))
 
 import {
+  type InternalAppSettings,
   migrateSettingsForRevision,
   sanitizeWallpaperEnginePreferences,
 } from '../src/main/config-store.js'
 
-const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): AppSettings => ({
+const PRIVATE_DIRECTORY = '/Users/private/Games/League of Legends'
+
+const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): InternalAppSettings => ({
   visualMode,
   autoOcr,
   showChampionPanel: true,
@@ -19,7 +23,7 @@ const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): AppS
   wallpaperEngineEnabled: true,
   recommendationDataSource: 'tencent101',
   hotkey: 'F8',
-  gameDirectory: '',
+  gameDirectory: PRIVATE_DIRECTORY,
   displayId: '',
   calibration: null,
   diagnosticsScreenshots: false,
@@ -47,6 +51,15 @@ describe('settings migration', () => {
       settings: current,
       revision: 8,
     })
+  })
+
+  it('keeps the legacy Main-only discovery directory without exposing it in public settings', () => {
+    const migrated = migrateSettingsForRevision(settings('auto', false), 0)
+    expect(migrated.settings.gameDirectory).toBe(PRIVATE_DIRECTORY)
+
+    const publicSettings = toPublicAppSettings(migrated.settings)
+    expect(publicSettings).not.toHaveProperty('gameDirectory')
+    expect(JSON.stringify(publicSettings)).not.toContain(PRIVATE_DIRECTORY)
   })
 
   it('fails closed to dtodo for an unknown persisted recommendation source', () => {

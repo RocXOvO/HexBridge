@@ -56,7 +56,6 @@ export function createDemoApi(): HexBridgeApi {
     wallpaperEngineEnabled: false,
     recommendationDataSource: 'dtodo',
     hotkey: 'F8',
-    gameDirectory: '',
     displayId: '',
     calibration: null,
     diagnosticsScreenshots: false,
@@ -94,7 +93,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.32',
+      currentVersion: '0.1.33',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',

@@ -78,7 +78,6 @@ export interface AppSettings {
   wallpaperEngineEnabled: boolean
   recommendationDataSource: RecommendationDataSource
   hotkey: string
-  gameDirectory: string
   displayId: string
   calibration: CalibrationRects | null
   diagnosticsScreenshots: boolean

@@ -36,9 +36,11 @@ describe('IPC sender authorization', () => {
   function setup(): {
     clearDiagnostics: ReturnType<typeof vi.fn>
     retryLcu: ReturnType<typeof vi.fn>
+    updateSettings: ReturnType<typeof vi.fn>
   } {
     const clearDiagnostics = vi.fn(() => 'cleared')
     const retryLcu = vi.fn(() => 'retried')
+    const updateSettings = vi.fn((patch) => patch)
     const windowManager = {
       isWindowSender: vi.fn((name: 'main' | 'calibration', sender: unknown) =>
         name === 'main' ? sender === mainSender : sender === calibrationSender),
@@ -47,8 +49,9 @@ describe('IPC sender authorization', () => {
       getWindowManager: () => windowManager,
       clearDiagnosticScreenshots: clearDiagnostics,
       retryLcuConnection: retryLcu,
+      updateSettings,
     } as any)
-    return { clearDiagnostics, retryLcu }
+    return { clearDiagnostics, retryLcu, updateSettings }
   }
 
   it.each([
@@ -76,5 +79,18 @@ describe('IPC sender authorization', () => {
     expect(() => retryHandler?.({ sender })).toThrow('该操作不允许从当前窗口调用')
     expect(runtime.clearDiagnostics).not.toHaveBeenCalled()
     expect(runtime.retryLcu).not.toHaveBeenCalled()
+  })
+
+  it('drops legacy private directory input before the Main settings update', () => {
+    const runtime = setup()
+    const handler = electronMock.handlers.get('hexbridge:update-settings')
+    const privateDirectory = 'D:\\Private\\League'
+
+    expect(handler?.({ sender: mainSender }, {
+      autoOcr: true,
+      gameDirectory: privateDirectory,
+    })).toEqual({ autoOcr: true })
+    expect(runtime.updateSettings).toHaveBeenCalledWith({ autoOcr: true })
+    expect(JSON.stringify(runtime.updateSettings.mock.calls)).not.toContain(privateDirectory)
   })
 })

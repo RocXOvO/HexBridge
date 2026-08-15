@@ -589,7 +589,6 @@ describe('runtime performance scheduling', () => {
       autoOcr: true,
       showInGameRecommendations: true,
       opponentScouting: true,
-      gameDirectory: '',
     }
     runtime.config = {
       getSettings: () => settings,

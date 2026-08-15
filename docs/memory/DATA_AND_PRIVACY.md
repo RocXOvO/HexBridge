@@ -49,4 +49,5 @@
 - 数据缓存位于 `userData/data-cache`，写入使用 `.tmp` + atomic rename；不完整目录不能切 current pointer。
 - dtodo 和 Tencent 使用独立 schema / namespace / provider / 日期；只读取来源匹配的缓存，旧缓存显式 stale。
 - 日志是内存环形缓冲，过滤 token、Key、PUUID 风格标识和凭据 URL；禁止记录原始 payload、截图、窗口标题 / 路径或用户身份。
+- 历史持久化的游戏目录只属于 Main 内部 LCU 发现配置；公开 `AppSettings`、RuntimeState、设置响应、preload 和窗口广播均以显式白名单重建，Renderer 不得读取或提交该路径。
 - 所有上游 / LCU 请求固定 GET、allowlist、timeout、响应大小上限；Renderer 不提供 URL、path、query、PUUID 或 provider 内部参数。

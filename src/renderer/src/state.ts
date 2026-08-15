@@ -15,7 +15,6 @@ const defaultViewSettings: AppSettings = {
   wallpaperEngineEnabled: false,
   recommendationDataSource: 'dtodo',
   hotkey: 'F8',
-  gameDirectory: '',
   displayId: '',
   calibration: null,
   diagnosticsScreenshots: false,
@@ -61,7 +60,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.32',
+    currentVersion: '0.1.33',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
