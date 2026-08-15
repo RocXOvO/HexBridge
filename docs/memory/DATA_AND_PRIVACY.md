@@ -29,7 +29,7 @@
 - 浏览使用中文名、称号、alias 与显式别名，支持键盘选择、品质筛选和局部排序；不改变实时助手的当前英雄。
 - Main-only 固定 host / path / query，`credentials: omit`、`redirect: error`、单响应 2 MiB、10s timeout / Abort / single-flight、24h refresh / 15min failure backoff。
 - 先取强化榜日期，再取同日英雄榜和静态目录。提交前统一验证条数、ID 关系、真实日历日期、source/date/hash；缓存文件 / 数组有上限，pointer 原子换代，Abort 不得推进 pointer / state。
-- 候选 0.1.51 将英雄榜 `pick_rate` 映射为 `ChampionSummary.championPickRate`，只在 Tencent 来源的当前英雄、备战席和英雄榜展示为“英雄选取率”；dtodo 与缺失字段为 `null`，不参与英雄排序，也不与海克斯全局 `pick_rate` 混合。越界缓存值 fail closed。
+- v0.1.51 已将英雄榜 `pick_rate` 映射为 `ChampionSummary.championPickRate`，只在 Tencent 来源的当前英雄、备战席和英雄榜展示为“英雄选取率”；dtodo 与缺失字段为 `null`，不参与英雄排序，也不与海克斯全局 `pick_rate` 混合。越界缓存值 fail closed。Windows workflow 已通过，但真实 Tencent endpoint 与用户同机切源仍未验证。
 - 强化 pick / win 可使用严格十进制或科学计数法，归一后仍必须是有限 `0..1`；不接受百分数、负数或其他单位。静态目录支持当前 array 与旧 object，遍历前限 `100..500`，无效项与冲突重复 ID 必须拒绝。
 - Runtime、浏览和 Renderer 统一以 `source + snapshotId + dataVersion + statisticsDate + champion + generation + sequence` 守卫迟到请求；compact 同时显示来源和日期。
 

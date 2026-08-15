@@ -96,7 +96,7 @@
 | HB-082 | 手动刷新首轮识别不完整导致整组三卡退场重进 | FIXED / UNVERIFIED（v0.1.48 已发布） |
 | HB-083 | 已隐藏的旧三卡在不完整手动识别后被重新显示 | FIXED / UNVERIFIED（v0.1.49 已发布） |
 | HB-084 | 自动 probe 在隐藏旧 surface 后复活三卡 | FIXED / UNVERIFIED（v0.1.50 已发布） |
-| HB-085 | Tencent 英雄总体 pickRate 未进入英雄目录 | FIXED / UNVERIFIED（v0.1.51 候选） |
+| HB-085 | Tencent 英雄总体 pickRate 未进入英雄目录 | FIXED / UNVERIFIED（v0.1.51 已发布） |
 
 ## 当前重点验收
 
@@ -313,8 +313,8 @@
 ### HB-085：Tencent 英雄总体 pickRate 未进入英雄目录
 
 - Tencent 101 英雄榜接口已经解析并缓存英雄总体 `pickRate`，但旧公开 `ChampionSummary` 丢弃该字段，导致当前英雄、备战席和英雄榜无法展示；海克斯卡片的全局选取率不是替代值。
-- 候选 0.1.51 新增来源明确的可空 `championPickRate`：Tencent 只映射自身英雄榜字段；dtodo 与旧缓存缺失时返回 `null`；缓存校验拒绝越界值；UI 仅在 Tencent 来源标注“英雄选取率”，不参与原有排序。
-- 本地 `50` files / `593` passed + `1` skipped、typecheck、变更文件 lint、diff-check 已通过。尚未 commit / push / Windows workflow / Release；真实 Tencent endpoint、切源和用户同机可读性仍未验，状态保持 `FIXED / UNVERIFIED`。
+- v0.1.51 新增来源明确的可空 `championPickRate`：Tencent 只映射自身英雄榜字段；dtodo 与旧缓存缺失时返回 `null`；缓存校验拒绝越界值；UI 仅在 Tencent 来源标注“英雄选取率”，不参与原有排序。
+- 本地 `50` files / `593` passed + `1` skipped、typecheck、变更文件 lint、diff-check 已通过；v0.1.51 Windows workflow `31908866405` 重跑成功，`50` files / `594` passed、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过。真实 Tencent endpoint、切源和用户同机可读性仍未验，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

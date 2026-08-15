@@ -4,15 +4,19 @@
 
 ## 当前正式基线
 
-- 当前候选 `v0.1.51` 尚未提交 / 推送 / 发布；仅记录本地 Tencent 英雄总体选取率展示改动。正式 Latest 仍为 `v0.1.50`，Windows / 真实腾讯接口门禁尚未发生。
+- 当前公开正式版 `v0.1.51` 已完成 tag / Release / 双通道 / 滚动保留；本版新增 Tencent 英雄总体选取率展示。真实 Windows Tencent 接口、切源和用户同机视觉仍不是自动化证据。
 
-- 当前公开正式版 `v0.1.50` 已完成 tag / Release / 双通道 / 滚动保留。真实 WeGame / installed updater 仍不是自动化证据。
+- v0.1.50 是上一版正式基线；真实 WeGame / installed updater 仍不是自动化证据。
 
-- public Latest：[v0.1.50](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.50)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WH1T8`，publishedAt `2026-08-15T20:38:40Z`。
+- public Latest：[v0.1.51](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.51)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WH3OK`，publishedAt `2026-08-15T21:20:22Z`。
+- tagged commit `8c200033c3fa200fbf3d1c81e76738d8037d21a1`；正式 run `31908866405` 首次稳定通道传播超时后幂等重跑成功（成功 job `95071775049`）。Windows `50` files / `594` tests、真实 4K OCR `262ms`、packaged UI / bridge、差分、public packaged 与滚动保留全过；自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
+- public v2 / root：version `0.1.51`；两通道精确一致，packaged public 为 `updateAvailable=false`。
+- 正式资产：EXE `199291843` bytes / `759b5e972614d43feeef7a14039d8b604e1de5607d559faaa1e0ac8654a25083`；blockmap `201403` / `74d4644111fc484d14f2311a503fe495aea787d9c8ed0a361245fc2718e7c8e8`；ZIP `274460815` / `2f795677159476033cdf5ba2daab2a886711f1af5465e290613f40511a38a220`；latest.yml `346` / `d42d8675b6b4f996ded5125886b768f5fc40d7bc38491449a4d2eee715de64c4`；SHA256SUMS `182` / `12e1204eb794d627fc248cb98aae8c130ce8069d70bc10af86dd5be17b52886a`。
+- 差分 smoke：available `0.1.52` synthetic candidate，基于 v0.1.50，传输 `1322307` bytes / full `199291920`，10 个 Range、3 个 redirect；五版滚动保留 v0.1.47～v0.1.51，tags 保留。本地 `release/` 为空。
 - tagged commit `2ae206e75e341d74bb3ffafc33c57ba61e05c243`；正式 run `31907004019` 首次稳定通道传播超时后幂等重跑成功（成功 job `95067797353`）。Windows `50` files / `589` tests、真实 4K OCR `262ms`、packaged UI / bridge、差分、public packaged 与滚动保留全过；自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
 - public v2 / root：version `0.1.50`；两通道精确一致，packaged public 为 `updateAvailable=false`。
 - 正式资产：EXE `199291254` bytes / `a32e54338197d4c820dc9ff4a48a4a6a9c81334225d8004f7cd395f6b97c80b0`；blockmap `201346` / `7ae10fbf1af5aaefe49d0fe0659c14000004286a3b4cbd9d848c4f176f2d543a`；ZIP `274460169` / `aa082be360f80c47b76782e9512d613e6a3b253c850225aa378b65ce7d951ac1`；latest.yml `346` / `089b1ccd313a367d8c1910f08622a2949f566ce7a2551a394ff299079d3e7409`；SHA256SUMS `182` / `1d557f9731bfc8a6386155ec80ebc156594318ab710652e2e21c59793158836b`。
-- 差分 smoke：available `0.1.51`，基于 v0.1.49，传输 `1299245` bytes / full `199291339`，10 个 Range、3 个 redirect；五版滚动删除 v0.1.45 Release，tags 保留。当前只保留 v0.1.46～v0.1.50 五个 public stable Releases；v0.1.0～v0.1.50 tags 都保留。本地 `release/` 为空。
+- v0.1.50 历史差分 smoke：available `0.1.51`，基于 v0.1.49，传输 `1299245` bytes / full `199291339`，10 个 Range、3 个 redirect；当时五版滚动删除 v0.1.45 Release，tags 保留。本地 `release/` 为空。
 
 ## 更新契约
 
