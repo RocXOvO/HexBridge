@@ -5,12 +5,12 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.34](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.34)，Release ID `371008386`；annotated tag object `216281aeba59c34006447a9984a50674ae46c0c9` 解引用 tagged commit `d878195284b222d114d71cd8d0ab10a0097c6725`。
-- 正式 Windows run `31876394640` attempt 1 已创建 Release / 五资产，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune；attempt 2 / job `94993524877` 于 5m36s 幂等成功：47 files / 523 tests、真实 4K OCR 298ms、packaged UI / bridge、差分 `1,312,720 / 199,282,373` bytes、v2 / root、public packaged 与滚动保留全过。artifact `9244995277` 为 `473,518,775` bytes。自动化不等于真实 WeGame、DPI、性能或 installed updater 验证。
-- GitHub 当前只保留 v0.1.30～v0.1.34 五个正式 Releases；v0.1.0～v0.1.34 共 35 个 tags 全部保留。本地 `release/` 为空。
+- 当前公开正式版：[v0.1.35](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.35)，Release ID `371016430`；annotated tag object `64c6cc76afe2114951986d896e3f3febd19dfdca` 解引用 tagged commit `76bc957908c0c6f9d40ed141fa2f0b4bdd5fab6d`。
+- 正式 run `31878189793` attempt 1 创建 Release / 五资产后因 GitHub Raw 100s 未传播而 fail closed，且未 prune；attempt 2 / job `94997641650` 于 6m9s 幂等成功：Windows 48 files / 529 tests、真实 4K OCR 257ms、packaged UI / bridge、v2 / root、public packaged 与滚动保留全过。正式 artifact `9245453613` 为 `473,521,140` bytes。自动化不等于真实 WeGame、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.31～v0.1.35 五个正式 Releases；v0.1.0～v0.1.35 共 36 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
-- v0.1.35 candidate commit `cd1e84ad4fef1a82d5dc131b6ae37d6f456cd459` 已 push；workflow_dispatch run `31877923520` / job `94996267170` 于 5m17s 成功：Windows 48 files / 529 tests、真实 4K OCR 282ms、lint / typecheck / pack（EXE `199,283,419` bytes）、packaged UI / bridge、差分 `1,269,668 / 199,283,419` bytes、checksums 与 artifact `9245292271` 全过，发布步骤按预期跳过。候选仅实现 HB-068 的有限枚举呈现诊断与脱敏去重日志；终审 `P0=0 / P1=0`。尚未 tag / Release，公开 Latest 仍为 v0.1.34，Windows runner 不等于真实 WeGame 验证。
+- v0.1.35 已正式发布，仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录且不含 PID、HWND、路径、坐标或标题。Release 说明准确列出相较 v0.1.34 的两项变化；public v2 / root 为 `0.1.35 / 199283491` bytes，五资产完整。HB-068 保持 `FIXED / UNVERIFIED`，等待真实 WeGame 复现时验证诊断有效性。
 
 ## 记忆模块
 

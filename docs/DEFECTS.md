@@ -79,7 +79,7 @@
 | HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 正式版） |
 | HB-066 | legacy 游戏目录进入 Renderer 状态 | VERIFIED（v0.1.33 正式版） |
 | HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 已发布） |
-| HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 Windows 候选） |
+| HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 已发布） |
 
 ## 当前重点验收
 
@@ -105,12 +105,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.34 全验证后删除 v0.1.29 Release / assets、保留 tag；当前仅 v0.1.30～v0.1.34 五个 public stable Releases，35 个 tags（v0.1.0～v0.1.34）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.35 全验证后删除 v0.1.30 Release / assets、保留 tag；当前仅 v0.1.31～v0.1.35 五个 public stable Releases，36 个 tags（v0.1.0～v0.1.35）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.34 Release 已准确列出相较 v0.1.33 的变化，跨版累计链延伸至 0.1.34，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.35 Release 已准确列出相较 v0.1.34 的变化，跨版累计链延伸至 0.1.35，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -198,7 +198,7 @@
 ### HB-068：伴随窗 / 96px 呈现诊断
 
 - v0.1.35 本地候选在诊断页显示选人伴随窗、96px 推荐条和 League 窗口观察器的有限枚举状态；分类与实际 show / hide 条件共用输入，异常槽位数量 fail-closed，重启后的新观察器即使首帧与旧值相同也会重新发布状态。
-- DTO 与去重日志只含有限枚举，不含 PID、HWND、路径、窗口标题、坐标或截图。终审 `P0=0 / P1=0`；candidate run `31877923520` 通过 Windows 48 files / 529 tests、真实 4K OCR、packaged UI / bridge 与差分门禁。尚未 tag / Release，runner 不能替代真实 WeGame，状态保持 `FIXED / UNVERIFIED`。
+- DTO 与去重日志只含有限枚举，不含 PID、HWND、路径、窗口标题、坐标或截图。终审 `P0=0 / P1=0`；candidate run `31877923520` 与正式 run `31878189793` attempt 2 均通过 Windows 48 files / 529 tests、真实 4K OCR、packaged UI / bridge 和更新门禁。Release 成功不能替代真实 WeGame，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 
