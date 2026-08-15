@@ -17,6 +17,7 @@ import type {
   RankedAugmentSlot,
   LiveClientDiagnosticStep,
   LiveClientDiagnosticSampleResult,
+  OcrScheduleOutcome,
   WallpaperEnginePreferences,
   WallpaperEngineState,
 } from '../shared/contracts.js'
@@ -205,6 +206,10 @@ export class HexBridgeRuntime {
   private automaticScanEpoch = 0
   private automaticScanContextKey: string | null = null
   private automaticScanInFlightEpoch: number | null = null
+  private automaticScanPaused = false
+  private automaticScanNextDelayMs: number | null = null
+  private ocrScheduleLastOutcome: OcrScheduleOutcome = 'none'
+  private ocrDiagnosticsSyncAt = 0
   private manualScanInFlight = false
   private manualOverlayMonitorDeadlineAt: number | null = null
   private manualOverlayExpiryTimer: NodeJS.Timeout | null = null
@@ -399,6 +404,17 @@ export class HexBridgeRuntime {
         ocrBusy: scanner.busy,
         ocrLastDurationMs: scanner.lastDurationMs,
         ocrLastError: scanner.lastError,
+        ocrSchedule: {
+          phase: this.currentOcrSchedulePhase(),
+          nextDelayMs: this.automaticScanNextDelayMs,
+          cheapProbeCount: scanner.cheapProbeCount,
+          cheapProbeLastDurationMs: scanner.cheapProbeLastDurationMs,
+          cheapProbeMaxDurationMs: scanner.cheapProbeMaxDurationMs,
+          fullOcrCount: scanner.fullOcrCount,
+          fullOcrLastDurationMs: scanner.fullOcrLastDurationMs,
+          fullOcrMaxDurationMs: scanner.fullOcrMaxDurationMs,
+          lastOutcome: this.ocrScheduleLastOutcome,
+        },
         ...this.manualOcr,
         polling: true,
         activeVisualMode,
@@ -407,6 +423,28 @@ export class HexBridgeRuntime {
         logLines: logger.recent(),
       },
     }
+  }
+
+  private currentOcrSchedulePhase(): 'stopped' | 'paused' | 'waiting' | 'recognizing' | 'latched' {
+    if (this.stopping) return 'stopped'
+    if (this.automaticScanPaused) return 'paused'
+    if (
+      !this.scanTimer &&
+      this.automaticScanInFlightEpoch == null &&
+      !this.shouldRunAutomaticSurfaceLoop()
+    ) return 'stopped'
+    return this.automaticScanPhase
+  }
+
+  private setOcrScheduleOutcome(outcome: OcrScheduleOutcome): void {
+    this.ocrScheduleLastOutcome = outcome
+  }
+
+  private syncOcrDiagnostics(): void {
+    const now = Date.now()
+    if (now - this.ocrDiagnosticsSyncAt < 1_000) return
+    this.ocrDiagnosticsSyncAt = now
+    this.sync()
   }
 
   updateSettings(patch: Partial<AppSettings>): AppSettings {
@@ -1363,6 +1401,7 @@ export class HexBridgeRuntime {
       else this.stopScanLoop()
       return
     }
+    this.automaticScanPaused = false
     const source = this.selectedRecommendationSource()
     const recommendationState = this.getRecommendationState(source)
     const contextKey = this.scanContextKey(
@@ -1400,11 +1439,13 @@ export class HexBridgeRuntime {
 
   private scheduleAutomaticScan(delayMs: number): void {
     if (this.scanTimer) clearTimeout(this.scanTimer)
-    this.scanTimer = setTimeout(() => void this.runAutomaticScan(), delayMs)
+    this.automaticScanNextDelayMs = Math.max(0, Math.min(60_000, Math.round(delayMs)))
+    this.scanTimer = setTimeout(() => void this.runAutomaticScan(), this.automaticScanNextDelayMs)
   }
 
   private async runAutomaticScan(): Promise<void> {
     this.scanTimer = null
+    this.automaticScanNextDelayMs = null
     const epoch = this.automaticScanEpoch
     const generation = this.snapshot.matchGeneration
     const championId = this.snapshot.currentChampionId
@@ -1416,6 +1457,8 @@ export class HexBridgeRuntime {
     try {
       const probe = await this.scanner.probeInterface()
       if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
+      this.setOcrScheduleOutcome(probe.status === 'detected' ? 'detected' : probe.status)
+      this.syncOcrDiagnostics()
       if (probe.status === 'error') {
         this.automaticScanErrors = Math.min(3, this.automaticScanErrors + 1)
         nextDelay = automaticOcrErrorDelay(this.automaticScanErrors - 1)
@@ -1649,6 +1692,8 @@ export class HexBridgeRuntime {
     this.automaticScanEpoch += 1
     if (this.scanTimer) clearTimeout(this.scanTimer)
     this.scanTimer = null
+    this.automaticScanNextDelayMs = null
+    this.automaticScanPaused = true
     this.automaticFingerprintCandidate = null
     this.automaticFingerprintSamples = 0
   }
@@ -1657,6 +1702,8 @@ export class HexBridgeRuntime {
     this.automaticScanEpoch += 1
     if (this.scanTimer) clearTimeout(this.scanTimer)
     this.scanTimer = null
+    this.automaticScanNextDelayMs = null
+    this.automaticScanPaused = false
     this.automaticScanContextKey = null
     this.automaticScanPhase = 'waiting'
     this.automaticScanAbsences = 0
@@ -1666,6 +1713,9 @@ export class HexBridgeRuntime {
     this.automaticFingerprintCandidate = null
     this.automaticFingerprintSamples = 0
     this.manualSurfaceFirstProbePending = false
+    this.ocrScheduleLastOutcome = 'none'
+    this.ocrDiagnosticsSyncAt = 0
+    this.scanner?.resetPerformanceDiagnostics?.()
   }
 
   private async runScan(
@@ -1703,9 +1753,12 @@ export class HexBridgeRuntime {
     if (contextDisposition === 'switched' || recommendationSwitched) {
       // A late result from the previous generation must never clear or stop
       // the already-running scanner for the new match.
+      this.setOcrScheduleOutcome('none')
       this.updateScanLoop()
       return { ok: false, code: 'CONTEXT_SWITCHED', message: '识别结果已过期，新对局扫描继续运行' }
     }
+    this.setOcrScheduleOutcome(result.status)
+    this.syncOcrDiagnostics()
     if (result.status === 'busy') return { ok: false, code: 'BUSY', message: '识别任务正在运行' }
     if (result.status === 'matched') {
       this.lcu.confirmGameActive('augment-interface', scanGeneration, scanChampionId)

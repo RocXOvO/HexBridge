@@ -153,6 +153,55 @@ describe('low-cost OCR capture plan', () => {
     await expect(idle).resolves.toBe(true)
   })
 
+  it('reports bounded probe and full-OCR timing metrics and can reset them', async () => {
+    const { scanner } = await scannerFixture()
+    vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')
+      .mockResolvedValue({ detected: true, fingerprint: '1111' })
+
+    await scanner.scan(augments, true)
+    await scanner.probeInterface()
+
+    expect(scanner.getDiagnostics()).toMatchObject({
+      cheapProbeCount: 1,
+      cheapProbeLastDurationMs: expect.any(Number),
+      cheapProbeMaxDurationMs: expect.any(Number),
+      fullOcrCount: 1,
+      fullOcrLastDurationMs: expect.any(Number),
+      fullOcrMaxDurationMs: expect.any(Number),
+    })
+    scanner.resetPerformanceDiagnostics()
+    expect(scanner.getDiagnostics()).toMatchObject({
+      lastDurationMs: null,
+      lastError: null,
+      cheapProbeCount: 0,
+      cheapProbeLastDurationMs: null,
+      cheapProbeMaxDurationMs: null,
+      fullOcrCount: 0,
+      fullOcrLastDurationMs: null,
+      fullOcrMaxDurationMs: null,
+    })
+  })
+
+  it('drops timing from a probe that settles after the performance epoch resets', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'hexbridge-scanner-epoch-'))
+    temporaryDirectories.push(directory)
+    const image = await sharp({ create: { width: 960, height: 540, channels: 3, background: '#24463f' } })
+      .png()
+      .toBuffer()
+    let resolveCapture: (value: Buffer) => void = () => undefined
+    const capture = new Promise<Buffer>((resolve) => { resolveCapture = resolve })
+    const scanner = new AugmentScanner(settings, directory, {
+      resolveDisplay: () => ({ id: 1, bounds: { x: 0, y: 0, width: 960, height: 540 }, scaleFactor: 1 } as Electron.Display),
+      captureDisplay: async () => capture,
+    })
+    const pending = scanner.probeInterface()
+    await Promise.resolve()
+    scanner.resetPerformanceDiagnostics()
+    resolveCapture(image)
+    await pending
+    expect(scanner.getDiagnostics().cheapProbeCount).toBe(0)
+  })
+
   it('validates three recognized titles before calibration can be saved', async () => {
     const { scanner } = await scannerFixture()
     const screenshot = await sharp({ create: { width: 960, height: 540, channels: 3, background: '#24463f' } })

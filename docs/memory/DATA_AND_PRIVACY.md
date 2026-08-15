@@ -12,6 +12,11 @@
 - 三卡比较键：英雄专属 rank → hero tier → global tier。英雄专属 pickRate 只展示，不参与排序，不得由 rank / total 推导。
 - 出装只使用同一 `builds[0]` 的出门、核心和情境组；名称 / 图标必须来自已展开详情，缺失显示“暂无数据”，不按 ID 猜 URL / 名称。
 
+## OCR 调度诊断（HB-088）
+
+- 诊断只暴露有限阶段、下一次延迟、探测 / 完整识别次数与最近 / 16 次滚动耗时峰值；这些值在 Main 聚合后进入结构化状态。
+- 不保存或传输截图、OCR 文本、坐标、窗口 / 进程标识、路径、token、PUUID 或其他玩家身份；换 generation、停止和旧 epoch 迟到结果都会清理或丢弃指标。
+
 ## 腾讯 101（HB-058）
 
 来源页面是 [腾讯 101 海克斯榜](https://101.qq.com/?ADTAG=cooperation.glzx.web#/rankings/hextech)。2026-08-14 用户已对腾讯页面当前使用的以下 Web 接口做过无登录 / 无 Key HTTP 200 验证：

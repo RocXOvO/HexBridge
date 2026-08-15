@@ -15,6 +15,7 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.50', draft: false, prerelease: false },
     { tag_name: 'v0.1.51', draft: false, prerelease: false },
     { tag_name: 'v0.1.52', draft: false, prerelease: false },
+    { tag_name: 'v0.1.53', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -185,6 +186,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('### 相较 v0.1.52 的更新')
     expect(body).toContain('队伍强度摘要')
     expect(body).toContain('/compare/v0.1.52...v0.1.53')
+  })
+
+  it('renders the de-identified OCR scheduler diagnostics for v0.1.54', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.54',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.53 的更新')
+    expect(body).toContain('脱敏 OCR 调度摘要')
+    expect(body).toContain('/compare/v0.1.53...v0.1.54')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {

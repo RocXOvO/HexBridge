@@ -22,6 +22,7 @@ const DEFAULT_RECTS: CalibrationRects = {
 
 const SLOTS: AugmentSlot[] = ['left', 'center', 'right']
 const MAX_DIAGNOSTIC_FILES = 60
+const OCR_METRIC_WINDOW = 16
 const AUTO_GATE_WIDTH = 960
 const OCR_CAPTURE_WIDTH = 1_440
 
@@ -84,6 +85,13 @@ export class AugmentScanner {
   private readonly idleWaiters = new Set<() => void>()
   private lastDurationMs: number | null = null
   private lastError: string | null = null
+  private cheapProbeCount = 0
+  private cheapProbeLastDurationMs: number | null = null
+  private cheapProbeDurations: number[] = []
+  private fullOcrCount = 0
+  private fullOcrLastDurationMs: number | null = null
+  private fullOcrDurations: number[] = []
+  private performanceEpoch = 0
 
   constructor(
     private readonly getSettings: () => AppSettings,
@@ -96,13 +104,37 @@ export class AugmentScanner {
     busy: boolean
     lastDurationMs: number | null
     lastError: string | null
+    cheapProbeCount: number
+    cheapProbeLastDurationMs: number | null
+    cheapProbeMaxDurationMs: number | null
+    fullOcrCount: number
+    fullOcrLastDurationMs: number | null
+    fullOcrMaxDurationMs: number | null
   } {
     return {
       ready: this.engine.ready,
       busy: this.busy,
       lastDurationMs: this.lastDurationMs,
       lastError: this.lastError ?? this.engine.lastError,
+      cheapProbeCount: this.cheapProbeCount,
+      cheapProbeLastDurationMs: this.cheapProbeLastDurationMs,
+      cheapProbeMaxDurationMs: this.maxDuration(this.cheapProbeDurations),
+      fullOcrCount: this.fullOcrCount,
+      fullOcrLastDurationMs: this.fullOcrLastDurationMs,
+      fullOcrMaxDurationMs: this.maxDuration(this.fullOcrDurations),
     }
+  }
+
+  resetPerformanceDiagnostics(): void {
+    this.performanceEpoch += 1
+    this.lastDurationMs = null
+    this.lastError = null
+    this.cheapProbeCount = 0
+    this.cheapProbeLastDurationMs = null
+    this.cheapProbeDurations = []
+    this.fullOcrCount = 0
+    this.fullOcrLastDurationMs = null
+    this.fullOcrDurations = []
   }
 
   async warmup(): Promise<void> {
@@ -150,6 +182,7 @@ export class AugmentScanner {
   ): Promise<ScanResult> {
     if (this.busy) return { status: 'busy', slots: [], fingerprints: [], durationMs: 0, error: null }
     this.busy = true
+    const performanceEpoch = this.performanceEpoch
     const startedAt = Date.now()
     try {
       const settings = this.getSettings()
@@ -188,9 +221,14 @@ export class AugmentScanner {
       }
 
       const recognized: OcrSlotResult[] = []
-      for (let index = 0; index < captured.ocr.length; index += 1) {
-        const rawText = await this.engine.recognize(captured.ocr[index] as Buffer)
-        recognized.push(matchAugmentText(SLOTS[index] as AugmentSlot, rawText, augments, 0.9))
+      const fullOcrStartedAt = Date.now()
+      try {
+        for (let index = 0; index < captured.ocr.length; index += 1) {
+          const rawText = await this.engine.recognize(captured.ocr[index] as Buffer)
+          recognized.push(matchAugmentText(SLOTS[index] as AugmentSlot, rawText, augments, 0.9))
+        }
+      } finally {
+        this.recordFullOcrDuration(Date.now() - fullOcrStartedAt, performanceEpoch)
       }
 
       const allReliable = recognized.length === 3 && recognized.every((slot) => slot.augmentId != null)
@@ -212,6 +250,7 @@ export class AugmentScanner {
   async probeInterface(): Promise<InterfaceProbeResult> {
     if (this.busy) return { status: 'busy', durationMs: 0, fingerprints: [] }
     this.busy = true
+    const performanceEpoch = this.performanceEpoch
     const startedAt = Date.now()
     try {
       const settings = this.getSettings()
@@ -230,6 +269,7 @@ export class AugmentScanner {
       })
       return { status: 'error', durationMs: Date.now() - startedAt, fingerprints: [] }
     } finally {
+      this.recordCheapProbeDuration(Date.now() - startedAt, performanceEpoch)
       this.releaseIdleWaiters()
     }
   }
@@ -285,6 +325,29 @@ export class AugmentScanner {
     const waiters = [...this.idleWaiters]
     this.idleWaiters.clear()
     for (const resolve of waiters) resolve()
+  }
+
+  private recordCheapProbeDuration(durationMs: number, performanceEpoch: number): void {
+    if (performanceEpoch !== this.performanceEpoch) return
+    this.cheapProbeCount += 1
+    this.cheapProbeLastDurationMs = Math.max(0, durationMs)
+    this.cheapProbeDurations = this.appendMetric(this.cheapProbeDurations, this.cheapProbeLastDurationMs)
+  }
+
+  private recordFullOcrDuration(durationMs: number, performanceEpoch: number): void {
+    if (performanceEpoch !== this.performanceEpoch) return
+    this.fullOcrCount += 1
+    this.fullOcrLastDurationMs = Math.max(0, durationMs)
+    this.fullOcrDurations = this.appendMetric(this.fullOcrDurations, this.fullOcrLastDurationMs)
+  }
+
+  private appendMetric(values: number[], value: number): number[] {
+    const next = [...values, value]
+    return next.length > OCR_METRIC_WINDOW ? next.slice(-OCR_METRIC_WINDOW) : next
+  }
+
+  private maxDuration(values: number[]): number | null {
+    return values.length ? Math.max(...values) : null
   }
 
   private resolveDisplay(displayId: string): Electron.Display {

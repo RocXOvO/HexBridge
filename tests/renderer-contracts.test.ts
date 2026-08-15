@@ -38,7 +38,16 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.53'")
+    expect(rendererState).toContain("currentVersion: '0.1.54'")
+  })
+
+  it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
+    expect(appSource).toContain('data-testid="ocr-schedule-diagnostic"')
+    expect(appSource).toContain('cheapProbeCount')
+    expect(appSource).toContain('fullOcrCount')
+    expect(appSource).toContain('nextDelayMs')
+    expect(appSource).not.toContain('ocrSchedule.screenshot')
+    expect(appSource).not.toContain('ocrSchedule.rawText')
   })
 
   it('keeps champion selection scrolling inside the assistant without horizontal overflow', () => {

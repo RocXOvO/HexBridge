@@ -39,6 +39,10 @@ function initializeAutomaticState(runtime: any): void {
   runtime.automaticScanEpoch = 0
   runtime.automaticScanContextKey = null
   runtime.automaticScanInFlightEpoch = null
+  runtime.automaticScanPaused = false
+  runtime.automaticScanNextDelayMs = null
+  runtime.ocrScheduleLastOutcome = 'none'
+  runtime.ocrDiagnosticsSyncAt = 0
   runtime.manualScanInFlight = false
   runtime.manualOverlayMonitorDeadlineAt = null
   runtime.manualOverlayExpiryTimer = null
@@ -104,6 +108,31 @@ describe('runtime performance scheduling', () => {
     await vi.advanceTimersByTimeAsync(2_000)
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
     runtime.stopScanLoop()
+  })
+
+  it('publishes and clears the bounded scheduler delay across pause/stop', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true }) }
+    runtime.windows = { getMainActivity: () => ({ visible: true, minimized: false }) }
+    runtime.scanner = {
+      probeInterface: vi.fn().mockResolvedValue({ status: 'not-detected', durationMs: 10 }),
+    }
+
+    runtime.updateScanLoop()
+    expect(runtime.automaticScanNextDelayMs).toBe(2_000)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(runtime.automaticScanNextDelayMs).toBe(2_000)
+    expect(runtime.ocrScheduleLastOutcome).toBe('not-detected')
+
+    runtime.pauseScanLoop()
+    expect(runtime.automaticScanPaused).toBe(true)
+    expect(runtime.automaticScanNextDelayMs).toBeNull()
+    runtime.stopScanLoop()
+    expect(runtime.automaticScanPaused).toBe(false)
+    expect(runtime.ocrScheduleLastOutcome).toBe('none')
   })
 
   it('runs full OCR once for the same visible cards and rearms after two absences', async () => {
@@ -495,7 +524,7 @@ describe('runtime performance scheduling', () => {
     expect(runtime.overlay.slots[0]).toBe(firstSlots[0])
     expect(runtime.overlay.slots[1]).not.toBe(firstSlots[1])
     expect(runtime.overlay.slots[2]).toMatchObject({ augmentId: 3 })
-    expect(runtime.sync).toHaveBeenCalledTimes(3)
+    expect(runtime.sync).toHaveBeenCalledTimes(4)
   })
 
   it('does not resurrect a hidden retained surface after an incomplete manual refresh', async () => {
@@ -732,7 +761,7 @@ describe('runtime performance scheduling', () => {
     expect(runtime.manualOverlayMonitorDeadlineAt).toBe(deadline)
     expect(runtime.scanner.probeInterface).toHaveBeenCalledOnce()
     expect(runtime.runScan).not.toHaveBeenCalled()
-    expect(runtime.sync).toHaveBeenCalledTimes(2)
+    expect(runtime.sync).toHaveBeenCalledTimes(3)
     runtime.setManualOverlayMonitorDeadline(null)
     runtime.stopScanLoop()
   })

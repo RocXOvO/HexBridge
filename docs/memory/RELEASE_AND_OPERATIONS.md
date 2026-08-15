@@ -4,6 +4,8 @@
 
 ## 当前正式基线
 
+- 当前本地候选 `v0.1.54` 尚未 commit / push / Windows workflow / tag / Release；本候选只新增脱敏 OCR 调度诊断。公开正式版仍为 `v0.1.53`，不得把候选证据写成已发布或真实 WeGame 性能已验证。
+
 - 当前公开正式版 `v0.1.53` 已完成 commit / push / tag / Release / 双通道 / 滚动保留；本版新增队友 / 对手队伍强度摘要。真实国服 history、用户价值和 WeGame 验收仍未完成，不能写成 `VERIFIED`。
 
 - 当前公开正式版 `v0.1.53` 已完成 tag / Release / 双通道 / 滚动保留；上版修复自动刷新确认空窗与三卡标签联动。本版正式 run `31911568238` / job `95077306492` 成功，Windows `50` files / `600` tests、真实 4K OCR `256ms`、artifact `9253855166` / `473544557` bytes；真实 Windows WeGame 和国服 history 仍不是自动化证据。

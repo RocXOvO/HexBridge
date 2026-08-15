@@ -99,6 +99,7 @@
 | HB-085 | Tencent 英雄总体 pickRate 未进入英雄目录 | FIXED / UNVERIFIED（v0.1.51 已发布） |
 | HB-086 | 自动刷新短暂 probe miss 导致三张标签一起跳动 | FIXED / UNVERIFIED（v0.1.52 已发布） |
 | HB-087 | 队友 / 对手强度缺少队伍层量化摘要 | FIXED / UNVERIFIED（v0.1.53 已发布） |
+| HB-088 | OCR 刷新卡顿缺少脱敏调度证据 | IN PROGRESS / UNVERIFIED（v0.1.54 候选） |
 
 ## 当前重点验收
 
@@ -329,6 +330,12 @@
 - v0.1.53 在既有 Main-only、4 队友 / 5 对手、最多 20 场和至少 12 场评分契约上，新增队伍级脱敏摘要：按可用样本量加权汇总胜率与 KDA，按已有个人评分加权得到队伍强度；不新增 LCU 请求，不把缺失玩家当作平均值。
 - UI 同时显示队伍强度、总体胜率、KDA、样本量和“部分评分 / 全员评分 / 暂无足够样本”，不改变个人头像详情、opaque key 或隐私边界。
 - 本地 `50` files / `599` passed + `1` skipped、typecheck、lint、diff-check 已通过；正式 Windows workflow `31911568238` / job `95077306492` 幂等重跑成功，Windows `50` files / `600` passed、真实 4K OCR `256ms`、打包 UI / bridge、差分、公网双通道、public packaged 与五版滚动通过。真实国服 history schema、身份可见性、用户价值和游戏性能仍未验，状态保持 `FIXED / UNVERIFIED`。
+
+### HB-088：OCR 刷新卡顿缺少脱敏调度证据
+
+- v0.1.54 候选在现有 single-flight、代际和来源守卫上新增有限 `ocrSchedule` 诊断：记录低成本 probe 与完整 OCR 的次数、最近耗时、16 次滚动峰值、下一次延迟和 `stopped / paused / waiting / recognizing / latched` 阶段。
+- 指标只在 Main 侧从屏幕捕获 / OCR 调度结果聚合，换代或停止时清零；旧 epoch 晚到的探测不会写入新一局。RuntimeState 只发送数值和有限枚举，不含截图、OCR 文本、坐标、进程标识、路径或玩家身份。
+- 本地定向 OCR / Runtime / Renderer 测试、typecheck、变更文件 lint 和 diff-check 已通过；尚未 commit / push / Windows workflow / Release。真实 WeGame 的单卡刷新、CPU/GPU、FPS / frametime 仍待用户复测，不能把诊断实现写成性能已修复。
 
 ## 追溯
 

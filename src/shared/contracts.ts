@@ -476,11 +476,39 @@ export interface PresentationDiagnostics {
   augmentCompanion: AugmentCompanionPresentationStatus
 }
 
+export type OcrSchedulePhase = 'stopped' | 'paused' | 'waiting' | 'recognizing' | 'latched'
+
+export type OcrScheduleOutcome =
+  | 'none'
+  | 'detected'
+  | 'not-detected'
+  | 'matched'
+  | 'unreliable'
+  | 'error'
+  | 'busy'
+
+/**
+ * Bounded, de-identified OCR scheduler telemetry.  It intentionally carries
+ * no screenshot, OCR text, coordinates, process identifier, or file path.
+ */
+export interface OcrScheduleDiagnostics {
+  phase: OcrSchedulePhase
+  nextDelayMs: number | null
+  cheapProbeCount: number
+  cheapProbeLastDurationMs: number | null
+  cheapProbeMaxDurationMs: number | null
+  fullOcrCount: number
+  fullOcrLastDurationMs: number | null
+  fullOcrMaxDurationMs: number | null
+  lastOutcome: OcrScheduleOutcome
+}
+
 export interface RuntimeDiagnostics {
   ocrReady: boolean
   ocrBusy: boolean
   ocrLastDurationMs: number | null
   ocrLastError: string | null
+  ocrSchedule: OcrScheduleDiagnostics
   manualOcrStatus: 'idle' | 'running' | 'matched' | 'miss' | 'error'
   manualOcrCode:
     | 'IDLE'
