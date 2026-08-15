@@ -19,7 +19,11 @@ vi.mock('../src/main/config-store.js', () => ({
 }))
 
 import { applyLcuPollResults } from '../src/main/lcu/client.js'
-import { MatchContextTracker, normalizeChampSelectSnapshot } from '../src/main/lcu/normalize.js'
+import {
+  MatchContextTracker,
+  MATCH_CONTEXT_TERMINAL_CONFIRM_MS,
+  normalizeChampSelectSnapshot,
+} from '../src/main/lcu/normalize.js'
 import { HexBridgeRuntime } from '../src/main/runtime.js'
 import { shouldShowChampionCompanion } from '../src/main/runtime-guards.js'
 import { buildChampionCandidates } from '../src/shared/recommendations.js'
@@ -247,6 +251,96 @@ describe('LCU handoff through runtime state', () => {
     expect(runtime.overlay).toMatchObject({ visible: false, championId: null, slots: [] })
     expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
     expect(runtime.championRequestSequence).toBe(5)
+  })
+
+  it('clears a cancelled GAME_STARTING hand-off across tracker, runtime, companion, and wallpaper', () => {
+    const tracker = new MatchContextTracker()
+    const selected = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect',
+      gameflowSession: { queueId: 3270 },
+      champSelectSession: { timer: { phase: 'GAME_STARTING' } },
+      currentChampionId: 103,
+    }), 1_000, {
+      destructive: true,
+      champSelectSession: 'ok',
+      currentChampion: 'ok',
+      queueSource: 'gameflow',
+      matchIdentity: null,
+      authorityEpoch: 1,
+      champSelectTimerPhase: 'GAME_STARTING',
+    })
+    const firstLobbyAt = 2_000
+    const transient = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'Lobby',
+      gameflowSession: { queueId: 3270 },
+      champSelectSession: null,
+      currentChampionId: null,
+    }), firstLobbyAt, {
+      destructive: true,
+      champSelectSession: 'skipped',
+      currentChampion: 'skipped',
+      queueSource: 'gameflow',
+      matchIdentity: null,
+      authorityEpoch: 1,
+    })
+    const cancelled = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'Lobby',
+      gameflowSession: { queueId: 3270 },
+      champSelectSession: null,
+      currentChampionId: null,
+    }), firstLobbyAt + MATCH_CONTEXT_TERMINAL_CONFIRM_MS + 1, {
+      destructive: true,
+      champSelectSession: 'skipped',
+      currentChampion: 'skipped',
+      queueSource: 'gameflow',
+      matchIdentity: null,
+      authorityEpoch: 1,
+    })
+
+    const reconcile = vi.fn()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = selected
+    runtime.lcuState = connected
+    runtime.detail = {
+      championId: 103,
+      dataVersion: '16.15.6',
+      ranks: [],
+      builds: [],
+    }
+    runtime.recommendationDetail = { championId: 103, source: 'dtodo' }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1_000,
+      message: '旧推荐',
+    }
+    runtime.manualOverlayMonitorDeadlineAt = 90_000
+    runtime.championRequestSequence = 4
+    runtime.dataReady = false
+    runtime.wallpaper = { reconcile }
+    runtime.updateScanLoop = vi.fn()
+    runtime.updateGameProcessLoop = vi.fn()
+    runtime.sync = vi.fn()
+
+    runtime.handleLcuUpdate(transient, connected)
+    expect(runtime.snapshot).toMatchObject({ currentChampionId: 103, matchStage: 'launching' })
+    expect(runtime.detail).not.toBeNull()
+    expect(shouldShowChampionCompanion({ showChampionPanel: true }, transient)).toBe(true)
+
+    runtime.handleLcuUpdate(cancelled, connected)
+    expect(runtime.snapshot).toMatchObject({ currentChampionId: null, matchStage: 'none', modeActive: false })
+    expect(runtime.detail).toBeNull()
+    expect(runtime.recommendationDetail).toBeNull()
+    expect(runtime.overlay).toMatchObject({ visible: false, championId: null, slots: [] })
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
+    expect(shouldShowChampionCompanion({ showChampionPanel: true }, cancelled)).toBe(false)
+    expect(reconcile).toHaveBeenLastCalledWith({
+      modeActive: false,
+      matchStage: 'none',
+      matchGeneration: 1,
+      championId: null,
+    })
   })
 
   it('clears the previous Mayhem detail when the same hero appears in another queue', () => {

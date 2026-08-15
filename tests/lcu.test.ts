@@ -28,6 +28,7 @@ import {
   MATCH_CONTEXT_MAX_STALE_MS,
   MATCH_CONTEXT_NONE_GRACE_MS,
   MATCH_CONTEXT_TERMINAL_CONFIRM_MS,
+  MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS,
   normalizeChampSelectSnapshot,
 } from '../src/main/lcu/normalize.js'
 
@@ -314,7 +315,7 @@ describe('LCU snapshot normalization', () => {
     expect(inProgress.benchChampionIds).toEqual([])
   })
 
-  it('retains the selected champion when LeagueClientUx hands transport to the game client', () => {
+  it('retains the selected champion during the bounded GAME_STARTING hand-off', () => {
     const tracker = new MatchContextTracker()
     const selected = tracker.apply(normalizeChampSelectSnapshot({
       phase: 'ChampSelect',
@@ -330,9 +331,9 @@ describe('LCU snapshot normalization', () => {
       champSelectTimerPhase: 'GAME_STARTING',
     })
     const detached = tracker.transportDisconnected(selected, 2_000)
-    const longLaunchGap = tracker.apply(normalizeChampSelectSnapshot({
+    const boundedLaunchGap = tracker.apply(normalizeChampSelectSnapshot({
       phase: 'None', gameflowSession: null, champSelectSession: null, currentChampionId: null,
-    }), 122_001)
+    }), 1_000 + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS - 1)
 
     expect(detached).toMatchObject({
       queueId: 2400,
@@ -342,7 +343,7 @@ describe('LCU snapshot normalization', () => {
       benchChampionIds: [],
       benchEnabled: false,
     })
-    expect(longLaunchGap).toMatchObject({
+    expect(boundedLaunchGap).toMatchObject({
       queueId: 2400,
       currentChampionId: 103,
       matchStage: 'launching',
@@ -892,6 +893,62 @@ describe('LCU snapshot normalization', () => {
     expect(tracker.getLastDecision()).toBe('retained-terminal-confirmation')
   })
 
+  it('clears an expired timer hand-off before starting foreign lobby confirmation', () => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 3270 },
+      champSelectSession: { timer: { phase: 'GAME_STARTING' } }, currentChampionId: 115,
+    }), 1_000, {
+      destructive: true, champSelectSession: 'ok', currentChampion: 'ok',
+      queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
+      champSelectTimerPhase: 'GAME_STARTING',
+    })
+    const expired = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, lobbySession: { gameConfig: { queueId: 450 } },
+      champSelectSession: null, currentChampionId: null,
+    }), 1_000 + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS + 1, {
+      destructive: true, champSelectSession: 'empty', currentChampion: 'empty',
+      queueSource: 'lobby', matchIdentity: null, authorityEpoch: 1,
+    })
+
+    expect(expired).toMatchObject({
+      queueId: null, modeActive: false, currentChampionId: null, matchStage: 'none',
+    })
+    expect(tracker.getLastDecision()).toBe('expired')
+  })
+
+  it('does not extend a timer hand-off by alternating foreign lobby queues', () => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 3270 },
+      champSelectSession: { timer: { phase: 'GAME_STARTING' } }, currentChampionId: 115,
+    }), 1_000, {
+      destructive: true, champSelectSession: 'ok', currentChampion: 'ok',
+      queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
+      champSelectTimerPhase: 'GAME_STARTING',
+    })
+    for (const [at, queueId] of [[10_000, 450], [20_000, 430], [30_000, 450], [40_000, 430]] as const) {
+      const retained = tracker.apply(normalizeChampSelectSnapshot({
+        phase: 'None', gameflowSession: null, lobbySession: { gameConfig: { queueId } },
+        champSelectSession: null, currentChampionId: null,
+      }), at, {
+        destructive: true, champSelectSession: 'empty', currentChampion: 'empty',
+        queueSource: 'lobby', matchIdentity: null, authorityEpoch: 1,
+      })
+      expect(retained).toMatchObject({ currentChampionId: 115, matchStage: 'launching' })
+    }
+    const expired = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, lobbySession: { gameConfig: { queueId: 450 } },
+      champSelectSession: null, currentChampionId: null,
+    }), 1_000 + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS + 1, {
+      destructive: true, champSelectSession: 'empty', currentChampion: 'empty',
+      queueSource: 'lobby', matchIdentity: null, authorityEpoch: 1,
+    })
+
+    expect(expired).toMatchObject({ currentChampionId: null, matchStage: 'none', modeActive: false })
+    expect(tracker.getLastDecision()).toBe('expired')
+  })
+
   it('keeps an independently confirmed active game through a transient launcher Lobby', () => {
     const tracker = new MatchContextTracker()
     const selected = tracker.apply(normalizeChampSelectSnapshot({
@@ -1207,7 +1264,7 @@ describe('LCU snapshot normalization', () => {
     expect(exited).toMatchObject({ currentChampionId: null, matchStage: 'none', modeActive: false })
   })
 
-  it('keeps a positively confirmed transport hand-off beyond the short terminal window', () => {
+  it('expires a timer-only hand-off after its non-renewing transport grace', () => {
     const tracker = new MatchContextTracker()
     const selected = tracker.apply(normalizeChampSelectSnapshot({
       phase: 'ChampSelect', gameflowSession: { queueId: 3270 },
@@ -1218,13 +1275,103 @@ describe('LCU snapshot normalization', () => {
       queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
       champSelectTimerPhase: 'GAME_STARTING',
     })
-    tracker.transportDisconnected(selected, 2_000)
-    const terminal = tracker.apply(normalizeChampSelectSnapshot({
-      phase: 'WaitingForStats', gameflowSession: null, champSelectSession: null,
-      currentChampionId: null,
-    }), 2_000 + MATCH_CONTEXT_TERMINAL_CONFIRM_MS + 1)
-    expect(terminal).toMatchObject({ currentChampionId: 103, matchStage: 'launching' })
+    const retained = tracker.transportDisconnected(
+      selected,
+      1_000 + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS - 1,
+    )
+    const expired = tracker.transportDisconnected(
+      retained,
+      1_000 + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS + 1,
+    )
+    expect(retained).toMatchObject({ currentChampionId: 103, matchStage: 'launching' })
+    expect(expired).toMatchObject({ currentChampionId: null, matchStage: 'none' })
+    expect(tracker.getLastDecision()).toBe('expired')
   })
+
+  it('does not renew the timer-only lease when GAME_STARTING repeats', () => {
+    const tracker = new MatchContextTracker()
+    tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 3270 },
+      champSelectSession: { timer: { phase: 'GAME_STARTING' } },
+      currentChampionId: 103,
+    }), 1_000, {
+      destructive: true, champSelectSession: 'ok', currentChampion: 'ok',
+      queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
+      champSelectTimerPhase: 'GAME_STARTING',
+    })
+    const repeated = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect', gameflowSession: { queueId: 3270 },
+      champSelectSession: { timer: { phase: 'GAME_STARTING' } },
+      currentChampionId: 103,
+    }), 1_000 + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS - 1, {
+      destructive: true, champSelectSession: 'ok', currentChampion: 'ok',
+      queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
+      champSelectTimerPhase: 'GAME_STARTING',
+    })
+    const expired = tracker.transportDisconnected(
+      repeated,
+      1_000 + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS + 1,
+    )
+    expect(repeated).toMatchObject({ currentChampionId: 103, matchStage: 'launching' })
+    expect(expired).toMatchObject({ currentChampionId: null, matchStage: 'none' })
+  })
+
+  for (const source of [
+    'destructive InProgress',
+    'partial InProgress',
+    'game-client running',
+    'game-process heartbeat',
+    'augment interface',
+  ] as const) {
+    it(`upgrades expired timer-only context when ${source} proves the game is active`, () => {
+      const tracker = new MatchContextTracker()
+      const selected = tracker.apply(normalizeChampSelectSnapshot({
+        phase: 'ChampSelect', gameflowSession: { queueId: 3270 },
+        champSelectSession: { timer: { phase: 'GAME_STARTING' } }, currentChampionId: 103,
+      }), 1_000, {
+        destructive: true, champSelectSession: 'ok', currentChampion: 'ok',
+        queueSource: 'gameflow', matchIdentity: null, authorityEpoch: 1,
+        champSelectTimerPhase: 'GAME_STARTING',
+      })
+      const proofAt = 1_000 + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS + 1
+      const active = source === 'game-process heartbeat' || source === 'augment interface'
+        ? tracker.confirmGameActive(
+            selected,
+            1,
+            103,
+            proofAt,
+            source === 'augment interface' ? 'augment-interface' : 'game-process',
+          )
+        : tracker.apply(normalizeChampSelectSnapshot({
+            phase: source === 'game-client running' ? 'None' : 'InProgress',
+            gameflowSession: source === 'game-client running'
+              ? { gameClient: { running: true } }
+              : null,
+            champSelectSession: null,
+            currentChampionId: null,
+          }), proofAt, {
+            destructive: source !== 'partial InProgress',
+            champSelectSession: source === 'partial InProgress' ? 'error' : 'skipped',
+            currentChampion: source === 'partial InProgress' ? 'error' : 'skipped',
+            queueSource: 'none',
+            matchIdentity: null,
+            authorityEpoch: 1,
+            gameClientRunning: source === 'game-client running',
+          })
+
+      expect(active).toMatchObject({
+        queueId: 3270,
+        modeActive: true,
+        currentChampionId: 103,
+        matchStage: 'active',
+        matchGeneration: 1,
+      })
+      expect(tracker.transportDisconnected(
+        active,
+        proofAt + MATCH_CONTEXT_TIMER_HANDOFF_GRACE_MS + 1,
+      )).toMatchObject({ currentChampionId: 103, matchStage: 'active', matchGeneration: 1 })
+    })
+  }
 
   it('expires an outgoing structured ChampSelect without positive hand-off evidence', () => {
     const tracker = new MatchContextTracker()
@@ -1347,7 +1494,7 @@ describe('LCU snapshot normalization', () => {
     expect(tracker.getLastDecision()).toBe('retained-untrusted-observation')
   })
 
-  it('commits GAME_STARTING before transport disappears and keeps the hand-off lease', () => {
+  it('clears a cancelled GAME_STARTING hand-off after stable trusted terminal evidence', () => {
     const tracker = new MatchContextTracker()
     const starting = tracker.apply(normalizeChampSelectSnapshot({
       phase: 'ChampSelect', gameflowSession: { queueId: 2400 },
@@ -1359,13 +1506,21 @@ describe('LCU snapshot normalization', () => {
       authorityEpoch: 1,
       champSelectTimerPhase: 'GAME_STARTING',
     })
+    const firstLobbyAt = 2_000
     const transientLobby = tracker.apply(normalizeChampSelectSnapshot({
       phase: 'Lobby', gameflowSession: null, champSelectSession: null, currentChampionId: null,
-    }), 1_000 + MATCH_CONTEXT_TERMINAL_CONFIRM_MS + 1, {
+    }), firstLobbyAt, {
+      destructive: true, champSelectSession: 'skipped', matchIdentity: null, authorityEpoch: 1,
+    })
+    const cancelled = tracker.apply(normalizeChampSelectSnapshot({
+      phase: 'Lobby', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    }), firstLobbyAt + MATCH_CONTEXT_TERMINAL_CONFIRM_MS + 1, {
       destructive: true, champSelectSession: 'skipped', matchIdentity: null, authorityEpoch: 1,
     })
     expect(starting).toMatchObject({ currentChampionId: 103, matchStage: 'launching' })
     expect(transientLobby).toMatchObject({ currentChampionId: 103, matchStage: 'launching' })
+    expect(cancelled).toMatchObject({ currentChampionId: null, matchStage: 'none', modeActive: false })
+    expect(tracker.getLastDecision()).toBe('cleared-terminal-phase')
   })
 
   it('commits GAME_STARTING when the current-champion endpoint already disappeared', () => {

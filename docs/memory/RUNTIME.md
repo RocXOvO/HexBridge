@@ -21,7 +21,7 @@
 ## 对局上下文
 
 - 阶段为 `selecting / launching / active / none`；authority、gameId、generation、独立 `League of Legends.exe` 和正向 game-starting 证据用于区分交接、终局和同英雄第二局。
-- 租约：active 最长 12h，已确认 handoff 10min，弱 transport / 空 phase 15s；空 ChampSelect / None / partial 不续租。
+- 租约：active 最长 12h，游戏阶段 / 客户端 / 进程 / augment 强证据确认的 handoff 10min，弱 transport / 空 phase 15s。`GAME_STARTING` 只获得自首次信号起 60s 不续租短交接；同 authority 终止证据稳定 15s 后清理，当前强证据可在短租约到期边界优先升级。空 ChampSelect / None / partial 不续租。
 - 非 Mayhem 在 normalize 边界清空 current / bench；同英雄跨队列也必须换代并清详情 / OCR / overlay。
 - 当前英雄、详情、OCR、进程检查和 provider 请求都必须用 generation + champion + sequence 守卫迟到结果。
 

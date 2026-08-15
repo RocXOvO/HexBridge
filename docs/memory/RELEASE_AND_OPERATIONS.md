@@ -10,6 +10,7 @@
 - public v2 / root：version `0.1.30`、size `199280687`、SHA-512 `Tm1BfPD+0k0H1IYr1ediM0l9Ce/OgGdqeeL6g69YMJ26HshQwwn78Th8p14Pi4wx3TAt69cE5/1/v7yVi7a3BA==`；权威 / raw 均首次通过，packaged public 为 `updateAvailable=false`。
 - 正式资产 SHA-256：EXE `adecf21eadfe9481c8e965afd87552699c54728fde0da180d6beea1af8401ecf`（`199280687` bytes）；blockmap `725854b8dffd79a4e8a6ac6ff7419a150e2db4fcf87404f19b3403165a79b77f`（`201338`）；ZIP `d4764e28afa31c67aaafbb9872ecae5d7cb2ed60313d3aeff9c74e8734d56614`（`274446034`）；latest.yml `2dea6f741dba0cc31728458531d092b548a4325788e2e49606ff1e47e74a4da8`（`346`）；SHA256SUMS `39deefc1d9bdcbb30c8a2796ddb108b4171036836664a08f41343380fdec6dc6`（`182`）。
 - 当前只保留 v0.1.26～v0.1.30 五个 public stable Releases；v0.1.0～v0.1.30 共 31 个 tags 都保留。本地 `release/` 为空。v0.1.25 Release / assets 已删除但 tag / source 保留。
+- v0.1.31 仅为本地候选：修复 timer-only `GAME_STARTING` 取消对局的旧上下文清理；终审无 P0 / P1，本地完整链 46 files / 507 passed + 1 skipped、audit 0、真实 4K fixture 134ms 及 source bridge / UI 通过。尚未 commit / push / Windows workflow / tag / Release，不改变上述 public 基线。
 
 ## 更新契约
 

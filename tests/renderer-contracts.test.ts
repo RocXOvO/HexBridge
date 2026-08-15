@@ -14,7 +14,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.30'")
+    expect(rendererState).toContain("currentVersion: '0.1.31'")
   })
 
   it('routes only a bounded click-through augment recommendation strip', () => {

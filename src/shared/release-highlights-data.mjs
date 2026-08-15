@@ -129,4 +129,7 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
     '离局、退出和更新安装前恢复用户指定的桌面；异常退出后下次启动会先恢复，再应用当前英雄。',
     '只使用 Steam app 431960 固定安装和 Wallpaper Engine 受限命令；不自动启动或关闭第三方程序，也不向其他窗口或日志暴露目标名与路径。',
   ]),
+  '0.1.31': Object.freeze([
+    '修复 GAME_STARTING 后取消对局或游戏进程未启动时，旧英雄、推荐、伴随窗与 Wallpaper Engine 目标可能保留过久；真实启动证据仍会延续本局上下文。',
+  ]),
 })

@@ -444,9 +444,10 @@ describe('CN/WeGame queue 3270 hand-off regression', () => {
     phase = 'EndOfGame'
     await client.pollOnce()
     expect(runtime.snapshot).toMatchObject({
+      queueId: null,
       currentChampionId: null,
       matchStage: 'none',
-      modeActive: true,
+      modeActive: false,
     })
     expect(runtime.detail).toBeNull()
     expect(runtime.championRequestSequence).toBe(8)
