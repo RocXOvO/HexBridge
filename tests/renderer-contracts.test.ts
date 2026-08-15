@@ -47,24 +47,50 @@ describe('main-window recommendation presentation', () => {
 
   it('keeps the raw Tier label visibly rendered instead of replacing it with a strength adjective', () => {
     expect(appSource).toContain('class="rank-tier"')
-    expect(appSource).toContain('<small>Tier</small><b>{{ tier(item.tier) }}</b>')
+    expect(appSource).toContain("return state.value.recommendation.source === 'tencent101' ? '腾讯排名' : 'Tier'")
+    expect(appSource).toContain('championStrengthValue(item.tier)')
     expect(appSource).not.toContain('强度顶尖')
     expect(appSource).not.toContain('tierLabel(')
   })
 
-  it('labels pick rate as champion-specific secondary data in the main assistant', () => {
+  it('keeps dtodo champion metrics and Tencent global metrics explicitly separated', () => {
     expect(appSource).toContain('该英雄选取率')
     expect(appSource).toContain('优先采用上游提供的英雄专属推荐顺序')
-    expect(appSource).toContain('data.dtodo 单英雄统计')
+    expect(appSource).toContain('data.dtodo 单英雄详情')
     expect(appSource).toContain('选取率仅作参考')
+    expect(appSource).toContain('全局选取率')
+    expect(appSource).toContain('全局胜率')
+    expect(appSource).toContain('不是该英雄专属统计')
+    expect(appSource).toContain('state.currentRecommendation.cards.slice(0, 3)')
+  })
+
+  it('keeps Tencent browsing source-bound, keyboard reachable and locally filterable', () => {
+    expect(appSource).toContain("recommendationDataSource: 'tencent101'")
+    expect(appSource).toContain('api.getChampionRecommendation(championId)')
+    expect(appSource).toContain('state.value.recommendation.dataVersion')
+    expect(appSource).toContain('state.value.recommendation.statisticsDate')
+    expect(appSource).toContain('@keydown.enter.prevent="selectRankingChampion(item.id)"')
+    expect(appSource).toContain('@keydown.space.prevent="selectRankingChampion(item.id)"')
+    expect(appSource).toContain("['all','白银','黄金','棱彩']")
+    expect(appSource).toContain('championRecommendationRarity.value')
+    expect(appSource).toContain('globalRank(card.globalPickRank, card.globalPickRankChange)')
+    expect(appSource).toContain('腾讯 101 官网当前未文档化 Web 统计接口')
+    expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-champion-recommendation', championId)")
+    expect(ipcSource).toContain("ipcMain.handle('hexbridge:get-champion-recommendation'")
+    expect(ipcSource).toContain("requireSender(event, 'main')")
   })
 
   it('shows both recommendation order and champion-specific pick rate in the in-game strip', () => {
     expect(augmentOverlaySource).toContain('该英雄选取率')
+    expect(augmentOverlaySource).toContain('全局选取率')
+    expect(augmentOverlaySource).toContain('全局胜率')
     expect(augmentOverlaySource).toContain('(value * 100).toFixed(1)')
     expect(augmentOverlaySource).toContain('rankLabel')
     expect(augmentOverlaySource).toContain('overlay-rank')
     expect(augmentOverlaySource).toContain('slot.reason')
+    expect(augmentOverlaySource).toContain('slot.statisticsDate')
+    expect(augmentOverlaySource).toContain('腾讯数据站')
+    expect(augmentOverlaySource).toContain('data.dtodo')
   })
 
   it('renders a coherent current-champion build and removes redundant reconnect controls', () => {

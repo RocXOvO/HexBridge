@@ -4,16 +4,26 @@ import type {
   AppSettings,
   AugmentOverlayState,
   ChampionAugmentData,
+  ChampionRecommendationResult,
   ChampSelectSnapshot,
   LcuConnectionState,
   OpponentScoutState,
   ScoutPlayerDetailsResult,
   RuntimeState,
   HotkeyRegistrationResult,
+  RecommendationDataSource,
+  RecommendationDataState,
+  RecommendationDetail,
 } from '../shared/contracts.js'
-import { buildChampionCandidates, rankAugmentSlots } from '../shared/recommendations.js'
+import {
+  buildChampionCandidates,
+  dtodoRecommendationDetail,
+  rankRecommendationSlots,
+} from '../shared/recommendations.js'
 import { ConfigStore } from './config-store.js'
 import { DataService } from './data-service.js'
+import { RecommendationCoordinator } from './recommendation-coordinator.js'
+import { Tencent101Adapter } from './tencent101-adapter.js'
 import { GameProcessExitGuard, gameProcessPollInterval, inspectLeagueGameProcess } from './game-process.js'
 import {
   commitHotkeyRegistration,
@@ -27,7 +37,6 @@ import {
   automaticOcrErrorDelay,
   classifyScanContext,
   detailBuildForCurrentChampion,
-  detailRanksForCurrentChampion,
   isMatchContextOcrEligible,
   isCurrentChampionRequest,
   fingerprintDistance,
@@ -99,6 +108,7 @@ const OPPONENT_SCOUT_ACTIVE_RETRY_MS = [3_000, 5_000, 10_000, 15_000, 15_000] as
 export class HexBridgeRuntime {
   private readonly config = new ConfigStore(app.getVersion())
   private readonly data: DataService
+  private readonly recommendations: RecommendationCoordinator
   private readonly lcu: LcuClient
   private readonly scanner: AugmentScanner
   private readonly windows: WindowManager
@@ -113,6 +123,11 @@ export class HexBridgeRuntime {
   private opponentScoutRetryTimer: NodeJS.Timeout | null = null
   private opponentScoutRetryAttempt = 0
   private detail: ChampionAugmentData | null = null
+  private recommendationDetail: RecommendationDetail | null = null
+  private recommendationProviderAbort: AbortController | null = null
+  private recommendationDetailAbort: AbortController | null = null
+  private browseRecommendationAbort: AbortController | null = null
+  private browseRecommendationSequence = 0
   private scanTimer: NodeJS.Timeout | null = null
   private automaticScanPhase: 'waiting' | 'recognizing' | 'latched' = 'waiting'
   private automaticScanAbsences = 0
@@ -151,6 +166,13 @@ export class HexBridgeRuntime {
   constructor() {
     const userData = app.getPath('userData')
     this.data = new DataService(path.join(userData, 'data-cache'), this.config, app.getVersion())
+    this.recommendations = new RecommendationCoordinator(
+      this.data,
+      new Tencent101Adapter(
+        path.join(userData, 'data-cache', 'tencent101', 'v1'),
+        app.getVersion(),
+      ),
+    )
     this.lcu = new LcuClient(() => this.config.getSettings().gameDirectory)
     this.scanner = new AugmentScanner(
       () => this.config.getSettings(),
@@ -185,7 +207,10 @@ export class HexBridgeRuntime {
     this.lcu.on('diagnostic', () => this.sync())
     this.lcu.start()
     this.updates.initialize()
-    await this.data.initialize()
+    await Promise.all([
+      this.data.initialize(),
+      this.initializeRecommendationSource(false),
+    ])
     this.dataReady = true
     if (this.snapshot.currentChampionId) {
       const sequence = ++this.championRequestSequence
@@ -227,6 +252,9 @@ export class HexBridgeRuntime {
       lowMemory: process.getSystemMemoryInfo().total < 8 * 1024 * 1024,
     })
     const scanner = this.scanner.getDiagnostics()
+    const recommendationSource = this.selectedRecommendationSource(settings)
+    const recommendationState = this.getRecommendationState(recommendationSource)
+    const recommendationChampions = this.getRecommendationChampions(recommendationSource)
     const supportedChampionId = this.snapshot.modeActive ? this.snapshot.currentChampionId : null
     const publicSnapshot = this.snapshot.modeActive
       ? { ...this.snapshot, benchChampionIds: [...this.snapshot.benchChampionIds] }
@@ -241,14 +269,19 @@ export class HexBridgeRuntime {
       supportedChampionId,
       this.data.getState().dataVersion,
     )
+    const currentRecommendation = supportedChampionId == null || !this.recommendations
+      ? null
+      : this.currentChampionRecommendationView(recommendationSource, supportedChampionId)
     return {
       lcu: { ...this.lcuState },
       snapshot: publicSnapshot,
       api: this.data.getState(),
+      recommendation: recommendationState,
       update: this.updates.getState(),
       releaseHighlights: this.config.getReleaseHighlights(),
-      champions: this.data.getChampions(),
-      candidates: buildChampionCandidates(publicSnapshot, this.data.getChampions()),
+      champions: recommendationChampions,
+      candidates: buildChampionCandidates(publicSnapshot, recommendationChampions),
+      currentRecommendation,
       currentBuild,
       opponentScout: includeOpponentScout
         ? {
@@ -288,6 +321,9 @@ export class HexBridgeRuntime {
         ? { ...patch, calibration: null }
         : patch
     const next = this.config.updateSettings(normalizedPatch)
+    if (next.recommendationDataSource !== previous.recommendationDataSource) {
+      this.switchRecommendationSource(next.recommendationDataSource)
+    }
     if (!next.showInGameRecommendations) {
       this.setManualOverlayMonitorDeadline(null)
       if (this.overlay.visible) {
@@ -372,25 +408,95 @@ export class HexBridgeRuntime {
   }
 
   async refreshData(): Promise<{ ok: boolean; message: string }> {
-    const state = await this.data.initialize(true)
-    if (state.status !== 'ready') {
-      this.sync()
-      const fallback = state.status === 'stale' ? '，正在使用旧缓存' : ''
-      return { ok: false, message: `${state.lastError ?? '数据刷新失败'}${fallback}` }
+    const source = this.selectedRecommendationSource()
+    const championId = this.snapshot.modeActive ? this.snapshot.currentChampionId : null
+    const generation = this.snapshot.matchGeneration
+    const sequence = ++this.championRequestSequence
+    this.recommendationProviderAbort?.abort()
+    this.recommendationDetailAbort?.abort()
+    this.recommendationDetail = null
+    this.overlay = { ...EMPTY_OVERLAY, championId }
+    this.setManualOverlayMonitorDeadline(null)
+    this.getAugmentRound().reset()
+    this.stopScanLoop()
+    this.sync()
+    await Promise.all([
+      this.data.initialize(true),
+      this.initializeRecommendationSource(true),
+    ])
+    if (
+      source !== this.selectedRecommendationSource() ||
+      sequence !== this.championRequestSequence
+    ) {
+      return { ok: false, message: '推荐来源或当前英雄已变化，已忽略本次迟到的刷新结果' }
     }
-    const championId = this.snapshot.currentChampionId
-    if (championId) {
-      const sequence = ++this.championRequestSequence
+    if (
+      championId &&
+      generation === this.snapshot.matchGeneration &&
+      isCurrentChampionRequest(
+        championId,
+        sequence,
+        this.snapshot.modeActive ? this.snapshot.currentChampionId : null,
+        this.championRequestSequence,
+      )
+    ) {
       await this.refreshCurrentDetail(championId, sequence)
     }
-    const finalState = this.data.getState()
-    if (finalState.status !== 'ready') {
+    const finalState = this.getRecommendationState(source)
+    if (finalState.status !== 'ready' && finalState.status !== 'stale') {
+      this.updateScanLoop()
       this.sync()
-      const fallback = finalState.status === 'stale' ? '，正在使用旧缓存' : ''
-      return { ok: false, message: `${finalState.lastError ?? '英雄详情刷新失败'}${fallback}` }
+      return { ok: false, message: finalState.lastError ?? '推荐数据刷新失败' }
     }
+    this.updateScanLoop()
     this.sync()
-    return { ok: true, message: '数据已刷新' }
+    return {
+      ok: finalState.status === 'ready',
+      message: finalState.status === 'stale'
+        ? `当前来源刷新失败，继续使用 ${finalState.statisticsDate || finalState.dataVersion || '旧版'} 缓存`
+        : `${source === 'tencent101' ? '腾讯 101' : 'data.dtodo'} 推荐数据已刷新`,
+    }
+  }
+
+  async getChampionRecommendation(championId: number): Promise<ChampionRecommendationResult> {
+    const source = this.selectedRecommendationSource()
+    const state = this.getRecommendationState(source)
+    if (state.status !== 'ready' && state.status !== 'stale') {
+      return { ok: false, message: state.lastError ?? '当前推荐来源尚未就绪', detail: null }
+    }
+    if (!this.getRecommendationChampions(source).some((champion) => champion.id === championId)) {
+      return { ok: false, message: '当前推荐来源没有该英雄', detail: null }
+    }
+    this.browseRecommendationAbort?.abort()
+    const controller = new AbortController()
+    this.browseRecommendationAbort = controller
+    const sequence = ++this.browseRecommendationSequence
+    try {
+      const detail = await this.recommendations.getChampionView(source, championId, controller.signal)
+      const currentState = this.getRecommendationState(source)
+      if (
+        sequence !== this.browseRecommendationSequence ||
+        source !== this.selectedRecommendationSource() ||
+        state.snapshotId !== currentState.snapshotId ||
+        state.dataVersion !== currentState.dataVersion ||
+        state.statisticsDate !== currentState.statisticsDate ||
+        detail.snapshotId !== currentState.snapshotId ||
+        detail.dataVersion !== currentState.dataVersion ||
+        detail.statisticsDate !== currentState.statisticsDate
+      ) return { ok: false, message: '推荐来源已切换，请重新选择英雄', detail: null }
+      return { ok: true, message: detail.message, detail }
+    } catch (error) {
+      if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
+        return { ok: false, message: '英雄推荐请求已失效', detail: null }
+      }
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : '英雄推荐读取失败',
+        detail: null,
+      }
+    } finally {
+      if (this.browseRecommendationAbort === controller) this.browseRecommendationAbort = null
+    }
   }
 
   applyUpdate(): Promise<{ ok: boolean; message: string }> {
@@ -533,7 +639,7 @@ export class HexBridgeRuntime {
   async previewCalibration(rects: AppSettings['calibration']): Promise<{ ok: boolean; names: string[]; message: string }> {
     const context = this.windows.getCalibrationContext()
     if (!context || !rects) return { ok: false, names: [], message: '校准会话已失效，请重新打开校准' }
-    const augments = this.data.getAugments()
+    const augments = this.getRecommendationAugments(this.selectedRecommendationSource())
     if (!augments.length) return { ok: false, names: [], message: '海克斯目录尚未就绪，请先刷新数据' }
     const result = await this.scanner.previewCalibration(context.backgroundDataUrl, rects, augments)
     this.sync()
@@ -555,6 +661,12 @@ export class HexBridgeRuntime {
 
   stop(): void {
     this.stopping = true
+    this.recommendationProviderAbort?.abort()
+    this.recommendationProviderAbort = null
+    this.recommendationDetailAbort?.abort()
+    this.recommendationDetailAbort = null
+    this.browseRecommendationAbort?.abort()
+    this.browseRecommendationAbort = null
     this.setManualOverlayMonitorDeadline(null)
     this.cancelOpponentScoutRequest()
     this.windows.prepareToQuit()
@@ -576,11 +688,14 @@ export class HexBridgeRuntime {
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
     this.windows?.setLeagueClientProcessId?.(this.lcu?.getActiveProcessId?.() ?? null)
-    if (nextChampion !== oldChampion) {
+    if (nextChampion !== oldChampion || snapshot.matchGeneration !== previousGeneration) {
       const sequence = ++this.championRequestSequence
+      this.recommendationDetailAbort?.abort()
       this.detail = null
+      this.recommendationDetail = null
       this.overlay = { ...EMPTY_OVERLAY, championId: nextChampion }
       this.setManualOverlayMonitorDeadline(null)
+      this.getAugmentRound().reset()
       if (nextChampion && this.dataReady) {
         void this.refreshCurrentDetail(nextChampion, sequence).then(() => {
           if (sequence === this.championRequestSequence) this.sync()
@@ -763,12 +878,201 @@ export class HexBridgeRuntime {
     return true
   }
 
-  private async refreshCurrentDetail(championId: number, sequence: number): Promise<void> {
-    const dataState = this.data.getState()
-    if (!dataState.configured || !dataState.dataVersion) return
+  private async initializeRecommendationSource(force: boolean): Promise<void> {
+    const source = this.selectedRecommendationSource()
+    this.recommendationProviderAbort?.abort()
+    const controller = new AbortController()
+    this.recommendationProviderAbort = controller
     try {
-      const detail = await this.data.getChampionAugments(championId)
+      await this.recommendations.initialize(source, force, controller.signal)
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        logger.warn('Recommendation provider initialization failed', {
+          source,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+      }
+    } finally {
+      if (this.recommendationProviderAbort === controller) this.recommendationProviderAbort = null
+    }
+  }
+
+  private switchRecommendationSource(source: RecommendationDataSource): void {
+    this.recommendationProviderAbort?.abort()
+    this.recommendationDetailAbort?.abort()
+    this.browseRecommendationAbort?.abort()
+    this.browseRecommendationAbort = null
+    this.browseRecommendationSequence += 1
+    const sequence = ++this.championRequestSequence
+    this.recommendationDetail = null
+    this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
+    this.setManualOverlayMonitorDeadline(null)
+    this.getAugmentRound().reset()
+    this.stopScanLoop()
+    this.sync()
+    void this.initializeRecommendationSource(false).then(async () => {
       if (
+        source !== this.selectedRecommendationSource() ||
+        sequence !== this.championRequestSequence
+      ) return
+      const championId = this.snapshot.modeActive ? this.snapshot.currentChampionId : null
+      if (championId) await this.refreshCurrentDetail(championId, sequence)
+      if (
+        source === this.selectedRecommendationSource() &&
+        sequence === this.championRequestSequence
+      ) {
+        this.updateScanLoop()
+        this.sync()
+      }
+    })
+  }
+
+  private selectedRecommendationSource(settings = this.config.getSettings()): RecommendationDataSource {
+    return settings.recommendationDataSource === 'tencent101' ? 'tencent101' : 'dtodo'
+  }
+
+  /**
+   * A few focused scheduler tests instantiate Runtime from its prototype rather
+   * than running the Electron constructor. Keep their legacy dtodo fixture path
+   * intact while production always uses the coordinator created above.
+   */
+  private getRecommendationState(source: RecommendationDataSource): RecommendationDataState {
+    if (this.recommendations) return this.recommendations.getState(source)
+    const state = this.data?.getState?.()
+    return {
+      source,
+      status: state?.status ?? 'missing',
+      snapshotId: state?.dataVersion ?? '',
+      dataVersion: state?.dataVersion ?? '',
+      statisticsDate: state?.publishedAt ?? '',
+      stale: state?.status === 'stale',
+      lastError: state?.lastError ?? null,
+    }
+  }
+
+  private getRecommendationChampions(source: RecommendationDataSource) {
+    if (this.recommendations) return this.recommendations.getChampions(source)
+    return this.data?.getChampions?.() ?? []
+  }
+
+  private getRecommendationAugments(source: RecommendationDataSource) {
+    if (this.recommendations) return this.recommendations.getAugments(source)
+    return this.data?.getAugments?.() ?? []
+  }
+
+  private scanContextKey(
+    source: RecommendationDataSource,
+    state: RecommendationDataState,
+    generation: number,
+    championId: number,
+  ): string {
+    if (!this.recommendations) return `${generation}:${championId}`
+    return [source, state.snapshotId, state.statisticsDate, generation, championId].join(':')
+  }
+
+  private currentRecommendationDetail(source: RecommendationDataSource): RecommendationDetail | null {
+    const state = this.getRecommendationState(source)
+    if (state.status !== 'ready' && state.status !== 'stale') return null
+    if (
+      this.recommendationDetail?.source === source &&
+      this.recommendationDetail.championId === this.snapshot.currentChampionId &&
+      this.recommendationDetail.snapshotId === state.snapshotId &&
+      this.recommendationDetail.dataVersion === state.dataVersion &&
+      this.recommendationDetail.statisticsDate === state.statisticsDate
+    ) return this.recommendationDetail
+    if (source !== 'dtodo' || !this.detail) return null
+    const detail = dtodoRecommendationDetail(this.detail, this.data.getState().publishedAt)
+    return detail.championId === this.snapshot.currentChampionId && detail.snapshotId === state.snapshotId
+      && detail.dataVersion === state.dataVersion && detail.statisticsDate === state.statisticsDate
+      ? detail
+      : null
+  }
+
+  private currentChampionRecommendationView(
+    source: RecommendationDataSource,
+    championId: number,
+  ) {
+    const detail = this.currentRecommendationDetail(source)
+    if (!detail || detail.championId !== championId) return null
+    try {
+      return this.recommendations.createChampionView(source, detail)
+    } catch {
+      return null
+    }
+  }
+
+  private recommendationContextMatches(
+    source: RecommendationDataSource,
+    state: ReturnType<RecommendationCoordinator['getState']>,
+    championId: number,
+    generation: number,
+    sequence: number,
+  ): boolean {
+    const current = this.getRecommendationState(source)
+    return (
+      source === this.selectedRecommendationSource() &&
+      state.snapshotId === current.snapshotId &&
+      state.dataVersion === current.dataVersion &&
+      state.statisticsDate === current.statisticsDate &&
+      generation === this.snapshot.matchGeneration &&
+      isCurrentChampionRequest(
+        championId,
+        sequence,
+        this.snapshot.modeActive ? this.snapshot.currentChampionId : null,
+        this.championRequestSequence,
+      )
+    )
+  }
+
+  private async refreshCurrentDetail(championId: number, sequence: number): Promise<void> {
+    if (!isCurrentChampionRequest(
+      championId,
+      sequence,
+      this.snapshot.modeActive ? this.snapshot.currentChampionId : null,
+      this.championRequestSequence,
+    )) return
+    const source = this.selectedRecommendationSource()
+    const recommendationState = this.getRecommendationState(source)
+    const generation = this.snapshot.matchGeneration
+    this.recommendationDetailAbort?.abort()
+    const controller = new AbortController()
+    this.recommendationDetailAbort = controller
+    const recommendationPromise = (
+      recommendationState.status === 'ready' || recommendationState.status === 'stale'
+    )
+      ? this.recommendations.getChampionRecommendation(source, championId, controller.signal)
+      : Promise.reject(new Error('当前推荐来源尚未就绪'))
+    const dataState = this.data.getState()
+    const buildPromise = dataState.configured && dataState.dataVersion
+      ? this.data.getChampionAugments(championId)
+      : Promise.resolve(null)
+    const recommendationTask = recommendationPromise.then((value) => {
+      if (
+        this.recommendationContextMatches(
+          source,
+          recommendationState,
+          championId,
+          generation,
+          sequence,
+        ) &&
+        value.snapshotId === recommendationState.snapshotId
+      ) {
+        this.recommendationDetail = value
+        this.sync()
+      }
+    }).catch((error) => {
+      if (!controller.signal.aborted) {
+        logger.warn('Champion recommendation detail unavailable', {
+          source,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+      }
+    }).finally(() => {
+      if (this.recommendationDetailAbort === controller) this.recommendationDetailAbort = null
+    })
+    const buildTask = buildPromise.then((value) => {
+      if (
+        value &&
         isCurrentChampionRequest(
           championId,
           sequence,
@@ -776,11 +1080,15 @@ export class HexBridgeRuntime {
           this.championRequestSequence,
         )
       ) {
-        this.detail = detail
+        this.detail = value
+        this.sync()
       }
-    } catch (error) {
-      logger.warn('Champion augment detail unavailable', error instanceof Error ? error.message : error)
-    }
+    }).catch((error) => {
+      logger.warn('Champion build detail unavailable', {
+        errorName: error instanceof Error ? error.name : 'Error',
+      })
+    })
+    await Promise.all([recommendationTask, buildTask])
   }
 
   private updateScanLoop(): void {
@@ -798,7 +1106,14 @@ export class HexBridgeRuntime {
       else this.stopScanLoop()
       return
     }
-    const contextKey = `${this.snapshot.matchGeneration}:${this.snapshot.currentChampionId ?? 0}`
+    const source = this.selectedRecommendationSource()
+    const recommendationState = this.getRecommendationState(source)
+    const contextKey = this.scanContextKey(
+      source,
+      recommendationState,
+      this.snapshot.matchGeneration,
+      this.snapshot.currentChampionId ?? 0,
+    )
     if (this.automaticScanContextKey !== contextKey) {
       this.stopScanLoop()
       this.automaticScanContextKey = contextKey
@@ -1089,13 +1404,21 @@ export class HexBridgeRuntime {
     }
     const scanGeneration = this.snapshot.matchGeneration
     const scanChampionId = this.snapshot.currentChampionId
+    const scanSource = this.selectedRecommendationSource()
+    const scanRecommendationState = this.getRecommendationState(scanSource)
     if (scanChampionId == null) {
       return { ok: false, code: 'NO_CHAMPION', message: '当前没有可识别的英雄' }
     }
-    const augments = this.data.getAugments()
+    const augments = this.getRecommendationAugments(scanSource)
     if (!augments.length) return { ok: false, code: 'NO_CATALOG', message: '海克斯目录尚未就绪' }
     const result = await this.scanner.scan(augments, manual, afterCapture, interfaceAlreadyDetected)
     const contextDisposition = classifyScanContext(this.snapshot, scanGeneration, scanChampionId)
+    const currentRecommendationState = this.getRecommendationState(scanSource)
+    const recommendationSwitched = (
+      scanSource !== this.selectedRecommendationSource() ||
+      scanRecommendationState.snapshotId !== currentRecommendationState.snapshotId ||
+      scanRecommendationState.statisticsDate !== currentRecommendationState.statisticsDate
+    )
     if (contextDisposition === 'ended') {
       this.overlay = { ...EMPTY_OVERLAY, championId: this.snapshot.currentChampionId }
       this.setManualOverlayMonitorDeadline(null)
@@ -1103,7 +1426,7 @@ export class HexBridgeRuntime {
       this.sync()
       return { ok: false, code: 'CONTEXT_ENDED', message: '对局上下文已结束' }
     }
-    if (contextDisposition === 'switched') {
+    if (contextDisposition === 'switched' || recommendationSwitched) {
       // A late result from the previous generation must never clear or stop
       // the already-running scanner for the new match.
       this.updateScanLoop()
@@ -1112,20 +1435,21 @@ export class HexBridgeRuntime {
     if (result.status === 'busy') return { ok: false, code: 'BUSY', message: '识别任务正在运行' }
     if (result.status === 'matched') {
       this.lcu.confirmGameActive('augment-interface', scanGeneration, scanChampionId)
-      const detailRanks = detailRanksForCurrentChampion(
-        this.detail,
-        this.snapshot.currentChampionId,
-        this.data.getState().dataVersion,
-      )
+      const detail = this.currentRecommendationDetail(scanSource)
       const combination = result.slots.map((slot) => slot.augmentId).join(':')
       const decision = this.getAugmentRound().observe('matched', {
         combination,
         manual,
       })
       if (decision.commitMatched) {
-        const ranked = rankAugmentSlots(result.slots, detailRanks, augments)
+        const ranked = rankRecommendationSlots(result.slots, detail, augments, scanSource)
         if (manual && result.fingerprints?.length === 3) {
-          this.automaticScanContextKey = `${scanGeneration}:${scanChampionId}`
+          this.automaticScanContextKey = this.scanContextKey(
+            scanSource,
+            scanRecommendationState,
+            scanGeneration,
+            scanChampionId,
+          )
           this.automaticScanPhase = 'latched'
           this.automaticScanAbsences = 0
           this.automaticFingerprint = [...result.fingerprints]
@@ -1163,15 +1487,11 @@ export class HexBridgeRuntime {
       }
       this.sync()
     } else if (result.status === 'unreliable' && manual && !this.overlay.visible) {
-      const detailRanks = detailRanksForCurrentChampion(
-        this.detail,
-        this.snapshot.currentChampionId,
-        this.data.getState().dataVersion,
-      )
+      const detail = this.currentRecommendationDetail(scanSource)
       this.overlay = {
         visible: true,
         championId: this.snapshot.currentChampionId,
-        slots: rankAugmentSlots(result.slots, detailRanks, augments),
+        slots: rankRecommendationSlots(result.slots, detail, augments, scanSource),
         detectedAt: Date.now(),
         message: '存在未识别卡牌，请重试',
       }

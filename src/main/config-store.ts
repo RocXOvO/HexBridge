@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showInGameRecommendations: true,
   opponentScouting: false,
   lobbyBackground: false,
+  recommendationDataSource: 'dtodo',
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -70,6 +71,16 @@ export function migrateSettingsForRevision(
     next = { ...next, lobbyBackground: false }
     nextRevision = 6
   }
+  if (nextRevision < 7) {
+    // Existing users retain the documented data.dtodo recommendation
+    // semantics. Tencent 101 is an explicit opt-in because it is an
+    // undocumented website statistics interface with a different scope.
+    next = { ...next, recommendationDataSource: 'dtodo' }
+    nextRevision = 7
+  }
+  if (next.recommendationDataSource !== 'dtodo' && next.recommendationDataSource !== 'tencent101') {
+    next = { ...next, recommendationDataSource: 'dtodo' }
+  }
   return { settings: next, revision: nextRevision }
 }
 
@@ -92,7 +103,11 @@ export class ConfigStore {
       { ...DEFAULT_SETTINGS, ...this.store.get('settings') },
       storedRevision,
     )
-    if (migration.revision !== this.store.get('settingsRevision')) {
+    const storedSettings = this.store.get('settings') as AppSettings & { recommendationDataSource?: unknown }
+    if (
+      migration.revision !== this.store.get('settingsRevision') ||
+      storedSettings.recommendationDataSource !== migration.settings.recommendationDataSource
+    ) {
       // Apply one-time, revisioned safety migrations without altering the API
       // key, calibration or display selection.
       this.store.set('settings', migration.settings)

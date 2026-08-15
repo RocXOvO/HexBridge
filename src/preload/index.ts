@@ -61,6 +61,8 @@ const api: HexBridgeApi = {
   validateAndSaveApiKey: (apiKey: string) => ipcRenderer.invoke('hexbridge:validate-key', apiKey),
   clearApiKey: () => ipcRenderer.invoke('hexbridge:clear-key'),
   refreshData: () => ipcRenderer.invoke('hexbridge:refresh-data'),
+  getChampionRecommendation: (championId: number) =>
+    ipcRenderer.invoke('hexbridge:get-champion-recommendation', championId),
   applyUpdate: () => ipcRenderer.invoke('hexbridge:apply-update'),
   openDeveloperPage: () => ipcRenderer.invoke('hexbridge:open-developer-page'),
   dismissReleaseHighlights: () => ipcRenderer.invoke('hexbridge:dismiss-release-highlights'),

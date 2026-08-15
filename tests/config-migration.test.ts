@@ -13,6 +13,7 @@ const settings = (visualMode: AppSettings['visualMode'], autoOcr: boolean): AppS
   showInGameRecommendations: true,
   opponentScouting: true,
   lobbyBackground: true,
+  recommendationDataSource: 'tencent101',
   hotkey: 'F8',
   gameDirectory: '',
   displayId: '',
@@ -25,22 +26,30 @@ describe('settings migration', () => {
     'disables legacy automatic OCR and removes the obsolete %s visual override',
     (visualMode) => {
       const migrated = migrateSettingsForRevision(settings(visualMode, true), 0)
-      expect(migrated).toMatchObject({ revision: 6, settings: { visualMode: 'auto', autoOcr: false, showInGameRecommendations: true, opponentScouting: false, lobbyBackground: false } })
+      expect(migrated).toMatchObject({ revision: 7, settings: { visualMode: 'auto', autoOcr: false, showInGameRecommendations: true, opponentScouting: false, lobbyBackground: false, recommendationDataSource: 'dtodo' } })
     },
   )
 
   it('migrates a revision-one manual override without changing OCR again', () => {
     expect(migrateSettingsForRevision(settings('eco', true), 1)).toEqual({
-      settings: { ...settings('auto', true), opponentScouting: false, lobbyBackground: false },
-      revision: 6,
+      settings: { ...settings('auto', true), opponentScouting: false, lobbyBackground: false, recommendationDataSource: 'dtodo' },
+      revision: 7,
     })
   })
 
   it('does not repeat the migration at the current revision', () => {
     const current = { ...settings('auto', true), showInGameRecommendations: false }
-    expect(migrateSettingsForRevision(current, 6)).toEqual({
+    expect(migrateSettingsForRevision(current, 7)).toEqual({
       settings: current,
-      revision: 6,
+      revision: 7,
+    })
+  })
+
+  it('fails closed to dtodo for an unknown persisted recommendation source', () => {
+    const invalid = { ...settings('auto', false), recommendationDataSource: 'auto' as AppSettings['recommendationDataSource'] }
+    expect(migrateSettingsForRevision(invalid, 7)).toMatchObject({
+      revision: 7,
+      settings: { recommendationDataSource: 'dtodo' },
     })
   })
 
@@ -57,8 +66,8 @@ describe('settings migration', () => {
       },
     }
     expect(migrateSettingsForRevision(previous, 3)).toEqual({
-      settings: { ...previous, showInGameRecommendations: true, opponentScouting: false, lobbyBackground: false },
-      revision: 6,
+      settings: { ...previous, showInGameRecommendations: true, opponentScouting: false, lobbyBackground: false, recommendationDataSource: 'dtodo' },
+      revision: 7,
     })
   })
 })

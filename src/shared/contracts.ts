@@ -15,6 +15,7 @@ export type GameflowPhase =
 export type VisualMode = 'cinematic' | 'balanced' | 'eco'
 export type VisualModePreference = VisualMode | 'auto'
 export type MatchContextStage = 'none' | 'selecting' | 'launching' | 'active'
+export type RecommendationDataSource = 'dtodo' | 'tencent101'
 
 export interface NormalizedRect {
   x: number
@@ -44,6 +45,7 @@ export interface AppSettings {
   showInGameRecommendations: boolean
   opponentScouting: boolean
   lobbyBackground: boolean
+  recommendationDataSource: RecommendationDataSource
   hotkey: string
   gameDirectory: string
   displayId: string
@@ -90,6 +92,7 @@ export interface ChampSelectSnapshot {
 export interface ChampionSummary {
   id: number
   alias: string
+  searchAliases?: string[]
   name: string
   title: string
   roles: string[]
@@ -152,6 +155,75 @@ export interface ChampionAugmentData {
   builds: ChampionBuildRecommendation[]
 }
 
+export interface RecommendationAugmentRank {
+  augmentId: number
+  heroRecommendationRank: number | null
+  heroRecommendationTotal: number | null
+  heroTier: number | null
+  championPickRate: number | null
+  globalPickRate: number | null
+  globalWinRate: number | null
+  globalPickRank: number | null
+  globalWinRank: number | null
+  globalPickRankChange: number | null
+  globalWinRankChange: number | null
+  statsSource: ChampionAugmentRank['statsSource']
+  statsRegion: ChampionAugmentRank['statsRegion']
+}
+
+export interface RecommendationDetail {
+  source: RecommendationDataSource
+  championId: number
+  snapshotId: string
+  dataVersion: string
+  statisticsDate: string
+  ranks: RecommendationAugmentRank[]
+}
+
+export interface RecommendationDataState {
+  source: RecommendationDataSource
+  status: 'loading' | 'ready' | 'stale' | 'missing' | 'unauthorized' | 'limited' | 'offline' | 'error'
+  snapshotId: string
+  dataVersion: string
+  statisticsDate: string
+  stale: boolean
+  lastError: string | null
+}
+
+export interface ChampionRecommendationCard {
+  augmentId: number
+  name: string
+  iconUrl: string
+  rarityName: string
+  description: string
+  recommendationRank: number | null
+  reason: string
+  championPickRate: number | null
+  globalPickRate: number | null
+  globalWinRate: number | null
+  globalPickRank: number | null
+  globalWinRank: number | null
+  globalPickRankChange: number | null
+  globalWinRankChange: number | null
+}
+
+export interface ChampionRecommendationView {
+  source: RecommendationDataSource
+  championId: number
+  snapshotId: string
+  dataVersion: string
+  statisticsDate: string
+  stale: boolean
+  cards: ChampionRecommendationCard[]
+  message: string
+}
+
+export interface ChampionRecommendationResult {
+  ok: boolean
+  message: string
+  detail: ChampionRecommendationView | null
+}
+
 export type AugmentSlot = 'left' | 'center' | 'right'
 
 export interface OcrSlotResult {
@@ -169,6 +241,13 @@ export interface RankedAugmentSlot extends OcrSlotResult {
   iconUrl: string
   rarityName: string
   pickRate: number | null
+  globalPickRate: number | null
+  globalWinRate: number | null
+  globalPickRank: number | null
+  globalWinRank: number | null
+  recommendationSource: RecommendationDataSource
+  statisticsDate: string
+  metricScope: 'champion' | 'global' | null
   statsSource: ChampionAugmentRank['statsSource']
   statsRegion: ChampionAugmentRank['statsRegion']
 }
@@ -182,7 +261,7 @@ export interface AugmentOverlayState {
 }
 
 export interface AugmentOverlayViewState {
-  slots: Array<Pick<RankedAugmentSlot, 'slot' | 'augmentId' | 'name' | 'position' | 'tied' | 'reason' | 'pickRate'>>
+  slots: Array<Pick<RankedAugmentSlot, 'slot' | 'augmentId' | 'name' | 'position' | 'tied' | 'reason' | 'pickRate' | 'globalPickRate' | 'globalWinRate' | 'recommendationSource' | 'statisticsDate' | 'metricScope'>>
   layout: Array<{ slot: AugmentSlot; left: number; width: number }>
   message: string
 }
@@ -352,10 +431,12 @@ export interface RuntimeState {
   lcu: LcuConnectionState
   snapshot: ChampSelectSnapshot
   api: ApiConnectionState
+  recommendation: RecommendationDataState
   update: AppUpdateState
   releaseHighlights: ReleaseHighlights | null
   champions: ChampionSummary[]
   candidates: ChampionCandidate[]
+  currentRecommendation: ChampionRecommendationView | null
   currentBuild: ChampionBuildRecommendation | null
   opponentScout: OpponentScoutState
   overlay: AugmentOverlayState
@@ -372,6 +453,7 @@ export interface HexBridgeApi {
   validateAndSaveApiKey(apiKey: string): Promise<{ ok: boolean; message: string }>
   clearApiKey(): Promise<void>
   refreshData(): Promise<{ ok: boolean; message: string }>
+  getChampionRecommendation(championId: number): Promise<ChampionRecommendationResult>
   applyUpdate(): Promise<{ ok: boolean; message: string }>
   openDeveloperPage(): Promise<{ ok: boolean; message: string }>
   dismissReleaseHighlights(): Promise<void>

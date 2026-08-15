@@ -2,16 +2,17 @@
 
 HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大乱斗个人实验助手。它以只读方式连接本机 League Client Update（LCU），在选人阶段整理当前英雄和备战席的 Tier / 胜率，并在对局中通过屏幕裁切与本地 OCR 比较实际出现的三张海克斯。
 
-> 当前正式版：`v0.1.28`，以 GitHub Releases 的 Latest 标记为准。这是个人实验工具，不受 Riot Games、腾讯游戏或 ARAMGG 认可、赞助或支持。强化胜率展示和代替玩家决策的产品可能不符合 Riot 当前产品政策；扩大分发前必须重新评估合规性与数据授权。
+> 当前候选版本：`v0.1.29`；公开正式版仍为 `v0.1.28`，以 GitHub Releases 的 Latest 标记为准。这是个人实验工具，不受 Riot Games、腾讯游戏或 ARAMGG 认可、赞助或支持。强化胜率展示和代替玩家决策的产品可能不符合 Riot 当前产品政策；扩大分发前必须重新评估合规性与数据授权。
 
 ## 能力
 
 - 只读 LCU：发现进程参数、相邻 lockfile、手动目录与客户端日志；WebSocket 监听加 1 秒轮询兜底。
 - 仅在已验证的海克斯大乱斗队列中激活：公开 / 国际配置 `queueId=2400`，以及国服 WeGame 实机观测到的 `queueId=3270`（包含自定义房间样本）；不换英雄、不交易、不改符文或装备集，也不发送任何 LCU 写请求。
 - 当前英雄固定置顶，备战席按 Tier、胜率、英雄 ID 排序并标记总体首选。
-- 使用用户自己的 `data.dtodo.cn` API Key；Key 通过 Electron `safeStorage` 加密，Renderer 永远拿不到明文。
-- 目录按 `dataVersion` 原子缓存；401、429、断网时保留旧缓存并标记状态。
-- 单英雄详情按需获取。海克斯保留名称、图标、稀有度、描述、官方 `rank/tier` 和英雄专属 `pickRate`；排序始终优先 `rank/tier`，`pickRate` 只作带来源范围的次级展示。不保存或显示海克斯胜率、胜局或场次。
+- “英雄与海克斯推荐来源”可明确选择 `data.dtodo`（默认）或“腾讯英雄联盟数据站”；不提供含糊的自动模式，也不会在来源失败时静默混用另一边的数据。
+- `data.dtodo` 使用用户自己的 API Key；Key 通过 Electron `safeStorage` 加密，Renderer 永远拿不到明文。腾讯来源无需该 Key，但使用的是腾讯 101 官网当前采用、未文档化且可能变化的 Web 统计接口。
+- 两套来源使用独立的版本 / 日期、状态和原子缓存；401、429、断网或格式漂移时只允许同来源旧缓存并明确标记 stale。
+- 单英雄详情按需获取。data.dtodo 保留官方 `rank/tier` 和英雄专属 `pickRate`；腾讯模式按英雄的推荐 ID 顺序展示，并把强化榜数值明确标为“全局选取率 / 全局胜率”，不会冒充该英雄专属统计或借用 dtodo 名次。
 - 实时助手同时显示该英雄首套 iesdev 大乱斗出装参考；出门装、核心装和情境装备始终来自同一条 `builds` 流派，不混用旧 `build` 或伪造六件完整出装，也不增加额外 API 请求。
 - 自动 OCR 默认关闭；显式开启后每 2 秒只抓 960px 小图门控，命中后才抓最高 1440px 图像并串行运行 PP-OCRv6 small。三张均达到 90% 匹配后在实时助手中显示，全局快捷键可自定义。
 - LeagueClientUx 向游戏进程交接时保留本局英雄与详情；游戏进程或可靠三卡识别会确认已入局，LCU 短暂断开不会停止 OCR。
@@ -70,7 +71,7 @@ HexBridge 会在后台通过 CIM、Get-Process、lockfile、常见安装位置�
 
 ```text
 LCU GET / WebSocket ─┐
-data.dtodo.cn API ───┼─ Electron Main ── validated IPC ── Vue Renderer
+recommendation providers ┼─ Electron Main ── validated IPC ── Vue Renderer
 desktopCapturer/OCR ─┘       │
                              ├─ safeStorage（API Key）
                              └─ versioned JSON cache
@@ -85,8 +86,9 @@ desktopCapturer/OCR ─┘       │
 
 - `src/main/lcu`：LCU 凭据发现、只读客户端和 session 归一化。
 - `src/main/ocr`：显示器裁切、界面门控和 PaddleOCR 推理。
-- `src/main/data-service.ts`：Key 鉴权、上游清洗和版本缓存。
-- `src/shared/recommendations.ts`：可独立测试的英雄 / 海克斯排序规则。
+- `src/main/data-service.ts`：data.dtodo Key 鉴权、上游清洗、出装和版本缓存。
+- `src/main/tencent101-adapter.ts`：腾讯 101 固定端点、压缩字段清洗与独立日期缓存。
+- `src/main/recommendation-coordinator.ts` / `src/shared/recommendations.ts`：来源隔离、英雄详情与可独立测试的三卡排序规则。
 - `src/renderer`：主窗口、选人面板、三卡窄条与校准窗口共用的 Vue 界面。
 
 ## 构建与发布
@@ -104,7 +106,7 @@ npm run pack:win
 
 产物位于本机 `release/`，包括 NSIS 安装包和 ZIP 便携版。每次本地打包前会清空该仓库的本地产物目录，因此本机只保留本次最新构建。GitHub 在新正式版完整发布、公开通道与安装包检查全部成功后，只保留最新 5 个正式 Release 及其资产；更旧的 Release / 资产会删除，但所有 Git tag 与源码历史永久保留。`.github/workflows/release.yml` 在 `v*` 标签上构建、测试并生成 `SHA256SUMS.txt`；构建流程不执行安装。
 
-当前仓库未配置商业 Windows 代码签名证书，`v0.1.28` 安装包仍会显示“未知发布者”，也可能触发 SmartScreen；发布给其他人前应在 GitHub Actions 中配置签名证书。客户端内更新会使用 `latest.yml` 的 SHA-512 校验下载文件，但这不等同于发布者身份签名。不要通过关闭系统安全机制来绕过提示。
+当前仓库未配置商业 Windows 代码签名证书，`v0.1.29` 候选安装包仍会显示“未知发布者”，也可能触发 SmartScreen；发布给其他人前应在 GitHub Actions 中配置签名证书。客户端内更新会使用 `latest.yml` 的 SHA-512 校验下载文件，但这不等同于发布者身份签名。不要通过关闭系统安全机制来绕过提示。
 
 ## 客户端内更新
 
@@ -118,7 +120,8 @@ npm run pack:win
 
 ## 数据、政策与许可
 
-- 英雄 Tier / 胜率与英雄专属海克斯官方排序来自 `data.dtodo.cn` 公布的数据接口；接口文档说明相应快照主要来自腾讯国服公开数据。HexBridge 只展示本文明确列出的字段。
+- 默认的英雄 Tier / 胜率与英雄专属海克斯排序来自 `data.dtodo.cn` 公布的数据接口；接口文档说明相应快照主要来自腾讯国服公开数据。
+- 可选“腾讯英雄联盟数据站”来源使用 [腾讯 101 海克斯榜](https://101.qq.com/?ADTAG=cooperation.glzx.web#/rankings/hextech) 页面当前采用的未文档化 Web 接口。它不是 Riot Developer API，也没有公开版本或 SLA；HexBridge 仅以低频 Main 请求读取、严格清洗并标注统计日期，不把它与 data.dtodo 无标签混合。适用授权材料在仓库外保密保存，不随源码或发布资产分发。
 - 英雄原画 / 图标由 Riot Data Dragon 提供；具体版本与使用条件受 Riot 相关政策约束。
 - 参考 [Riot Developer Portal 的 League of Legends 政策](https://developer.riotgames.com/docs/lol)；使用者自行承担账号与政策风险。
 - “队友与对手近期状态”是默认关闭的本机个人实验，不是 Riot 官方段位、MMR 或胜负预测。它使用不受官方支持、可能随客户端补丁变化的 LCU 历史接口；选人/启动阶段只接受选人会话允许的可见身份，进入游戏后只接受游戏会话允许的公开或缺省可见性，隐藏、未知、重复、自我归队或队伍人数歧义均失败关闭。全局历史请求并发不超过 2，切局、断线、禁用或退出会取消请求并清除本局随机详情键；自定义局也不会被描述为 Riot 已批准的分发场景。该能力可能触及 Riot 关于竞争优势、身份可见性和替代技能评级的政策边界，扩大分发前必须移除或重新完成政策审核。

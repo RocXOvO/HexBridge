@@ -25,6 +25,7 @@ export function championSearchText(champion: ChampionSummary): string {
     champion.name,
     champion.title,
     champion.alias,
+    ...(champion.searchAliases ?? []),
     ...(COMMON_ALIASES[champion.alias] ?? []),
   ].map(normalize).join('|')
 }

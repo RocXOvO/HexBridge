@@ -14,6 +14,12 @@ const pickRate = (value: number | null): string =>
 const rankLabel = (position: number | null, tied: boolean): string =>
   position == null ? '—' : tied ? '并列' : String(position)
 const reason = (value: string): string => value || '暂无可靠推荐依据'
+const displayPickRate = (slot: AugmentOverlayViewState['slots'][number]): number | null =>
+  slot.recommendationSource === 'tencent101' ? slot.globalPickRate : slot.pickRate
+const pickRateLabel = (slot: AugmentOverlayViewState['slots'][number]): string =>
+  slot.recommendationSource === 'tencent101' ? '全局选取率' : '该英雄选取率'
+const sourceLabel = (slot: AugmentOverlayViewState['slots'][number]): string =>
+  `${slot.recommendationSource === 'tencent101' ? '腾讯数据站' : 'data.dtodo'}${slot.statisticsDate ? ` · ${slot.statisticsDate}` : ''}`
 </script>
 
 <template>
@@ -25,10 +31,11 @@ const reason = (value: string): string => value || '暂无可靠推荐依据'
       :style="slotStyle(slot.slot)"
     >
       <span class="overlay-rank"><b>{{ rankLabel(slot.position, slot.tied) }}</b><small>推荐</small></span>
-      <span class="overlay-pick-rate"><b>{{ pickRate(slot.pickRate) }}</b><small>该英雄选取率</small></span>
+      <span class="overlay-pick-rate"><b>{{ pickRate(displayPickRate(slot)) }}</b><small>{{ pickRateLabel(slot) }}</small><em v-if="slot.recommendationSource === 'tencent101'">全局胜率 {{ pickRate(slot.globalWinRate) }}</em></span>
       <div class="overlay-copy">
         <b>{{ slot.name || '未识别' }}</b>
         <small>{{ slot.augmentId ? reason(slot.reason) : '等待可靠结果' }}</small>
+        <em>{{ sourceLabel(slot) }}</em>
       </div>
     </article>
   </div>

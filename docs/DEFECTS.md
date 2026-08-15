@@ -69,7 +69,7 @@
 | HB-055 | 真实对局 96px 提示缺失 | IN PROGRESS / UNVERIFIED |
 | HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 已发布） |
 | HB-057 | Wallpaper Engine 接入 | IN PROGRESS（语义待定） |
-| HB-058 | 腾讯 101 推荐 provider | IN PROGRESS（已审计、未实现） |
+| HB-058 | 腾讯 101 推荐 provider | FIXED / UNVERIFIED（v0.1.29 本地候选；适用书面授权已在仓库外确认） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS / UNVERIFIED（v0.1.28 已发布） |
 | HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
 | HB-061 | 发布 channel 传播检查假阴性 | VERIFIED（v0.1.27 fresh PUT） |
@@ -156,12 +156,13 @@
 
 ### HB-058：腾讯 101 推荐 provider
 
-- 来源是腾讯官方 101 页面当前使用的未文档化 Web 接口，不是 Riot Developer API，也不是有 SLA / 许可承诺的公开官方 API；上线前必须审计站点条款。
+- 来源是腾讯官方 101 页面当前使用的未文档化 Web 接口，不是 Riot Developer API，也不是有 SLA 承诺的公开官方 API。用户已确认适用书面授权在仓库外取得；授权正文、身份、条款与附件属保密信息，本仓库不保存、不转述。技术实现可提交，真实 Windows / 腾讯接口验收前仍不得标记 `VERIFIED`。
 - 设置新增严格枚举 `recommendationDataSource=dtodo|tencent101`，现有用户迁移默认 dtodo，禁止 auto / 静默回退 / 跨源拼接。出装仍是独立 data.dtodo 模块。
 - Tencent101Adapter 必须 Main-only、固定 host / path / query、2 MiB、timeout / Abort、单 in-flight、按 `dtstatdate` 独立原子缓存与 stale；Renderer 不得提供 URL / query 或读取原始 `_fieldValues`。
 - 英雄 `lowest_rank_runes` 只给有序推荐 ID；augment 接口的 pick / win 是全局口径。UI 必须写“全局选取率 / 全局胜率”，缺失为“暂无数据”而不是 0。
 - 腾讯模式下选人、当前英雄、英雄详情、OCR 三卡、96px compact 与理由必须同源：命中英雄推荐的卡按列表顺序，未命中再按腾讯全局 rank；并列保留，缺数据无名次，绝不借 data.dtodo 排名。
 - `source + championId + sequence + dataVersion/dtstatdate + generation` 任一变化即撤旧，迟到请求不能污染切源、换英雄或第二局。无 data.dtodo Key 时腾讯推荐仍可用，只有出装区域单独提示 Key。
+- 本地实现最终审查 `P0=0 / P1=0`；提升到 v0.1.29 后最新完整门禁为 44 files / 469 passed + 1 skipped、typecheck / lint / diff-check 通过，版本 / provider / Release notes 定向 7 files / 50 tests 通过；此前 OCR synthetic / 真实 4K fixture 135ms 通过。npm audit 因 sandbox DNS 失败，macOS source UI / bridge 因 Electron 在进入应用代码前 AppKit SIGABRT 未取得证据；未运行 Windows，未 commit / push / tag / Release。
 
 ### HB-059：Lobby 客户端画面背景
 

@@ -1,0 +1,48 @@
+# HexBridge 运行时与界面契约
+
+> 最后更新：2026-08-15。只记录现行运行时边界；缺陷状态见 [DEFECTS.md](../DEFECTS.md)，真机操作见 [WEGAME_HANDOFF_RUNBOOK.md](../WEGAME_HANDOFF_RUNBOOK.md)。
+
+## 产品与安全边界
+
+- Windows 10/11 x64、国服 / WeGame、简体中文；已识别模式 `queueId ∈ {2400, 3270}`。
+- LCU 只读；不换英雄、不交易、不写符文 / 装备集，不注入、不自动点击。
+- 不做账号、云后端、遥测或战绩上传；不记录 / 落盘 token、API Key、PUUID、原始历史、完整 session 或完整屏幕截图。
+- 默认不保存截图；诊断仅保留用户手动触发的三块标题裁切，最多 60 张。
+- Electron 窗口必须 `contextIsolation=true`、`sandbox=true`、`nodeIntegration=false`、`webSecurity=true`；拒绝任意导航和新窗口。
+
+## 运行时切面
+
+- `src/main/runtime.ts`：LCU、数据、OCR、推荐、窗口和 provider 状态聚合。
+- `src/main/lcu/`：多来源凭据发现、只读 HTTPS / WebSocket、authority / gameId / generation 隔离。
+- `src/main/ocr/`：标题 ROI、PaddleOCR / ONNX、显示器捕获；自动 OCR 默认关闭。
+- `src/main/window-manager.ts`：主窗、选人伴随窗、96px compact、校准窗和 Lobby 背景呈现。
+- `src/main/ipc.ts` / preload：按 sender 限制的结构化 IPC；Renderer 不得获取 Node、网络客户端、文件系统、凭据、任意 URL / path / query。
+
+## 对局上下文
+
+- 阶段为 `selecting / launching / active / none`；authority、gameId、generation、独立 `League of Legends.exe` 和正向 game-starting 证据用于区分交接、终局和同英雄第二局。
+- 租约：active 最长 12h，已确认 handoff 10min，弱 transport / 空 phase 15s；空 ChampSelect / None / partial 不续租。
+- 非 Mayhem 在 normalize 边界清空 current / bench；同英雄跨队列也必须换代并清详情 / OCR / overlay。
+- 当前英雄、详情、OCR、进程检查和 provider 请求都必须用 generation + champion + sequence 守卫迟到结果。
+
+## OCR 与窗口
+
+- 手动 OCR 为单帧；自动路径仅 active + eligible，先低分辨率 gate，再进行完整 OCR，single-flight、退避、同一卡面锁存。
+- 截图后先恢复 HexBridge 窗口，重 OCR 不得持续隐藏主窗；模型线程限制不得与游戏抢占无界 CPU。
+- 96px compact 位于三卡上方，透明、点击穿透、不聚焦；仅在可靠 3/3、游戏前台和卡面存在时显示。
+- 卡面变化后用 500ms + 280ms 确认撤下旧条；两次 absence、刷新、禁用、终局或 45s expiry 清除。失焦只 pause / hide，回前台 cheap probe，不重做 full OCR。
+- 选人伴随窗绑定权威 LeagueClientUx PID / HWND，使用 Win32 / DWM bounds 跟随；synthetic fake 不是真实 WeGame / DPI / 多屏证据。
+- 主窗背景和动效必须服从 Main 自动 visual policy、eco、hidden / minimized / unfocused、InProgress 和 reduced-motion。
+
+## Lobby 实时背景（HB-059）
+
+- v0.1.28 已发布但默认关闭。仅 win32 + LCU connected + `matchStage=none` + Lobby / Matchmaking / ReadyCheck + Main live 页聚焦 / 可见 / 非最小化 + 非 reduced-motion / eco + authority PID / HWND 唯一时有资格。
+- 每 5s 用 PrintWindow 精确截权威 LeagueClientUx；禁止整屏捕获、SetWindowPos 或注入。输入最多 `16,777,216` 像素，降到 `<=960x540`、强模糊 / 暗化、JPEG `<=500KB`。
+- raw / frame 不进 RuntimeState、日志、磁盘或伴随窗。child + epoch、3s sanitize timeout、9s watchdog、single-flight、15/30/60s 退避；切页、失焦、最小化、eco、选人 / active、capture 事务、失败或退出立即停清。
+- Windows fake HWND smoke 只证明窄链路；真实 WeGame Chromium、1080p～4K、100%～150% DPI、多屏、黑帧和性能仍 `UNVERIFIED`。
+
+## 视觉现状
+
+- v0.1.27 已减少非 eco 背景模糊；cinematic blur `1.5` / opacity `.66`，balanced blur `1` / opacity `.56`。
+- eco 明确无 filter / transform，保留旧 scrim；launching / active / hidden 等仍由 Main policy 强制 eco。
+- 真实亮 / 暗原画、长中文、100% / 125% / 150% DPI、CPU / GPU / frametime 仍待用户同机验收。

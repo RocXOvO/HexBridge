@@ -1,157 +1,42 @@
-# HexBridge 项目记忆（精简版）
+# HexBridge 项目记忆索引
 
 > 最后更新：2026-08-15
-> 当前正式版：[v0.1.28](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.28)，public Latest / non-draft / non-prerelease；Release ID `370764802`，publishedAt `2026-08-14T18:53:56Z`。annotated tag object `8abc88949462b787f59a29db84f3a74127d0139b` 解引用产品 / 记忆 commit `deb8b573f96cc60d2c63a316a5e3b740e50df998`。
-> 正式边界：run `31830322299` attempt 2 已通过 41 files / 438 tests、public v2 / root、packaged public 与五版滚动。HB-059 仍为 `IN PROGRESS / UNVERIFIED`，fake bridge 不等于真实 WeGame；HB-064 仍为 `FIXED / UNVERIFIED`，因为 attempt 1 未到 packaged public smoke。当前本地 release 为空，Node 20 annotation 非阻断。
-> 缺陷状态与验收矩阵见 [DEFECTS.md](./DEFECTS.md)；旧版逐行根因、测试流水和发布日志保留在 Git 历史与 GitHub Actions，不再重复堆入本文件。
+> 本文件只保存当前基线、模块入口和待办优先级。缺陷细节、稳定架构契约与发布规则分别维护，避免重复和历史流水膨胀。
 
-## 1. 产品定位与硬边界
+## 当前基线
 
-HexBridge 是 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大乱斗个人实验助手。已识别模式 `queueId ∈ {2400, 3270}`；用户实机确认自定义海克斯大乱斗为 3270，正式匹配 ID 仍须实测。
+- 当前公开正式版：[v0.1.28](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.28)，Release ID `370764802`，产品 commit `deb8b573f96cc60d2c63a316a5e3b740e50df998`。
+- 正式 Windows run `31830322299` attempt 2 已通过 41 files / 438 tests、packaged UI / bridge、public v2 / root 与五版滚动；这些不等于真实 WeGame、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.24～v0.1.28 五个正式 Releases；v0.1.0～v0.1.28 共 29 个 tags 全部保留。本地 `release/` 为空。
+- HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。当前变更尚未 commit / push / workflow / tag / Release。
+- 本地产品版本已提升为 `v0.1.29` 候选；最新完整门禁为 44 files / 469 passed + 1 skipped、typecheck、lint 与 diff-check 通过，公开 Latest 仍为 `v0.1.28`。候选状态不等于 Windows workflow、tag 或 Release 已完成。
 
-- LCU 只读：不得换英雄、交易、改符文 / 装备集或调用写接口。
-- 不注入游戏 / LeagueClientUx，不自动点击，不代替玩家选择英雄或海克斯。
-- 不做账号、云后端、遥测或战绩上传；不得记录 / 持久化 token、API Key、PUUID、原始历史、完整 session 或完整屏幕截图。
-- 默认不保存截图；诊断只允许用户手动触发后的三块标题裁切，最多 60 张。
-- 受支持打包版每次进程启动、updater adapter ready 后，由 Main 以 0ms 调度一次只读 `check(false)`，并保留 6h 周期；只在确认新版后显示入口。检查不得自动下载 / 安装；下载与安装仍须用户明确点击，对局门禁不变，普通退出不得安装。差分静默 NSIS 仍可能触发 UAC / SmartScreen，不得绕过。
-- Windows 安装包尚无商业代码签名，必须持续说明 SmartScreen / 未知发布者风险。
-- 许可为 PolyForm Noncommercial 1.0.0。第三方项目只可作理念 / 行为参考，不复制不兼容代码、素材、品牌或原创视觉表达。
-- Riot / 腾讯网站可访问不等于产品政策、稳定 API 或数据复用授权；扩大分发前必须重新审计。
-- 每个独立目标单独进入小版本；不得预分配未来版本、捆绑未完成目标或预写发布结果。
+## 记忆模块
 
-## 2. 当前架构
+- [运行时、LCU、OCR 与窗口](./memory/RUNTIME.md)：比赛上下文、英雄状态、OCR、96px 提示条、伴随窗、Lobby 背景和视觉性能。
+- [数据源、推荐与隐私](./memory/DATA_AND_PRIVACY.md)：data.dtodo、腾讯 101、本地战绩、缓存、联网与敏感信息边界。
+- [发布、更新与运维](./memory/RELEASE_AND_OPERATIONS.md)：当前 Release、差分更新、五版滚动、发布恢复、证据边界与迁移约束。
+- [缺陷与验收状态](./DEFECTS.md)：HB 编号、状态、真实用户报告和仍需完成的验证。
+- [WeGame 交接实机手册](./WEGAME_HANDOFF_RUNBOOK.md)：同机复现、脱敏证据和验收步骤。
 
-- Electron 43 + Vue 3 + TypeScript + electron-vite / electron-builder。
-- `src/main/runtime.ts`：LCU、数据、OCR、推荐、窗口与 provider 状态聚合。
-- `src/main/lcu/`：多来源凭据发现、只读 HTTPS / WebSocket、比赛上下文与 authority / generation。
-- `src/main/data-service.ts`：当前 data.dtodo 请求、Key、目录 / 英雄详情 cache v3。
-- `src/shared/recommendations.ts`：当前 data.dtodo 英雄候选与三卡 rank / tier 排序。
-- `src/main/ocr/`：显示器捕获、标题 ROI、PaddleOCR / ONNX；自动 OCR 默认关闭。
-- `src/main/window-manager.ts`：主窗、选人伴随窗、96px compact 和校准窗。
-- `src/main/config-store.ts`：safeStorage Key、设置迁移、窗口状态和版本改进提示。
-- `src/main/ipc.ts` / preload：sender 受限结构化业务 IPC；Renderer 不得获得 Node、网络客户端、文件系统、凭据、任意 URL / query。
+## 记忆维护规则
 
-## 3. LCU、比赛上下文与本地战绩
+- 新故障只写入 `DEFECTS.md`；主索引不复制根因、测试流水或历史发布日志。
+- 稳定契约按主题写入 `docs/memory/`；旧过程从 Git 历史和 GitHub Actions 追溯。
+- 只保留现行口径和最新可信证据；候选、Windows CI、fake bridge 与 synthetic updater 不得冒充用户同机 `VERIFIED`。
+- 不记录 token、API Key、PUUID、用户名、完整路径、原始 session / history、完整屏幕截图或腾讯压缩原始 payload。
+- 每个已经实现、审查并通过对应门禁的独立用户功能或缺陷修复，都单独递增 patch 版本并发布 GitHub Release；不得把多个已完成目标长期堆在 `main`，也不得在门禁未完成时预写版本或发布结果。
 
-### 3.1 比赛上下文
+## 当前优先级
 
-- 支持 `selecting / launching / active / none`，用 authority、gameId、generation、独立游戏进程和正向 game-starting 证据隔离同队列第二局。
-- 租约：active 最长 12h、已确认 handoff 10min、弱 transport / 空 phase 15s；空 ChampSelect / None / partial 不续租。
-- 非 Mayhem 在 normalize 边界清空 current / bench；同英雄跨队列也必须换代并清详情 / OCR / overlay。
-- 当前英雄、详情、OCR 和进程检查都必须以 generation + champion 守卫迟到结果。
+1. HB-058：提交并推送已完成的 provider，跑 Windows 候选门禁后作为独立 patch Release 发布；真实腾讯接口验收仍须独立完成，不以书面授权替代技术验证。
+2. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
+3. HB-057 Wallpaper Engine：先由用户明确目标是“仅检测 / pause-play”“切换桌面 Profile / Playlist 并离局恢复”，还是“作为 HexBridge 窗口背景”；官方 CLI 只控制桌面壁纸，不能假定可嵌入 Electron。
+4. HB-056、HB-059、HB-060、HB-064 继续保持各自 `IN PROGRESS / UNVERIFIED` 或 `FIXED / UNVERIFIED`，直到对应真实环境门禁完成。
 
-### 3.2 队友 / 对手近期状态（HB-047 / HB-054）
+## 当前任务边界
 
-- v0.1.24 已正式发布，默认关闭、仅本机，政策 / 自定义分发为 `ACCEPTED RISK`。
-- selecting / launching 只信 champ-select；active 只信 gameflow。唯一 self、跨组 PUUID 唯一、任一 raw team >5 全局拒绝。
-- 队友 4 与对手 5 各自 all-or-nothing，组间允许 partial；最多 20 场，少于 12 场不评分。
-- Main 固定 current-summoner 与 per-PUUID history GET；跨旧 / 新批次总并发 2、单响应 2 MiB、timeout / Abort、瞬态最多一次重试。
-- Renderer 只见 generation-bound 随机 opaqueKey 和脱敏 summary / detail；PUUID、姓名、participant、gameId、原始响应、逐局时间戳和路径不出 Main / 日志 / 磁盘。
-- Windows 370 tests / 正式 Release 不能替代真实国服 endpoint、身份可见性、隐私与用户价值验收，状态保持 `IN PROGRESS / UNVERIFIED`。
-
-## 4. 数据源与推荐契约
-
-### 4.1 data.dtodo（当前默认 provider）
-
-- `https://data.dtodo.cn/api/v1/zh-CN/*` 仍是默认英雄 / 海克斯推荐统计与出装来源；每位用户自行申请 Key，Main 用 safeStorage，Renderer 永不见明文。
-- 目录与详情使用上游 dataVersion；详情 cache schema 为 v3，并保留 v1 / v2 仅 stale fallback。
-- data.dtodo 三卡比较键：英雄专属 rank → 英雄专属 tier → global tier。英雄专属 pickRate 仅展示，不能排序或由 total / rank 推导。
-- 出装只消费同一 `builds[0]` 的出门、第一组核心与情境装备；名称 / 图标必须来自已展开详情，缺失显示“暂无数据”，不得按 ID 猜 URL / 名称。
-
-### 4.2 腾讯 101（HB-058，已审计、未实现）
-
-来源页面：[腾讯 101 海克斯榜](https://101.qq.com/?ADTAG=cooperation.glzx.web#/rankings/hextech)，服务根 `https://mlol.qt.qq.com`。2026-08-14 只读实测以下接口无需登录 / API Key 且返回 HTTP 200：
-
-- 强化榜：`/go/battle_info/odp_proxy/fuwen_aram_rune_rank_v2?augmentid_level=255`
-- 英雄榜：`/go/battle_info/odp_proxy/fuwen_aram_hero_rank_v2?dtstatdate=YYYYMMDD`；日期必须来自强化榜。
-- 最佳拍档：`/go/battle_info/odp_proxy/fuwen_aram_hero_parttner?role1=255&role2=255&championid=255`（拼写保持上游原样）。
-- 静态目录：`https://game.gtimg.cn/images/lol/act/img/js/kiwi/kiwi_augments.json`
-
-定位与限制：
-
-- 这是腾讯官方网页当前使用的**未文档化 Web 接口**，不是 Riot Developer API，也不是有公开版本 / SLA / 许可承诺的“公开官方 API”。上线前必须审计网站条款；公开可访问不等于获得稳定复用授权。
-- 外层为 JSON，核心在 `data._fieldValues` 的 JSON 字符串内，并使用 `#`、`_`、`,`、`&`、`;`、`|` 分隔。必须版本化 fail-closed parser：唯一字段、严格字段数、正整数 ID、有限 0～1 比例、YYYYMMDD、最大条数；歧义 / 漂移 / 日期不一致立即拒绝。
-- 只支持已确认的 `augmentid_level=255`；1 / 2 / 3 未返回正常榜单，不猜枚举。品质筛选只在本地静态目录做。
-- payload 没有明确 queueId、样本量、统计分段或是否含自定义局；不得宣称只代表 2400 / 3270、英雄专属样本或已知覆盖范围。
-- CORS 不是信任边界：实测服务会反射 localhost Origin。联网仍只能在 Main；Renderer 不得直连、构造 URL / query 或读取 `_fieldValues` 原文。
-
-最终 provider 契约：
-
-- 新设置 `recommendationDataSource` 只能是 `dtodo | tencent101`，不得有 `auto`。现有用户 revisioned migration 默认 `dtodo`，避免静默改口径。
-- 选 dtodo 时推荐全链只用 dtodo；选 tencent101 时英雄榜 / 查询、选人、当前英雄、OCR 三卡、96px compact 和理由只用同一腾讯 snapshot。禁止静默回退、跨源拼字段或拿另一来源补名次。
-- 出装是独立 data.dtodo 模块，不受推荐来源控制。腾讯模式无 dtodo Key 时英雄 / 海克斯推荐仍须可用，只有出装区域提示需要 Key，不能判整个实时助手不可用。
-- 腾讯英雄榜 `lowest_rank_runes` 只给英雄对应的有序 augmentId；强化榜 pick_rate / win_rate / rank 是**全局**统计。UI 必须写“全局选取率 / 全局胜率”，不得写成该英雄专属数值。
-- 三卡命中 `lowest_rank_runes` 的先按英雄推荐顺序；未命中再按腾讯全局 rank；相同有效指标并列，缺失无名次。理由只允许“腾讯英雄推荐第 N”或“腾讯全局排名第 N”，绝不借用 dtodo 排名。
-- 浏览页复用 `matchesChampionSearch`（中文名、称号、alias、显式常用别名）与键盘可选列表；点击英雄打开独立详情，不改变实时助手当前英雄。浏览默认按推荐序，可显式切换全局 pick / win 排序。
-- 缺推荐列表显示“腾讯数据站暂无该英雄的推荐海克斯”；缺静态 / 全局字段时保留可确认内容，数值为 `null / 暂无数据`，绝不补 0。
-- Main 必须提交统一 provider snapshot；`source + championId + sequence + dataVersion/dtstatdate + matchGeneration` 任一变化先撤销旧推荐，迟到响应不能污染切源、换英雄或第二局。
-
-最小实现切面：
-
-- 不能直接扩充当前单体 DataService / `ChampionAugmentData` v3 / 单个 Runtime detail / dataVersion-only guard / 写死 dtodo 的 `rankAugmentSlots`。
-- 先抽象 recommendation provider snapshot + ranking strategy；Tencent101Adapter 使用独立 contract、状态和缓存 namespace。
-- Main-only 固定 host / path / query，响应在 JSON.parse 前限制 2 MiB；timeout / Abort、单 in-flight、每日 / 日期限频。
-- 先取强化榜日期，再取同日英雄榜；同日期完整校验后 `.tmp` + rename 原子切换。旧缓存只可显式 stale；不得与 dtodo current.json / champion-detail-v3 混存。
-- 状态 / 诊断显示当前 provider、日期、fresh / stale / error；设置可手动切源，失败不自动换源。
-- 必测：两 provider fixtures、错误分隔 / oversize / 日期错配、切源迟到、全 / 部分 / 零命中、缺全局统计、并列、offline stale、无 dtodo Key 腾讯模式、严禁混源、换英雄 / 第二局清理、键盘 / 长中文 / reduced-motion 和非 Main IPC 拒绝。
-
-## 5. OCR、窗口与视觉性能
-
-- 自动 OCR 默认关闭；手动单帧。自动路径仅 active + eligible 时运行，低分辨率 gate 后才做完整 OCR，single-flight、退避、同一卡面锁存。
-- 捕获必须先裁标题 ROI，模型限制线程；窗口隐藏 / 最小化 / 退出 / generation 变化使旧任务失效。
-- 96px compact 透明、点击穿透、不聚焦；只在可靠 3/3、游戏前台和卡面存在时显示。v0.1.26 正式版改为卡面上方定位并记录 matched frame 指纹；检测到变化后经 500ms + 280ms 稳定确认先撤旧条，两次 probe error 通过 `beginNextRound` 恢复。前台丢失仍只 pause / hide，回前台 cheap probe；两次 absence、刷新、禁用、终局或 45 秒 expiry 清除。
-- 选人伴随窗绑定权威 LeagueClientUx PID，Win32 / DWM bounds 跟随；synthetic fake 不是实际 WeGame / DPI / 多屏证据。
-- 主窗背景、页面动效与轨道球必须服从 Main 自动 visual policy、eco、hidden / minimized / unfocused、InProgress 和 reduced-motion；不得持续粒子或全屏高频重绘。
-- v0.1.27 正式版只调整静态英雄背景：cinematic blur `3→1.5`、opacity `.58→.66` 并减轻 scrim；balanced 使用 blur `1`、opacity `.56` 和独立 scrim；eco 明确无 filter / transform 并恢复原有 scrim。launching / active / hidden 等状态仍由 Main policy 强制 eco；不新增持续任务、截图或捕获。
-
-### 5.1 Lobby 画面作为 HexBridge 背景（HB-059，v0.1.28 已发布）
-
-- 默认关闭。只在 win32、LCU connected、`matchStage=none`、Lobby / Matchmaking / ReadyCheck、Main live 页可见 / 聚焦 / 非最小化、非 reduced-motion、`activeVisualMode!=eco`，且 authority PID / HWND 唯一时，每 5s 用 PrintWindow 精确截取权威 LeagueClientUx；不得整屏捕获、SetWindowPos 或注入。
-- Main 先拒绝超过 `16,777,216` 像素的输入，降至不超过 `960x540`，强模糊 / 暗化并编码 JPEG `<=500KB`；专用 Main-only IPC 只传 sanitized bytes。raw / frames 不进 RuntimeState、日志、磁盘或伴随窗。
-- controller 使用 child + epoch、3s sanitize timeout、9s watchdog 与 single-flight；底层 Sharp 未 settle 不启动第二任务，迟到结果丢弃，失败按 15 / 30 / 60s 退避，同一 raw 在 controller 重启后可恢复。切页、失焦、最小化、eco、选人 / launching / active、capture 事务、失败或退出立即停清。
-- Windows packaged bridge 已用 fake LeagueClientUx 权威 HWND 实跑 PrintWindow + sanitize 并拒绝错误 PID；fake 不等于真实 WeGame Chromium。仍须真实 1080p～4K、100%～150% DPI、多屏、窗口移动、隐私和 CPU / GPU / frametime 验收。
-
-## 6. 安全、缓存与日志
-
-- API Key 仅 safeStorage 加密；不可用时拒绝明文降级。Key 验证失败保留旧 Key。
-- 数据缓存位于 `userData/data-cache`，写入必须 `.tmp` + 原子 rename；不完整目录不能切 current pointer。
-- data.dtodo 与腾讯 101 使用独立 schema / namespace / provider / 日期；读取时必须校验来源，旧缓存必须显示 stale。
-- 日志为内存环形缓冲，过滤 token、Key、PUUID 风格标识和含凭据 URL；不得记录腾讯原始 payload、截图、窗口标题 / 路径或用户身份。
-- 所有上游 / LCU 请求固定 GET、allowlist、timeout、响应大小上限；Renderer 不提供 URL、path、query、PUUID 或 provider 内部参数。
-- `contextIsolation=true`、`sandbox=true`、`nodeIntegration=false`、`webSecurity=true`、CSP；窗口拒绝任意导航 / 新窗口。
-
-## 7. 更新与发布
-
-- HB-060 的启动检查只适用于受支持打包版：adapter ready 后 Main 调度一次 `check(false)`，不等待 6h 首轮；既有 6h 周期继续。异步 `adapterLoader` 可能在 `stop()` 后才 resolve，`stopped` 门禁阻止迟到 adapter 安装、启动检查与周期计时器。此链只读且不改变用户点击下载 / 安装及对局 fail-closed 契约。
-- v0.1.28 attempt 1 发布 Release / assets 后，stable raw exact poll 在 100000ms 预算内超时并 fail closed；public / prune 未运行，未移动 tag 或覆盖资产。稍后 Contents API 与 raw v2 / root 均精确读到 0.1.28，attempt 2 按 canonical 现状幂等跳过 publish 并完成 public / prune。HB-061 保持 `VERIFIED`。
-- HB-064 main 实现只在子进程以非 0 整数退出且稳定错误码严格为 `HB_PUBLIC_UPDATE_SMOKE_VERSION_MISMATCH` 时重试；每次使用 fresh temp / userData。全链 100s absolute deadline、单次 20s、预留 8s cleanup，带 PID 门禁和 `finally` 清理。exit 0 异常 JSON、signal / null、timeout、spawn 失败或预算耗尽均 fail closed；失败发生在 prune 前，不能移动 tag 或改写 Release / assets。
-- `pack:win --publish never` 只构建；tag 与 package 版本必须一致。正式 workflow 在全部检查后才发布 EXE、blockmap、ZIP、latest.yml、SHA256SUMS。
-- GitHub 滚动只保留最新 5 个严格 semver 正式 Release / assets；v0.1.28 全验证后删除 v0.1.23 Release / assets 并保留 tag，当前仅 v0.1.24～v0.1.28 五个 Releases，29 个 tags（v0.1.0～v0.1.28）全部保留。被删 Release / assets 不可恢复，除非依 tag 重建；超窗升级安全回退 full installer。
-- 本地 `clean:release` 每次打包前清空仓库根下精确 `release/`；当前本地 release 为空。
-- 客户端与 GitHub Release publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.28 正式 release highlights 为两项且跨版本累计链已延伸至 0.1.28。非相邻版本累计与长清单滚动由自动化覆盖。
-- Windows hosted Actions / synthetic updater 不等于真实 installed N→N+1；真实差分仍需 Range / 206、网络字节、fallback、安装、重启和 UAC / SmartScreen 证据。
-
-## 8. v0.1.28 正式基线
-
-- run `31830322299` attempt 1 / job `94864196982` 发布 Release / 五资产后，stable raw poll 100000ms 超时失败，public / prune 未运行。attempt 2 / job `94866416667` 于 `2026-08-14T18:56:39Z`～`19:02:06Z` success（约 5m27s），Release / channel 按 canonical 现状 skip，public / prune 成功。
-- attempt 2：Windows 41 files / 438 tests、audit、真实 4K 266ms、lint、typecheck、retention、packaged UI / bridge、diff 全过；public v2 / root 均为 0.1.28、size `199264048`、SHA-512 `SNY7Oh9zYRWebTv5Plzf9WfxARoA2JiAMcA0VLr4wL/i0jvVRawPFJ9HuS4Mdv5jqifiPRMwulo5Iiu8f9xasg==`、releaseDate `2026-08-14T18:52:41.784Z`，packaged public 一次即返回 `updateAvailable=false`。
-- 正式差分 synthetic 0.1.29：Range 10、redirect 3、传输 `1201429 / 199264047`。artifact `9230807456` / `473478611` bytes / SHA-256 `8f2c7d26717454debe44d3f5de6c523177a4b3d9f2cf9799829e5f60f6fb222b`。
-- 正式资产：EXE `199264048` / `03ddd051bd688198a56487f9139a117b04148923f2aae6da89e8771517d38684`；blockmap `201462` / `2d8705a96912c6c4e3f9ed102ec938b8a4aff267cb495631fe26d063f10b6e5b`；ZIP `274424490` / `5e78d3ff7a285775a42861892f2b4949e790f6e0c8d4f99c6cadc830c74a8591`；latest.yml `346` / `8c71e40fc0ca9e56fc86b771df7c0cbaf97b5345719316a17a9d0ff697090cc2`；SHA256SUMS `182` / `ca90d8447a9ede03f9c403fe221e655ce8a789e3f5ccbb9d72633dcfd4a9392d`。
-- 当前仅 v0.1.24～v0.1.28 五个 Releases，29 个 tags 全部保留；本地 release 为空。Node 20 annotation 非阻断。正式发布不能替代真实 WeGame / DPI / 性能证据。
-
-## 9. 当前优先级
-
-1. HB-059：v0.1.28 已发布，仍须真实 WeGame Chromium / DPI / 性能验收；保持 `IN PROGRESS / UNVERIFIED`。
-2. HB-064：v0.1.28 attempt 1 未到 packaged public smoke，仍须下一次真实 first-attempt publish 验证；保持 `FIXED / UNVERIFIED`。
-3. HB-056：v0.1.27 已发布，仍须真实亮暗原画、长中文、100% / 125% / 150% DPI、CPU / GPU / 帧时间验收。
-4. HB-060：正式版已发布，仍须真实 installed Windows 覆盖每进程启动自动检查。
-5. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、性能。
-6. HB-058：先完成网站条款审计，再做 recommendation provider 抽象、独立 Tencent101Adapter、设置迁移和双 provider 门禁；未实现前不进入版本。
-7. HB-057：Wallpaper Engine 独立评估，不与背景清晰度、数据源或 Lobby 捕获捆绑发布。
-
-## 10. 协作与迁移边界
-
-- 当前仓库：`/Users/duchongyang/Documents/ChatGPT/LOL大乱斗`，远端 `RocXOvO/HexBridge`，branch `main`。
-- 完成本轮文档提交 / push / clean status 后，本任务明确结束；不得自行启动新的 build、`npm ci`、索引、文件迁移或后台开发任务。
-- iCloud Desktop / Documents 本地化、冲突副本与依赖污染由迁移协调任务统一处理；本任务不移动 / 删除目录，也不停止 Clash Verge。
-- 主记忆只保留当前契约和最新基线；缺陷写入 `DEFECTS.md`。发布流水与旧根因从 Git / Actions 追溯，不再重复复制。
+- 仓库：`/Users/duchongyang/Documents/ChatGPT/LOL大乱斗`；远端 `RocXOvO/HexBridge`；branch `main`。
+- 外部授权材料只在仓库外保管；任何提交、日志、缓存、Actions artifact 与 Release 都不得包含书信正文或可识别授权方的信息。
+- iCloud Desktop / Documents 本地化、冲突副本和依赖污染由迁移协调任务统一执行；本任务不移动 / 删除目录，也不停止 Clash Verge。
+- 本轮结束后不自行启动 build、`npm ci`、索引重建、迁移或后台开发任务。

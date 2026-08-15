@@ -8,6 +8,7 @@ const allowedSettingKeys = new Set<keyof AppSettings>([
   'showInGameRecommendations',
   'opponentScouting',
   'lobbyBackground',
+  'recommendationDataSource',
   'displayId',
   'calibration',
   'diagnosticsScreenshots',
@@ -22,6 +23,8 @@ function sanitizeSettings(value: unknown): Partial<AppSettings> {
       if (typeof entry === 'boolean') Object.assign(patch, { [key]: entry })
     } else if (key === 'displayId' && typeof entry === 'string') {
       patch.displayId = entry.slice(0, 80)
+    } else if (key === 'recommendationDataSource' && (entry === 'dtodo' || entry === 'tencent101')) {
+      patch.recommendationDataSource = entry
     } else if (key === 'calibration' && (entry === null || validCalibration(entry))) {
       patch.calibration = entry as CalibrationRects | null
     }
@@ -69,18 +72,33 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
     if (typeof livePageVisible !== 'boolean' || typeof reducedMotion !== 'boolean') return
     runtime.getWindowManager().setLobbyBackgroundPresentation({ livePageVisible, reducedMotion })
   })
-  ipcMain.handle('hexbridge:set-ocr-hotkey', (_event, hotkey) => {
+  ipcMain.handle('hexbridge:set-ocr-hotkey', (event, hotkey) => {
+    requireSender(event, 'main')
     if (typeof hotkey !== 'string' || hotkey.length > 40) {
       return { ok: false, activeHotkey: runtime.getState().settings.hotkey, errorCode: 'HOTKEY_INVALID', message: '快捷键格式无效' }
     }
     return runtime.setOcrHotkey(hotkey)
   })
-  ipcMain.handle('hexbridge:validate-key', (_event, key) => {
+  ipcMain.handle('hexbridge:validate-key', (event, key) => {
+    requireSender(event, 'main')
     if (typeof key !== 'string' || key.length > 300) return { ok: false, message: 'API Key 无效' }
     return runtime.validateAndSaveApiKey(key)
   })
-  ipcMain.handle('hexbridge:clear-key', () => runtime.clearApiKey())
-  ipcMain.handle('hexbridge:refresh-data', () => runtime.refreshData())
+  ipcMain.handle('hexbridge:clear-key', (event) => {
+    requireSender(event, 'main')
+    return runtime.clearApiKey()
+  })
+  ipcMain.handle('hexbridge:refresh-data', (event) => {
+    requireSender(event, 'main')
+    return runtime.refreshData()
+  })
+  ipcMain.handle('hexbridge:get-champion-recommendation', (event, championId) => {
+    requireSender(event, 'main')
+    if (!Number.isInteger(championId) || championId < 1 || championId > 10_000) {
+      return { ok: false, message: '英雄参数无效', detail: null }
+    }
+    return runtime.getChampionRecommendation(championId)
+  })
   ipcMain.handle('hexbridge:apply-update', (event) => {
     requireSender(event, 'main')
     return runtime.applyUpdate()

@@ -395,7 +395,7 @@ export class WindowManager {
   private sendAugmentView(window: BrowserWindow, state: RuntimeState): void {
     if (window.isDestroyed() || window.webContents.isDestroyed()) return
     const view: AugmentOverlayViewState = {
-      slots: state.overlay.slots.map(({ slot, augmentId, name, position, tied, reason, pickRate }) => ({
+      slots: state.overlay.slots.map(({ slot, augmentId, name, position, tied, reason, pickRate, globalPickRate, globalWinRate, recommendationSource, statisticsDate, metricScope }) => ({
         slot,
         augmentId,
         name,
@@ -403,6 +403,11 @@ export class WindowManager {
         tied,
         reason,
         pickRate,
+        globalPickRate,
+        globalWinRate,
+        recommendationSource,
+        statisticsDate,
+        metricScope,
       })),
       layout: calculateAugmentOverlayColumns(state.settings.calibration),
       message: state.overlay.message,

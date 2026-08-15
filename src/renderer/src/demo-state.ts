@@ -53,6 +53,7 @@ export function createDemoApi(): HexBridgeApi {
     showInGameRecommendations: true,
     opponentScouting: true,
     lobbyBackground: false,
+    recommendationDataSource: 'dtodo',
     hotkey: 'F8',
     gameDirectory: '',
     displayId: '',
@@ -81,9 +82,18 @@ export function createDemoApi(): HexBridgeApi {
       publishedAt: '2026-08-10',
       lastError: null,
     },
+    recommendation: {
+      source: 'dtodo',
+      status: 'ready',
+      snapshotId: '16.15.6',
+      dataVersion: '16.15.6',
+      statisticsDate: '2026-08-10',
+      stale: false,
+      lastError: null,
+    },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.28',
+      currentVersion: '0.1.29',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -100,6 +110,20 @@ export function createDemoApi(): HexBridgeApi {
     releaseHighlights: null,
     champions,
     candidates: [current, ...bench],
+    currentRecommendation: {
+      source: 'dtodo',
+      championId: current.id,
+      snapshotId: '16.15.6',
+      dataVersion: '16.15.6',
+      statisticsDate: '2026-08-10',
+      stale: false,
+      message: '已读取 3 项英雄推荐',
+      cards: [
+        { augmentId: 1, name: '珠光护手', iconUrl: '', rarityName: '棱彩', description: '', recommendationRank: 1, reason: '该英雄适配度排名第 1', championPickRate: .24, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, globalPickRankChange: null, globalWinRankChange: null },
+        { augmentId: 2, name: '法术苏醒', iconUrl: '', rarityName: '黄金', description: '', recommendationRank: 2, reason: '该英雄适配度排名第 2', championPickRate: .18, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, globalPickRankChange: null, globalWinRankChange: null },
+        { augmentId: 3, name: '终极刷新', iconUrl: '', rarityName: '棱彩', description: '', recommendationRank: 3, reason: '该英雄适配度排名第 3', championPickRate: null, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, globalPickRankChange: null, globalWinRankChange: null },
+      ],
+    },
     currentBuild: {
       label: '爆发法师',
       patch: '16.15',
@@ -140,9 +164,9 @@ export function createDemoApi(): HexBridgeApi {
       detectedAt: Date.now(),
       message: '推荐已更新',
       slots: [
-        { slot: 'left', rawText: '珠光护手', augmentId: 101, name: '珠光护手', confidence: .98, position: 2, tied: false, reason: '英雄专属排名 #8 / 167', iconUrl: '', rarityName: '棱彩', pickRate: .184, statsSource: 'tencent', statsRegion: 'CN' },
-        { slot: 'center', rawText: '万用瞄准镜', augmentId: 102, name: '万用瞄准镜', confidence: .97, position: 1, tied: false, reason: '英雄专属排名 #3 / 167', iconUrl: '', rarityName: '金色', pickRate: .267, statsSource: 'tencent', statsRegion: 'CN' },
-        { slot: 'right', rawText: '加速巫术', augmentId: 103, name: '加速巫术', confidence: .95, position: 3, tied: false, reason: '英雄专属 Tier 3', iconUrl: '', rarityName: '银色', pickRate: null, statsSource: null, statsRegion: null },
+        { slot: 'left', rawText: '珠光护手', augmentId: 101, name: '珠光护手', confidence: .98, position: 2, tied: false, reason: '英雄专属排名 #8 / 167', iconUrl: '', rarityName: '棱彩', pickRate: .184, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, recommendationSource: 'dtodo', statisticsDate: '', metricScope: 'champion', statsSource: 'tencent', statsRegion: 'CN' },
+        { slot: 'center', rawText: '万用瞄准镜', augmentId: 102, name: '万用瞄准镜', confidence: .97, position: 1, tied: false, reason: '英雄专属排名 #3 / 167', iconUrl: '', rarityName: '金色', pickRate: .267, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, recommendationSource: 'dtodo', statisticsDate: '', metricScope: 'champion', statsSource: 'tencent', statsRegion: 'CN' },
+        { slot: 'right', rawText: '加速巫术', augmentId: 103, name: '加速巫术', confidence: .95, position: 3, tied: false, reason: '英雄专属 Tier 3', iconUrl: '', rarityName: '银色', pickRate: null, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, recommendationSource: 'dtodo', statisticsDate: '', metricScope: null, statsSource: null, statsRegion: null },
       ],
     },
     settings,
@@ -178,6 +202,20 @@ export function createDemoApi(): HexBridgeApi {
     validateAndSaveApiKey: async () => ({ ok: true, message: '预览模式：验证成功' }),
     clearApiKey: async () => undefined,
     refreshData: async () => ({ ok: true, message: '预览模式：数据已刷新' }),
+    getChampionRecommendation: async (championId) => ({
+      ok: true,
+      message: '预览模式：英雄推荐已读取',
+      detail: {
+        source: 'dtodo',
+        championId,
+        snapshotId: '16.15.6',
+        dataVersion: '16.15.6',
+        statisticsDate: '2026-08-10',
+        stale: false,
+        message: '英雄推荐已读取',
+        cards: [],
+      },
+    }),
     applyUpdate: async () => {
       demoState.update = { ...demoState.update, status: 'downloaded', percent: 100, message: '更新已下载' }
       return { ok: true, message: demoState.update.message }

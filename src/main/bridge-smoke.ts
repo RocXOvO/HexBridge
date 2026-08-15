@@ -35,9 +35,12 @@ const smokeState: RuntimeState = {
     publishedAt: '',
     lastError: null,
   },
+  recommendation: {
+    source: 'dtodo', status: 'missing', snapshotId: '', dataVersion: '', statisticsDate: '', stale: false, lastError: null,
+  },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.28',
+    currentVersion: '0.1.29',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -54,6 +57,7 @@ const smokeState: RuntimeState = {
   releaseHighlights: null,
   champions: [],
   candidates: [],
+  currentRecommendation: null,
   currentBuild: null,
   opponentScout: {
     status: 'disabled', reason: 'disabled', matchGeneration: null, allies: [], opponents: [], sampledAt: null,
@@ -67,6 +71,7 @@ const smokeState: RuntimeState = {
     showInGameRecommendations: true,
     opponentScouting: false,
     lobbyBackground: false,
+    recommendationDataSource: 'dtodo',
     hotkey: 'F8',
     gameDirectory: '',
     displayId: '',
