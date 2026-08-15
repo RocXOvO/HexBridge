@@ -5,12 +5,11 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.33](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.33)，Release ID `370998749`；annotated tag object `ed1cc0b5e461aa27a44ff23135d589c00142522b` 解引用 tagged commit `073f1f610c6671001ca6a9ad01947120e4bdbbf9`。
-- 正式 Windows run `31874316733` attempt 1 已创建 Release / 五资产，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune；attempt 2 / job `94988452941` 于 5m31s 幂等成功：47 files / 518 tests、真实 4K OCR 252ms、packaged UI / bridge、差分 `1,296,785 / 199,281,334` bytes、v2 / root、public packaged 与滚动保留全过。artifact `9244453292` 为 `473,517,662` bytes。自动化不等于真实 WeGame、Wallpaper Engine / Steam 多库、DPI、性能或 installed updater 验证。
-- GitHub 当前只保留 v0.1.29～v0.1.33 五个正式 Releases；v0.1.0～v0.1.33 共 34 个 tags 全部保留。本地 `release/` 为空。
+- 当前公开正式版：[v0.1.34](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.34)，Release ID `371008386`；annotated tag object `216281aeba59c34006447a9984a50674ae46c0c9` 解引用 tagged commit `d878195284b222d114d71cd8d0ab10a0097c6725`。
+- 正式 Windows run `31876394640` attempt 1 已创建 Release / 五资产，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune；attempt 2 / job `94993524877` 于 5m36s 幂等成功：47 files / 523 tests、真实 4K OCR 298ms、packaged UI / bridge、差分 `1,312,720 / 199,282,373` bytes、v2 / root、public packaged 与滚动保留全过。artifact `9244995277` 为 `473,518,775` bytes。自动化不等于真实 WeGame、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.30～v0.1.34 五个正式 Releases；v0.1.0～v0.1.34 共 35 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
-- v0.1.33 已正式发布，仅修复 HB-066：旧 `gameDirectory` 留在 Main 内部供 LCU 发现使用，公开设置 / RuntimeState / IPC 响应 / 广播均以白名单重建，普通界面仍无目录入口。Release 说明准确列出相较 v0.1.32 的这项变化；public v2 / root 为 `0.1.33 / 199281338` bytes，五资产完整。HB-066 根据结构化隐私边界、Windows packaged 和 public 发布门禁升为 `VERIFIED`。
-- v0.1.34 候选仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。终审 `P0=0 / P1=0`；commit `64d1978f15b7d162d9909a2960c03857f7f8e6ab` 已 push。Windows candidate [run 31876118223](https://github.com/RocXOvO/HexBridge/actions/runs/31876118223) / job `94991984921` 于 5m06s 成功：47 files / 523 tests、真实 4K OCR 205ms、EXE `199282371` bytes、packaged UI / bridge、synthetic v0.1.35 差分 `1312718 / 199282371` bytes、checksums 与 artifact `9244822339 / 473518780` bytes / SHA-256 `7257b6ee…dd8d6` 全过。tag-only 发布步骤按预期跳过，尚无 v0.1.34 tag / Release；公开 Latest 仍为 v0.1.33，真实 WeGame 仍未验。
+- v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
 
 ## 记忆模块
 

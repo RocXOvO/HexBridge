@@ -78,7 +78,7 @@
 | HB-064 | Electron public packaged CDN 假阴性 | FIXED / UNVERIFIED（main 已 push） |
 | HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 正式版） |
 | HB-066 | legacy 游戏目录进入 Renderer 状态 | VERIFIED（v0.1.33 正式版） |
-| HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 Windows 候选） |
+| HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 已发布） |
 
 ## 当前重点验收
 
@@ -104,12 +104,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.33 全验证后删除 v0.1.28 Release / assets、保留 tag；当前仅 v0.1.29～v0.1.33 五个 public stable Releases，34 个 tags（v0.1.0～v0.1.33）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.34 全验证后删除 v0.1.29 Release / assets、保留 tag；当前仅 v0.1.30～v0.1.34 五个 public stable Releases，35 个 tags（v0.1.0～v0.1.34）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.33 Release 已准确列出相较 v0.1.32 的变化，跨版累计链延伸至 0.1.33，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.34 Release 已准确列出相较 v0.1.33 的变化，跨版累计链延伸至 0.1.34，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -191,8 +191,8 @@
 ### HB-067：log-only LCU 窗口 authority
 
 - 根因：日志凭据没有 PID，可信对局确认后又停止候选刷新；选人伴随窗与 Lobby 背景要求权威 LeagueClientUx PID，因此 LCU 主功能可用但两个窗口功能永远无资格。即使后续找到等价 PID，旧 Runtime 也会因 snapshot / state 未变化而跳过窗口同步。
-- v0.1.34 本地候选分离 transport PID 与 Main-only Ux authority；只接受同安装根唯一 Ux、明确 `LeagueClientUx` lockfile，或观测进程名 + PID 精确一致。可信对局仅在缺 authority 时每 10s 单飞刷新当前等价凭据元数据，不切 transport / authority / generation；PID 单独变化会同步 WindowManager。多 Ux、跨根、普通 `LeagueClient` 和不明确情况均拒绝。
-- 终审 `P0=0 / P1=0`；本地 audit 0、47 files / 522 passed + 1 skipped、真实 4K OCR 131ms、typecheck / lint / icon / rolling retention / source bridge / UI / diff-check 全过。commit `64d1978f…` 已 push；Windows candidate run `31876118223` 又通过 47 files / 523 tests、真实 4K 205ms、packaged UI / bridge、差分与 artifact，tag-only 步骤按预期跳过。尚未 tag / Release / 真实 WeGame，状态保持 `FIXED / UNVERIFIED`。
+- v0.1.34 分离 transport PID 与 Main-only Ux authority；只接受同安装根唯一 Ux、明确 `LeagueClientUx` lockfile，或观测进程名 + PID 精确一致。可信对局仅在缺 authority 时每 10s 单飞刷新当前等价凭据元数据，不切 transport / authority / generation；PID 单独变化会同步 WindowManager。多 Ux、跨根、普通 `LeagueClient` 和不明确情况均拒绝。
+- 终审 `P0=0 / P1=0`；本地 audit 0、47 files / 522 passed + 1 skipped及完整门禁通过。Windows candidate run `31876118223` 通过 523 tests；正式 run `31876394640` attempt 1 创建 Release / 五资产后因 Raw 传播超时 fail closed，attempt 2 幂等通过 523 tests、packaged UI / bridge、双通道、public packaged 与五版滚动。真实 log-only / lockfile WeGame 尚未复测，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 
