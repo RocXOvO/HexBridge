@@ -99,9 +99,9 @@
 | HB-085 | Tencent 英雄总体 pickRate 未进入英雄目录 | FIXED / UNVERIFIED（v0.1.51 已发布） |
 | HB-086 | 自动刷新短暂 probe miss 导致三张标签一起跳动 | FIXED / UNVERIFIED（v0.1.52 已发布） |
 | HB-087 | 队友 / 对手强度缺少队伍层量化摘要 | FIXED / UNVERIFIED（v0.1.53 已发布） |
-| HB-088 | OCR 刷新卡顿缺少脱敏调度证据 | IN PROGRESS / UNVERIFIED（v0.1.56 候选，沿用 v0.1.54 实现） |
-| HB-089 | 打包 UI smoke 未随 OCR 调度诊断卡扩展 | FIXED / UNVERIFIED（v0.1.55 已公开 Release；稳定通道正在幂等重跑） |
-| HB-090 | Release notes 将无公开 Release 的中间 tag 当作稳定基线 | FIXED / UNVERIFIED（v0.1.56 候选） |
+| HB-088 | OCR 刷新卡顿缺少脱敏调度证据 | IN PROGRESS / UNVERIFIED（v0.1.56 已发布） |
+| HB-089 | 打包 UI smoke 未随 OCR 调度诊断卡扩展 | FIXED / UNVERIFIED（v0.1.55 已公开 Release） |
+| HB-090 | Release notes 将无公开 Release 的中间 tag 当作稳定基线 | FIXED / UNVERIFIED（v0.1.56 已发布） |
 
 ## 当前重点验收
 
@@ -342,7 +342,7 @@
 ### HB-089：打包 UI smoke 未随 OCR 调度诊断卡扩展
 
 - v0.1.54 新增 OCR 调度诊断卡后，Windows packaged UI smoke 仍要求诊断页恰好 6 张卡，导致门禁在 UI smoke 阶段 fail closed；前置测试、lint、typecheck 与打包本身已通过。
-- v0.1.55 已公开 Release 的候选把断言同步为当前 7 张诊断卡，并新增对应 Release 说明；首次 workflow 仅在稳定通道步骤失败，正在幂等重跑。v0.1.56 候选进一步修正 Release notes：上一正式版只从公开 Release 列表取值；没有公开 Release 的中间 tag 仍累计其变更，并使用上一公开 Release 作为 compare 基线。这些自动化门禁修正不代表真实 Windows / WeGame 视觉或性能已验证。
+- v0.1.55 已公开 Release，把断言同步为当前 7 张诊断卡并新增对应 Release 说明；稳定通道已通过幂等重跑。v0.1.56 已公开 Release，进一步修正 Release notes：上一正式版只从公开 Release 列表取值；没有公开 Release 的中间 tag 仍累计其变更，并使用上一公开 Release 作为 compare 基线。这些自动化门禁修正不代表真实 Windows / WeGame 视觉或性能已验证。
 
 ## 追溯
 

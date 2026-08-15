@@ -4,15 +4,15 @@
 
 ## 当前正式基线
 
-- 当前候选 `v0.1.56` 已推送不可变 tag，workflow `31914401071` 正在运行，尚无 Release；它保留 v0.1.54 的脱敏 OCR 调度诊断、v0.1.55 的 packaged UI smoke 7 卡门禁，并修正 Release notes 只以公开 Release 作为稳定基线、累计无 Release 中间 tag 变更。v0.1.54 tag 已推送但因旧 6 卡断言在 UI smoke fail closed，未创建公开 Release；v0.1.55 已创建公开 Release，五资产、稳定通道、packaged public 与五版滚动保留均通过；公开正式版为 `v0.1.55`，不得把候选证据写成已发布或真实 WeGame 性能已验证。
+- 当前公开正式版为 `v0.1.56`，五资产、稳定通道、packaged public 与五版滚动保留均通过；它保留 v0.1.54 的脱敏 OCR 调度诊断、v0.1.55 的 packaged UI smoke 7 卡门禁，并修正 Release notes 只以公开 Release 作为稳定基线、累计无 Release 中间 tag 变更。v0.1.54 仅有 tag、未创建公开 Release；不得把自动化门禁写成真实 WeGame 性能已验证。
 
-- 当前公开正式版 `v0.1.55` 已完成 commit / push / tag / Release / 双通道 / 滚动保留；本版包含脱敏 OCR 调度诊断与 packaged UI smoke 7 卡门禁修正。真实游戏刷新、国服 history、用户价值和 WeGame 验收仍未完成，不能写成 `VERIFIED`。
+- 当前公开正式版 `v0.1.56` 已完成 commit / push / tag / Release / 双通道 / 滚动保留；本版修正跨无 Release 中间 tag 的累计说明。真实游戏刷新、国服 history、用户价值和 WeGame 验收仍未完成，不能写成 `VERIFIED`。
 
-- 当前公开正式版 `v0.1.55` 已完成 tag / Release / 双通道 / 滚动保留；正式 run `31913678607` / job `95083170527` 成功，五资产与 public packaged 均通过；真实 Windows WeGame 刷新视觉、帧耗和国服 history 仍不是自动化证据。
+- 当前公开正式版 `v0.1.56` 已完成 tag / Release / 双通道 / 滚动保留；正式 run `31914401071` 重跑成功，五资产与 public packaged 均通过；真实 Windows WeGame 刷新视觉、帧耗和国服 history 仍不是自动化证据。
 
-- public Latest：[v0.1.55](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.55)，Release ID `371179383`，publishedAt `2026-08-15T23:07:29Z`；tagged commit `c698060`。
-- 正式 run `31913678607` / job `95083170527` 成功；五资产、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9254486496` / `473546506` bytes。
-- public v2 / root：version `0.1.55`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.51～v0.1.55（v0.1.54 仅 tag），本地 `release/` 为空。
+- public Latest：[v0.1.56](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.56)，Release ID `371182988`，publishedAt `2026-08-15T23:24:29Z`；tagged commit `da178bf`。
+- 正式 run `31914401071` 重跑成功；五资产、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9254662188` / `473546830` bytes。
+- public v2 / root：version `0.1.56`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.51～v0.1.56 中除 v0.1.54 的五个 Release，本地 `release/` 为空。
 
 - v0.1.50 是上一版正式基线；真实 WeGame / installed updater 仍不是自动化证据。
 
