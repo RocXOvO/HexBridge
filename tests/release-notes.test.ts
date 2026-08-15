@@ -14,6 +14,7 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.49', draft: false, prerelease: false },
     { tag_name: 'v0.1.50', draft: false, prerelease: false },
     { tag_name: 'v0.1.51', draft: false, prerelease: false },
+    { tag_name: 'v0.1.52', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -161,6 +162,18 @@ describe('stable Release notes', () => {
     expect(body).toContain('### 相较 v0.1.50 的更新')
     expect(body).toContain('总体选取率贯通当前英雄、备战席与英雄榜')
     expect(body).toContain('/compare/v0.1.50...v0.1.51')
+  })
+
+  it('renders the transient refresh probe and physical-slot animation fix for v0.1.52', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.52',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.51 的更新')
+    expect(body).toContain('短暂识别空窗误撤整组三卡')
+    expect(body).toContain('按物理卡位与卡片 ID 区分节点')
+    expect(body).toContain('/compare/v0.1.51...v0.1.52')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {

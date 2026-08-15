@@ -40,7 +40,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.51',
+    currentVersion: '0.1.52',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',

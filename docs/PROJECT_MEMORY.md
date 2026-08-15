@@ -6,6 +6,7 @@
 ## 当前基线
 
 - 当前公开正式版：[v0.1.51](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.51)，Release ID `RE_kwDOT1eQs84WH3OK`，publishedAt `2026-08-15T21:20:22Z`；tagged commit `8c200033c3fa200fbf3d1c81e76738d8037d21a1`。本版将 Tencent 101 英雄榜总体 `pickRate` 以来源隔离的 `championPickRate` 贯通当前英雄、备战席与英雄榜；dtodo 明确为 `null`，该指标不参与排序。
+- 当前本地候选 `v0.1.52` 尚未 commit / push / Windows / tag / Release；本候选只修复单卡刷新确认期间的短暂 probe miss：recognizing 状态保持可靠三卡，连续两次 absence 才撤下，并保留按物理槽位 + augmentId 的单槽动画边界。真实 WeGame / Windows 视觉仍未验，不得写成 `VERIFIED`。
 - v0.1.51 workflow `31908866405` 首次因稳定通道传播超时 fail closed，幂等重跑成功（job `95071775049`）；Windows `50` files / `594` passed、真实 4K OCR `262ms`、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过。artifact `9253256349` / `473543003` bytes / `bf1b7dc476182bbd9e7296a03253a8688e36de4ce4e013d14569d5ec75687324`。真实 Windows Tencent 接口、切源和用户同机视觉仍未验，不能写成 `VERIFIED`。
 - v0.1.51 五资产：EXE `199291843` / `759b5e972614d43feeef7a14039d8b604e1de5607d559faaa1e0ac8654a25083`；blockmap `201403` / `74d4644111fc484d14f2311a503fe495aea787d9c8ed0a361245fc2718e7c8e8`；ZIP `274460815` / `2f795677159476033cdf5ba2daab2a886711f1af5465e290613f40511a38a220`；latest.yml `346` / `d42d8675b6b4f996ded5125886b768f5fc40d7bc38491449a4d2eee715de64c4`；SHA256SUMS `182` / `12e1204eb794d627fc248cb98aae8c130ce8069d70bc10af86dd5be17b52886a`。差分 smoke 传输 `1322307` bytes / full `199291920`，10 个 Range、3 个 redirect，基于 v0.1.50。
 - v0.1.50 正式 workflow `31907004019`（首次稳定通道传播超时，幂等重跑成功；成功 job `95067797353`）；Windows `50` files / `589` tests、真实 4K OCR `262ms`、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过。artifact `9252836643` / `473541534` bytes / `fc2af97007a69eb1f9cbbf12acfd4c9b4537e8d152cf0a69ff6eaa335b48de49`。真实游戏视觉仍未验证，不得写成已完成用户同机验收。
@@ -58,6 +59,7 @@
 9. HB-069：在 v0.1.36 正式版完成用户 Windows 客户端切源复测；发布成功不代替真实接口与 UI 验证。
 10. HB-070 / 071：分别完成 v0.1.37 来源徽标视觉确认，以及 v0.1.38 installed 网络波动 / 429 / 恢复验证；Key / 响应正文不得进入日志或文档。
 11. HB-085：在 v0.1.51 Windows 客户端切换 Tencent 101，确认英雄总体选取率在当前英雄、备战席和英雄榜显示且明确口径；缺失数据显示暂无数据，不得与海克斯全局指标混淆。
+12. HB-086：用 v0.1.52 Windows 客户端实测单卡刷新期间短暂空窗、连续两次 absence、失焦恢复和帧时间；确认未变化标签不退场、不重播。
 
 ## 当前任务边界
 

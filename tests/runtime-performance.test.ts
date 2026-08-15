@@ -181,6 +181,90 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
   })
 
+  it('keeps the reliable three-card surface through a transient refresh-probe miss', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 10 }, { augmentId: 11 }, { augmentId: 12 }],
+      detectedAt: 1,
+      message: '上一轮推荐',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'recognizing'
+    runtime.automaticFingerprint = ['dddd', 'eeee', 'ffff']
+    runtime.scanner = {
+      probeInterface: vi.fn()
+        .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10, fingerprints: [] })
+        .mockResolvedValueOnce({ status: 'detected', durationMs: 10, fingerprints: ['dddd', 'eeee', 'ffff'] }),
+    }
+    runtime.runScan = vi.fn(async () => ({ ok: true, code: 'MATCHED', message: 'matched' }))
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledOnce()
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.automaticScanPhase).toBe('recognizing')
+
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.runScan).toHaveBeenCalledOnce()
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.automaticScanAbsences).toBe(0)
+    expect(runtime.automaticScanPhase).toBe('latched')
+    runtime.stopScanLoop()
+  })
+
+  it('withdraws a recognizing surface only after two consecutive absences', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 10 }, { augmentId: 11 }, { augmentId: 12 }],
+      detectedAt: 1,
+      message: '上一轮推荐',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'recognizing'
+    runtime.automaticFingerprint = ['dddd', 'eeee', 'ffff']
+    runtime.scanner = {
+      probeInterface: vi.fn()
+        .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10, fingerprints: [] })
+        .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10, fingerprints: [] }),
+    }
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.automaticScanPhase).toBe('recognizing')
+
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.overlay.slots).toHaveLength(3)
+    expect(runtime.automaticScanPhase).toBe('waiting')
+    expect(runtime.automaticFingerprint).toBeNull()
+    runtime.stopScanLoop()
+  })
+
   it('backs off scan errors instead of retrying every two seconds', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any

@@ -38,7 +38,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.51'")
+    expect(rendererState).toContain("currentVersion: '0.1.52'")
   })
 
   it('keeps champion selection scrolling inside the assistant without horizontal overflow', () => {

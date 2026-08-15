@@ -1427,7 +1427,14 @@ export class HexBridgeRuntime {
         if (this.overlay.visible && this.automaticScanAbsences < 2) {
           nextDelay = AUTO_OCR_CHANGE_CONFIRM_MS
         }
-        if (this.automaticScanPhase === 'recognizing' || this.automaticScanAbsences >= 2) {
+        // A card refresh can briefly make the cheap title probe miss while
+        // the new artwork is animating.  `recognizing` is an in-flight
+        // confirmation state, not proof that the whole surface disappeared:
+        // withdrawing here tears down all three tags and makes the next
+        // successful OCR look like a full-surface re-entry.  Keep the
+        // reliable surface mounted until two consecutive absences, while
+        // retaining the 100ms confirmation cadence during the refresh.
+        if (this.automaticScanAbsences >= 2) {
           this.automaticScanPhase = 'waiting'
           this.automaticFullAttempts = 0
           this.automaticFingerprint = null

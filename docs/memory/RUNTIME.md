@@ -1,6 +1,6 @@
 # HexBridge 运行时与界面契约
 
-> 最后更新：2026-08-15。只记录现行运行时边界；缺陷状态见 [DEFECTS.md](../DEFECTS.md)，真机操作见 [WEGAME_HANDOFF_RUNBOOK.md](../WEGAME_HANDOFF_RUNBOOK.md)。
+> 最后更新：2026-08-16。只记录现行运行时边界；缺陷状态见 [DEFECTS.md](../DEFECTS.md)，真机操作见 [WEGAME_HANDOFF_RUNBOOK.md](../WEGAME_HANDOFF_RUNBOOK.md)。
 
 ## 产品与安全边界
 
@@ -30,7 +30,7 @@
 - 手动 OCR 为单帧；自动路径仅 active + eligible，先低分辨率 gate，再进行完整 OCR，single-flight、退避、同一卡面锁存。三卡渲染固定按槽位复用 DOM，只有 augmentId 变化的槽位播放入场动画；手动监测发现变化时也保持已有可靠三卡挂载，继续有界低成本探测，避免整组三卡退场重进。
 - 截图后先恢复 HexBridge 窗口，重 OCR 不得持续隐藏主窗；模型线程限制不得与游戏抢占无界 CPU。
 - 96px compact 位于三卡上方，透明、点击穿透、不聚焦；仅在可靠 3/3、游戏前台和卡面存在时显示。
-- 卡面变化后用 500ms + 280ms 确认撤下旧条；两次 absence、刷新、禁用、终局或 45s expiry 清除。失焦只 pause / hide，回前台 cheap probe，不重做 full OCR。
+- 卡面变化后用 100ms 窗口确认新指纹；recognizing 期间的单次短暂 `not-detected` 不撤下可靠三卡，只有连续两次 absence、刷新、禁用、终局或 45s expiry 清除。失焦只 pause / hide，回前台 cheap probe，不重做 full OCR。
 - 选人伴随窗绑定权威 LeagueClientUx PID / HWND，使用 Win32 / DWM bounds 跟随，并在移动后保持非激活的 topmost/floating 层级。LCU transport PID 与 Ux 窗口 authority 必须分离；日志 / lockfile 连接只在同安装根唯一 Ux、明确 Ux lockfile 名称或观测 Ux 名称 + PID 精确一致时补齐，不能回退任意同名窗口。PID / HWND / 路径不进日志、RuntimeState 或 Renderer；synthetic fake 不是真实 WeGame / DPI / 多屏证据。
 - 呈现诊断只允许有限枚举：窗口观察器 `stopped / starting / retrying / observing`，选人伴随窗与 96px 条只暴露资格、结果完整性、前台和显示决策。状态必须与实际 show / hide 共用输入并按转换去重；禁止 PID、HWND、路径、bounds、标题或截图进入 DTO / 日志。
 - 主窗背景和动效必须服从 Main 自动 visual policy、eco、hidden / minimized / unfocused、InProgress 和 reduced-motion。
