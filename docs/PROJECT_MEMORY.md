@@ -6,7 +6,7 @@
 ## 当前基线
 
 - 当前公开正式版：[v0.1.40](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.40)，Release ID `371093525`；annotated tag object `de848471fe4139c16c99f5a8bb20774512d9c1f7` 解引用 tagged commit `d2b6b91d6536229e84e16bf04984341c5c7823a9`。
-- 当前候选版 `v0.1.41` 尚未 tag / push / Windows 验证 / Release；本地已完成 48 files / 562 passed + 1 skipped、OCR smoke、真实 4K fixture 157ms、typecheck、lint、build、source bridge/UI smoke 与 diff-check。候选只包含 HB-074，不能把这些证据外推为真实 WeGame、Windows 性能或 installed updater 验证。
+- 当前候选版 `v0.1.41` 已 push（`69d6684`），尚未 tag / Release；Windows workflow `31895887765` / job `95039031646` 于 5m32s 成功，48 files / 563 passed、真实 4K fixture 224ms、packaged UI / bridge、差分 smoke 与资产校验全过，artifact `9249838679` 为 `473531749` bytes（`sha256:4adb21a4…254c715`）。候选只包含 HB-074，不能把这些证据外推为真实 WeGame、Windows 性能或 installed updater 验证。
 - 正式 run `31894224065` attempt 1 / job `95034905041` 创建 Release / 五资产与双通道后因 Raw 100s 未传播而 fail closed 且未 prune；attempt 2 / job `95035875831` 于 5m35s 幂等成功：Windows 48 files / 560 tests、真实 4K OCR 265ms、packaged UI / bridge、public v2 / root / packaged 与滚动保留全过。复跑 artifact `9249511215` 为 `473529084` bytes。自动化不等于真实 WeGame、腾讯接口或 installed 迁移验证。
 - GitHub 当前只保留 v0.1.36～v0.1.40 五个正式 Releases；v0.1.0～v0.1.40 共 41 个 tags 全部保留。本地 `release/` 为空；v0.1.35 Release / assets 已删除但 tag / source 保留。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。

@@ -4,7 +4,7 @@
 
 ## 当前正式基线
 
-- 当前候选 `v0.1.41` 尚未 tag / Release；本地门禁已记录为 48 files / 562 passed + 1 skipped、OCR smoke、真实 4K fixture 157ms、build、source bridge/UI smoke、typecheck、lint、diff-check。正式发布前仍须 Windows workflow_dispatch，不能预写外部结果。
+- 当前候选 `v0.1.41` 已 push（`69d6684`），尚未 tag / Release；Windows workflow `31895887765` / job `95039031646` 于 5m32s 成功，48 files / 563 passed、4K fixture 224ms、packaged UI / bridge、差分 smoke 与资产校验通过，artifact `9249838679` 为 `473531749` bytes。真实 WeGame / installed updater 仍不是该候选证据。
 
 - public Latest：[v0.1.40](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.40)，non-draft / non-prerelease；Release ID `371093525`，publishedAt `2026-08-15T16:04:13Z`。
 - annotated tag object `de848471fe4139c16c99f5a8bb20774512d9c1f7` 解引用 commit `d2b6b91d6536229e84e16bf04984341c5c7823a9`。

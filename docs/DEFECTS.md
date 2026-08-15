@@ -93,7 +93,7 @@
 
 - v0.1.41 候选在卡面指纹变化后使用 100ms 确认窗口启动完整 OCR；稳定卡面继续低成本探测，`reuseUnchangedAugmentSlots` 复用未变化卡片对象，避免小标签重复刷新。
 - 主窗口与 96px 窄条使用分层 Transition / TransitionGroup，仅变化槽位进出场；省电与 reduced-motion 门禁保持有效。版本更新提示移除空白处关闭路径，只允许“知道了”按钮；系统托盘新增“立即更新”，仍沿用对局禁止安装与 updater 生命周期守卫。
-- 本地证据为 48 files / 562 passed + 1 skipped、OCR smoke、真实 4K fixture 157ms、typecheck、lint、build、source bridge/UI smoke 与 diff-check；真实 Windows 卡面刷新、动画帧耗时、托盘点击和 installed 更新仍未验证，不能升级为 `VERIFIED`。
+- 本地证据为 48 files / 562 passed + 1 skipped、OCR smoke、真实 4K fixture 157ms、typecheck、lint、build、source bridge/UI smoke 与 diff-check；Windows workflow `31895887765` / job `95039031646` 另通过 48 files / 563 tests、4K 224ms、packaged UI / bridge 与差分 smoke。真实 WeGame 卡面刷新、动画帧耗时、托盘点击和 installed 更新仍未验证，不能升级为 `VERIFIED`。
 
 ### HB-020 / 022：游戏交接
 
