@@ -15,7 +15,7 @@
 - v0.1.37 已正式发布，仅实现 HB-070：实时助手右上角只显示当前推荐来源名称，不再附带统计日期、dataVersion、“未就绪”或缓存后缀；详情、英雄榜、设置和诊断中的日期 / stale / error 保持不变。正式 EXE `199283718` bytes，v2 / root 精确为 `0.1.37`，五资产完整。HB-070 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端视觉确认。
 - v0.1.38 已正式发布，仅修复 HB-071：单英雄详情失败不再污染全局 data.dtodo 状态；目录 429 保留同源旧缓存但不自动重试；离线按 15s / 60s / 5min 有界恢复；正文统一 10s / 2MiB；同 dataVersion 目录不可变且新版本仅在文件、pointer 全提交后切 active。正式 EXE `199284622` bytes，public v2 / root 精确为 `0.1.38`，五资产完整。HB-071 保持 `FIXED / UNVERIFIED`，等待 installed 客户端网络波动复测。
 - v0.1.39 已正式发布，仅修复 HB-072：同 generation 的队友 / 对手换英雄或交换备战席时，已有历史指标和 opaque key 按 Main-only 身份保持，公开头像、relation / slot 与详情跟随最新权威 roster；拒绝分组暂时从 Renderer 撤下，恢复时不因 roster 更新重查历史。正式 EXE `199286227` bytes，public v2 / root 精确为 `0.1.39`，五资产完整；CI 不等于真实 WeGame，HB-072 保持 `FIXED / UNVERIFIED`。
-- v0.1.40 本地候选仅实现 HB-073：新安装和尚未保存来源选择的配置默认腾讯 101；revision 7 / 8 中已保存的合法 `dtodo` 或 `tencent101` 选择保持不变，非法值回到腾讯默认。两套推荐继续严格隔离，出装仍是独立 data.dtodo 模块。本地 audit 0、OCR synthetic、真实 4K 159ms、48 files / 559 passed + 1 skipped、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过；尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.39。
+- v0.1.40 candidate `3587cdee758c6eb2cd5c19054a300cb32c3c7402` 已 push，仅实现 HB-073：新安装和尚未保存来源选择的配置默认腾讯 101；revision 7 / 8 中已保存的合法 `dtodo` 或 `tencent101` 选择保持不变，非法值回到腾讯默认。两套推荐继续严格隔离，出装仍是独立 data.dtodo 模块。Windows run `31893923167` / job `95034187403` 于 5m20s 成功：48 files / 560 tests、真实 4K 271ms、EXE `199286400` bytes、packaged UI / bridge、synthetic v0.1.41 差分 `1317488 / 199286400` bytes（10 Range / 3 redirect）及 checksums / artifact 全过；artifact `9249329415` 为 `473529193` bytes，digest `ad54d686…e3b2c`。tag-only 步骤按预期跳过；尚无 v0.1.40 tag / Release，公开 Latest 仍为 v0.1.39。Node 20 action annotation 非阻断。
 
 ## 记忆模块
 
