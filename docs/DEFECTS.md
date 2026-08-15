@@ -68,7 +68,7 @@
 | HB-054 | 队友 + 对手总览 / 头像详情 | IN PROGRESS / UNVERIFIED；政策 ACCEPTED RISK |
 | HB-055 | 真实对局 96px 提示缺失 | IN PROGRESS / UNVERIFIED |
 | HB-056 | 主背景清晰度 | IN PROGRESS / UNVERIFIED（v0.1.27 已发布） |
-| HB-057 | Wallpaper Engine 接入 | FIXED / UNVERIFIED（v0.1.30 本地候选） |
+| HB-057 | Wallpaper Engine 接入 | FIXED / UNVERIFIED（v0.1.30 Windows 候选） |
 | HB-058 | 腾讯 101 推荐 provider | FIXED / UNVERIFIED（v0.1.29 已发布；适用书面授权已在仓库外确认） |
 | HB-059 | Lobby 画面作为 HexBridge 背景 | IN PROGRESS / UNVERIFIED（v0.1.28 已发布） |
 | HB-060 | 每次启动只读检查更新 | FIXED / UNVERIFIED（v0.1.25 已发布） |
@@ -153,7 +153,7 @@
 - v0.1.30 候选默认关闭；旧用户 revision 8 强制保持关闭。用户配置英雄 `{id}` 命名模板与固定恢复 Profile / Playlist，仅在受支持对局中切换；离局、退出和更新安装前恢复。
 - Main 只发现 Steam app 431960 的 canonical 32 / 64 位 exe，要求 manifest appid、目录链、CIM `ExecutablePath` 和运行进程精确一致；固定 `openProfile / openPlaylist`、`shell:false`、2s timeout，不自动启动 / 关闭 Wallpaper Engine。
 - Profile / Playlist 名与模板只持久化在 Main 配置，可执行路径只在 Main 内存中使用；均不进 RuntimeState、非 Main IPC 或日志。持久 lease 在崩溃后下次启动先恢复，再应用当前英雄；迟到命令、英雄换代、更新取消与托盘 / 标题退出均有序列化门禁。
-- 终审 `P0=0 / P1=0`；本地 46 files / 498 passed + 1 skipped及全部 source 门禁通过。尚未跑 Windows workflow，更未在真实 Wallpaper Engine / Steam 多库、CIM 权限、多屏 Profile 和官方 CLI 上验收，因此保持 `FIXED / UNVERIFIED`。
+- 终审 `P0=0 / P1=0`；candidate commit `049ead00dbfe505c6cdbdbfcb2dc099d0f762664` 已 push，Windows run `31869193242` / job `94975052284` 通过 46 files / 499 tests、真实 4K 257ms、packaged UI / bridge、差分与产物门禁。尚未 tag / Release，也未在真实 Wallpaper Engine / Steam 多库、CIM 权限、多屏 Profile 和官方 CLI 上验收，因此保持 `FIXED / UNVERIFIED`。
 
 ### HB-058：腾讯 101 推荐 provider
 

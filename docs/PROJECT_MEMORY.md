@@ -10,7 +10,7 @@
 - GitHub 当前只保留 v0.1.25～v0.1.29 五个正式 Releases；v0.1.0～v0.1.29 共 30 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.29 已正式发布；Release 说明准确列出相较 v0.1.28 的三项变化，public v2 / root 为 `0.1.29 / 199274613` bytes，正式五资产完整。HB-058 仍为 `FIXED / UNVERIFIED`，不得用发布结果替代真实 Windows / 腾讯接口与 WeGame 同机验收。
-- v0.1.30 本地候选已实现默认关闭的 Wallpaper Engine Profile / Playlist 英雄联动与离局恢复；终审 `P0=0 / P1=0`，46 files / 498 passed + 1 skipped、typecheck / lint / OCR / 真实 4K 130ms / icon / retention / source bridge / UI / diff 已过。尚未 commit / push / Windows / tag / Release，Latest 仍为 v0.1.29。
+- v0.1.30 candidate commit `049ead00dbfe505c6cdbdbfcb2dc099d0f762664` 已 push；Windows workflow_dispatch run `31869193242` / job `94975052284` 于 5m28s 内成功，46 files / 499 tests、真实 4K OCR 257ms、packaged UI / bridge、synthetic v0.1.31 差分 `1,200,432 / 199,280,687` bytes、checksums 与 artifact `9242988330 / 473,516,312` bytes 全过。tag-only 发布步骤按预期跳过；尚无 v0.1.30 tag / Release，Latest 仍为 v0.1.29。
 
 ## 记忆模块
 
@@ -32,7 +32,7 @@
 
 1. HB-058：完成真实 Windows 下的腾讯接口、切源、当前英雄 / OCR / 紧凑条同源与 stale / error 显示验收；不以书面授权或 Release 成功替代技术验证。
 2. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
-3. HB-057 Wallpaper Engine：v0.1.30 候选已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义实现；待 Windows workflow 和真实 Wallpaper Engine / Steam 多库实机验收。
+3. HB-057 Wallpaper Engine：v0.1.30 Windows 候选已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义通过完整门禁；待正式 Release 与真实 Wallpaper Engine / Steam 多库实机验收。
 4. HB-056、HB-059、HB-060、HB-064 继续保持各自 `IN PROGRESS / UNVERIFIED` 或 `FIXED / UNVERIFIED`，直到对应真实环境门禁完成。
 
 ## 当前任务边界
