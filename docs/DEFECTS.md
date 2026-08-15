@@ -82,7 +82,7 @@
 | HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 已发布） |
 | HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 已发布） |
 | HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 已发布） |
-| HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 本地候选） |
+| HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 Windows 候选） |
 
 ## 当前重点验收
 
@@ -218,7 +218,7 @@
 
 - 根因是单英雄详情 timeout / 429 / 5xx / 解析或缓存写入失败会污染全局 API 状态；目录又在新 snapshot 原子提交前公开新 dataVersion，正文读取没有统一 deadline / 大小上限，离线后也没有有界恢复。
 - v0.1.38 候选只允许 detail 401 使 Key 失效；目录 429 有完整旧缓存时公开为 stale 且要求手动刷新。离线按 15s / 60s / 5min 单飞恢复，正文统一 10s / 2MiB，退出立即 abort；同版本目录不可变，新版本仅在两目录和 pointer 全提交后切 active。
-- 终审 `P0=0 / P1=0`；本地 48 files / 547 passed + 1 skipped、真实 4K OCR 174ms、source bridge / UI 等门禁全过。尚未 Windows / tag / Release / installed 网络波动复测，状态保持 `FIXED / UNVERIFIED`。
+- 终审 `P0=0 / P1=0`；Windows candidate run `31890026596` 通过 48 files / 548 tests、4K 306ms、packaged UI / bridge、差分与 artifact 门禁。尚未 tag / Release / installed 网络波动复测，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 
