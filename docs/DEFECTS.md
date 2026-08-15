@@ -88,7 +88,7 @@
 | HB-074 | 卡面刷新响应、未变卡片重绘与更新交互 | FIXED / UNVERIFIED（v0.1.43 已发布） |
 | HB-075 | 单卡刷新导致三张卡片 / 标签一起跳动 | FIXED / UNVERIFIED（v0.1.43 已发布） |
 | HB-076 | 选人伴随窗恢复后脱离客户端图层 | FIXED / UNVERIFIED（v0.1.42 已发布） |
-| HB-077 | 选人助手备战席出现不必要的横向滚动 | FIXED / UNVERIFIED（v0.1.44 候选） |
+| HB-077 | 选人助手备战席出现不必要的横向滚动 | FIXED / UNVERIFIED（v0.1.44 已发布） |
 
 ## 当前重点验收
 
@@ -258,9 +258,9 @@
 
 ### HB-077：选人助手备战席横向滚动
 
-- v0.1.44 候选将 `panel-window`、`panel-bench` 和 `panel-list` 的宽度收缩与横向溢出设为 fail-closed；列表只保留内部纵向滚动，长中文标题在网格列内省略，不再把选人伴随窗撑出横向滚动条。
+- v0.1.44 将 `panel-window`、`panel-bench` 和 `panel-list` 的宽度收缩与横向溢出设为 fail-closed；列表只保留内部纵向滚动，长中文标题在网格列内省略，不再把选人伴随窗撑出横向滚动条。
 - 滚动边界使用 `overscroll-behavior: contain`、稳定 gutter 和克制的细滚动条样式；不改变伴随窗的 authority、跟随层级或 LCU 状态。
-- 定向 renderer 合约 / release-notes 测试、typecheck、lint、diff-check 已通过；候选尚未 Windows / 真实 WeGame 验收，状态保持 `FIXED / UNVERIFIED`，不得预写正式 Release。
+- 定向 renderer 合约 / release-notes 测试、typecheck、lint、diff-check 已通过；正式 workflow `31900414946` 的 Windows packaged / UI / bridge 门禁通过。真实 WeGame 横向视觉、DPI 与性能仍未验，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

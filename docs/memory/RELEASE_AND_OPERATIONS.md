@@ -4,13 +4,13 @@
 
 ## 当前正式基线
 
-- 当前公开正式版 `v0.1.43` 已完成 tag / Release / 双通道 / 滚动保留；候选 `v0.1.44` 已推送并通过 Windows workflow_dispatch `31900108097`（48 files / 566 passed + 1 skipped，artifact `9250901239`），尚未 tag / Release。真实 WeGame / installed updater 仍不是自动化证据。
+- 当前公开正式版 `v0.1.44` 已完成 tag / Release / 双通道 / 滚动保留；正式 workflow `31900414946` 首次因稳定 channel 传播超时，幂等重跑成功。Windows 48 files / 566 passed + 1 skipped，真实 WeGame / installed updater 仍不是自动化证据。
 
-- public Latest：[v0.1.43](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.43)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHsjC`，publishedAt `2026-08-15T17:42:44Z`。
-- tagged commit `c841fa5067ca506e8eca0342d7702e874b70116b`；正式 run `31898812316` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows 48 files / 564 passed + 1 skipped，audit、OCR、lint、typecheck、packaged UI / bridge、差分、public packaged 与滚动保留全过；Release 五资产均通过。自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
-- public v2 / root：version `0.1.43`；两通道精确一致，packaged public 为 `updateAvailable=false`。
-- 正式资产：EXE `199287901` bytes / `d6a558d9cda9b99b5f03805f3328dbf77fa9aea53756b2be54b34a7482bdac8e`；blockmap `201370` / `8bce3e372693e5851accaac115a2f76794b8a0810f031937d3581ef289421962`；ZIP `274455565` / `f0cb36f990e539e0aadda119195a0fdbba78626859400cc35757923bdcdf76792`；latest.yml `346` / `34bc72d7987ad04ed557125c0cce8f190bd28b8ab3567ca833d07a410890366b`；SHA256SUMS `182` / `dbbeabe814fd1c812069313a015f53dd1cb71f893721004966d114e47f888d7d`。
-- 当前只保留 v0.1.39～v0.1.43 五个 public stable Releases；v0.1.0～v0.1.43 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
+- public Latest：[v0.1.44](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.44)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHuNV`，publishedAt `2026-08-15T18:16:14Z`。
+- tagged commit `eda3d76adc216293393ff951df1f6ba73475396d`；正式 run `31900414946` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows 48 files / 566 passed + 1 skipped，audit、OCR、lint、typecheck、packaged UI / bridge、差分、public packaged 与滚动保留全过；Release 五资产均通过。自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
+- public v2 / root：version `0.1.44`；两通道精确一致，packaged public 为 `updateAvailable=false`。
+- 正式资产：EXE `199288066` bytes / `7f77d1ffdca66302cd780bb9ace8f3064082e91a013cdd827d48d8a35623d944`；blockmap `201396` / `5d89f1b110c5b3ae40bc3661689f5f8c6af016636f9e20c47596ade42a1f1316`；ZIP `274455531` / `404818017b51e2131dc14d0ddfab686ea789f958ff4194354e51df10405d77ed`；latest.yml `346` / `357eb636c2024e71b3f9b4625af2c5183f34f0ff875a69c4a748b4bce2092032`；SHA256SUMS `182` / `59220e136228ea0011d134608ad7fdc7cb930792c8613b348de9678790bc909c`。
+- 当前只保留 v0.1.40～v0.1.44 五个 public stable Releases；v0.1.0～v0.1.44 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
 
 ## 更新契约
 
