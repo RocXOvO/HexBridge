@@ -10,7 +10,7 @@
 - GitHub 当前只保留 v0.1.26～v0.1.30 五个正式 Releases；v0.1.0～v0.1.30 共 31 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.30 已正式发布；Release 说明准确列出相较 v0.1.29 的三项 Wallpaper Engine 变化，public v2 / root 为 `0.1.30 / 199280687` bytes，正式五资产完整。HB-057 / 058 均保持 `FIXED / UNVERIFIED`，不得用发布结果替代真实外部程序 / 接口与 WeGame 同机验收。
-- v0.1.31 本地候选已将 `GAME_STARTING` 降为首次信号起固定 60s 的不续租短交接；同 authority 终止证据稳定 15s 后清理，真实 InProgress / game client / process / augment 证据则升级强交接。终审 `P0=0 / P1=0`，本地 46 files / 507 passed + 1 skipped、audit 0、真实 4K fixture 134ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过；尚未 commit / push / Windows / tag / Release，HB-048 仍 `IN PROGRESS / UNVERIFIED`。
+- v0.1.31 candidate `a4dc5bc3c1f443c505a588f51139aa5ce7418008` 已 push。Windows run `31870907932` / job `94979261092` 于 5m23s 成功：46 files / 508 tests、audit 0、真实 4K fixture 280ms、packaged UI / bridge、synthetic v0.1.32 差分 `1,266,455 / 199,281,056` bytes 和五文件 artifact `9243436896` 全过；tag-only 步骤按预期 skip，尚无 v0.1.31 tag / Release。修复将 `GAME_STARTING` 限为首次信号起 60s 不续租短交接，稳定终止 15s 清理，强启动证据优先升级。HB-048 仍 `IN PROGRESS / UNVERIFIED`。
 
 ## 记忆模块
 
