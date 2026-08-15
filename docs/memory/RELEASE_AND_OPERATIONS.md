@@ -4,7 +4,7 @@
 
 ## 当前正式基线
 
-- 当前公开正式版 `v0.1.43` 已完成 tag / Release / 双通道 / 滚动保留；本地候选为 `v0.1.44`（选人助手内部滚动边界），尚未 commit/push、Windows、tag 或 Release。真实 WeGame / installed updater 仍不是自动化证据。
+- 当前公开正式版 `v0.1.43` 已完成 tag / Release / 双通道 / 滚动保留；候选 `v0.1.44` 已推送并通过 Windows workflow_dispatch `31900108097`（48 files / 566 passed + 1 skipped，artifact `9250901239`），尚未 tag / Release。真实 WeGame / installed updater 仍不是自动化证据。
 
 - public Latest：[v0.1.43](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.43)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHsjC`，publishedAt `2026-08-15T17:42:44Z`。
 - tagged commit `c841fa5067ca506e8eca0342d7702e874b70116b`；正式 run `31898812316` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows 48 files / 564 passed + 1 skipped，audit、OCR、lint、typecheck、packaged UI / bridge、差分、public packaged 与滚动保留全过；Release 五资产均通过。自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
