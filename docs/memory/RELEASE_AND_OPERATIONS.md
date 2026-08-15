@@ -4,15 +4,13 @@
 
 ## 当前正式基线
 
-- 当前公开正式版 `v0.1.49` 已完成 tag / Release / 双通道 / 滚动保留。真实 WeGame / installed updater 仍不是自动化证据。
+- 当前公开正式版 `v0.1.50` 已完成 tag / Release / 双通道 / 滚动保留。真实 WeGame / installed updater 仍不是自动化证据。
 
-- 当前候选 `v0.1.50` 仅包含 HB-084 的自动 probe 隐藏 surface 门禁修复；尚未提交、推送、打 tag 或创建 Release，正式基线仍为 v0.1.49。
-
-- public Latest：[v0.1.49](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.49)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WH0S5`，publishedAt `2026-08-15T20:19:13Z`。
-- tagged commit `d83fadeed3df302db7ff4768c70eae4c11594637`；正式 run `31906109063` 首次稳定通道传播超时后幂等重跑成功。Windows packaged / UI / bridge、差分、public packaged 与滚动保留全过；自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
-- public v2 / root：version `0.1.49`；两通道精确一致，packaged public 为 `updateAvailable=false`。
-- 正式资产：EXE `199291239` bytes / `6d37aba0f256bc439da65f0d742c752bdb6d7d11111fa98b279f62f6fe978ffe`；blockmap `201486` / `ea32e217c0df2eca05eec22de193b4b7dda97b194b86e65fd68f9840bf43b546`；ZIP `274459853` / `a98af89b09eea6f1a0b6d7d2f5211c26e7e7c433368fc1c767ad75a148fa9491`；latest.yml `346` / `9bee56a128b1a3e9402a83e835120d538c89682a2eee11b97470338133577f25`；SHA256SUMS `182` / `e787f606d1f18e5b216bfa1828fa4707f022b4c03daf9ec023dc952c922b0998`。
-- 当前只保留 v0.1.45～v0.1.49 五个 public stable Releases；v0.1.0～v0.1.49 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
+- public Latest：[v0.1.50](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.50)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WH1T8`，publishedAt `2026-08-15T20:38:40Z`。
+- tagged commit `2ae206e75e341d74bb3ffafc33c57ba61e05c243`；正式 run `31907004019` 首次稳定通道传播超时后幂等重跑成功（成功 job `95067797353`）。Windows `50` files / `589` tests、真实 4K OCR `262ms`、packaged UI / bridge、差分、public packaged 与滚动保留全过；自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
+- public v2 / root：version `0.1.50`；两通道精确一致，packaged public 为 `updateAvailable=false`。
+- 正式资产：EXE `199291254` bytes / `a32e54338197d4c820dc9ff4a48a4a6a9c81334225d8004f7cd395f6b97c80b0`；blockmap `201346` / `7ae10fbf1af5aaefe49d0fe0659c14000004286a3b4cbd9d848c4f176f2d543a`；ZIP `274460169` / `aa082be360f80c47b76782e9512d613e6a3b253c850225aa378b65ce7d951ac1`；latest.yml `346` / `089b1ccd313a367d8c1910f08622a2949f566ce7a2551a394ff299079d3e7409`；SHA256SUMS `182` / `1d557f9731bfc8a6386155ec80ebc156594318ab710652e2e21c59793158836b`。
+- 差分 smoke：available `0.1.51`，基于 v0.1.49，传输 `1299245` bytes / full `199291339`，10 个 Range、3 个 redirect；五版滚动删除 v0.1.45 Release，tags 保留。当前只保留 v0.1.46～v0.1.50 五个 public stable Releases；v0.1.0～v0.1.50 tags 都保留。本地 `release/` 为空。
 
 ## 更新契约
 

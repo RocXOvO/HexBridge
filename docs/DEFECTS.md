@@ -95,7 +95,7 @@
 | HB-081 | 96px 推荐条某槽位变化后持续重复播放动画 | FIXED / UNVERIFIED（v0.1.47 已发布） |
 | HB-082 | 手动刷新首轮识别不完整导致整组三卡退场重进 | FIXED / UNVERIFIED（v0.1.48 已发布） |
 | HB-083 | 已隐藏的旧三卡在不完整手动识别后被重新显示 | FIXED / UNVERIFIED（v0.1.49 已发布） |
-| HB-084 | 自动 probe 在隐藏旧 surface 后复活三卡 | IN PROGRESS |
+| HB-084 | 自动 probe 在隐藏旧 surface 后复活三卡 | FIXED / UNVERIFIED（v0.1.50 已发布） |
 
 ## 当前重点验收
 
@@ -307,7 +307,7 @@
 
 - 审计发现自动低成本 probe 的指纹变化分支仍只检查保留 slots 数量；surface 已因选卡、absence 或到期隐藏时，后续新指纹会重新挂载旧三卡。
 - v0.1.50 候选把该分支与手动不完整识别统一为 `overlay.visible && slots.length===3` 门禁，并补自动调度回归；隐藏 surface 不会因 probe 新指纹复活。
-- 当前仅有本地定向回归、typecheck、lint 和 diff-check；Windows / 真实 WeGame 刷新视觉尚未验证，不能标记 `VERIFIED`。
+- 正式 workflow `31907004019` 首次稳定通道传播超时后幂等重跑成功；Windows `50` files / `589` tests、真实 4K OCR `262ms`、packaged UI / bridge、差分、public packaged 与五版滚动门禁通过。真实 Windows / WeGame 刷新视觉尚未验证，不能标记 `VERIFIED`。
 
 ## 追溯
 
