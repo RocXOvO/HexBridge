@@ -5,14 +5,15 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.48](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.48)，Release ID `RE_kwDOT1eQs84WHzci`，publishedAt `2026-08-15T20:05:20Z`；tagged commit `d8bf0e9cc7fe12a651318add0603a586475b1c88`。本版修复手动刷新首轮识别不完整时整组三卡退场重进。
-- 当前候选版 v0.1.49 尚未提交、推送、打 tag 或发布；本地改动修复“旧三卡已隐藏后，不完整手动识别又把它重新显示”的边界，只有当前仍可见且可靠的三卡 surface 才允许保留过渡表面。正式基线仍为 v0.1.48，Windows、真实 WeGame 与用户同机视觉尚未验证。
+- 当前公开正式版：[v0.1.49](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.49)，Release ID `RE_kwDOT1eQs84WH0S5`，publishedAt `2026-08-15T20:19:13Z`；tagged commit `d83fadeed3df302db7ff4768c70eae4c11594637`。本版修复已隐藏旧三卡在不完整手动识别后被重新显示的边界。
+- v0.1.49 正式 workflow `31906109063`（首次稳定通道传播超时，幂等重跑成功）；Windows `50` files / `587` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过，artifact `9252537013` / `473541312` bytes。真实游戏刷新视觉仍未验证，不得写成已完成用户同机验收。
+- v0.1.49 五资产：EXE `199291239` / `6d37aba0f256bc439da65f0d742c752bdb6d7d11111fa98b279f62f6fe978ffe`；blockmap `201486` / `ea32e217c0df2eca05eec22de193b4b7dda97b194b86e65fd68f9840bf43b546`；ZIP `274459853` / `a98af89b09eea6f1a0b6d7d2f5211c26e7e7c433368fc1c767ad75a148fa9491`；latest.yml `346` / `9bee56a128b1a3e9402a83e835120d538c89682a2eee11b97470338133577f25`；SHA256SUMS `182` / `e787f606d1f18e5b216bfa1828fa4707f022b4c03daf9ec023dc952c922b0998`。差分 smoke 为 `1266377` bytes / full `199291239`，9 个 Range、3 个 redirect，基于 v0.1.48。
 - v0.1.48 正式 workflow `31905462353` 成功；Windows `50` files / `585` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过，artifact `9252266044` / `473541441` bytes。真实游戏刷新视觉仍未验证，不得写成已完成用户同机验收。
 - v0.1.47 正式 workflow `31904367148` attempt 2 成功；Windows `50` files / `583` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过，artifact `9252096894` / `473540906` bytes。真实游戏刷新视觉仍未验证，不得写成已完成用户同机验收。
 - v0.1.44 正式 workflow `31900414946` 首次仅因稳定 channel 传播窗口超时，幂等重跑成功；Windows 48 files / 566 passed + 1 skipped，Release 五资产、双通道、packaged public check 与五版滚动保留均成功。正式补丁将选人助手备战席滚动锁在面板内部，自动化不等于真实 WeGame / Windows 视觉性能验证。
 - v0.1.43 正式 workflow 首次仅因稳定 channel 传播窗口超时，失败后按幂等流程重跑成功；Windows 48 files / 564 passed + 1 skipped，Release 五资产、双通道、packaged public check 与五版滚动保留均成功。正式补丁让手动刷新期间已有可靠三卡保持挂载，只替换真正变化的槽位；自动化不等于真实 WeGame、Windows 性能或 installed updater 验证。
 - v0.1.41 正式 workflow 首次遇到 Raw 传播超时后按幂等流程重跑成功，Release / 五资产、双通道、packaged UI / bridge、差分和滚动保留均通过；自动化不等于真实 WeGame、腾讯接口或 installed 迁移验证。
-- GitHub 当前只保留 v0.1.44～v0.1.48 五个正式 Releases；v0.1.0～v0.1.48 tags 全部保留。本地 `release/` 为空；旧 Release / assets 按滚动策略删除但 tag / source 保留。
+- GitHub 当前只保留 v0.1.45～v0.1.49 五个正式 Releases；v0.1.0～v0.1.49 tags 全部保留。本地 `release/` 为空；旧 Release / assets 按滚动策略删除但 tag / source 保留。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
 - v0.1.35 已正式发布，仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录且不含 PID、HWND、路径、坐标或标题。Release 说明准确列出相较 v0.1.34 的两项变化；public v2 / root 为 `0.1.35 / 199283491` bytes，五资产完整。HB-068 保持 `FIXED / UNVERIFIED`，等待真实 WeGame 复现时验证诊断有效性。
