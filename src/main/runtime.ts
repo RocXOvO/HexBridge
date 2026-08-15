@@ -825,9 +825,32 @@ export class HexBridgeRuntime {
       state.source !== previousSource ||
       state.lastConnectedAt !== previousConnectedAt
     )
+    const opponentPresentationChanged = this.refreshOpponentScoutPresentation()
     if (this.opponentScout) this.updateOpponentScout(transportChanged)
-    if (!snapshotChanged && !stateChanged && !processIdChanged) return
+    if (!snapshotChanged && !stateChanged && !processIdChanged && !opponentPresentationChanged) return
     this.sync()
+  }
+
+  private refreshOpponentScoutPresentation(): boolean {
+    if (
+      !this.opponentScout ||
+      (this.opponentScout.status !== 'ready' && this.opponentScout.status !== 'partial') ||
+      this.opponentScout.matchGeneration !== this.snapshot.matchGeneration
+    ) return false
+    const presentation = this.lcu.getOpponentScoutPresentation?.(
+      this.snapshot.matchGeneration,
+    ) ?? null
+    if (!presentation) return false
+    const changed = JSON.stringify({
+      allies: this.opponentScout.allies,
+      opponents: this.opponentScout.opponents,
+    }) !== JSON.stringify(presentation)
+    if (changed) this.opponentScout = {
+      ...this.opponentScout,
+      allies: presentation.allies,
+      opponents: presentation.opponents,
+    }
+    return changed
   }
 
   private wallpaperContext(): WallpaperEngineContext {

@@ -16,6 +16,17 @@ export interface ScoutIdentity extends OpponentIdentity {
   slot: number
 }
 
+export interface ScoutRosterGroupObservation {
+  status: 'ready' | 'rejected'
+  identities: ScoutIdentity[]
+}
+
+export interface ScoutRosterObservation {
+  allies: ScoutRosterGroupObservation
+  opponents: ScoutRosterGroupObservation
+  globalAmbiguous: boolean
+}
+
 const positiveInteger = (value: unknown): number | null => {
   const numeric = Number(value)
   return Number.isInteger(numeric) && numeric > 0 ? numeric : null
@@ -98,9 +109,103 @@ const visibleIdentity = (
   // VISIBLE.
   return {
     puuid: player.puuid,
-    championId: positiveInteger(
-      player?.championId ?? player?.championPickIntent ?? player?.champion?.id,
-    ),
+    championId: [player?.championId, player?.championPickIntent, player?.champion?.id]
+      .map(positiveInteger)
+      .find((value): value is number => value !== null) ?? null,
+  }
+}
+
+/**
+ * Reconciles a current roster with an already-vetted, generation-local set of
+ * private identities. Each team is all-or-nothing and must contain the same
+ * identities as the initial scan. The returned PUUID-bearing observation is
+ * Main-only; callers must translate it to an explicitly sanitized public DTO.
+ */
+export function inspectScoutRosterObservation(input: {
+  selfPuuid: string
+  bindings: ScoutIdentity[]
+  gameflowSession: unknown
+  champSelectSession: unknown
+  matchStage: MatchContextStage
+}): ScoutRosterObservation {
+  const rejected = (): ScoutRosterGroupObservation => ({ status: 'rejected', identities: [] })
+  const rejectAll = (): ScoutRosterObservation => ({
+    allies: rejected(), opponents: rejected(), globalAmbiguous: true,
+  })
+  if (!isPuuid(input.selfPuuid)) return rejectAll()
+  const bindingPuuids = input.bindings.map((binding) => binding.puuid)
+  const allyBindingCount = input.bindings.filter((binding) => binding.relation === 'ally').length
+  const opponentBindingCount = input.bindings.filter((binding) => binding.relation === 'opponent').length
+  if (
+    !input.bindings.length ||
+    bindingPuuids.some((puuid) => !isPuuid(puuid) || puuid === input.selfPuuid) ||
+    new Set(bindingPuuids).size !== bindingPuuids.length ||
+    (allyBindingCount !== 0 && allyBindingCount !== 4) ||
+    (opponentBindingCount !== 0 && opponentBindingCount !== 5)
+  ) return rejectAll()
+
+  const active = input.matchStage === 'active'
+  const root = active
+    ? (input.gameflowSession as any)?.gameData
+    : input.champSelectSession as any
+  const firstTeam = active
+    ? (Array.isArray(root?.teamOne) ? root.teamOne : [])
+    : (Array.isArray(root?.myTeam) ? root.myTeam : [])
+  const secondTeam = active
+    ? (Array.isArray(root?.teamTwo) ? root.teamTwo : [])
+    : (Array.isArray(root?.theirTeam) ? root.theirTeam : [])
+  if (firstTeam.length > 5 || secondTeam.length > 5) return rejectAll()
+  const rawPuuids = [...firstTeam, ...secondTeam]
+    .map((player: any) => player?.puuid)
+    .filter(isPuuid)
+  if (new Set(rawPuuids).size !== rawPuuids.length) return rejectAll()
+  const firstSelfCount = firstTeam.filter((player: any) => player?.puuid === input.selfPuuid).length
+  const secondSelfCount = secondTeam.filter((player: any) => player?.puuid === input.selfPuuid).length
+  if (firstSelfCount + secondSelfCount !== 1) return rejectAll()
+  if (!active && (firstSelfCount !== 1 || secondSelfCount !== 0)) return rejectAll()
+
+  const ownTeam = firstSelfCount === 1 ? firstTeam : secondTeam
+  const opponentTeam = firstSelfCount === 1 ? secondTeam : firstTeam
+  const expectedPuuids = (relation: ScoutRelation): Set<string> => new Set(
+    input.bindings
+      .filter((binding) => binding.relation === relation)
+      .map((binding) => binding.puuid),
+  )
+  const observe = (
+    relation: ScoutRelation,
+    players: any[],
+    expectedCount: number,
+  ): ScoutRosterGroupObservation => {
+    const withoutSelf = relation === 'ally'
+      ? players.filter((player: any) => player?.puuid !== input.selfPuuid)
+      : players
+    const expected = expectedPuuids(relation)
+    if (expected.size !== expectedCount) return rejected()
+    if (players.length !== 5 || withoutSelf.length !== expectedCount) {
+      return rejected()
+    }
+    const visible = withoutSelf.map((player: any) => visibleIdentity(
+      player,
+      active ? 'active-game' : 'champ-select',
+    ))
+    if (
+      visible.some((identity) => !identity) ||
+      visible.some((identity) => !expected.has(identity!.puuid)) ||
+      new Set(visible.map((identity) => identity!.puuid)).size !== expected.size
+    ) return rejected()
+    return {
+      status: 'ready',
+      identities: visible.map((identity, index) => ({
+        ...identity!,
+        relation,
+        slot: index + 1,
+      })),
+    }
+  }
+  return {
+    allies: observe('ally', ownTeam, 4),
+    opponents: observe('opponent', opponentTeam, 5),
+    globalAmbiguous: false,
   }
 }
 

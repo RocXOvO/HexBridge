@@ -15,8 +15,11 @@ import { isAramMayhemQueueId } from '../../shared/mayhem-queues.js'
 import { logger } from '../logger.js'
 import {
   extractRecentMatchDetails,
+  isPuuid,
+  inspectScoutRosterObservation,
   inspectVisibleTeamIdentities,
   summarizeOpponentHistory,
+  type ScoutIdentity,
 } from '../opponent-scout.js'
 import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
 import {
@@ -479,6 +482,22 @@ export class LcuClient extends EventEmitter {
   private lastObservation: LcuObservationSummary | null = null
   private readonly opponentScoutControllers = new Set<AbortController>()
   private readonly opponentScoutDetails = new Map<string, ScoutPlayerDetails>()
+  private opponentScoutBindingGeneration: number | null = null
+  private opponentScoutSelfPuuid: string | null = null
+  private opponentScoutIdentityBindings: ScoutIdentity[] = []
+  private readonly opponentScoutSummariesByPuuid = new Map<string, OpponentFormSummary>()
+  private opponentScoutPresentation: Pick<OpponentScoutState, 'allies' | 'opponents'> = {
+    allies: [], opponents: [],
+  }
+  private opponentScoutPresentationReady: Record<OpponentFormSummary['relation'], boolean> = {
+    ally: false, opponent: false,
+  }
+  private opponentScoutLatestRoster: {
+    generation: number
+    stage: ChampSelectSnapshot['matchStage']
+    gameflowSession: unknown
+    champSelectSession: unknown
+  } | null = null
   private opponentHistoryRequestsInFlight = 0
   private readonly opponentHistoryWaiters: Array<{
     signal?: AbortSignal
@@ -529,6 +548,27 @@ export class LcuClient extends EventEmitter {
 
   clearOpponentScoutDetails(): void {
     this.opponentScoutDetails.clear()
+    this.opponentScoutBindingGeneration = null
+    this.opponentScoutSelfPuuid = null
+    this.opponentScoutIdentityBindings = []
+    this.opponentScoutSummariesByPuuid.clear()
+    this.opponentScoutPresentation = { allies: [], opponents: [] }
+    this.opponentScoutPresentationReady = { ally: false, opponent: false }
+    this.opponentScoutLatestRoster = null
+  }
+
+  getOpponentScoutPresentation(
+    expectedGeneration: number,
+  ): Pick<OpponentScoutState, 'allies' | 'opponents'> | null {
+    if (
+      this.opponentScoutBindingGeneration !== expectedGeneration ||
+      this.snapshot.matchGeneration !== expectedGeneration ||
+      this.snapshot.matchStage === 'none'
+    ) return null
+    return {
+      allies: this.opponentScoutPresentation.allies.map((entry) => ({ ...entry })),
+      opponents: this.opponentScoutPresentation.opponents.map((entry) => ({ ...entry })),
+    }
   }
 
   private acquireOpponentHistoryPermit(signal?: AbortSignal): Promise<() => void> {
@@ -637,12 +677,16 @@ export class LcuClient extends EventEmitter {
     if (signal?.aborted) controller.abort()
     else signal?.addEventListener('abort', forwardAbort, { once: true })
     this.opponentScoutControllers.add(controller)
-    this.opponentScoutDetails.clear()
+    this.clearOpponentScoutDetails()
     try {
       return await this.performOpponentScout(expectedGeneration, controller.signal)
     } finally {
       signal?.removeEventListener('abort', forwardAbort)
       this.opponentScoutControllers.delete(controller)
+      if (
+        this.opponentScoutBindingGeneration == null &&
+        this.opponentScoutControllers.size === 0
+      ) this.opponentScoutLatestRoster = null
     }
   }
 
@@ -770,6 +814,14 @@ export class LcuClient extends EventEmitter {
           : '无法唯一确认本方与对方阵营，本局不会猜测或查询'
       return unavailable(message, reason)
     }
+    if (this.opponentScoutLatestRoster?.generation !== expectedGeneration) {
+      this.opponentScoutLatestRoster = {
+        generation: expectedGeneration,
+        stage: activeStage ? 'active' : this.snapshot.matchStage,
+        gameflowSession,
+        champSelectSession,
+      }
+    }
 
     const allies: OpponentFormSummary[] = new Array(identityDecision.allies.length)
     const opponents: OpponentFormSummary[] = new Array(identityDecision.opponents.length)
@@ -849,11 +901,30 @@ export class LcuClient extends EventEmitter {
       currentSnapshot.matchGeneration !== expectedGeneration ||
       currentSnapshot.matchStage === 'none'
     ) {
-      this.opponentScoutDetails.clear()
+      this.clearOpponentScoutDetails()
       return unavailable('对局已切换，上一局的查询结果已丢弃', 'waiting-context')
     }
-    this.opponentScoutDetails.clear()
+    const latestRoster = this.opponentScoutLatestRoster
+    this.clearOpponentScoutDetails()
     for (const [key, details] of pendingDetails) this.opponentScoutDetails.set(key, details)
+    this.opponentScoutBindingGeneration = expectedGeneration
+    const selfPuuid = (currentSummoner as any)?.puuid
+    this.opponentScoutSelfPuuid = isPuuid(selfPuuid) ? selfPuuid : null
+    this.opponentScoutIdentityBindings = identities.map((identity) => ({ ...identity }))
+    for (const identity of identities) {
+      const summary = identity.relation === 'ally'
+        ? allies[identity.slot - 1]
+        : opponents[identity.slot - 1]
+      if (summary) this.opponentScoutSummariesByPuuid.set(identity.puuid, { ...summary })
+    }
+    this.opponentScoutPresentationReady = {
+      ally: identityDecision.allies.length === 4,
+      opponent: identityDecision.opponents.length === 5,
+    }
+    this.rebuildOpponentScoutPresentation()
+    if (latestRoster?.generation === expectedGeneration) {
+      this.applyOpponentScoutRosterObservation(latestRoster)
+    }
     const availableAllyCount = allies.filter((entry) => entry?.status === 'ready').length
     const availableOpponentCount = opponents.filter((entry) => entry?.status === 'ready').length
     const availableCount = availableAllyCount + availableOpponentCount
@@ -878,8 +949,8 @@ export class LcuClient extends EventEmitter {
       status,
       reason: status === 'ready' ? 'ready' : status === 'partial' ? 'partial' : 'history-unavailable',
       matchGeneration: expectedGeneration,
-      allies,
-      opponents,
+      allies: this.opponentScoutPresentation.allies.map((entry) => ({ ...entry })),
+      opponents: this.opponentScoutPresentation.opponents.map((entry) => ({ ...entry })),
       sampledAt: Date.now(),
       source: 'local-lcu',
       message: status === 'ready'
@@ -1281,6 +1352,20 @@ export class LcuClient extends EventEmitter {
       ) {
         this.currentSummonerPuuid = null
         this.nextCurrentSummonerProbeAt = 0
+        this.clearOpponentScoutDetails()
+      }
+      if (
+        (this.snapshot.matchStage === 'selecting' || this.snapshot.matchStage === 'launching') &&
+        auxiliary[1]?.status === 'fulfilled' &&
+        isChampSelectSessionPayload(auxiliary[1].value)
+      ) {
+        this.observeOpponentScoutRoster(null, auxiliary[1].value, this.snapshot.matchStage)
+      } else if (
+        this.snapshot.matchStage === 'active' &&
+        auxiliary[0]?.status === 'fulfilled' &&
+        auxiliary[0].value != null
+      ) {
+        this.observeOpponentScoutRoster(auxiliary[0].value, null, 'active')
       }
       if (reduced.failure) {
         const message = reduced.failure instanceof Error
@@ -1373,7 +1458,120 @@ export class LcuClient extends EventEmitter {
   private abortOpponentScouts(): void {
     for (const controller of this.opponentScoutControllers) controller.abort()
     this.opponentScoutControllers.clear()
-    this.opponentScoutDetails.clear()
+    this.clearOpponentScoutDetails()
+  }
+
+  private observeOpponentScoutRoster(
+    gameflowSession: unknown,
+    champSelectSession: unknown,
+    stage: ChampSelectSnapshot['matchStage'],
+  ): void {
+    const observation = {
+      generation: this.snapshot.matchGeneration,
+      stage,
+      gameflowSession,
+      champSelectSession,
+    }
+    if (
+      this.opponentScoutBindingGeneration !== observation.generation ||
+      !this.opponentScoutIdentityBindings.length ||
+      !this.opponentScoutSelfPuuid
+    ) {
+      this.opponentScoutLatestRoster = this.opponentScoutControllers.size ? observation : null
+      return
+    }
+    this.applyOpponentScoutRosterObservation(observation)
+  }
+
+  private applyOpponentScoutRosterObservation(observation: {
+    generation: number
+    stage: ChampSelectSnapshot['matchStage']
+    gameflowSession: unknown
+    champSelectSession: unknown
+  }): void {
+    if (
+      observation.generation !== this.opponentScoutBindingGeneration ||
+      observation.generation !== this.snapshot.matchGeneration ||
+      (observation.stage !== 'selecting' &&
+        observation.stage !== 'launching' &&
+        observation.stage !== 'active') ||
+      !this.opponentScoutSelfPuuid
+    ) return
+    const currentUsesGameflow = this.snapshot.matchStage === 'active'
+    const observationUsesGameflow = observation.stage === 'active'
+    if (currentUsesGameflow !== observationUsesGameflow) {
+      this.opponentScoutPresentationReady = { ally: false, opponent: false }
+      for (const binding of this.opponentScoutIdentityBindings) {
+        this.updateOpponentScoutPresentationIdentity(binding.puuid, { championId: null })
+      }
+      this.opponentScoutLatestRoster = null
+      this.rebuildOpponentScoutPresentation()
+      return
+    }
+    const decision = inspectScoutRosterObservation({
+      selfPuuid: this.opponentScoutSelfPuuid,
+      bindings: this.opponentScoutIdentityBindings,
+      gameflowSession: observation.stage === 'active' ? observation.gameflowSession : null,
+      champSelectSession: observation.stage === 'active' ? null : observation.champSelectSession,
+      matchStage: observation.stage,
+    })
+    for (const [relation, group] of [
+      ['ally', decision.allies],
+      ['opponent', decision.opponents],
+    ] as const) {
+      if (group.status === 'ready') {
+        this.opponentScoutPresentationReady[relation] = true
+        for (const identity of group.identities) {
+          this.updateOpponentScoutPresentationIdentity(identity.puuid, {
+            relation: identity.relation,
+            slot: identity.slot,
+            championId: identity.championId,
+          })
+        }
+      } else {
+        this.opponentScoutPresentationReady[relation] = false
+        for (const binding of this.opponentScoutIdentityBindings) {
+          if (binding.relation !== relation) continue
+          this.updateOpponentScoutPresentationIdentity(binding.puuid, { championId: null })
+        }
+      }
+    }
+    this.opponentScoutLatestRoster = null
+    this.rebuildOpponentScoutPresentation()
+  }
+
+  private updateOpponentScoutPresentationIdentity(
+    puuid: string,
+    patch: Partial<Pick<OpponentFormSummary, 'relation' | 'slot' | 'championId'>>,
+  ): void {
+    const summary = this.opponentScoutSummariesByPuuid.get(puuid)
+    if (!summary) return
+    const next = { ...summary, ...patch }
+    this.opponentScoutSummariesByPuuid.set(puuid, next)
+    if (next.opaqueKey) {
+      const details = this.opponentScoutDetails.get(next.opaqueKey)
+      if (details) {
+        this.opponentScoutDetails.set(next.opaqueKey, {
+          ...details,
+          relation: next.relation,
+          slot: next.slot,
+          championId: next.championId,
+        })
+      }
+    }
+  }
+
+  private rebuildOpponentScoutPresentation(): void {
+    const entries = [...this.opponentScoutSummariesByPuuid.values()]
+    const group = (relation: OpponentFormSummary['relation']): OpponentFormSummary[] => entries
+      .filter(() => this.opponentScoutPresentationReady[relation])
+      .filter((entry) => entry.relation === relation)
+      .sort((left, right) => left.slot - right.slot)
+      .map((entry) => ({ ...entry }))
+    this.opponentScoutPresentation = {
+      allies: group('ally'),
+      opponents: group('opponent'),
+    }
   }
 
   private refreshCandidatePoolInBackground(): void {

@@ -4,11 +4,13 @@ import {
   extractRecentMatchDetails,
   extractRecentMatchSamples,
   extractVisibleOpponentIdentities,
+  inspectScoutRosterObservation,
   inspectVisibleOpponentIdentities,
   inspectVisibleTeamIdentities,
   summarizeOpponentHistory,
 } from '../src/main/opponent-scout.js'
 import { isLcuReadOnlyEndpoint, LcuClient } from '../src/main/lcu/client.js'
+import { logger } from '../src/main/logger.js'
 
 vi.mock('../src/main/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), recent: () => [] },
@@ -49,6 +51,143 @@ const game = (win: boolean, kills: number, deaths: number, assists: number, dura
 })
 
 describe('local opponent form experiment', () => {
+  it('refreshes vetted team champion selections without exposing identity bindings', () => {
+    const initialSession = {
+      myTeam: selectingOwnTeam(),
+      theirTeam: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+        .map((puuid, index) => ({
+          puuid,
+          nameVisibilityType: 'VISIBLE',
+          championId: 60 + index,
+        })),
+    }
+    const decision = inspectVisibleTeamIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: null,
+      champSelectSession: initialSession,
+      matchStage: 'selecting',
+    })
+    const changedSession = structuredClone(initialSession)
+    changedSession.myTeam[1]!.championId = 115
+    changedSession.myTeam[2]!.championId = 0
+    ;(changedSession.myTeam[2] as any).championPickIntent = 99
+
+    const observation = inspectScoutRosterObservation({
+      selfPuuid: SELF,
+      bindings: [...decision.allies, ...decision.opponents],
+      gameflowSession: null,
+      champSelectSession: changedSession,
+      matchStage: 'selecting',
+    })
+    const selections = [...observation.allies.identities, ...observation.opponents.identities]
+
+    expect(selections).toHaveLength(9)
+    expect(selections).toContainEqual(expect.objectContaining({
+      puuid: ALLY_ONE, relation: 'ally', slot: 1, championId: 115,
+    }))
+    expect(selections).toContainEqual(expect.objectContaining({
+      relation: 'ally', slot: 2, championId: 99,
+    }))
+    const opponentOnly = inspectScoutRosterObservation({
+      selfPuuid: SELF,
+      bindings: decision.opponents,
+      gameflowSession: null,
+      champSelectSession: changedSession,
+      matchStage: 'selecting',
+    })
+    expect(opponentOnly.allies.status).toBe('rejected')
+    expect(opponentOnly.opponents.identities).toHaveLength(5)
+  })
+
+  it('fails champion refresh closed per group for hidden, incomplete or ambiguous rosters', () => {
+    const initialSession = {
+      myTeam: selectingOwnTeam(),
+      theirTeam: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+        .map((puuid, index) => ({
+          puuid,
+          nameVisibilityType: 'VISIBLE',
+          championId: 60 + index,
+        })),
+    }
+    const decision = inspectVisibleTeamIdentities({
+      currentSummoner: { puuid: SELF },
+      gameflowSession: null,
+      champSelectSession: initialSession,
+      matchStage: 'selecting',
+    })
+    const bindings = [...decision.allies, ...decision.opponents]
+    const hiddenAlly = structuredClone(initialSession)
+    hiddenAlly.myTeam[1]!.nameVisibilityType = 'HIDDEN'
+    const hidden = inspectScoutRosterObservation({
+      selfPuuid: SELF, bindings, gameflowSession: null,
+      champSelectSession: hiddenAlly, matchStage: 'selecting',
+    })
+    expect(hidden.allies.status).toBe('rejected')
+    expect(hidden.opponents.identities).toHaveLength(5)
+
+    const incompleteAlly = structuredClone(initialSession)
+    incompleteAlly.myTeam.pop()
+    const incomplete = inspectScoutRosterObservation({
+      selfPuuid: SELF, bindings, gameflowSession: null,
+      champSelectSession: incompleteAlly, matchStage: 'selecting',
+    })
+    expect(incomplete.allies.status).toBe('rejected')
+    expect(incomplete.opponents.identities).toHaveLength(5)
+
+    const duplicatedAcrossTeams = structuredClone(initialSession)
+    duplicatedAcrossTeams.theirTeam[0]!.puuid = ALLY_ONE
+    const duplicated = inspectScoutRosterObservation({
+      selfPuuid: SELF, bindings, gameflowSession: null,
+      champSelectSession: duplicatedAcrossTeams, matchStage: 'selecting',
+    })
+    expect(duplicated.globalAmbiguous).toBe(true)
+    expect(duplicated.allies.status).toBe('rejected')
+    expect(duplicated.opponents.status).toBe('rejected')
+
+    const selfReplaced = structuredClone(initialSession)
+    selfReplaced.myTeam[0]!.puuid = 'replacement_player_000000000000'
+    const replaced = inspectScoutRosterObservation({
+      selfPuuid: SELF, bindings, gameflowSession: null,
+      champSelectSession: selfReplaced, matchStage: 'selecting',
+    })
+    expect(replaced.globalAmbiguous).toBe(true)
+    expect(replaced.allies.status).toBe('rejected')
+    expect(replaced.opponents.status).toBe('rejected')
+  })
+
+  it('uses gameflow only after the match is active and keeps identity across slot changes', () => {
+    const champSelectSession = {
+      myTeam: selectingOwnTeam(),
+      theirTeam: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+        .map((puuid, index) => ({
+          puuid, nameVisibilityType: 'VISIBLE', championId: 60 + index,
+        })),
+    }
+    const initial = inspectVisibleTeamIdentities({
+      currentSummoner: { puuid: SELF }, gameflowSession: null,
+      champSelectSession, matchStage: 'selecting',
+    })
+    const activeAllies = structuredClone(champSelectSession.myTeam)
+    ;[activeAllies[1], activeAllies[3]] = [activeAllies[3]!, activeAllies[1]!]
+    for (const player of activeAllies) delete (player as any).nameVisibilityType
+    activeAllies[3]!.championId = 115
+    const activeOpponents = structuredClone(champSelectSession.theirTeam)
+    for (const player of activeOpponents) delete (player as any).nameVisibilityType
+    const observation = inspectScoutRosterObservation({
+      selfPuuid: SELF,
+      bindings: [...initial.allies, ...initial.opponents],
+      gameflowSession: { gameData: { teamOne: activeAllies, teamTwo: activeOpponents } },
+      champSelectSession: { myTeam: [], theirTeam: [] },
+      matchStage: 'active',
+    })
+
+    expect(observation.allies.status).toBe('ready')
+    expect(observation.allies.identities).toContainEqual(expect.objectContaining({
+      puuid: ALLY_ONE, slot: 3, championId: 115,
+    }))
+    expect(observation.opponents.identities).toHaveLength(5)
+  })
+
   it('separates four allies and five opponents with generation-local slots', () => {
     const decision = inspectVisibleTeamIdentities({
       currentSummoner: { puuid: SELF },
@@ -859,6 +998,250 @@ describe('local opponent form experiment', () => {
     expect(requests.some((endpoint) => endpoint.includes(ENEMY_TWO))).toBe(false)
     expect(requests).toContain('/lol-champ-select/v1/session')
     expect(requests).not.toContain('/lol-gameflow/v1/session')
+  })
+
+  it('updates a same-generation ally portrait without repeating history reads', async () => {
+    const requests: string[] = []
+    const initialSession = {
+      myTeam: selectingOwnTeam(),
+      theirTeam: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+        .map((puuid, index) => ({
+          puuid,
+          nameVisibilityType: 'VISIBLE',
+          championId: 60 + index,
+        })),
+    }
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        requests.push(endpoint)
+        if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+        if (endpoint === '/lol-champ-select/v1/session') return initialSession
+        if (endpoint.includes('/matches?')) {
+          return { games: { games: Array.from({ length: 12 }, () => game(true, 5, 2, 8)) } }
+        }
+        return null
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    client.snapshot = {
+      phase: 'ChampSelect', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'selecting', matchGeneration: 18, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+
+    const result = await client.scoutOpponents(18)
+    const historyRequests = requests.filter((endpoint) => endpoint.includes('/matches?')).length
+    const allyKey = result.allies[0]?.opaqueKey
+    const initialRating = result.allies[0]?.rating
+    expect(result.allies[0]).toMatchObject({ championId: 30, status: 'ready', slot: 1 })
+
+    const switchedSession = structuredClone(initialSession)
+    switchedSession.myTeam[1]!.championId = 115
+    client.observeOpponentScoutRoster(null, switchedSession, 'selecting')
+
+    const firstPresentation = client.getOpponentScoutPresentation(18)
+    expect(firstPresentation.allies)
+      .toContainEqual(expect.objectContaining({ relation: 'ally', slot: 1, championId: 115 }))
+    expect(JSON.stringify(firstPresentation)).not.toContain(ALLY_ONE)
+    expect(JSON.stringify(firstPresentation)).not.toContain(ENEMY_ONE)
+    expect(JSON.stringify(vi.mocked(logger.info).mock.calls)).not.toContain(ALLY_ONE)
+    expect(JSON.stringify(vi.mocked(logger.debug).mock.calls)).not.toContain(ALLY_ONE)
+    expect(client.getScoutPlayerDetails(18, allyKey)).toMatchObject({ championId: 115 })
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(historyRequests)
+
+    const reorderedSession = structuredClone(switchedSession)
+    ;[reorderedSession.myTeam[1], reorderedSession.myTeam[2]] = [
+      reorderedSession.myTeam[2]!, reorderedSession.myTeam[1]!,
+    ]
+    client.observeOpponentScoutRoster(null, reorderedSession, 'selecting')
+    const reorderedAlly = client.getOpponentScoutPresentation(18).allies
+      .find((entry: any) => entry.opaqueKey === allyKey)
+    expect(reorderedAlly).toMatchObject({ championId: 115, slot: 2, rating: initialRating })
+    expect(client.getScoutPlayerDetails(18, allyKey)).toMatchObject({
+      relation: 'ally', slot: 2, championId: 115,
+    })
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(historyRequests)
+
+    reorderedSession.myTeam[2]!.nameVisibilityType = 'HIDDEN'
+    client.observeOpponentScoutRoster(null, reorderedSession, 'selecting')
+    expect(client.getOpponentScoutPresentation(18).allies).toEqual([])
+    expect(client.getOpponentScoutPresentation(18).opponents.every(
+      (entry: any) => entry.championId != null,
+    )).toBe(true)
+    expect(client.getScoutPlayerDetails(18, allyKey)).toMatchObject({ championId: null })
+
+    const activeOwnTeam = structuredClone(initialSession.myTeam)
+    ;[activeOwnTeam[1], activeOwnTeam[2]] = [activeOwnTeam[2]!, activeOwnTeam[1]!]
+    for (const player of activeOwnTeam) delete (player as any).nameVisibilityType
+    activeOwnTeam[2]!.championId = 115
+    const activeOpponentTeam = structuredClone(initialSession.theirTeam)
+    for (const player of activeOpponentTeam) delete (player as any).nameVisibilityType
+    client.snapshot = { ...client.snapshot, phase: 'InProgress', matchStage: 'active' }
+    client.observeOpponentScoutRoster({
+      gameData: { teamOne: activeOwnTeam, teamTwo: activeOpponentTeam },
+    }, null, 'active')
+    expect(client.getOpponentScoutPresentation(18).allies
+      .find((entry: any) => entry.opaqueKey === allyKey))
+      .toMatchObject({ championId: 115, slot: 2 })
+
+    client.snapshot = { ...client.snapshot, matchGeneration: 19 }
+    expect(client.getOpponentScoutPresentation(18)).toBeNull()
+  })
+
+  it('publishes the latest roster when a champion changes during history reads', async () => {
+    const requests: string[] = []
+    let releaseHistory!: () => void
+    const historyGate = new Promise<void>((resolve) => { releaseHistory = resolve })
+    const initialSession = {
+      myTeam: selectingOwnTeam(),
+      theirTeam: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+        .map((puuid, index) => ({
+          puuid, nameVisibilityType: 'VISIBLE', championId: 60 + index,
+        })),
+    }
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        requests.push(endpoint)
+        if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+        if (endpoint === '/lol-champ-select/v1/session') return initialSession
+        if (endpoint.includes('/matches?')) {
+          await historyGate
+          return { games: { games: Array.from({ length: 12 }, () => game(true, 5, 2, 8)) } }
+        }
+        return null
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    client.snapshot = {
+      phase: 'ChampSelect', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'selecting', matchGeneration: 20, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+
+    const pending = client.scoutOpponents(20)
+    await vi.waitFor(() => {
+      expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(2)
+    })
+    const switched = structuredClone(initialSession)
+    switched.myTeam[1]!.championId = 115
+    client.observeOpponentScoutRoster(null, switched, 'selecting')
+    releaseHistory()
+
+    const result = await pending
+    expect(result.allies[0]).toMatchObject({ championId: 115, slot: 1 })
+    expect(client.getOpponentScoutPresentation(20).allies[0])
+      .toMatchObject({ championId: 115, slot: 1 })
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(9)
+  })
+
+  it('does not let an aborted scan clear a replacement scan latest roster', async () => {
+    const requests: string[] = []
+    let releaseTransports!: () => void
+    const transportGate = new Promise<void>((resolve) => { releaseTransports = resolve })
+    const initialSession = {
+      myTeam: selectingOwnTeam(),
+      theirTeam: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+        .map((puuid, index) => ({
+          puuid, nameVisibilityType: 'VISIBLE', championId: 60 + index,
+        })),
+    }
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        requests.push(endpoint)
+        if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+        if (endpoint === '/lol-champ-select/v1/session') return initialSession
+        if (endpoint.includes('/matches?')) {
+          await transportGate
+          return { games: { games: Array.from({ length: 12 }, () => game(true, 5, 2, 8)) } }
+        }
+        return null
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    client.snapshot = {
+      phase: 'ChampSelect', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'selecting', matchGeneration: 22, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+
+    const firstAbort = new AbortController()
+    const first = client.scoutOpponents(22, firstAbort.signal)
+    const firstOutcome = first.then(
+      () => null,
+      (error: unknown) => error,
+    )
+    await vi.waitFor(() => {
+      expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(2)
+    })
+    firstAbort.abort()
+    const replacement = client.scoutOpponents(22)
+    await vi.waitFor(() => {
+      expect(requests.filter((endpoint) => endpoint === '/lol-summoner/v1/current-summoner'))
+        .toHaveLength(2)
+      expect(client.opponentScoutLatestRoster).not.toBeNull()
+    })
+    const switched = structuredClone(initialSession)
+    switched.myTeam[1]!.championId = 115
+    client.observeOpponentScoutRoster(null, switched, 'selecting')
+    expect(await firstOutcome).toMatchObject({ name: 'AbortError' })
+    expect(client.opponentScoutLatestRoster?.champSelectSession?.myTeam?.[1]?.championId)
+      .toBe(115)
+
+    releaseTransports()
+    const result = await replacement
+    expect(result.allies[0]).toMatchObject({ championId: 115 })
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(11)
+  })
+
+  it('refreshes a visible ally-only partial result without querying hidden opponents', async () => {
+    const requests: string[] = []
+    const session = {
+      myTeam: selectingOwnTeam(),
+      theirTeam: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+        .map((puuid, index) => ({
+          puuid, nameVisibilityType: 'HIDDEN', championId: 60 + index,
+        })),
+    }
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        requests.push(endpoint)
+        if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: SELF }
+        if (endpoint === '/lol-champ-select/v1/session') return session
+        if (endpoint.includes('/matches?')) {
+          return { games: { games: Array.from({ length: 12 }, () => game(true, 5, 2, 8)) } }
+        }
+        return null
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    client.snapshot = {
+      phase: 'ChampSelect', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'selecting', matchGeneration: 21, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+
+    const result = await client.scoutOpponents(21)
+    const historyCount = requests.filter((endpoint) => endpoint.includes('/matches?')).length
+    expect(result).toMatchObject({ status: 'partial' })
+    expect(result.allies).toHaveLength(4)
+    expect(result.opponents).toEqual([])
+    expect(historyCount).toBe(4)
+
+    const changed = structuredClone(session)
+    changed.myTeam[1]!.championId = 115
+    client.observeOpponentScoutRoster(null, changed, 'selecting')
+    expect(client.getOpponentScoutPresentation(21).allies[0])
+      .toMatchObject({ championId: 115 })
+    expect(client.getOpponentScoutPresentation(21).opponents).toEqual([])
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(historyCount)
   })
 
   it('never queries history when either raw active team exceeds five entries', async () => {

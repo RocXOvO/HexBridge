@@ -682,6 +682,9 @@ watch(
   () => [
     state.value.opponentScout.matchGeneration,
     state.value.opponentScout.sampledAt,
+    [...state.value.opponentScout.allies, ...state.value.opponentScout.opponents]
+      .map((player) => `${player.opaqueKey ?? '-'}:${player.relation}:${player.slot}:${player.championId ?? 0}`)
+      .join('|'),
     state.value.snapshot.matchStage,
     state.value.settings.opponentScouting,
     state.value.lcu.connected,

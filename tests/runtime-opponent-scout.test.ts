@@ -16,8 +16,117 @@ vi.mock('../src/main/logger.js', () => ({
 vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 
 import { HexBridgeRuntime } from '../src/main/runtime.js'
+import { LcuClient } from '../src/main/lcu/client.js'
 
 describe('runtime opponent scout lifecycle', () => {
+  it('propagates a champ-select poll portrait change through Runtime without new history reads', async () => {
+    const self = `self_${'a'.repeat(32)}`
+    const allies = ['b', 'c', 'd', 'e'].map((letter) => `ally_${letter.repeat(32)}`)
+    const opponents = ['f', 'g', 'h', 'i', 'j'].map((letter) => `enemy_${letter.repeat(32)}`)
+    let session = {
+      gameId: 3270001,
+      timer: { phase: 'PLANNING' },
+      localPlayerCellId: 0,
+      myTeam: [
+        { cellId: 0, puuid: self, nameVisibilityType: 'VISIBLE', championId: 103 },
+        ...allies.map((puuid, index) => ({
+          cellId: index + 1, puuid, nameVisibilityType: 'VISIBLE', championId: 30 + index,
+        })),
+      ],
+      theirTeam: opponents.map((puuid, index) => ({
+        cellId: index + 5, puuid, nameVisibilityType: 'VISIBLE', championId: 60 + index,
+      })),
+      benchChampionIds: [],
+    }
+    const requests: string[] = []
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        requests.push(endpoint)
+        if (endpoint === '/lol-gameflow/v1/gameflow-phase') return 'ChampSelect'
+        if (endpoint === '/lol-gameflow/v1/session') {
+          return { gameData: { queue: { id: 3270 }, gameId: 3270001 } }
+        }
+        if (endpoint === '/lol-champ-select/v1/session') return session
+        if (endpoint === '/lol-champ-select/v1/current-champion') return 103
+        if (endpoint === '/riotclient/region-locale') return { locale: 'zh_CN' }
+        if (endpoint === '/lol-lobby/v2/lobby') return { gameConfig: { queueId: 3270 } }
+        if (endpoint === '/lol-summoner/v1/current-summoner') return { puuid: self }
+        if (endpoint.includes('/matches?')) {
+          return {
+            games: { games: Array.from({ length: 12 }, () => ({
+              gameDuration: 900,
+              participants: [{ stats: { win: true, kills: 5, deaths: 2, assists: 8 } }],
+            })) },
+          }
+        }
+        return null
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    await client.pollOnce()
+    const generation = client.getSnapshot().matchGeneration
+    const scout = await client.scoutOpponents(generation)
+    const allyKey = scout.allies[0]?.opaqueKey
+    const initialHistoryCount = requests.filter((endpoint) => endpoint.includes('/matches?')).length
+
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = client.getSnapshot()
+    runtime.lcuState = client.getState()
+    runtime.leagueClientProcessId = null
+    runtime.lcu = client
+    runtime.opponentScout = scout
+    runtime.updateScanLoop = vi.fn()
+    runtime.updateGameProcessLoop = vi.fn()
+    runtime.updateOpponentScout = vi.fn()
+    runtime.sync = vi.fn()
+    client.on('update', (snapshot: any, state: any) => runtime.handleLcuUpdate(snapshot, state))
+
+    session = structuredClone(session)
+    session.myTeam[1]!.championId = 115
+    await client.pollOnce()
+
+    expect(runtime.opponentScout.allies.find(
+      (entry: any) => entry.opaqueKey === allyKey,
+    )).toMatchObject({ championId: 115, slot: 1 })
+    expect(runtime.sync).toHaveBeenCalled()
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?')))
+      .toHaveLength(initialHistoryCount)
+    expect(JSON.stringify(runtime.opponentScout)).not.toContain(allies[0])
+  })
+
+  it('updates cached ally portraits without starting another history scan', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = {
+      phase: 'ChampSelect', matchStage: 'selecting', matchGeneration: 12,
+      modeActive: true, currentChampionId: 103,
+    }
+    runtime.opponentScout = {
+      status: 'ready', reason: 'ready', matchGeneration: 12,
+      allies: [{
+        opaqueKey: 'ally-key', relation: 'ally', slot: 1, championId: 30,
+        status: 'ready', rating: 70, tier: '上等马', sampleSize: 12,
+        wins: 7, losses: 5, winRate: 7 / 12, kda: 3, streak: 1,
+      }],
+      opponents: [], sampledAt: Date.now(), source: 'local-lcu', message: '读取完成',
+    }
+    runtime.config = { getSettings: () => ({ opponentScouting: true }) }
+    runtime.opponentScoutAttemptKey = '12:selecting'
+    runtime.lcu = {
+      getOpponentScoutPresentation: vi.fn(() => ({
+        allies: [{ ...runtime.opponentScout.allies[0], championId: 115 }],
+        opponents: [],
+      })),
+      scoutOpponents: vi.fn(),
+    }
+
+    expect(runtime.refreshOpponentScoutPresentation()).toBe(true)
+    expect(runtime.opponentScout.allies[0].championId).toBe(115)
+    await runtime.updateOpponentScout(false, true)
+    expect(runtime.lcu.scoutOpponents).not.toHaveBeenCalled()
+  })
+
   it('returns cached details only for a current generation-scoped opaque key', () => {
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
     const opaqueKey = 'abcdefghijklmnopqrstuvwx'
