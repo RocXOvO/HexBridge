@@ -83,7 +83,7 @@
 | HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 已发布） |
 | HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 已发布） |
 | HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 已发布） |
-| HB-072 | 同局换英雄 / 备战席换位后队伍头像冻结 | FIXED / UNVERIFIED（v0.1.39 本地候选） |
+| HB-072 | 同局换英雄 / 备战席换位后队伍头像冻结 | FIXED / UNVERIFIED（v0.1.39 Windows 候选） |
 
 ## 当前重点验收
 
@@ -224,8 +224,8 @@
 ### HB-072：同局队伍头像冻结
 
 - 根因是首次历史查询把 champion / relation / slot 与战绩一起固化，Runtime 对同 generation 的 ready 状态又停止刷新；换英雄或交换备战席后一直显示首次头像。
-- v0.1.39 本地候选改为 Main-only 身份绑定：实时 roster 更新不重新查询已有历史且保持既有 opaque key，champ-select 与 active gameflow 仅更新完整脱敏 presentation；hidden、partial 或歧义分组从公开状态撤下，成员恢复后沿用原明细。用户主动重新读取或阶段补全仍可发起新查询。PUUID、self 和原始 roster 不出 Main / IPC / 日志 / 磁盘。
-- 终审 `P0=0 / P1=0`；本地 48 files / 556 passed + 1 skipped、audit 0、真实 4K OCR 138ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过。尚未 Windows / tag / Release，真实 WeGame 换英雄与备战席换位仍待验，状态保持 `FIXED / UNVERIFIED`。
+- v0.1.39 Windows 候选改为 Main-only 身份绑定：实时 roster 更新不重新查询已有历史且保持既有 opaque key，champ-select 与 active gameflow 仅更新完整脱敏 presentation；hidden、partial 或歧义分组从公开状态撤下，成员恢复后沿用原明细。用户主动重新读取或阶段补全仍可发起新查询。PUUID、self 和原始 roster 不出 Main / IPC / 日志 / 磁盘。
+- 终审 `P0=0 / P1=0`；commit `6e9b184078d15abf4394257c65096f894894f75c` 已 push，Windows run `31892397418` / job `95030523935` 通过 48 files / 557 tests、真实 4K OCR 262ms、packaged UI / bridge、差分和产物门禁。尚未 tag / Release，真实 WeGame 换英雄与备战席换位仍待验，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

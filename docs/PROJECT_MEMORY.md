@@ -14,7 +14,7 @@
 - v0.1.36 已正式发布，仅修复 HB-069：腾讯当前强化榜的极小选取率使用科学计数法，静态海克斯目录根节点为数组；旧解析器依次误拒两者。真实四端点受限验证已达 `ready / 20260814 / 172 英雄 / 246 强化`；正式 EXE `199283652` bytes，v2 / root 精确为 `0.1.36`，五资产完整。HB-069 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端切源复测。
 - v0.1.37 已正式发布，仅实现 HB-070：实时助手右上角只显示当前推荐来源名称，不再附带统计日期、dataVersion、“未就绪”或缓存后缀；详情、英雄榜、设置和诊断中的日期 / stale / error 保持不变。正式 EXE `199283718` bytes，v2 / root 精确为 `0.1.37`，五资产完整。HB-070 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端视觉确认。
 - v0.1.38 已正式发布，仅修复 HB-071：单英雄详情失败不再污染全局 data.dtodo 状态；目录 429 保留同源旧缓存但不自动重试；离线按 15s / 60s / 5min 有界恢复；正文统一 10s / 2MiB；同 dataVersion 目录不可变且新版本仅在文件、pointer 全提交后切 active。正式 EXE `199284622` bytes，public v2 / root 精确为 `0.1.38`，五资产完整。HB-071 保持 `FIXED / UNVERIFIED`，等待 installed 客户端网络波动复测。
-- v0.1.39 本地候选仅修复 HB-072：同 generation 的队友 / 对手换英雄或交换备战席时，已有历史指标和 opaque key 按 Main-only 身份保持，公开头像、relation / slot 与详情跟随最新权威 roster；拒绝分组暂时从 Renderer 撤下，恢复时不因 roster 更新重查历史。终审 `P0=0 / P1=0`；本地 48 files / 556 passed + 1 skipped、audit 0、真实 4K OCR 138ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过。尚未 commit / push / Windows / tag / Release；Latest 仍为 v0.1.38，真实 WeGame 保持 `UNVERIFIED`。
+- v0.1.39 Windows 候选仅修复 HB-072：同 generation 的队友 / 对手换英雄或交换备战席时，已有历史指标和 opaque key 按 Main-only 身份保持，公开头像、relation / slot 与详情跟随最新权威 roster；拒绝分组暂时从 Renderer 撤下，恢复时不因 roster 更新重查历史。commit `6e9b184078d15abf4394257c65096f894894f75c` 已 push；run `31892397418` / job `95030523935` 于 5m34s 成功，Windows 48 files / 557 tests、真实 4K OCR 262ms、EXE `199286227` bytes、packaged UI / bridge 与 synthetic v0.1.40 差分 `1196837 / 199286227` bytes 全过；artifact `9248949702` 为 `473528720` bytes。尚未 tag / Release，Latest 仍为 v0.1.38；CI 不等于真实 WeGame，HB-072 保持 `FIXED / UNVERIFIED`。
 
 ## 记忆模块
 
@@ -34,7 +34,7 @@
 
 ## 当前优先级
 
-1. HB-072：将 v0.1.39 候选完成 Windows workflow 与发布；随后在真实选人局验证换英雄、备战席换位、hidden / partial 恢复和零新增历史请求。
+1. HB-072：将已通过 Windows workflow 的 v0.1.39 候选完成正式发布；随后在真实选人局验证换英雄、备战席换位、hidden / partial 恢复和零新增历史请求。
 2. HB-058：完成真实 Windows 下的腾讯接口、切源、当前英雄 / OCR / 紧凑条同源与 stale / error 显示验收；不以书面授权或 Release 成功替代技术验证。
 3. 真实 WeGame 验收：`GAME_STARTING` 后取消 / 启动、终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
 4. HB-057 Wallpaper Engine：v0.1.30 已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义正式发布；待真实 Wallpaper Engine / Steam 多库实机验收。
