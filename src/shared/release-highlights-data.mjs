@@ -138,4 +138,8 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '0.1.33': Object.freeze([
     '加强本地路径隐私：旧版保存的游戏目录仅留在 Main 进程用于 LCU 发现，不再进入界面状态、设置响应或窗口广播。',
   ]),
+  '0.1.34': Object.freeze([
+    '修复通过客户端日志连接 LCU 时可能缺少权威 LeagueClientUx 进程信息，导致选人伴随窗与 Lobby 实时背景无法启动。',
+    '仅在同安装根唯一进程或名称与 PID 精确匹配时补齐窗口权威；多进程、跨目录和不明确情况继续安全拒绝。',
+  ]),
 })

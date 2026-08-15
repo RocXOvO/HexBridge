@@ -43,6 +43,38 @@ const detached: LcuConnectionState = {
 }
 
 describe('LCU handoff through runtime state', () => {
+  it('resynchronizes window observers when only the private LeagueClientUx PID changes', () => {
+    const unchanged = normalizeChampSelectSnapshot({
+      phase: 'None', gameflowSession: null, champSelectSession: null, currentChampionId: null,
+    })
+    let processId: number | null = null
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = unchanged
+    runtime.lcuState = connected
+    runtime.leagueClientProcessId = null
+    runtime.lcu = { getActiveProcessId: () => processId }
+    runtime.windows = { setLeagueClientProcessId: vi.fn() }
+    runtime.wallpaper = { reconcile: vi.fn() }
+    runtime.overlay = { visible: false, championId: null, slots: [], detectedAt: null, message: '' }
+    runtime.opponentScout = null
+    runtime.updateScanLoop = vi.fn()
+    runtime.updateGameProcessLoop = vi.fn()
+    runtime.sync = vi.fn()
+
+    runtime.handleLcuUpdate(unchanged, connected)
+    expect(runtime.sync).not.toHaveBeenCalled()
+
+    processId = 404
+    runtime.handleLcuUpdate(unchanged, connected)
+    expect(runtime.windows.setLeagueClientProcessId).toHaveBeenLastCalledWith(404)
+    expect(runtime.sync).toHaveBeenCalledTimes(1)
+
+    processId = null
+    runtime.handleLcuUpdate(unchanged, connected)
+    expect(runtime.windows.setLeagueClientProcessId).toHaveBeenLastCalledWith(null)
+    expect(runtime.sync).toHaveBeenCalledTimes(2)
+  })
+
   it('renders a fresh partial ChampSelect observation instead of dropping successful fields', async () => {
     const tracker = new MatchContextTracker()
     const auxiliary = await Promise.allSettled([

@@ -10,6 +10,7 @@
 - GitHub 当前只保留 v0.1.29～v0.1.33 五个正式 Releases；v0.1.0～v0.1.33 共 34 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.33 已正式发布，仅修复 HB-066：旧 `gameDirectory` 留在 Main 内部供 LCU 发现使用，公开设置 / RuntimeState / IPC 响应 / 广播均以白名单重建，普通界面仍无目录入口。Release 说明准确列出相较 v0.1.32 的这项变化；public v2 / root 为 `0.1.33 / 199281338` bytes，五资产完整。HB-066 根据结构化隐私边界、Windows packaged 和 public 发布门禁升为 `VERIFIED`。
+- v0.1.34 本地候选仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。终审 `P0=0 / P1=0`；本地 audit 0、47 files / 522 passed + 1 skipped、真实 4K OCR 131ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过，尚未 commit / push / Windows / tag / Release；公开 Latest 仍为 v0.1.33。
 
 ## 记忆模块
 
@@ -33,6 +34,7 @@
 2. 真实 WeGame 验收：`GAME_STARTING` 后取消 / 启动、终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
 3. HB-057 Wallpaper Engine：v0.1.30 已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义正式发布；待真实 Wallpaper Engine / Steam 多库实机验收。
 4. HB-056、HB-059、HB-060、HB-064 继续保持各自 `IN PROGRESS / UNVERIFIED` 或 `FIXED / UNVERIFIED`，直到对应真实环境门禁完成。
+5. HB-067：完成 Windows packaged 与真实 log-only / lockfile 国服客户端验收；不得用路径不明的任意 LeagueClientUx 回退。
 
 ## 当前任务边界
 

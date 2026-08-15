@@ -505,16 +505,16 @@ export class LcuClient extends EventEmitter {
   }
 
   getActiveProcessId(): number | null {
-    const direct = Number(this.credentials?.processId)
+    const direct = Number(this.credentials?.clientUxProcessId)
     if (Number.isInteger(direct) && direct > 0) return direct
     if (!this.credentials) return null
     const equivalent = this.candidatePool.find((candidate) =>
       candidate.port === this.credentials?.port &&
       candidate.token === this.credentials?.token &&
-      Number.isInteger(Number(candidate.processId)) &&
-      Number(candidate.processId) > 0,
+      Number.isInteger(Number(candidate.clientUxProcessId)) &&
+      Number(candidate.clientUxProcessId) > 0,
     )
-    return equivalent ? Number(equivalent.processId) : null
+    return equivalent ? Number(equivalent.clientUxProcessId) : null
   }
 
   getScoutPlayerDetails(expectedGeneration: number, opaqueKey: string): ScoutPlayerDetails | null {
@@ -1377,9 +1377,10 @@ export class LcuClient extends EventEmitter {
   }
 
   private refreshCandidatePoolInBackground(): void {
+    const trustedTarget = hasConfirmedTargetContext(this.snapshot) &&
+      this.matchContext.isAuthorityTrusted(this.activeAuthorityEpoch)
     if (
-      (hasConfirmedTargetContext(this.snapshot) &&
-        this.matchContext.isAuthorityTrusted(this.activeAuthorityEpoch)) ||
+      (trustedTarget && this.getActiveProcessId() != null) ||
       !this.credentials ||
       Date.now() < this.nextCandidateRefreshAt ||
       this.candidateRefreshInFlight
@@ -1388,12 +1389,16 @@ export class LcuClient extends EventEmitter {
     }
     this.nextCandidateRefreshAt = Date.now() + 10_000
     const activeCredentials = this.credentials
+    const previousProcessId = this.getActiveProcessId()
     const operation = (this.dependencies.discover ?? discoverLcuCredentials)(
       this.getManualDirectory(),
     )
       .then((discovery) => {
-        if (this.credentials === activeCredentials && discovery.candidates.length) {
+        if (this.credentials === activeCredentials) {
           this.candidatePool = discovery.candidates
+          if (this.getActiveProcessId() !== previousProcessId) {
+            this.publishUpdate('client-window-authority')
+          }
         }
       })
       .catch((error) => {

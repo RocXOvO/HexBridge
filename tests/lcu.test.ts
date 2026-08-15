@@ -36,14 +36,170 @@ describe('LCU credential discovery parsers', () => {
   it('resolves the active LeagueClientUx PID from an equivalent discovered credential', () => {
     const client = new LcuClient(() => '', { disableWebSocket: true })
     const internal = client as unknown as {
-      credentials: { port: number; token: string; source: 'log'; executablePath: string; processId: null }
-      candidatePool: Array<{ port: number; token: string; source: 'lockfile'; executablePath: string; processId: number }>
+      credentials: { port: number; token: string; source: 'log'; executablePath: string; processId: null; clientUxProcessId: null }
+      candidatePool: Array<{ port: number; token: string; source: 'lockfile'; executablePath: string; processId: number; clientUxProcessId: number }>
     }
-    internal.credentials = { port: 58120, token: 'same', source: 'log', executablePath: '', processId: null }
+    internal.credentials = {
+      port: 58120,
+      token: 'same',
+      source: 'log',
+      executablePath: '',
+      processId: null,
+      clientUxProcessId: null,
+    }
     internal.candidatePool = [{
-      port: 58120, token: 'same', source: 'lockfile', executablePath: '', processId: 404,
+      port: 58120,
+      token: 'same',
+      source: 'lockfile',
+      executablePath: '',
+      processId: 202,
+      clientUxProcessId: 404,
     }]
     expect(client.getActiveProcessId()).toBe(404)
+  })
+
+  it('binds log credentials only to one LeagueClientUx process in the same installation root', () => {
+    const credential = {
+      port: 58120,
+      token: 'same-root',
+      source: 'log' as const,
+      executablePath: path.join('/games/league', 'Logs', 'LeagueClient Logs'),
+      processId: null,
+    }
+    const attached = lcuDiscoveryInternals.attachUniqueLeagueClientUxMetadata(
+      [credential],
+      [{
+        Name: 'LeagueClientUx.exe',
+        ProcessId: 404,
+        ExecutablePath: path.join('/games/league', 'LeagueClientUx.exe'),
+        ProcessStartedAt: '2026-08-15T01:00:00.000Z',
+      }],
+    )
+    expect(attached[0]).toMatchObject({
+      source: 'log',
+      clientUxProcessId: 404,
+      clientUxStartedAt: '2026-08-15T01:00:00.000Z',
+    })
+
+    const exactPid = lcuDiscoveryInternals.attachUniqueLeagueClientUxMetadata(
+      [{ ...credential, executablePath: '', processId: 405 }],
+      [{ Name: 'LeagueClientUx.exe', ProcessId: 405, ExecutablePath: null }],
+    )
+    expect(exactPid[0]).toMatchObject({ clientUxProcessId: 405 })
+  })
+
+  it('rejects ambiguous, foreign-root, and non-Ux process bindings', () => {
+    const credential = {
+      port: 58120,
+      token: 'fail-closed',
+      source: 'log' as const,
+      executablePath: path.join('/games/league', 'Logs'),
+    }
+    const cases = [
+      [
+        { Name: 'LeagueClientUx.exe', ProcessId: 404, ExecutablePath: path.join('/games/league', 'LeagueClientUx.exe') },
+        { Name: 'LeagueClientUx.exe', ProcessId: 405, ExecutablePath: path.join('/games/league', 'LeagueClientUx.exe') },
+      ],
+      [{ Name: 'LeagueClientUx.exe', ProcessId: 404, ExecutablePath: path.join('/other/league', 'LeagueClientUx.exe') }],
+      [{ Name: 'LeagueClient.exe', ProcessId: 404, ExecutablePath: path.join('/games/league', 'LeagueClient.exe') }],
+    ]
+    for (const processes of cases) {
+      expect(lcuDiscoveryInternals.attachUniqueLeagueClientUxMetadata(
+        [credential],
+        processes,
+      )[0]?.clientUxProcessId).toBeFalsy()
+    }
+  })
+
+  it('merges one exact credential authority and rejects conflicting Ux PIDs', () => {
+    const base = {
+      port: 58120,
+      token: 'same-credential',
+      source: 'log' as const,
+      executablePath: '/games/league/Logs',
+      processId: null,
+    }
+    expect(lcuDiscoveryInternals.dedupeCredentials([
+      base,
+      { ...base, source: 'process', clientUxProcessId: 404 },
+    ])).toEqual([
+      expect.objectContaining({ source: 'log', clientUxProcessId: 404 }),
+    ])
+    expect(lcuDiscoveryInternals.dedupeCredentials([
+      base,
+      { ...base, source: 'process', clientUxProcessId: 404 },
+      { ...base, source: 'process', clientUxProcessId: 405 },
+    ])[0]?.clientUxProcessId).toBeNull()
+  })
+
+  it('refreshes only missing window authority metadata during a trusted match', async () => {
+    const active = {
+      port: 58120,
+      token: 'trusted-log',
+      source: 'log' as const,
+      executablePath: '/games/league/Logs',
+      processId: null,
+      clientUxProcessId: null,
+    }
+    let discoveries = 0
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      discover: async () => {
+        discoveries += 1
+        return {
+          candidates: [{ ...active, clientUxProcessId: 404 }],
+          summary: 'metadata refresh',
+          processCount: 1,
+          manualConfigured: false,
+          processStrategies: { cim: 'ok', 'get-process': 'ok' },
+        }
+      },
+    })
+    const internal = client as unknown as {
+      credentials: typeof active
+      candidatePool: typeof active[]
+      snapshot: ReturnType<typeof normalizeChampSelectSnapshot>
+      activeAuthorityEpoch: number
+      nextCandidateRefreshAt: number
+      candidateRefreshInFlight: Promise<void> | null
+      authorityRegistry: LcuAuthorityRegistry
+      matchContext: MatchContextTracker
+      refreshCandidatePoolInBackground(): void
+    }
+    internal.credentials = active
+    internal.candidatePool = [active]
+    internal.activeAuthorityEpoch = internal.authorityRegistry.authorityFor(active)
+    internal.snapshot = internal.matchContext.apply(normalizeChampSelectSnapshot({
+      phase: 'ChampSelect',
+      gameflowSession: { queueId: 3270 },
+      champSelectSession: {},
+      currentChampionId: 115,
+    }), 1_000, {
+      destructive: true,
+      champSelectSession: 'ok',
+      currentChampion: 'ok',
+      queueSource: 'gameflow',
+      matchIdentity: null,
+      authorityEpoch: internal.activeAuthorityEpoch,
+    })
+    const trustedSnapshot = internal.snapshot
+    internal.nextCandidateRefreshAt = 0
+    const updates: string[] = []
+    client.on('update', () => updates.push('update'))
+
+    internal.refreshCandidatePoolInBackground()
+    await internal.candidateRefreshInFlight
+
+    expect(discoveries).toBe(1)
+    expect(client.getActiveProcessId()).toBe(404)
+    expect(internal.credentials).toBe(active)
+    expect(internal.snapshot).toBe(trustedSnapshot)
+    expect(internal.snapshot).toMatchObject({ matchGeneration: 1, currentChampionId: 115 })
+    expect(updates).toEqual(['update'])
+
+    internal.nextCandidateRefreshAt = 0
+    internal.refreshCandidatePoolInBackground()
+    expect(discoveries).toBe(1)
   })
 
   it('parses process arguments', () => {
@@ -66,7 +222,17 @@ describe('LCU credential discovery parsers', () => {
     expect(lcuDiscoveryInternals.parseCommandLine('--app-port=70000 --remoting-auth-token=bad')).toBeNull()
   })
   it('parses lockfile and the latest log credential', () => {
-    expect(lcuDiscoveryInternals.parseLockfile('LeagueClient:1:2999:token:https', 'manual')).toMatchObject({ port: 2999, token: 'token', source: 'manual', processId: 1 })
+    expect(lcuDiscoveryInternals.parseLockfile('LeagueClient:1:2999:token:https', 'manual')).toMatchObject({
+      port: 2999,
+      token: 'token',
+      source: 'manual',
+      processId: 1,
+      clientUxProcessId: null,
+    })
+    expect(lcuDiscoveryInternals.parseLockfile('LeagueClientUx:2:3000:ux-token:https', 'lockfile')).toMatchObject({
+      processId: 2,
+      clientUxProcessId: 2,
+    })
     expect(lcuDiscoveryInternals.parseLog('https://riot:old@127.0.0.1:1\nhttps://riot:new@127.0.0.1:2')).toMatchObject({ port: 2, token: 'new' })
   })
   it('parses command-line credentials from recent LeagueClientUx log lines', () => {

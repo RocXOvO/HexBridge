@@ -78,6 +78,7 @@
 | HB-064 | Electron public packaged CDN 假阴性 | FIXED / UNVERIFIED（main 已 push） |
 | HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 正式版） |
 | HB-066 | legacy 游戏目录进入 Renderer 状态 | VERIFIED（v0.1.33 正式版） |
+| HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 本地候选） |
 
 ## 当前重点验收
 
@@ -186,6 +187,12 @@
 - 旧配置中的目录值仅保留在 Main `InternalAppSettings` 并继续供 LCU 发现使用；普通 UI、preload 与业务 IPC 均不提供读取、选择或清除目录的入口。
 - `AppSettings`、RuntimeState、get-state、设置响应和所有窗口广播以公开字段白名单重建；IPC 伪造 `gameDirectory` 会在 Runtime 前丢弃，路径不进日志或公开错误。
 - 终审 `P0=0 / P1=0`；本地 47 files / 517 passed + 1 skipped、Windows candidate 47 files / 518 tests，以及正式 run `31874316733` attempt 2 的 packaged UI / bridge、public v2 / root / packaged 与滚动保留全过。该问题的公开类型、序列化与 IPC 边界可由自动化完整验证，v0.1.33 正式版后状态升为 `VERIFIED`。
+
+### HB-067：log-only LCU 窗口 authority
+
+- 根因：日志凭据没有 PID，可信对局确认后又停止候选刷新；选人伴随窗与 Lobby 背景要求权威 LeagueClientUx PID，因此 LCU 主功能可用但两个窗口功能永远无资格。即使后续找到等价 PID，旧 Runtime 也会因 snapshot / state 未变化而跳过窗口同步。
+- v0.1.34 本地候选分离 transport PID 与 Main-only Ux authority；只接受同安装根唯一 Ux、明确 `LeagueClientUx` lockfile，或观测进程名 + PID 精确一致。可信对局仅在缺 authority 时每 10s 单飞刷新当前等价凭据元数据，不切 transport / authority / generation；PID 单独变化会同步 WindowManager。多 Ux、跨根、普通 `LeagueClient` 和不明确情况均拒绝。
+- 终审 `P0=0 / P1=0`；本地 audit 0、47 files / 522 passed + 1 skipped、真实 4K OCR 131ms、typecheck / lint / icon / rolling retention / source bridge / UI / diff-check 全过。尚未 Windows / 真实 WeGame，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

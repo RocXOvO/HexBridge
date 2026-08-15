@@ -164,6 +164,7 @@ export class HexBridgeRuntime {
   private gameProcessTimer: NodeJS.Timeout | null = null
   private gameProcessPollMs: number | null = null
   private gameProcessCheckInFlight = false
+  private leagueClientProcessId: number | null = null
   private readonly gameProcessExitGuard = new GameProcessExitGuard()
   private augmentRound = new AugmentRoundTracker()
   private championRequestSequence = 0
@@ -765,6 +766,8 @@ export class HexBridgeRuntime {
   private handleLcuUpdate(snapshot: ChampSelectSnapshot, state: LcuConnectionState): void {
     const snapshotChanged = !sameSnapshot(this.snapshot, snapshot)
     const stateChanged = !sameLcuState(this.lcuState, state)
+    const nextLeagueClientProcessId = this.lcu?.getActiveProcessId?.() ?? null
+    const processIdChanged = nextLeagueClientProcessId !== this.leagueClientProcessId
     const oldChampion = this.snapshot.modeActive ? this.snapshot.currentChampionId : null
     const nextChampion = snapshot.modeActive ? snapshot.currentChampionId : null
     const previousGeneration = this.snapshot.matchGeneration
@@ -773,8 +776,9 @@ export class HexBridgeRuntime {
     const previousConnectedAt = this.lcuState.lastConnectedAt
     this.snapshot = snapshotChanged ? snapshot : this.snapshot
     this.lcuState = state
+    this.leagueClientProcessId = nextLeagueClientProcessId
     this.wallpaper?.reconcile?.(this.wallpaperContext())
-    this.windows?.setLeagueClientProcessId?.(this.lcu?.getActiveProcessId?.() ?? null)
+    this.windows?.setLeagueClientProcessId?.(nextLeagueClientProcessId)
     if (nextChampion !== oldChampion || snapshot.matchGeneration !== previousGeneration) {
       const sequence = ++this.championRequestSequence
       this.recommendationDetailAbort?.abort()
@@ -817,7 +821,7 @@ export class HexBridgeRuntime {
       state.lastConnectedAt !== previousConnectedAt
     )
     if (this.opponentScout) this.updateOpponentScout(transportChanged)
-    if (!snapshotChanged && !stateChanged) return
+    if (!snapshotChanged && !stateChanged && !processIdChanged) return
     this.sync()
   }
 

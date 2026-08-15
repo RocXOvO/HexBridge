@@ -31,7 +31,7 @@
 - 截图后先恢复 HexBridge 窗口，重 OCR 不得持续隐藏主窗；模型线程限制不得与游戏抢占无界 CPU。
 - 96px compact 位于三卡上方，透明、点击穿透、不聚焦；仅在可靠 3/3、游戏前台和卡面存在时显示。
 - 卡面变化后用 500ms + 280ms 确认撤下旧条；两次 absence、刷新、禁用、终局或 45s expiry 清除。失焦只 pause / hide，回前台 cheap probe，不重做 full OCR。
-- 选人伴随窗绑定权威 LeagueClientUx PID / HWND，使用 Win32 / DWM bounds 跟随；synthetic fake 不是真实 WeGame / DPI / 多屏证据。
+- 选人伴随窗绑定权威 LeagueClientUx PID / HWND，使用 Win32 / DWM bounds 跟随。LCU transport PID 与 Ux 窗口 authority 必须分离；日志 / lockfile 连接只在同安装根唯一 Ux、明确 Ux lockfile 名称或观测 Ux 名称 + PID 精确一致时补齐，不能回退任意同名窗口。PID / HWND / 路径不进日志、RuntimeState 或 Renderer；synthetic fake 不是真实 WeGame / DPI / 多屏证据。
 - 主窗背景和动效必须服从 Main 自动 visual policy、eco、hidden / minimized / unfocused、InProgress 和 reduced-motion。
 
 ## Lobby 实时背景（HB-059）

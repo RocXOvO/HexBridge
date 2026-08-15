@@ -23,9 +23,13 @@ export interface LcuCredentials {
   processId?: number | null
   /** Internal process creation hint used with PID to avoid PID-reuse collisions. */
   processStartedAt?: string | null
+  /** Main-only LeagueClientUx window authority. Never expose this value to Renderer or logs. */
+  clientUxProcessId?: number | null
+  /** Main-only LeagueClientUx creation metadata retained alongside the authority when available. */
+  clientUxStartedAt?: string | null
 }
 
-interface ProcessRecord {
+export interface LcuProcessRecord {
   Name?: string | null
   ProcessId?: number | null
   CommandLine?: string | null
@@ -86,7 +90,20 @@ function parseLockfile(
   const token = parts[3]?.trim()
   if (!port || !token) return null
   const processId = positiveProcessId(parts[1])
-  return { port, token, source, executablePath, processId, processStartedAt: null }
+  const processName = String(parts[0] ?? '').trim().toLowerCase()
+  const clientUxProcessId = processName === 'leagueclientux' || processName === 'leagueclientux.exe'
+    ? processId
+    : null
+  return {
+    port,
+    token,
+    source,
+    executablePath,
+    processId,
+    processStartedAt: null,
+    clientUxProcessId,
+    clientUxStartedAt: null,
+  }
 }
 
 function positiveProcessId(value: unknown): number | null {
@@ -116,10 +133,10 @@ function parseLog(content: string, executablePath = ''): LcuCredentials | null {
   return null
 }
 
-function parseProcessJson(stdout: string): ProcessRecord[] {
+function parseProcessJson(stdout: string): LcuProcessRecord[] {
   const text = stdout.replace(/^\uFEFF/, '').trim()
   if (!text || text === 'null') return []
-  const parsed = JSON.parse(text) as ProcessRecord | ProcessRecord[]
+  const parsed = JSON.parse(text) as LcuProcessRecord | LcuProcessRecord[]
   return (Array.isArray(parsed) ? parsed : [parsed]).filter(Boolean)
 }
 
@@ -140,7 +157,7 @@ export async function queryLeagueClientProcessesWithRunner(
   runner: ProcessQueryRunner,
   timeoutOverrides: Partial<Record<ProcessQueryMethod, number>> = {},
 ): Promise<{
-  records: ProcessRecord[]
+  records: LcuProcessRecord[]
   summary: string
   strategies: Record<ProcessQueryMethod, ProcessStrategyStatus>
 }> {
@@ -170,7 +187,7 @@ export async function queryLeagueClientProcessesWithRunner(
   ])
   const labels = ['CIM', 'Get-Process'] as const
   const methods: ProcessQueryMethod[] = ['cim', 'get-process']
-  const records: ProcessRecord[] = []
+  const records: LcuProcessRecord[] = []
   const statuses: string[] = []
   const strategies: Record<ProcessQueryMethod, ProcessStrategyStatus> = {
     cim: 'unavailable',
@@ -194,7 +211,7 @@ export async function queryLeagueClientProcessesWithRunner(
     }
   })
 
-  const merged = new Map<string, ProcessRecord>()
+  const merged = new Map<string, LcuProcessRecord>()
   for (const record of records) {
     const key = `${record.ProcessId ?? 0}:${String(record.Name ?? '').toLowerCase()}`
     const previous = merged.get(key)
@@ -303,6 +320,88 @@ function uniquePaths(paths: string[]): string[] {
   })
 }
 
+function normalizedPathKey(candidate: string): string {
+  const normalized = path.resolve(candidate)
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+function leagueClientInstallationRoot(executablePath: string): string | null {
+  if (!executablePath.trim()) return null
+  const processDirectory = path.dirname(path.resolve(executablePath))
+  return path.basename(processDirectory).toLowerCase() === 'leagueclient'
+    ? path.dirname(processDirectory)
+    : processDirectory
+}
+
+function credentialDirectory(executablePath: string): string | null {
+  if (!executablePath.trim()) return null
+  const resolved = path.resolve(executablePath)
+  return path.extname(resolved).toLowerCase() === '.exe' ? path.dirname(resolved) : resolved
+}
+
+function pathIsWithin(candidate: string, root: string): boolean {
+  const relative = path.relative(root, candidate)
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+}
+
+function attachUniqueLeagueClientUxMetadata(
+  credentials: LcuCredentials[],
+  processes: LcuProcessRecord[],
+): LcuCredentials[] {
+  const clientUxProcesses = processes.filter((processInfo) =>
+    String(processInfo.Name ?? '').toLowerCase() === 'leagueclientux.exe' &&
+    positiveProcessId(processInfo.ProcessId),
+  )
+  const processGroups = new Map<string, Array<{
+    processId: number
+    processStartedAt: string | null
+    root: string
+  }>>()
+  for (const processInfo of clientUxProcesses) {
+    const processId = positiveProcessId(processInfo.ProcessId)
+    const root = leagueClientInstallationRoot(processInfo.ExecutablePath ?? '')
+    if (!processId || !root) continue
+    const key = normalizedPathKey(root)
+    const group = processGroups.get(key) ?? []
+    if (!group.some((item) => item.processId === processId)) {
+      group.push({
+        processId,
+        processStartedAt: processInfo.ProcessStartedAt ?? null,
+        root,
+      })
+      processGroups.set(key, group)
+    }
+  }
+  const uniqueBindings = [...processGroups.values()]
+    .filter((group) => group.length === 1)
+    .map((group) => group[0]!)
+
+  return credentials.map((candidate) => {
+    if (positiveProcessId(candidate.clientUxProcessId)) return candidate
+    const transportProcessId = positiveProcessId(candidate.processId)
+    const exactProcessMatches = clientUxProcesses.filter((processInfo) =>
+      positiveProcessId(processInfo.ProcessId) === transportProcessId,
+    )
+    if (transportProcessId && exactProcessMatches.length === 1) {
+      return {
+        ...candidate,
+        clientUxProcessId: transportProcessId,
+        clientUxStartedAt: exactProcessMatches[0]?.ProcessStartedAt ?? null,
+      }
+    }
+    const directory = credentialDirectory(candidate.executablePath)
+    if (!directory) return candidate
+    const matches = uniqueBindings.filter((binding) => pathIsWithin(directory, binding.root))
+    if (matches.length !== 1) return candidate
+    const binding = matches[0]!
+    return {
+      ...candidate,
+      clientUxProcessId: binding.processId,
+      clientUxStartedAt: binding.processStartedAt,
+    }
+  })
+}
+
 function directoryRoots(directory: string): string[] {
   if (!directory.trim()) return []
   const root = path.resolve(directory.trim().replace(/^"|"$/g, ''))
@@ -379,17 +478,40 @@ export async function collectDirectoryCredentials(
 }
 
 function dedupeCredentials(credentials: LcuCredentials[]): LcuCredentials[] {
-  const seen = new Set<string>()
-  return credentials.filter((candidate) => {
+  const groups = new Map<string, LcuCredentials[]>()
+  for (const candidate of credentials) {
     const key = `${candidate.port}:${candidate.token}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
+    const group = groups.get(key) ?? []
+    group.push(candidate)
+    groups.set(key, group)
+  }
+  return [...groups.values()].map((group) => {
+    const first = group[0]!
+    const processCandidates = group.filter((candidate) => positiveProcessId(candidate.processId))
+    const processIds = new Set(processCandidates.map((candidate) => Number(candidate.processId)))
+    const clientUxCandidates = group.filter((candidate) => positiveProcessId(candidate.clientUxProcessId))
+    const clientUxIds = new Set(clientUxCandidates.map((candidate) => Number(candidate.clientUxProcessId)))
+    return {
+      ...first,
+      processId: positiveProcessId(first.processId) ?? (
+        processIds.size === 1 ? Number(processCandidates[0]?.processId) : null
+      ),
+      processStartedAt: first.processStartedAt ?? (
+        processIds.size === 1 ? processCandidates[0]?.processStartedAt ?? null : null
+      ),
+      clientUxProcessId: clientUxIds.size === 1
+        ? Number(clientUxCandidates[0]?.clientUxProcessId)
+        : null,
+      clientUxStartedAt: clientUxIds.size === 1
+        ? clientUxCandidates[0]?.clientUxStartedAt ?? null
+        : null,
+    }
   })
 }
 
 export async function discoverLcuCredentials(manualDirectory: string): Promise<LcuDiscoveryResult> {
   const all: LcuCredentials[] = []
+  let observedProcesses: LcuProcessRecord[] = []
   let processCount = 0
   let processSummary = process.platform === 'win32' ? '进程查询未执行' : '当前不是 Windows'
   let processStrategies: Record<ProcessQueryMethod, ProcessStrategyStatus> = {
@@ -416,6 +538,7 @@ export async function discoverLcuCredentials(manualDirectory: string): Promise<L
         Number(String(b.Name).toLowerCase() === 'leagueclientux.exe') -
         Number(String(a.Name).toLowerCase() === 'leagueclientux.exe'),
       )
+      observedProcesses = processes
       processCount = processes.length
       const processDirectories: string[] = []
       for (const processInfo of processes) {
@@ -425,7 +548,16 @@ export async function discoverLcuCredentials(manualDirectory: string): Promise<L
           positiveProcessId(processInfo.ProcessId),
           processInfo.ProcessStartedAt ?? null,
         )
-        if (fromCommand) all.push(fromCommand)
+        if (fromCommand) {
+          const isLeagueClientUx = String(processInfo.Name ?? '').toLowerCase() === 'leagueclientux.exe'
+          all.push(isLeagueClientUx
+            ? {
+                ...fromCommand,
+                clientUxProcessId: positiveProcessId(processInfo.ProcessId),
+                clientUxStartedAt: processInfo.ProcessStartedAt ?? null,
+              }
+            : fromCommand)
+        }
         if (processInfo.ExecutablePath) {
           processDirectories.push(path.dirname(processInfo.ExecutablePath))
         }
@@ -442,7 +574,9 @@ export async function discoverLcuCredentials(manualDirectory: string): Promise<L
   all.push(...await manualTask)
   const knownDirectories = await knownDirectoryTask
   all.push(...await knownCredentialTask)
-  const candidates = dedupeCredentials(all)
+  const candidates = dedupeCredentials(
+    attachUniqueLeagueClientUxMetadata(all, observedProcesses),
+  )
   const manualText = manualConfigured ? '已检查手动目录' : '未配置手动目录'
   const knownText = knownDirectories.length
     ? `已检查 ${knownDirectories.length} 个常见安装位置`
@@ -473,6 +607,8 @@ export const lcuDiscoveryInternals = {
   parseProcessJson,
   parseInstallMetadata,
   directoryRoots,
+  attachUniqueLeagueClientUxMetadata,
+  dedupeCredentials,
   credentialsFromDirectory,
   knownInstallationDirectories,
 }
