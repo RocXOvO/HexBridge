@@ -244,7 +244,7 @@ button.primary { color: #0b1514; font-weight: 650; border-color: var(--teal); ba
 .settings-card > small, .connection-pill, .setting-hint, .switches small { font-size: 14px; }
 .settings-card > small, .switches small { color: #899592; }
 .health-grid p { color: #98a39f; font-size: 14px; line-height: 1.55; }
-.diagnostics-page .health-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.diagnostics-page .health-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .panel-current { height: 192px; }
 .panel-current-content p, .panel-metrics small { color: #98a39f; font-size: 14px; }
 .panel-bench > header b, .panel-bench > header small,

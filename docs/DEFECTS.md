@@ -79,6 +79,7 @@
 | HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 正式版） |
 | HB-066 | legacy 游戏目录进入 Renderer 状态 | VERIFIED（v0.1.33 正式版） |
 | HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 已发布） |
+| HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 本地候选） |
 
 ## 当前重点验收
 
@@ -193,6 +194,11 @@
 - 根因：日志凭据没有 PID，可信对局确认后又停止候选刷新；选人伴随窗与 Lobby 背景要求权威 LeagueClientUx PID，因此 LCU 主功能可用但两个窗口功能永远无资格。即使后续找到等价 PID，旧 Runtime 也会因 snapshot / state 未变化而跳过窗口同步。
 - v0.1.34 分离 transport PID 与 Main-only Ux authority；只接受同安装根唯一 Ux、明确 `LeagueClientUx` lockfile，或观测进程名 + PID 精确一致。可信对局仅在缺 authority 时每 10s 单飞刷新当前等价凭据元数据，不切 transport / authority / generation；PID 单独变化会同步 WindowManager。多 Ux、跨根、普通 `LeagueClient` 和不明确情况均拒绝。
 - 终审 `P0=0 / P1=0`；本地 audit 0、47 files / 522 passed + 1 skipped及完整门禁通过。Windows candidate run `31876118223` 通过 523 tests；正式 run `31876394640` attempt 1 创建 Release / 五资产后因 Raw 传播超时 fail closed，attempt 2 幂等通过 523 tests、packaged UI / bridge、双通道、public packaged 与五版滚动。真实 log-only / lockfile WeGame 尚未复测，状态保持 `FIXED / UNVERIFIED`。
+
+### HB-068：伴随窗 / 96px 呈现诊断
+
+- v0.1.35 本地候选在诊断页显示选人伴随窗、96px 推荐条和 League 窗口观察器的有限枚举状态；分类与实际 show / hide 条件共用输入，异常槽位数量 fail-closed，重启后的新观察器即使首帧与旧值相同也会重新发布状态。
+- DTO 与去重日志只含有限枚举，不含 PID、HWND、路径、窗口标题、坐标或截图。终审 `P0=0 / P1=0`，完整本地 48 files / 528 passed + 1 skipped及 source UI / bridge 门禁通过；尚未 Windows / 发布，真实 WeGame 诊断有效性保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

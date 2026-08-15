@@ -93,7 +93,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.34',
+      currentVersion: '0.1.35',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -192,6 +192,11 @@ export function createDemoApi(): HexBridgeApi {
       polling: true,
       activeVisualMode: 'balanced',
       gpuAcceleration: true,
+      presentation: {
+        observer: 'observing',
+        championCompanion: 'visible',
+        augmentCompanion: 'visible',
+      },
       logLines: ['2026-08-11T10:18:03 INFO LCU credentials discovered', '2026-08-11T10:18:04 INFO Data catalogs updated'],
     },
   }

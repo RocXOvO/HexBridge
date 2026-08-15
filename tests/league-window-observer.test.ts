@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   calculateCompanionDock,
+  LeagueWindowObserver,
   LEAGUE_WINDOW_FOLLOW_INTERVAL_MS,
   LEAGUE_WINDOW_GUARD_INTERVAL_MS,
   LEAGUE_WINDOW_REDISCOVERY_INTERVAL_MS,
@@ -73,5 +74,68 @@ describe('League window observation transport', () => {
       30_000,
       30_000,
     ])
+  })
+
+  it('exposes only a bounded observer lifecycle enum', () => {
+    const observer = new LeagueWindowObserver(() => undefined)
+    expect(observer.getStatus()).toBe('stopped')
+    ;(observer as any).wanted = true
+    expect(observer.getStatus()).toBe('starting')
+    ;(observer as any).restartTimer = {}
+    expect(observer.getStatus()).toBe('retrying')
+    ;(observer as any).restartTimer = null
+    ;(observer as any).child = {}
+    ;(observer as any).currentChildObserved = true
+    expect(observer.getStatus()).toBe('observing')
+  })
+
+  it('notifies retrying, starting and observing without reviving a stopped timer', () => {
+    vi.useFakeTimers()
+    try {
+      const changed = vi.fn()
+      const observer = new LeagueWindowObserver(changed)
+      const firstChild = {}
+      ;(observer as any).wanted = true
+      ;(observer as any).targetHandle = '1'
+      ;(observer as any).child = firstChild
+      const stableObservation = {
+        gameForeground: false,
+        clientVisible: true,
+        targetPlaced: false,
+        clientWindowHandle: '123',
+      }
+      ;(observer as any).publish(stableObservation)
+      expect(observer.getStatus()).toBe('observing')
+      changed.mockClear()
+      vi.spyOn(observer as any, 'spawnObserver').mockImplementation(() => {
+        ;(observer as any).child = {}
+        ;(observer as any).currentChildObserved = false
+      })
+
+      ;(observer as any).handleChildTermination(firstChild)
+      expect(observer.getStatus()).toBe('retrying')
+      expect(changed).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(1_500)
+      expect(observer.getStatus()).toBe('starting')
+      expect(changed).toHaveBeenCalledTimes(2)
+
+      ;(observer as any).publish(stableObservation)
+      expect(observer.getStatus()).toBe('observing')
+      expect(changed).toHaveBeenCalledTimes(3)
+      ;(observer as any).publish(stableObservation)
+      expect(changed).toHaveBeenCalledTimes(3)
+
+      const staleChild = (observer as any).child
+      ;(observer as any).handleChildTermination(staleChild)
+      expect(changed).toHaveBeenCalledTimes(4)
+      observer.stop()
+      const callsAfterStop = changed.mock.calls.length
+      vi.advanceTimersByTime(30_000)
+      expect(observer.getStatus()).toBe('stopped')
+      expect(changed).toHaveBeenCalledTimes(callsAfterStop)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

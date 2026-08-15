@@ -8,20 +8,26 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../src/main/logger.js', () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), recent: vi.fn(() => []) },
 }))
 
 vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 
 import { app, desktopCapturer, screen } from 'electron'
+import { logger } from '../src/main/logger.js'
 import { WindowManager } from '../src/main/window-manager.js'
 
 const state = {
-  settings: { showChampionPanel: true },
+  settings: {
+    showChampionPanel: true,
+    showInGameRecommendations: false,
+    autoOcr: false,
+  },
   snapshot: {
     phase: 'ChampSelect', matchStage: 'selecting', matchGeneration: 1,
     modeActive: true, currentChampionId: 103,
   },
+  overlay: { visible: false, slots: [] },
 } as any
 
 function fakeWindow(options: { visible: boolean; focused: boolean }) {
@@ -315,6 +321,102 @@ describe('WindowManager shutdown lifecycle', () => {
       snapshot: { ...state.snapshot, matchGeneration: 2 },
     })
     expect(champion.showInactive).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps bounded diagnostics aligned with champion and augment show decisions', () => {
+    vi.mocked(logger.debug).mockClear()
+    const manager = new WindowManager({} as any, { platform: 'win32' })
+    const leagueWindows = (manager as any).leagueWindows
+    vi.spyOn(leagueWindows, 'setEnabled').mockImplementation(() => {})
+    vi.spyOn(leagueWindows, 'getStatus').mockReturnValue('starting')
+    vi.spyOn(leagueWindows, 'hasObservation').mockReturnValue(false)
+    vi.spyOn(leagueWindows, 'isClientVisible').mockReturnValue(false)
+    vi.spyOn(leagueWindows, 'isTargetPlaced').mockReturnValue(false)
+    vi.spyOn(leagueWindows, 'isGameForeground').mockReturnValue(false)
+    const champion = {
+      ...fakeWindow({ visible: false, focused: false }),
+      webContents: { isDestroyed: () => false, send: vi.fn() },
+    }
+    const augment = {
+      ...fakeWindow({ visible: false, focused: false }),
+      webContents: { isDestroyed: () => false, send: vi.fn() },
+      setBounds: vi.fn(),
+      getBounds: vi.fn(() => ({ x: 0, y: 0, width: 960, height: 96 })),
+    }
+    ;(manager as any).windows.set('champion', champion)
+    ;(manager as any).windows.set('augment', augment)
+    vi.spyOn(manager as any, 'positionAugmentWindow').mockImplementation(() => {})
+    const current = {
+      settings: {
+        showChampionPanel: true,
+        showInGameRecommendations: true,
+        autoOcr: false,
+        calibration: null,
+      },
+      snapshot: {
+        phase: 'ChampSelect', matchStage: 'selecting', matchGeneration: 1,
+        modeActive: true, currentChampionId: 103,
+      },
+      overlay: { visible: false, slots: [] },
+      diagnostics: { activeVisualMode: 'balanced', logLines: [] },
+    } as any
+
+    manager.sync(current)
+    expect(manager.getPresentationDiagnostics()).toEqual({
+      observer: 'starting',
+      championCompanion: 'authority-missing',
+      augmentCompanion: 'inactive',
+    })
+    expect(champion.hide).toHaveBeenCalled()
+
+    manager.setLeagueClientProcessId(123)
+    manager.sync(current)
+    expect(manager.getPresentationDiagnostics().championCompanion).toBe('observer-starting')
+
+    vi.mocked(leagueWindows.getStatus).mockReturnValue('observing')
+    vi.mocked(leagueWindows.hasObservation).mockReturnValue(true)
+    manager.sync(current)
+    expect(manager.getPresentationDiagnostics().championCompanion).toBe('client-hidden')
+
+    vi.mocked(leagueWindows.isClientVisible).mockReturnValue(true)
+    manager.sync(current)
+    expect(manager.getPresentationDiagnostics().championCompanion).toBe('placement-pending')
+
+    vi.mocked(leagueWindows.isTargetPlaced).mockReturnValue(true)
+    manager.sync(current)
+    expect(manager.getPresentationDiagnostics().championCompanion).toBe('visible')
+    expect(champion.showInactive).toHaveBeenCalled()
+
+    vi.mocked(leagueWindows.isGameForeground).mockReturnValue(false)
+    manager.sync({
+      ...current,
+      snapshot: { ...current.snapshot, phase: 'InProgress', matchStage: 'active' },
+      overlay: { visible: true, slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }] },
+    })
+    expect(manager.getPresentationDiagnostics().augmentCompanion).toBe('game-background')
+    expect(augment.hide).toHaveBeenCalled()
+
+    vi.mocked(leagueWindows.isGameForeground).mockReturnValue(true)
+    manager.sync({
+      ...current,
+      snapshot: { ...current.snapshot, phase: 'InProgress', matchStage: 'active' },
+      overlay: { visible: true, slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }] },
+    })
+    expect(manager.getPresentationDiagnostics().augmentCompanion).toBe('visible')
+    expect(augment.showInactive).toHaveBeenCalled()
+
+    const serialized = JSON.stringify(manager.getPresentationDiagnostics())
+    expect(serialized).not.toContain('123')
+    expect(serialized).not.toMatch(/pid|hwnd|handle|path|bounds|title/i)
+    expect(logger.debug).toHaveBeenCalled()
+    for (const call of vi.mocked(logger.debug).mock.calls) {
+      if (call[0] !== 'Window presentation transitioned') continue
+      expect(Object.keys(call[1] as object).sort()).toEqual([
+        'augmentCompanion', 'championCompanion', 'observer',
+      ])
+      expect(JSON.stringify(call[1])).not.toContain('123')
+      expect(JSON.stringify(call[1])).not.toMatch(/pid|hwnd|handle|path|bounds|title/i)
+    }
   })
 
   it('routes quit through Electron without committing WindowManager shutdown first', () => {

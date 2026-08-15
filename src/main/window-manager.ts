@@ -6,9 +6,16 @@ import type {
   CalibrationContext,
   LobbyBackgroundFrame,
   LobbyBackgroundPresentation,
+  PresentationDiagnostics,
   RuntimeState,
 } from '../shared/contracts.js'
 import { calculateAugmentOverlayBounds, calculateAugmentOverlayColumns } from '../shared/augment-overlay-layout.js'
+import {
+  classifyAugmentCompanion,
+  classifyChampionCompanion,
+  DEFAULT_PRESENTATION_DIAGNOSTICS,
+  samePresentationDiagnostics,
+} from '../shared/presentation-diagnostics.js'
 import { ConfigStore } from './config-store.js'
 import { LeagueWindowObserver } from './league-window-observer.js'
 import { LobbyBackgroundController, shouldDiscoverLobbyBackground } from './lobby-background.js'
@@ -68,6 +75,7 @@ export class WindowManager {
   private captureWindowsHidden = false
   private championDismissedGeneration: number | null = null
   private leagueClientProcessId: number | null = null
+  private presentationDiagnostics: PresentationDiagnostics = { ...DEFAULT_PRESENTATION_DIAGNOSTICS }
   private readonly leagueWindows = new LeagueWindowObserver(() => this.notifyActivityChanged())
   private lobbyBackgroundPresentation: LobbyBackgroundPresentation = {
     livePageVisible: false,
@@ -113,6 +121,10 @@ export class WindowManager {
 
   isLeagueGameForeground(): boolean {
     return this.leagueWindows.isGameForeground()
+  }
+
+  getPresentationDiagnostics(): PresentationDiagnostics {
+    return { ...this.presentationDiagnostics }
   }
 
   createMainWindow(): BrowserWindow {
@@ -269,7 +281,7 @@ export class WindowManager {
       this.leagueClientProcessId,
       lobbyWindowReady ? this.leagueWindows.getClientWindowHandle() : null,
     )
-    const clientVisible = process.platform !== 'win32' || (
+    const clientVisible = this.platform !== 'win32' || (
       this.leagueWindows.hasObservation() &&
       this.leagueWindows.isClientVisible() &&
       this.leagueWindows.isTargetPlaced()
@@ -277,11 +289,12 @@ export class WindowManager {
     if (shouldShowChampion && clientVisible) champion?.showInactive()
     else champion?.hide()
 
+    const gameForeground = this.platform !== 'win32' || this.leagueWindows.isGameForeground()
     const shouldShowAugment = shouldShowAugmentCompanion(
       state.settings,
       state.snapshot,
       state.overlay,
-      process.platform !== 'win32' || this.leagueWindows.isGameForeground(),
+      gameForeground,
     )
     if (shouldShowAugment && augment) {
       this.positionAugmentWindow(augment, state)
@@ -291,7 +304,45 @@ export class WindowManager {
       augment?.hide()
     }
 
+    const nextPresentation: PresentationDiagnostics = {
+      observer: this.leagueWindows.getStatus(),
+      championCompanion: classifyChampionCompanion({
+        settingEnabled: state.settings.showChampionPanel,
+        eligible: shouldShowChampionCompanion(state.settings, state.snapshot),
+        dismissed: championDismissed,
+        observerRequired: this.platform === 'win32',
+        authorityAvailable: this.leagueClientProcessId != null,
+        observerStatus: this.leagueWindows.getStatus(),
+        hasObservation: this.leagueWindows.hasObservation(),
+        clientVisible: this.leagueWindows.isClientVisible(),
+        targetPlaced: this.leagueWindows.isTargetPlaced(),
+      }),
+      augmentCompanion: classifyAugmentCompanion({
+        settingEnabled: state.settings.showInGameRecommendations,
+        active: state.snapshot.matchStage === 'active',
+        overlayVisible: state.overlay.visible,
+        slotCount: state.overlay.slots.length,
+        reliableSlotCount: state.overlay.slots.filter((slot) => slot.augmentId != null).length,
+        gameForeground,
+      }),
+    }
+    this.updatePresentationDiagnostics(nextPresentation)
+    if (state.diagnostics) {
+      state.diagnostics.presentation = { ...nextPresentation }
+      state.diagnostics.logLines = logger.recent()
+    }
+
     this.broadcastVisible(state)
+  }
+
+  private updatePresentationDiagnostics(next: PresentationDiagnostics): void {
+    if (samePresentationDiagnostics(this.presentationDiagnostics, next)) return
+    this.presentationDiagnostics = { ...next }
+    logger.debug('Window presentation transitioned', {
+      observer: next.observer,
+      championCompanion: next.championCompanion,
+      augmentCompanion: next.augmentCompanion,
+    })
   }
 
   async captureWithoutHexBridgeWindows<T>(task: (restoreWindows: () => void) => Promise<T>): Promise<T> {

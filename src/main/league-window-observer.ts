@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import path from 'node:path'
 import type { BrowserWindow, Rectangle } from 'electron'
+import type { LeagueWindowObserverStatus } from '../shared/contracts.js'
 
 export interface LeagueWindowObservation {
   gameForeground: boolean
@@ -395,6 +396,7 @@ export class LeagueWindowObserver {
   private clientProcessId: number | null = null
   private restartFailures = 0
   private observed = false
+  private currentChildObserved = false
   private observation: LeagueWindowObservation = {
     gameForeground: false,
     clientVisible: false,
@@ -464,6 +466,13 @@ export class LeagueWindowObserver {
     return this.observed
   }
 
+  getStatus(): LeagueWindowObserverStatus {
+    if (!this.wanted) return 'stopped'
+    if (this.restartTimer) return 'retrying'
+    if (this.child && this.currentChildObserved) return 'observing'
+    return 'starting'
+  }
+
   stop(): void {
     this.wanted = false
     this.targetHandle = ''
@@ -473,6 +482,7 @@ export class LeagueWindowObserver {
     if (this.restartTimer) clearTimeout(this.restartTimer)
     this.restartTimer = null
     this.restartFailures = 0
+    this.currentChildObserved = false
     this.stopChild()
     this.resetObservation()
   }
@@ -495,6 +505,7 @@ export class LeagueWindowObserver {
       },
     })
     this.child = child
+    this.currentChildObserved = false
     let buffered = ''
     child.stdout.setEncoding('utf8')
     child.stdout.on('data', (chunk: string) => {
@@ -522,6 +533,7 @@ export class LeagueWindowObserver {
   private stopChild(): void {
     const child = this.child
     this.child = null
+    this.currentChildObserved = false
     if (child && !child.killed) child.kill()
   }
 
@@ -534,14 +546,19 @@ export class LeagueWindowObserver {
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null
       this.spawnObserver()
+      if (this.wanted && this.child) this.onChanged(this.observation)
     }, delay)
+    this.onChanged(this.observation)
   }
 
   private publish(next: LeagueWindowObservation): void {
     const first = !this.observed
+    const firstForCurrentChild = !this.currentChildObserved
+    this.currentChildObserved = true
     this.observed = true
     if (
       !first &&
+      !firstForCurrentChild &&
       next.gameForeground === this.observation.gameForeground &&
       next.clientVisible === this.observation.clientVisible &&
       next.targetPlaced === this.observation.targetPlaced

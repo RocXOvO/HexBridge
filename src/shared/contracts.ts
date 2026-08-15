@@ -428,6 +428,32 @@ export interface ReleaseHighlights {
   items: string[]
 }
 
+export type LeagueWindowObserverStatus = 'stopped' | 'starting' | 'retrying' | 'observing'
+
+export type ChampionCompanionPresentationStatus =
+  | 'disabled'
+  | 'ineligible'
+  | 'dismissed'
+  | 'authority-missing'
+  | 'observer-starting'
+  | 'client-hidden'
+  | 'placement-pending'
+  | 'visible'
+
+export type AugmentCompanionPresentationStatus =
+  | 'disabled'
+  | 'inactive'
+  | 'no-result'
+  | 'partial-result'
+  | 'game-background'
+  | 'visible'
+
+export interface PresentationDiagnostics {
+  observer: LeagueWindowObserverStatus
+  championCompanion: ChampionCompanionPresentationStatus
+  augmentCompanion: AugmentCompanionPresentationStatus
+}
+
 export interface RuntimeDiagnostics {
   ocrReady: boolean
   ocrBusy: boolean
@@ -454,6 +480,7 @@ export interface RuntimeDiagnostics {
   polling: boolean
   activeVisualMode: VisualMode
   gpuAcceleration: boolean
+  presentation: PresentationDiagnostics
   logLines: string[]
 }
 

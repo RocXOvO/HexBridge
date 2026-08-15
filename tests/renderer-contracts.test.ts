@@ -16,7 +16,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.34'")
+    expect(rendererState).toContain("currentVersion: '0.1.35'")
   })
 
   it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {
@@ -184,6 +184,11 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).not.toContain('CHAMPION DETECTED')
     expect(appSource).not.toContain('LCU CONNECTED')
     expect(appSource).not.toContain('SEARCHING FOR LCU')
+    expect(appSource).toContain('data-testid="champion-companion-diagnostic"')
+    expect(appSource).toContain('data-testid="augment-companion-diagnostic"')
+    expect(appSource).toContain('尚未确认客户端窗口')
+    expect(appSource).toContain('游戏不在前台，已隐藏')
+    expect(appSource).toContain('不记录窗口位置或进程标识')
   })
 
   it('presents the API service progressively without exposing the stored secret', () => {

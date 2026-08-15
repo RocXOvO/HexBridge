@@ -350,6 +350,25 @@ try {
       () => mainCdp.evaluate(`Boolean(document.querySelector('.health-grid p'))`),
       'the transitioned diagnostics page',
     )
+    const presentationDiagnostics = await mainCdp.evaluate(`(() => {
+      const champion = document.querySelector('[data-testid="champion-companion-diagnostic"]')
+      const augment = document.querySelector('[data-testid="augment-companion-diagnostic"]')
+      return {
+        champion: champion?.textContent.trim() || '',
+        augment: augment?.textContent.trim() || '',
+        cards: document.querySelectorAll('.health-grid article').length,
+      }
+    })()`)
+    if (
+      presentationDiagnostics?.cards !== 6 ||
+      !presentationDiagnostics.champion.includes('选人伴随窗') ||
+      !presentationDiagnostics.champion.includes('当前阶段无需显示') ||
+      !presentationDiagnostics.champion.includes('观察未运行') ||
+      !presentationDiagnostics.augment.includes('游戏内推荐条') ||
+      !presentationDiagnostics.augment.includes('当前不在游戏阶段')
+    ) {
+      throw new Error(`Presentation diagnostics smoke failed: ${JSON.stringify(presentationDiagnostics)}`)
+    }
     const diagnosticsFont = await mainCdp.evaluate(`parseFloat(getComputedStyle(document.querySelector('.health-grid p')).fontSize)`)
     const diagnosticsStageWidth = await mainCdp.evaluate(`document.querySelector('.stage')?.clientWidth ?? 0`)
     await mainCdp.evaluate(`([...document.querySelectorAll('.sidebar nav button')]
@@ -497,7 +516,7 @@ try {
       calibration.restoredMain = restoredMain
     }
 
-    return { augmentSurface, keyFeedback, keyIdle, apiServiceUi, updaterUi, typography, reducedMotion, calibrationIsolation, calibration }
+    return { augmentSurface, keyFeedback, keyIdle, apiServiceUi, updaterUi, presentationDiagnostics, typography, reducedMotion, calibrationIsolation, calibration }
   }
 
   const hardStop = new Promise((_, reject) => {

@@ -40,7 +40,7 @@ const smokeState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.34',
+    currentVersion: '0.1.35',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -100,6 +100,11 @@ const smokeState: RuntimeState = {
     polling: false,
     activeVisualMode: 'eco',
     gpuAcceleration: false,
+    presentation: {
+      observer: 'stopped',
+      championCompanion: 'disabled',
+      augmentCompanion: 'inactive',
+    },
     logLines: [],
   },
 }

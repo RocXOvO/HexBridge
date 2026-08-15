@@ -336,6 +336,7 @@ export class HexBridgeRuntime {
         polling: true,
         activeVisualMode,
         gpuAcceleration: this.gpuAcceleration,
+        presentation: this.windows.getPresentationDiagnostics(),
         logLines: logger.recent(),
       },
     }

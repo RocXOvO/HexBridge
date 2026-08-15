@@ -100,6 +100,33 @@ const manualOcrCodeText: Record<RuntimeDiagnostics['manualOcrCode'], string> = {
   UNEXPECTED_ERROR: '发生未预期错误',
 }
 
+const observerStatusText: Record<RuntimeDiagnostics['presentation']['observer'], string> = {
+  stopped: '观察未运行',
+  starting: '正在连接窗口观察',
+  retrying: '窗口观察正在重试',
+  observing: '窗口观察正常',
+}
+
+const championCompanionStatusText: Record<RuntimeDiagnostics['presentation']['championCompanion'], string> = {
+  disabled: '设置中已关闭',
+  ineligible: '当前阶段无需显示',
+  dismissed: '本局已手动关闭',
+  'authority-missing': '尚未确认客户端窗口',
+  'observer-starting': '正在等待窗口状态',
+  'client-hidden': '英雄联盟客户端不可见',
+  'placement-pending': '正在贴合客户端',
+  visible: '正在显示',
+}
+
+const augmentCompanionStatusText: Record<RuntimeDiagnostics['presentation']['augmentCompanion'], string> = {
+  disabled: '设置中已关闭',
+  inactive: '当前不在游戏阶段',
+  'no-result': '尚无当前三卡结果',
+  'partial-result': '三卡结果不完整',
+  'game-background': '游戏不在前台，已隐藏',
+  visible: '正在显示',
+}
+
 function dismissToast(): void {
   if (toastTimer) clearTimeout(toastTimer)
   toastTimer = null
@@ -954,7 +981,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 
         <section v-else :key="'diagnostics'" class="page-content standard-page diagnostics-page">
           <div class="page-heading"><div><small>系统状态</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">{{ state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别' }}</button></div></div>
-          <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', ['ready','stale'].includes(state.recommendation.status) ? 'ok' : 'warn']">●</span><div><small>推荐来源</small><b>{{ recommendationSourceName }} · {{ recommendationStatusText[state.recommendation.status] }}</b><p>{{ state.recommendation.lastError || `统计日期 ${state.recommendation.statisticsDate || state.recommendation.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DTDODO / 出装</small><b>{{ apiStatusText[state.api.status] }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.manualOcrStatus === 'idle' ? (state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms`) : `${state.diagnostics.manualOcrMessage} · ${manualOcrCodeText[state.diagnostics.manualOcrCode]} · ${manualOcrTime(state.diagnostics.manualOcrTriggeredAt)}` }}</p></div></article></div>
+          <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', ['ready','stale'].includes(state.recommendation.status) ? 'ok' : 'warn']">●</span><div><small>推荐来源</small><b>{{ recommendationSourceName }} · {{ recommendationStatusText[state.recommendation.status] }}</b><p>{{ state.recommendation.lastError || `统计日期 ${state.recommendation.statisticsDate || state.recommendation.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DTDODO / 出装</small><b>{{ apiStatusText[state.api.status] }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.manualOcrStatus === 'idle' ? (state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms`) : `${state.diagnostics.manualOcrMessage} · ${manualOcrCodeText[state.diagnostics.manualOcrCode]} · ${manualOcrTime(state.diagnostics.manualOcrTriggeredAt)}` }}</p></div></article><article data-testid="champion-companion-diagnostic"><span :class="['health-icon', state.diagnostics.presentation.championCompanion === 'visible' ? 'ok' : 'warn']">●</span><div><small>选人伴随窗</small><b>{{ championCompanionStatusText[state.diagnostics.presentation.championCompanion] }}</b><p>{{ observerStatusText[state.diagnostics.presentation.observer] }}</p></div></article><article data-testid="augment-companion-diagnostic"><span :class="['health-icon', state.diagnostics.presentation.augmentCompanion === 'visible' ? 'ok' : 'warn']">●</span><div><small>游戏内推荐条</small><b>{{ augmentCompanionStatusText[state.diagnostics.presentation.augmentCompanion] }}</b><p>只显示脱敏状态，不记录窗口位置或进程标识</p></div></article></div>
           <div class="log-panel"><header><b>本地日志</b><span>{{ state.diagnostics.logLines.length }} 行</span></header><pre>{{ state.diagnostics.logLines.join('\n') || '暂无日志' }}</pre></div>
           <p class="choice-note">诊断截图仅在手动识别时保存，最多保留 60 张裁切图。</p>
           <div v-if="isPreview" class="preview-banner">浏览器视觉预览模式 · Electron 中将显示实时数据</div>
