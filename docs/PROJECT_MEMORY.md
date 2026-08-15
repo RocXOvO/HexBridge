@@ -5,15 +5,15 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.37](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.37)，Release ID `371062308`；annotated tag object `ef98bf363d142afb6e2f192e909bcce993bd2105` 解引用 tagged commit `a6b443a4fb36eb02c2233a01b2b4fc873ba01c9d`。
-- 正式 run `31888393706` attempt 1 创建 Release / 五资产后因 GitHub Raw 100s 未传播而 fail closed，且未 prune；attempt 2 run `31888761186` / job `95021761447` 于 5m29s 幂等成功且未重发资产 / channel：Windows 48 files / 534 tests、真实 4K OCR 260ms、packaged UI / bridge、v2 / root、public packaged 与滚动保留全过。正式复跑 artifact `9248024858` 为 `473,521,864` bytes。自动化不等于真实 WeGame、DPI、性能或 installed updater 验证。
-- GitHub 当前只保留 v0.1.33～v0.1.37 五个正式 Releases；v0.1.0～v0.1.37 共 38 个 tags 全部保留。本地 `release/` 为空。
+- 当前公开正式版：[v0.1.38](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.38)，Release ID `371071883`；annotated tag object `03ce6432547e6cafbfd671467dc96000bcf12527` 解引用 tagged commit `f575265cd1c4cbd8e9d0bea8f659f8dc0b2fc958`。
+- 正式 run `31890345180` / job `95025571117` 先创建 Release / 五资产，后因 GitHub Raw 100s 未传播而 fail closed 且未 prune；幂等复跑 `31890763548` / job `95026572988` 于 5m29s 成功：Windows 48 files / 548 tests、真实 4K OCR 279ms、packaged UI / bridge、public v2 / root / packaged 与滚动保留全过。复跑 artifact `9248537164` 为 `473,524,797` bytes。自动化不等于真实 WeGame、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.34～v0.1.38 五个正式 Releases；v0.1.0～v0.1.38 共 39 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
 - v0.1.35 已正式发布，仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录且不含 PID、HWND、路径、坐标或标题。Release 说明准确列出相较 v0.1.34 的两项变化；public v2 / root 为 `0.1.35 / 199283491` bytes，五资产完整。HB-068 保持 `FIXED / UNVERIFIED`，等待真实 WeGame 复现时验证诊断有效性。
 - v0.1.36 已正式发布，仅修复 HB-069：腾讯当前强化榜的极小选取率使用科学计数法，静态海克斯目录根节点为数组；旧解析器依次误拒两者。真实四端点受限验证已达 `ready / 20260814 / 172 英雄 / 246 强化`；正式 EXE `199283652` bytes，v2 / root 精确为 `0.1.36`，五资产完整。HB-069 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端切源复测。
 - v0.1.37 已正式发布，仅实现 HB-070：实时助手右上角只显示当前推荐来源名称，不再附带统计日期、dataVersion、“未就绪”或缓存后缀；详情、英雄榜、设置和诊断中的日期 / stale / error 保持不变。正式 EXE `199283718` bytes，v2 / root 精确为 `0.1.37`，五资产完整。HB-070 保持 `FIXED / UNVERIFIED`，等待用户 Windows 客户端视觉确认。
-- v0.1.38 Windows 候选仅修复 HB-071：单英雄详情失败不再污染全局 data.dtodo 状态；目录 429 保留同源旧缓存但不自动重试；离线按 15s / 60s / 5min 有界恢复；正文统一 10s / 2MiB；同 dataVersion 目录不可变且新版本仅在文件、pointer 全提交后切 active。终审 `P0=0 / P1=0`；product commit `749635b9521cf1b074de62d281c92fddb9ca37df` 已 push，Windows run `31890026596` / job `95024824003` 于 5m41s 成功：48 files / 548 tests、4K 306ms、EXE `199284621` bytes、packaged UI / bridge、synthetic 0.1.39 差分 `1135282 / 199284621` 与 artifact `9248356706` 全过。tag-only 发布步骤按预期跳过；尚无 v0.1.38 tag / Release，公开 Latest 仍为 v0.1.37。
+- v0.1.38 已正式发布，仅修复 HB-071：单英雄详情失败不再污染全局 data.dtodo 状态；目录 429 保留同源旧缓存但不自动重试；离线按 15s / 60s / 5min 有界恢复；正文统一 10s / 2MiB；同 dataVersion 目录不可变且新版本仅在文件、pointer 全提交后切 active。正式 EXE `199284622` bytes，public v2 / root 精确为 `0.1.38`，五资产完整。HB-071 保持 `FIXED / UNVERIFIED`，等待 installed 客户端网络波动复测。
 
 ## 记忆模块
 
@@ -41,7 +41,7 @@
 6. HB-068：发布后用真实 WeGame 复现伴随窗 / 96px 条缺失或错位，并以脱敏枚举定位资格、authority、观察、前台和 3/3 结果边界。
 7. HB-069：在 v0.1.36 正式版完成用户 Windows 客户端切源复测；发布成功不代替真实接口与 UI 验证。
 8. HB-070：在 v0.1.37 正式版完成用户 Windows 客户端视觉确认。
-9. HB-071：完成 v0.1.38 Windows 候选与正式发布后，用 installed 客户端验证暂时断网、429、详情失败和恢复状态；Key / 响应正文不得进入日志或文档。
+9. HB-071：用 v0.1.38 installed 客户端验证暂时断网、429、详情失败和恢复状态；Key / 响应正文不得进入日志或文档。
 
 ## 当前任务边界
 

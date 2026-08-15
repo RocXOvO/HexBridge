@@ -82,7 +82,7 @@
 | HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 已发布） |
 | HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 已发布） |
 | HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 已发布） |
-| HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 Windows 候选） |
+| HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 已发布） |
 
 ## 当前重点验收
 
@@ -108,12 +108,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.37 全验证后删除 v0.1.32 Release / assets、保留 tag；当前仅 v0.1.33～v0.1.37 五个 public stable Releases，38 个 tags（v0.1.0～v0.1.37）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.38 全验证后删除 v0.1.33 Release / assets、保留 tag；当前仅 v0.1.34～v0.1.38 五个 public stable Releases，39 个 tags（v0.1.0～v0.1.38）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.37 Release 已准确列出相较 v0.1.36 的变化，跨版累计链延伸至 0.1.37，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.38 Release 已准确列出相较 v0.1.37 的变化，跨版累计链延伸至 0.1.38，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -217,8 +217,8 @@
 ### HB-071：data.dtodo 容易误入离线
 
 - 根因是单英雄详情 timeout / 429 / 5xx / 解析或缓存写入失败会污染全局 API 状态；目录又在新 snapshot 原子提交前公开新 dataVersion，正文读取没有统一 deadline / 大小上限，离线后也没有有界恢复。
-- v0.1.38 候选只允许 detail 401 使 Key 失效；目录 429 有完整旧缓存时公开为 stale 且要求手动刷新。离线按 15s / 60s / 5min 单飞恢复，正文统一 10s / 2MiB，退出立即 abort；同版本目录不可变，新版本仅在两目录和 pointer 全提交后切 active。
-- 终审 `P0=0 / P1=0`；Windows candidate run `31890026596` 通过 48 files / 548 tests、4K 306ms、packaged UI / bridge、差分与 artifact 门禁。尚未 tag / Release / installed 网络波动复测，状态保持 `FIXED / UNVERIFIED`。
+- v0.1.38 只允许 detail 401 使 Key 失效；目录 429 有完整旧缓存时公开为 stale 且要求手动刷新。离线按 15s / 60s / 5min 单飞恢复，正文统一 10s / 2MiB，退出立即 abort；同版本目录不可变，新版本仅在两目录和 pointer 全提交后切 active。
+- 终审 `P0=0 / P1=0`；Windows candidate `31890026596` 与正式幂等复跑 `31890763548` 均通过 48 files / 548 tests、真实 4K OCR、packaged UI / bridge、差分 / public 更新与五版滚动门禁。v0.1.38 已发布，但 installed 网络波动尚未复测，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 
