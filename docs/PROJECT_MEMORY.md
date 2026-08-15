@@ -5,8 +5,9 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.52](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.52)，Release ID `RE_kwDOT1eQs84WH4iN`，publishedAt `2026-08-15T21:49:34Z`；tagged commit `5c497570ed732aaeb71a391c18321a8ef55a91d4`。本版修复自动刷新确认期间的短暂 probe miss：recognizing 状态保持可靠三卡，连续两次 absence 才撤下，单卡刷新只替换变化槽位。
-- v0.1.53 为当前本地候选，尚未 commit / push / Windows workflow / tag / Release；新增队友 / 对手队伍强度摘要，不改变已有 Main-only、隐私和请求并发契约。公开正式基线仍为 v0.1.52。
+- 当前公开正式版：[v0.1.53](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.53)，Release ID `RE_kwDOT1eQs84WH5k7`，publishedAt `2026-08-15T22:10:26Z`；tagged commit `48212163ddae20166c9a1cb579b2dda8164dfc46`。本版新增队友 / 对手队伍强度摘要：按已有脱敏样本量加权汇总 rating、胜率与 KDA，缺失分组不以平均值填充。
+- v0.1.53 workflow `31911568238` / job `95077306492`（幂等重跑）成功；Windows `50` files / `600` passed、真实 4K OCR `256ms`、打包 UI / bridge、差分、公网双通道、public packaged 与五版滚动门禁通过。artifact `9253855166` / `473544557` bytes / `be9cc0d0b0fc1e5d7e609646d595a5ccca21b7c9faa89b086c8beb3c19cf9662`。真实国服 history / WeGame 用户价值仍未验证，不能写成 `VERIFIED`。
+- v0.1.53 五资产：EXE `199292751` / `1dd17e77a1a7e7479fa8c75ca41b97e5805f60e225361c9837316e7b654f6cfc`；blockmap `201188` / `3d3aa4072b8d5032f2fb02dde3d8f1b9f839f4f99c7c01f362186a8a5f46a7d8`；ZIP `274461905` / `8d8d5abbb0ba4aaae779a1655106f44db24c40c2bbeb30ddfd772c335e0d8769`；latest.yml `346` / `10f3aabc199c1ed9fa1d66dd150a26abd4c0ad999908be8834dd0d25649dc105`；SHA256SUMS `182` / `24346a1408c56fa7eead94bb65484494f0723fc09ff372257ea6e803e795d1e3`。差分 smoke 传输 `1303859` bytes / full `199292751`，9 个 Range、3 个 redirect，基于 v0.1.52；public packaged `channelVersion=0.1.53` 且 `updateAvailable=false`。
 - v0.1.52 workflow `31910230347` / job `95074070896` 成功；Windows `50` files / `597` passed、真实 4K OCR `259ms`、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过。artifact `9253507912` / `473543056` bytes。真实 Windows WeGame 单卡刷新、帧时间与失焦恢复仍未验，不能写成 `VERIFIED`。
 - v0.1.52 五资产：EXE `199291984` / `3cf9ea5eff32b4d5c6171638809f845c3bf9ee2a9aa6aea000a5020927e340a8`；blockmap `201403` / `08e3abbb10fe843df193881595aa32b8209804f99cd31f9f7bbbe21203e59b6e`；ZIP `274460918` / `5479f7a7f9cc381d30cd20f6eaced242f0b270cbe6e8a88a0c9a73b64ef6e2c6`；latest.yml `346` / `9cea25949528d8843bdc9f1036498c04a415327f0b49bd573262c431dda2ebe7`；SHA256SUMS `182` / `c9fa00a1896e37736b34ada3ce5cbae53f8e9ded7d0dd7fd6434d0e7687452af`。差分 smoke 传输 `1291823` bytes / full `199291984`，10 个 Range、3 个 redirect，基于 v0.1.51。
 - v0.1.51 workflow `31908866405` 首次因稳定通道传播超时 fail closed，幂等重跑成功（job `95071775049`）；Windows `50` files / `594` passed、真实 4K OCR `262ms`、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过。artifact `9253256349` / `473543003` bytes / `bf1b7dc476182bbd9e7296a03253a8688e36de4ce4e013d14569d5ec75687324`。真实 Windows Tencent 接口、切源和用户同机视觉仍未验，不能写成 `VERIFIED`。
@@ -20,7 +21,7 @@
 - v0.1.44 正式 workflow `31900414946` 首次仅因稳定 channel 传播窗口超时，幂等重跑成功；Windows 48 files / 566 passed + 1 skipped，Release 五资产、双通道、packaged public check 与五版滚动保留均成功。正式补丁将选人助手备战席滚动锁在面板内部，自动化不等于真实 WeGame / Windows 视觉性能验证。
 - v0.1.43 正式 workflow 首次仅因稳定 channel 传播窗口超时，失败后按幂等流程重跑成功；Windows 48 files / 564 passed + 1 skipped，Release 五资产、双通道、packaged public check 与五版滚动保留均成功。正式补丁让手动刷新期间已有可靠三卡保持挂载，只替换真正变化的槽位；自动化不等于真实 WeGame、Windows 性能或 installed updater 验证。
 - v0.1.41 正式 workflow 首次遇到 Raw 传播超时后按幂等流程重跑成功，Release / 五资产、双通道、packaged UI / bridge、差分和滚动保留均通过；自动化不等于真实 WeGame、腾讯接口或 installed 迁移验证。
-- GitHub 当前只保留 v0.1.48～v0.1.52 五个正式 Releases；v0.1.0～v0.1.52 tags 全部保留。本地 `release/` 为空；旧 Release / assets 按滚动策略删除但 tag / source 保留（v0.1.47 及更旧 Release 不再保留）。
+- GitHub 当前只保留 v0.1.49～v0.1.53 五个正式 Releases；v0.1.0～v0.1.53 tags 全部保留。本地 `release/` 为空；旧 Release / assets 按滚动策略删除但 tag / source 保留（v0.1.48 及更旧 Release 不再保留）。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - HB-085 已随 v0.1.51 发布：解析与缓存严格沿用 `0..1`，通过 provider snapshot 进入当前英雄 / 备战席 / 英雄榜；不与海克斯全局选取率混用，也不改变 Tier / 胜率排序。真实 Windows 切源、腾讯接口稳定性与 UI 可读性仍待验，状态保持 `FIXED / UNVERIFIED`。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
@@ -62,7 +63,7 @@
 10. HB-070 / 071：分别完成 v0.1.37 来源徽标视觉确认，以及 v0.1.38 installed 网络波动 / 429 / 恢复验证；Key / 响应正文不得进入日志或文档。
 11. HB-085：在 v0.1.51 Windows 客户端切换 Tencent 101，确认英雄总体选取率在当前英雄、备战席和英雄榜显示且明确口径；缺失数据显示暂无数据，不得与海克斯全局指标混淆。
 12. HB-086：用 v0.1.52 Windows 客户端实测单卡刷新期间短暂空窗、连续两次 absence、失焦恢复和帧时间；确认未变化标签不退场、不重播。
-13. HB-087：用候选客户端确认队伍级摘要与个人卡片口径可读；真实国服 history / 身份门禁和用户价值仍未验。
+13. HB-087：用 v0.1.53 客户端确认队伍级摘要与个人卡片口径可读；真实国服 history / 身份门禁和用户价值仍未验。
 
 ## 当前任务边界
 

@@ -4,13 +4,13 @@
 
 ## 当前正式基线
 
-- 当前本地候选 `v0.1.53` 尚未 commit / push / Windows workflow / tag / Release；本候选只新增队友 / 对手队伍强度摘要。公开正式版仍为 `v0.1.52`，不得把候选证据写成已发布或真实 WeGame 已验证。
+- 当前公开正式版 `v0.1.53` 已完成 commit / push / tag / Release / 双通道 / 滚动保留；本版新增队友 / 对手队伍强度摘要。真实国服 history、用户价值和 WeGame 验收仍未完成，不能写成 `VERIFIED`。
 
-- 当前公开正式版 `v0.1.52` 已完成 tag / Release / 双通道 / 滚动保留；本版修复自动刷新确认空窗与三卡标签联动。真实 Windows WeGame 单卡刷新、帧时间与失焦恢复仍不是自动化证据。
+- 当前公开正式版 `v0.1.53` 已完成 tag / Release / 双通道 / 滚动保留；上版修复自动刷新确认空窗与三卡标签联动。本版正式 run `31911568238` / job `95077306492` 成功，Windows `50` files / `600` tests、真实 4K OCR `256ms`、artifact `9253855166` / `473544557` bytes；真实 Windows WeGame 和国服 history 仍不是自动化证据。
 
-- public Latest：[v0.1.52](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.52)，Release ID `RE_kwDOT1eQs84WH4iN`，publishedAt `2026-08-15T21:49:34Z`；tagged commit `5c497570ed732aaeb71a391c18321a8ef55a91d4`。
-- 正式 run `31910230347` / job `95074070896` 成功；Windows `50` files / `597` tests、真实 4K OCR `259ms`、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9253507912` / `473543056` bytes。
-- public v2 / root：version `0.1.52`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.48～v0.1.52，本地 `release/` 为空。
+- public Latest：[v0.1.53](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.53)，Release ID `RE_kwDOT1eQs84WH5k7`，publishedAt `2026-08-15T22:10:26Z`；tagged commit `48212163ddae20166c9a1cb579b2dda8164dfc46`。
+- 正式 run `31911568238` / job `95077306492` 成功；Windows `50` files / `600` tests、真实 4K OCR `256ms`、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9253855166` / `473544557` bytes / `be9cc0d0b0fc1e5d7e609646d595a5ccca21b7c9faa89b086c8beb3c19cf9662`。
+- public v2 / root：version `0.1.53`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.49～v0.1.53，本地 `release/` 为空。
 
 - v0.1.50 是上一版正式基线；真实 WeGame / installed updater 仍不是自动化证据。
 
