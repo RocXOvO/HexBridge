@@ -360,7 +360,7 @@ try {
       }
     })()`)
     if (
-      presentationDiagnostics?.cards !== 6 ||
+      presentationDiagnostics?.cards !== 7 ||
       !presentationDiagnostics.champion.includes('选人伴随窗') ||
       !presentationDiagnostics.champion.includes('当前阶段无需显示') ||
       !presentationDiagnostics.champion.includes('观察未运行') ||

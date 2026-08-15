@@ -4,7 +4,7 @@
 
 ## 当前正式基线
 
-- 当前本地候选 `v0.1.54` 尚未 commit / push / Windows workflow / tag / Release；本候选只新增脱敏 OCR 调度诊断。公开正式版仍为 `v0.1.53`，不得把候选证据写成已发布或真实 WeGame 性能已验证。
+- 当前本地候选 `v0.1.55` 尚未 commit / push / Windows workflow / Release；它保留 v0.1.54 的脱敏 OCR 调度诊断并修正 packaged UI smoke 的 7 卡门禁。v0.1.54 tag 已推送但因旧 6 卡断言在 UI smoke fail closed，未创建公开 Release；公开正式版仍为 `v0.1.53`，不得把候选证据写成已发布或真实 WeGame 性能已验证。
 
 - 当前公开正式版 `v0.1.53` 已完成 commit / push / tag / Release / 双通道 / 滚动保留；本版新增队友 / 对手队伍强度摘要。真实国服 history、用户价值和 WeGame 验收仍未完成，不能写成 `VERIFIED`。
 

@@ -99,7 +99,8 @@
 | HB-085 | Tencent 英雄总体 pickRate 未进入英雄目录 | FIXED / UNVERIFIED（v0.1.51 已发布） |
 | HB-086 | 自动刷新短暂 probe miss 导致三张标签一起跳动 | FIXED / UNVERIFIED（v0.1.52 已发布） |
 | HB-087 | 队友 / 对手强度缺少队伍层量化摘要 | FIXED / UNVERIFIED（v0.1.53 已发布） |
-| HB-088 | OCR 刷新卡顿缺少脱敏调度证据 | IN PROGRESS / UNVERIFIED（v0.1.54 候选） |
+| HB-088 | OCR 刷新卡顿缺少脱敏调度证据 | IN PROGRESS / UNVERIFIED（v0.1.55 候选，沿用 v0.1.54 实现） |
+| HB-089 | 打包 UI smoke 未随 OCR 调度诊断卡扩展 | FIXED / UNVERIFIED（v0.1.55 候选） |
 
 ## 当前重点验收
 
@@ -336,6 +337,11 @@
 - v0.1.54 候选在现有 single-flight、代际和来源守卫上新增有限 `ocrSchedule` 诊断：记录低成本 probe 与完整 OCR 的次数、最近耗时、16 次滚动峰值、下一次延迟和 `stopped / paused / waiting / recognizing / latched` 阶段。
 - 指标只在 Main 侧从屏幕捕获 / OCR 调度结果聚合，换代或停止时清零；旧 epoch 晚到的探测不会写入新一局。RuntimeState 只发送数值和有限枚举，不含截图、OCR 文本、坐标、进程标识、路径或玩家身份。
 - 本地定向 OCR / Runtime / Renderer 测试、typecheck、变更文件 lint 和 diff-check 已通过；尚未 commit / push / Windows workflow / Release。真实 WeGame 的单卡刷新、CPU/GPU、FPS / frametime 仍待用户复测，不能把诊断实现写成性能已修复。
+
+### HB-089：打包 UI smoke 未随 OCR 调度诊断卡扩展
+
+- v0.1.54 新增 OCR 调度诊断卡后，Windows packaged UI smoke 仍要求诊断页恰好 6 张卡，导致门禁在 UI smoke 阶段 fail closed；前置测试、lint、typecheck 与打包本身已通过。
+- v0.1.55 候选把断言同步为当前 7 张诊断卡，并新增对应 Release 说明；这只是测试门禁修正，不代表真实 Windows / WeGame 视觉或性能已验证。
 
 ## 追溯
 
