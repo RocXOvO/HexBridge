@@ -5,12 +5,11 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.31](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.31)，Release ID `370985162`；annotated tag object `a581f7b233c677235b1405e861501e2bbc96f532` 解引用 tagged commit `7738b29cb46ddf2bb92689504bc0b8f00f5704c1`。
-- 正式 Windows run `31871200159` attempt 1 已完整创建 Release / 五资产，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune；同一 run attempt 2 / job `94980941773` 于 5m29s 幂等成功：46 files / 508 tests、真实 4K OCR 279ms、packaged UI / bridge、差分 `1,288,194 / 199,281,055` bytes、v2 / root、public packaged 与滚动保留全过。artifact `9243622600` 为 `473,516,792` bytes。自动化不等于真实 WeGame、Wallpaper Engine / Steam 多库、DPI、性能或 installed updater 验证。
-- GitHub 当前只保留 v0.1.27～v0.1.31 五个正式 Releases；v0.1.0～v0.1.31 共 32 个 tags 全部保留。本地 `release/` 为空。
+- 当前公开正式版：[v0.1.32](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.32)，Release ID `370991273`；annotated tag object `c3eb4bd989035ae82550bc4e1b5cb05e87b0bb6c` 解引用 tagged commit `7e9c0edbf60a79fb997d7ed4db9d8261cb15d93f`。
+- 正式 Windows run `31872643509` attempt 1 已创建 Release / 五资产并写入 channel，但 GitHub Raw 在 100s 内未传播而 fail closed，且未 prune；attempt 2 / job `94984422579` 于 5m52s 幂等成功：47 files / 515 tests、真实 4K OCR 236ms、packaged UI / bridge、差分 `1,336,869 / 199,281,116` bytes、v2 / root、public packaged 与滚动保留全过。artifact `9244013098` 为 `473,516,957` bytes。自动化不等于真实 WeGame、Wallpaper Engine / Steam 多库、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.28～v0.1.32 五个正式 Releases；v0.1.0～v0.1.32 共 33 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
-- v0.1.31 已正式发布；Release 说明准确列出相较 v0.1.30 的取消对局清理修复，public v2 / root 为 `0.1.31 / 199281055` bytes，正式五资产完整。修复将 `GAME_STARTING` 限为首次信号起 60s 不续租短交接，稳定终止 15s 清理，强启动证据优先升级；HB-048 仍 `IN PROGRESS / UNVERIFIED`，不得用发布结果替代真实 WeGame 同机验收。
-- v0.1.32 候选 commit `82541cb61b1a75878ced3ceaafe9bdbc30caa59f` 已 push；只修 HB-065：`clear-diagnostics` 与 `retry-lcu` 在 Runtime 副作用前强制校验当前 Main sender，拒绝 champion、calibration、未知及已失效窗口。终审 `P0=0 / P1=0`。本地 47 files / 514 passed + 1 skipped；Windows workflow_dispatch run `31872318452` / job `94982773105` 于 5m29s 成功，47 files / 515 tests、audit 0、真实 4K 279ms、typecheck / lint / retention、EXE `199,281,115` bytes、packaged UI / bridge、synthetic v0.1.33 差分 `1,315,128 / 199,281,115` bytes、checksums 与 artifact `9243827755` 全过。tag-only 步骤按预期跳过；尚无 v0.1.32 tag / Release，公开 Latest 仍为 v0.1.31。
+- v0.1.32 已正式发布；Release 说明准确列出相较 v0.1.31 的 Main sender IPC 授权修复，public v2 / root 为 `0.1.32 / 199281116` bytes，正式五资产完整。`clear-diagnostics` 与 `retry-lcu` 均在 Runtime 副作用前强制校验当前 Main sender，拒绝 champion、calibration、未知及已失效窗口；HB-065 保持 `FIXED / UNVERIFIED`，不得用发布结果替代真实环境验收。
 
 ## 记忆模块
 

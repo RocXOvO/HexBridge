@@ -76,7 +76,7 @@
 | HB-062 | GitHub Release 滚动保留与双通道 | VERIFIED（v0.1.26 实际执行） |
 | HB-063 | 跨版本升级 / Release 说明 | VERIFIED（v0.1.26 正式说明） |
 | HB-064 | Electron public packaged CDN 假阴性 | FIXED / UNVERIFIED（main 已 push） |
-| HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 Windows 候选） |
+| HB-065 | 有副作用 IPC 缺少 Main sender 授权 | FIXED / UNVERIFIED（v0.1.32 正式版） |
 
 ## 当前重点验收
 
@@ -177,8 +177,8 @@
 
 ### HB-065：有副作用 IPC sender 授权
 
-- v0.1.32 候选将诊断截图清理与 LCU 重新发现限制为当前 Main sender；champion、calibration、未知或已被替换的旧 Main sender 均在调用 Runtime 前拒绝。
-- 行为级测试通过真实 `registerIpc` 捕获并执行 handler，证明 Main 成功且拒绝路径无副作用；calibration 专属 IPC、champion 状态读取与本窗关闭不变。终审无 P0 / P1；候选 commit `82541cb` 已 push，Windows run `31872318452` 通过 47 files / 515 tests、packaged UI / bridge 与差分门禁。tag / Release 尚未发生，状态保持 `FIXED / UNVERIFIED`。
+- v0.1.32 正式版将诊断截图清理与 LCU 重新发现限制为当前 Main sender；champion、calibration、未知或已被替换的旧 Main sender 均在调用 Runtime 前拒绝。
+- 行为级测试通过真实 `registerIpc` 捕获并执行 handler，证明 Main 成功且拒绝路径无副作用；calibration 专属 IPC、champion 状态读取与本窗关闭不变。终审无 P0 / P1；正式 run `31872643509` attempt 2 通过 47 files / 515 tests、packaged UI / bridge、public channel / packaged 与五版滚动门禁，Release ID `370991273` 为 Latest。状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 
