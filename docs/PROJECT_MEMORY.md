@@ -6,6 +6,7 @@
 ## 当前基线
 
 - 当前公开正式版：[v0.1.49](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.49)，Release ID `RE_kwDOT1eQs84WH0S5`，publishedAt `2026-08-15T20:19:13Z`；tagged commit `d83fadeed3df302db7ff4768c70eae4c11594637`。本版修复已隐藏旧三卡在不完整手动识别后被重新显示的边界。
+- 当前候选版 v0.1.50 尚未提交、推送、打 tag 或发布；补上自动 probe 在旧 surface 已隐藏时仍可能复活旧三卡的路径。正式基线仍为 v0.1.49，Windows、真实 WeGame 与用户同机视觉尚未验证。
 - v0.1.49 正式 workflow `31906109063`（首次稳定通道传播超时，幂等重跑成功）；Windows `50` files / `587` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过，artifact `9252537013` / `473541312` bytes。真实游戏刷新视觉仍未验证，不得写成已完成用户同机验收。
 - v0.1.49 五资产：EXE `199291239` / `6d37aba0f256bc439da65f0d742c752bdb6d7d11111fa98b279f62f6fe978ffe`；blockmap `201486` / `ea32e217c0df2eca05eec22de193b4b7dda97b194b86e65fd68f9840bf43b546`；ZIP `274459853` / `a98af89b09eea6f1a0b6d7d2f5211c26e7e7c433368fc1c767ad75a148fa9491`；latest.yml `346` / `9bee56a128b1a3e9402a83e835120d538c89682a2eee11b97470338133577f25`；SHA256SUMS `182` / `e787f606d1f18e5b216bfa1828fa4707f022b4c03daf9ec023dc952c922b0998`。差分 smoke 为 `1266377` bytes / full `199291239`，9 个 Range、3 个 redirect，基于 v0.1.48。
 - v0.1.48 正式 workflow `31905462353` 成功；Windows `50` files / `585` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过，artifact `9252266044` / `473541441` bytes。真实游戏刷新视觉仍未验证，不得写成已完成用户同机验收。

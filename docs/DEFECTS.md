@@ -95,6 +95,7 @@
 | HB-081 | 96px 推荐条某槽位变化后持续重复播放动画 | FIXED / UNVERIFIED（v0.1.47 已发布） |
 | HB-082 | 手动刷新首轮识别不完整导致整组三卡退场重进 | FIXED / UNVERIFIED（v0.1.48 已发布） |
 | HB-083 | 已隐藏的旧三卡在不完整手动识别后被重新显示 | FIXED / UNVERIFIED（v0.1.49 已发布） |
+| HB-084 | 自动 probe 在隐藏旧 surface 后复活三卡 | IN PROGRESS |
 
 ## 当前重点验收
 
@@ -301,6 +302,12 @@
 - 根因是保留旧 slots 与 surface 可见性没有同时作为门禁；选卡完成、两次 absence 或有界到期后，旧 slots 仍可留作回看，但不完整手动识别会误把它们当成当前可见三卡而重新显示。
 - v0.1.49 候选把保留条件收紧为“当前 surface 仍可见且 slots 恰好为 3”；隐藏状态只保留旧数据，不会被不完整结果复活，完整匹配后仍按单槽位更新。
 - 正式 workflow `31906109063`（稳定通道首次传播超时后幂等重跑）通过 Windows `50` files / `587` tests、packaged UI / bridge、差分和滚动门禁；真实 Windows / WeGame 刷新视觉尚未验证，不能标记 `VERIFIED`。
+
+### HB-084：自动 probe 在隐藏旧 surface 后复活三卡
+
+- 审计发现自动低成本 probe 的指纹变化分支仍只检查保留 slots 数量；surface 已因选卡、absence 或到期隐藏时，后续新指纹会重新挂载旧三卡。
+- v0.1.50 候选把该分支与手动不完整识别统一为 `overlay.visible && slots.length===3` 门禁，并补自动调度回归；隐藏 surface 不会因 probe 新指纹复活。
+- 当前仅有本地定向回归、typecheck、lint 和 diff-check；Windows / 真实 WeGame 刷新视觉尚未验证，不能标记 `VERIFIED`。
 
 ## 追溯
 

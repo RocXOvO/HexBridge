@@ -1483,7 +1483,7 @@ export class HexBridgeRuntime {
               // augment id, so only the changed card will be replaced once
               // the guarded result arrives. This also applies to the bounded
               // manual monitor, which otherwise used to flash all three tags.
-              const keepReliableSurface = this.overlay.slots.length === 3
+              const keepReliableSurface = this.overlay.visible && this.overlay.slots.length === 3
               this.setManualOverlayMonitorDeadline(
                 keepReliableSurface && !automaticRecognitionEnabled
                   ? Date.now() + MANUAL_OVERLAY_MONITOR_MAX_MS

@@ -693,6 +693,43 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
   })
 
+  it('does not resurrect a hidden retained surface when the automatic probe sees a new fingerprint', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: false,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '卡牌界面已关闭，已保留上次可靠结果',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.scanner = {
+      probeInterface: vi.fn()
+        .mockResolvedValueOnce({ status: 'detected', durationMs: 10, fingerprints: ['dddd', 'eeee', 'ffff'] })
+        .mockResolvedValue({ status: 'detected', durationMs: 10, fingerprints: ['dddd', 'eeee', 'ffff'] }),
+    }
+    runtime.runScan = vi.fn(async () => ({ ok: false, code: 'UNRELIABLE', message: 'fixture' }))
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(800)
+
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.overlay.slots).toHaveLength(3)
+    expect(runtime.runScan).toHaveBeenCalledOnce()
+    runtime.stopScanLoop()
+  })
+
   it('expires a manual compact surface while the game remains out of foreground', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
