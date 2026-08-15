@@ -10,6 +10,7 @@ describe('stable Release notes', () => {
     { tag_name: 'v0.1.45', draft: false, prerelease: false },
     { tag_name: 'v0.1.46', draft: false, prerelease: false },
     { tag_name: 'v0.1.47', draft: false, prerelease: false },
+    { tag_name: 'v0.1.48', draft: false, prerelease: false },
     { tag_name: 'v0.1.42', draft: false, prerelease: false },
     { tag_name: 'v0.1.40', draft: false, prerelease: false },
     { tag_name: 'v0.1.38', draft: false, prerelease: false },
@@ -113,6 +114,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('### 相较 v0.1.46 的更新')
     expect(body).toContain('96px 推荐条')
     expect(body).toContain('/compare/v0.1.46...v0.1.47')
+  })
+
+  it('renders the manual incomplete-refresh surface retention fix for v0.1.48', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.48',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.47 的更新')
+    expect(body).toContain('首轮识别不完整')
+    expect(body).toContain('/compare/v0.1.47...v0.1.48')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {

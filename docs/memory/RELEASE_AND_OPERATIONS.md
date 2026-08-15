@@ -5,6 +5,7 @@
 ## 当前正式基线
 
 - 当前公开正式版 `v0.1.47` 已完成 tag / Release / 双通道 / 滚动保留。真实 WeGame / installed updater 仍不是自动化证据。
+- 当前候选 `v0.1.48` 尚未 tag / Release；仅包含手动刷新不完整时保留三卡表面的窄修复，需独立门禁后再发布。
 
 - public Latest：[v0.1.47](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.47)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHya3`，publishedAt `2026-08-15T19:42:25Z`。
 - tagged commit `7edbb545fd95e39bfc2258671b3a508f73ad24de`；正式 run `31904367148` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows packaged / UI / bridge、差分、public packaged 与滚动保留全过；自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。

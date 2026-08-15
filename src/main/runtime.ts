@@ -1698,6 +1698,7 @@ export class HexBridgeRuntime {
         const stableSlots = reuseUnchangedAugmentSlots(this.overlay.slots, ranked)
         const slotsChanged = stableSlots.some((slot, index) => slot !== this.overlay.slots[index]) ||
           stableSlots.length !== this.overlay.slots.length
+        const message = stableSlots.some((slot) => slot.position != null) ? '推荐已更新' : '暂无可靠数据'
         if (manual && result.fingerprints?.length === 3) {
           this.automaticScanContextKey = this.scanContextKey(
             scanSource,
@@ -1719,13 +1720,13 @@ export class HexBridgeRuntime {
         // existing surface in that case so unchanged tags do not re-render or
         // replay their entrance animation. A hidden surface still needs to be
         // published to make the next round visible again.
-        if (!this.overlay.visible || slotsChanged) {
+        if (!this.overlay.visible || slotsChanged || this.overlay.message !== message) {
           this.overlay = {
             visible: true,
             championId: this.snapshot.currentChampionId,
             slots: stableSlots,
             detectedAt: Date.now(),
-            message: stableSlots.some((slot) => slot.position != null) ? '推荐已更新' : '暂无可靠数据',
+            message,
           }
           this.sync()
         }
@@ -1740,11 +1741,18 @@ export class HexBridgeRuntime {
       },
     )
     if (roundDecision.clearPrevious) {
+      // A manual scan can be the first reliable observation of a new round,
+      // but it can still contain one OCR miss. Keep the last three-card
+      // surface mounted while the bounded retry runs; hiding the container
+      // here would make all three cards leave and re-enter when only one slot
+      // eventually changes. The next matched result still replaces only the
+      // changed slot through reuseUnchangedAugmentSlots().
+      const keepReliableSurface = this.overlay.slots.length === 3
       this.overlay = {
         ...this.overlay,
-        visible: false,
+        visible: keepReliableSurface,
         championId: this.snapshot.currentChampionId,
-        message: '新一轮海克斯已出现，正在等待识别稳定',
+        message: keepReliableSurface ? '检测到卡牌刷新，正在确认变化' : '新一轮海克斯已出现，正在等待识别稳定',
       }
       this.sync()
     } else if (result.status === 'unreliable' && manual && !this.overlay.visible) {

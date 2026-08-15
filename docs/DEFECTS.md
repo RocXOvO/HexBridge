@@ -93,6 +93,7 @@
 | HB-079 | 当前英雄等级与海克斯可选卡状态缺少受限探测 | IN PROGRESS |
 | HB-080 | 单卡刷新时三张标签仍一起跳动 | FIXED / UNVERIFIED（v0.1.46 已发布） |
 | HB-081 | 96px 推荐条某槽位变化后持续重复播放动画 | FIXED / UNVERIFIED（v0.1.47 已发布） |
+| HB-082 | 手动刷新首轮识别不完整导致整组三卡退场重进 | FIXED / UNVERIFIED（v0.1.48 候选） |
 
 ## 当前重点验收
 
@@ -287,6 +288,12 @@
 
 - v0.1.47 已发布，让主窗口与 96px 点击穿透小窗共用按本轮槽位变化计算的动画状态；旧的永久 slot revision 不再让已变化卡片在后续更新中反复播放。
 - 定向 renderer / Runtime 测试、typecheck、lint、diff-check 已通过；真实 Windows 游戏内刷新视觉仍待用户复测，未宣称已验证。
+
+### HB-082：手动刷新首轮识别不完整导致整组三卡退场重进
+
+- 根因是手动 OCR 首次只可靠识别部分卡面时，旧的可靠三卡被设为 `visible=false`；下一次成功结果会触发整个卡面容器重新进场，即使最终只改变一个槽位。
+- v0.1.48 候选保留已有三卡挂载，显示有界“正在确认变化”状态；重试成功后沿用槽位 + augmentId 与按本轮变化集合的动画判定，只替换真正变化的卡片。
+- 当前仅有本地 Runtime / Renderer 定向回归、typecheck、lint、diff-check；Windows / 真实 WeGame 卡面刷新仍未验证，不能标记 `VERIFIED`。
 
 ## 追溯
 

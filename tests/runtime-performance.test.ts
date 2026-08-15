@@ -347,6 +347,73 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
   })
 
+  it('keeps all cards mounted when a manual refresh first misses one slot', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.augmentRound = new AugmentRoundTracker()
+    const settings = { autoOcr: false, showInGameRecommendations: true }
+    const augments = [1, 2, 3, 9].map((id) => ({
+      id,
+      name: `海克斯${id}`,
+      iconUrl: '',
+      rarity: 1,
+      rarityName: '白银',
+      description: '',
+      globalTier: id,
+    }))
+    const slot = (name: string, augmentId: number | null) => ({
+      slot: name,
+      rawText: augmentId == null ? '' : `海克斯${augmentId}`,
+      augmentId,
+      name: augmentId == null ? '' : `海克斯${augmentId}`,
+      confidence: augmentId == null ? 0 : 1,
+    })
+    runtime.config = { getSettings: () => settings }
+    runtime.data = {
+      getAugments: () => augments,
+      getState: () => ({ dataVersion: 'fixture' }),
+    }
+    runtime.detail = null
+    runtime.lcu = { confirmGameActive: vi.fn() }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.scanner = {
+      scan: vi.fn()
+        .mockResolvedValueOnce({
+          status: 'matched',
+          slots: [slot('left', 1), slot('center', 2), slot('right', 3)],
+          fingerprints: ['a', 'b', 'c'], durationMs: 10, error: null,
+        })
+        .mockResolvedValueOnce({
+          status: 'unreliable',
+          slots: [slot('left', 1), slot('center', null), slot('right', 3)],
+          fingerprints: ['d', 'e', 'f'], durationMs: 10, error: null,
+        })
+        .mockResolvedValueOnce({
+          status: 'matched',
+          slots: [slot('left', 1), slot('center', 9), slot('right', 3)],
+          fingerprints: ['g', 'h', 'i'], durationMs: 10, error: null,
+        }),
+    }
+
+    await expect(runtime.runScan(true)).resolves.toMatchObject({ ok: true, code: 'MATCHED' })
+    const firstSlots = runtime.overlay.slots
+    await expect(runtime.runScan(true)).resolves.toMatchObject({ ok: false, code: 'UNRELIABLE' })
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.overlay.slots).toBe(firstSlots)
+    expect(runtime.overlay.message).toContain('确认变化')
+
+    await expect(runtime.runScan(true)).resolves.toMatchObject({ ok: true, code: 'MATCHED' })
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.overlay.slots[0]).toBe(firstSlots[0])
+    expect(runtime.overlay.slots[1]).not.toBe(firstSlots[1])
+    expect(runtime.overlay.slots[2]).toMatchObject({ augmentId: 3 })
+    expect(runtime.sync).toHaveBeenCalledTimes(3)
+  })
+
   it('recovers the same automatic recommendation after two probe errors withdraw the compact surface', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
