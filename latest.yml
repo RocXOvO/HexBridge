@@ -1,8 +1,8 @@
-version: 0.1.43
+version: 0.1.44
 files:
-  - url: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.43/HexBridge-0.1.43-x64.exe
-    sha512: sffKR3ljWqzbEUGZmW+kLBC0W2WKbq5i1nulU2gJcGgHO2VA2yAbCL97sdFzYe2dmEjr2WSLIFg6zASBlE2uJQ==
-    size: 199287901
-path: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.43/HexBridge-0.1.43-x64.exe
-sha512: sffKR3ljWqzbEUGZmW+kLBC0W2WKbq5i1nulU2gJcGgHO2VA2yAbCL97sdFzYe2dmEjr2WSLIFg6zASBlE2uJQ==
-releaseDate: '2026-08-15T17:41:48.728Z'
+  - url: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.44/HexBridge-0.1.44-x64.exe
+    sha512: b3GuHKNy0I1TVla3xNn8JYv/foQoMiWCPMpSMSeulaa6bPG3C6TsZOd6JFyKS90VsQzHET28S45jhkxXSmvAMA==
+    size: 199288066
+path: https://github.com/RocXOvO/HexBridge/releases/download/v0.1.44/HexBridge-0.1.44-x64.exe
+sha512: b3GuHKNy0I1TVla3xNn8JYv/foQoMiWCPMpSMSeulaa6bPG3C6TsZOd6JFyKS90VsQzHET28S45jhkxXSmvAMA==
+releaseDate: '2026-08-15T18:15:20.400Z'
