@@ -102,6 +102,7 @@
 | HB-088 | OCR 刷新卡顿缺少脱敏调度证据 | IN PROGRESS / UNVERIFIED（v0.1.56 已发布） |
 | HB-089 | 打包 UI smoke 未随 OCR 调度诊断卡扩展 | FIXED / UNVERIFIED（v0.1.55 已公开 Release） |
 | HB-090 | Release notes 将无公开 Release 的中间 tag 当作稳定基线 | FIXED / UNVERIFIED（v0.1.56 已发布） |
+| HB-091 | 刷新动画空窗导致整组三卡撤下和高频探测 | FIXED / UNVERIFIED（v0.1.57 候选） |
 
 ## 当前重点验收
 
@@ -343,6 +344,12 @@
 
 - v0.1.54 新增 OCR 调度诊断卡后，Windows packaged UI smoke 仍要求诊断页恰好 6 张卡，导致门禁在 UI smoke 阶段 fail closed；前置测试、lint、typecheck 与打包本身已通过。
 - v0.1.55 已公开 Release，把断言同步为当前 7 张诊断卡并新增对应 Release 说明；稳定通道已通过幂等重跑。v0.1.56 已公开 Release，进一步修正 Release notes：上一正式版只从公开 Release 列表取值；没有公开 Release 的中间 tag 仍累计其变更，并使用上一公开 Release 作为 compare 基线。这些自动化门禁修正不代表真实 Windows / WeGame 视觉或性能已验证。
+
+### HB-091：刷新动画空窗导致整组三卡撤下和高频探测
+
+- 用户仍观察到单卡刷新时三个 Tag 一起跳动。源码审计确认：可靠三卡在两次约 100ms 的 `not-detected` 后会整体隐藏，刷新动画的标题空窗因此触发整窗离场、再入场；若把宽限简单拆成连续 100ms 探测，又会在 700ms 内制造新的高频截图。
+- v0.1.57 候选改为有界 700ms absence grace：第一次、第二次缺失快速确认，第二次后直接等待剩余宽限再做第三次确认；检测恢复期间保持 surface 和未变化槽位，error / pause / stop 会清除连续性计时。Renderer 继续按 `slot + augmentId` 只替换变化卡片。
+- 本地 Runtime 36 项、相关 Renderer/OCR 74 项、全量门禁和 typecheck 已通过；真实 Windows WeGame 刷新动画、三卡不位移和 FPS / frametime 仍待用户同机验收，不能标记 `VERIFIED`。
 
 ## 追溯
 

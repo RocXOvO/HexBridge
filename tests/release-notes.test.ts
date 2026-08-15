@@ -226,6 +226,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.55...v0.1.56')
   })
 
+  it('renders the bounded refresh absence grace for v0.1.57', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.57',
+      releases: [...releases, { tag_name: 'v0.1.56', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.56 的更新')
+    expect(body).toContain('短暂探测空窗')
+    expect(body).toContain('/compare/v0.1.56...v0.1.57')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

@@ -124,6 +124,11 @@ const AUTO_OCR_VISIBLE_MS = 700
 // 100ms confirmation window so the next full OCR starts on the first stable
 // frame instead of waiting through another long polling interval.
 const AUTO_OCR_CHANGE_CONFIRM_MS = 100
+// A refresh animation can blank the title ROI for several cheap probes. Keep
+// the last reliable three-card surface mounted during that bounded interval;
+// otherwise the whole compact window leaves and re-enters, making unchanged
+// tags animate together with the card that actually changed.
+const AUTO_OCR_SURFACE_ABSENCE_GRACE_MS = 700
 const AUTO_OCR_UNRELIABLE_RETRY_LIMIT = 4
 const MANUAL_OVERLAY_FIRST_PROBE_MS = 500
 const MANUAL_OVERLAY_PROBE_MS = 1_000
@@ -198,6 +203,7 @@ export class HexBridgeRuntime {
   private scanTimer: NodeJS.Timeout | null = null
   private automaticScanPhase: 'waiting' | 'recognizing' | 'latched' = 'waiting'
   private automaticScanAbsences = 0
+  private automaticScanAbsenceStartedAt: number | null = null
   private automaticScanErrors = 0
   private automaticFullAttempts = 0
   private automaticFingerprint: string[] | null = null
@@ -1484,6 +1490,11 @@ export class HexBridgeRuntime {
       if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
       this.setOcrScheduleOutcome(probe.status === 'detected' ? 'detected' : probe.status)
       if (probe.status === 'error') {
+        // An error is not evidence that the card surface is absent. Break
+        // the absence run so a later probe must establish a fresh, bounded
+        // confirmation window instead of inheriting stale misses.
+        this.automaticScanAbsences = 0
+        this.automaticScanAbsenceStartedAt = null
         this.automaticScanErrors = Math.min(3, this.automaticScanErrors + 1)
         nextDelay = automaticOcrErrorDelay(this.automaticScanErrors - 1)
         if (this.overlay.visible && this.automaticScanErrors >= 2) {
@@ -1491,6 +1502,7 @@ export class HexBridgeRuntime {
           this.setManualOverlayMonitorDeadline(null)
           this.automaticScanPhase = 'waiting'
           this.automaticScanAbsences = 0
+          this.automaticScanAbsenceStartedAt = null
           this.automaticFullAttempts = 0
           this.automaticFingerprint = null
           this.automaticFingerprintCandidate = null
@@ -1506,17 +1518,34 @@ export class HexBridgeRuntime {
         this.getAugmentRound().observe('not-detected')
         this.automaticScanErrors = 0
         this.automaticScanAbsences += 1
-        if (this.overlay.visible && this.automaticScanAbsences < 2) {
-          nextDelay = AUTO_OCR_CHANGE_CONFIRM_MS
+        const reliableSurfaceVisible = this.overlay.visible && this.overlay.slots.length === 3
+        if (reliableSurfaceVisible) {
+          this.automaticScanAbsenceStartedAt ??= Date.now()
+          const absenceElapsedMs = Math.max(0, Date.now() - this.automaticScanAbsenceStartedAt)
+          const absenceGraceRemainingMs = AUTO_OCR_SURFACE_ABSENCE_GRACE_MS - absenceElapsedMs
+          // Confirm the first two samples quickly. Once the second sample is
+          // also absent, wait for the remaining grace in one bounded sleep;
+          // repeatedly capturing every 100ms would recreate the performance
+          // spike that this surface-preservation path is meant to avoid.
+          if (this.automaticScanAbsences < 2) {
+            nextDelay = Math.min(AUTO_OCR_CHANGE_CONFIRM_MS, Math.max(1, absenceGraceRemainingMs))
+          } else if (absenceGraceRemainingMs > 0) {
+            nextDelay = Math.max(1, absenceGraceRemainingMs)
+          }
+        } else {
+          this.automaticScanAbsenceStartedAt = null
         }
         // A card refresh can briefly make the cheap title probe miss while
-        // the new artwork is animating.  `recognizing` is an in-flight
+        // the new artwork is animating. `recognizing` is an in-flight
         // confirmation state, not proof that the whole surface disappeared:
         // withdrawing here tears down all three tags and makes the next
-        // successful OCR look like a full-surface re-entry.  Keep the
-        // reliable surface mounted until two consecutive absences, while
-        // retaining the 100ms confirmation cadence during the refresh.
-        if (this.automaticScanAbsences >= 2) {
+        // successful OCR look like a full-surface re-entry. Keep the reliable
+        // surface mounted until two consecutive absences plus the bounded
+        // grace have elapsed.
+        const absenceGraceElapsed = reliableSurfaceVisible &&
+          this.automaticScanAbsenceStartedAt != null &&
+          Date.now() - this.automaticScanAbsenceStartedAt >= AUTO_OCR_SURFACE_ABSENCE_GRACE_MS
+        if (this.automaticScanAbsences >= 2 && (!reliableSurfaceVisible || absenceGraceElapsed)) {
           this.automaticScanPhase = 'waiting'
           this.automaticFullAttempts = 0
           this.automaticFingerprint = null
@@ -1536,6 +1565,7 @@ export class HexBridgeRuntime {
       } else if (probe.status === 'detected') {
         this.getAugmentRound().observe('detected')
         this.automaticScanAbsences = 0
+        this.automaticScanAbsenceStartedAt = null
         const fingerprints = probe.fingerprints?.length === 3 ? probe.fingerprints : null
         const automaticRecognitionEnabled = this.config.getSettings().autoOcr
         if (
@@ -1720,6 +1750,8 @@ export class HexBridgeRuntime {
     this.scanTimer = null
     this.automaticScanNextDelayMs = null
     this.automaticScanPaused = true
+    this.automaticScanAbsences = 0
+    this.automaticScanAbsenceStartedAt = null
     this.automaticFingerprintCandidate = null
     this.automaticFingerprintSamples = 0
   }
@@ -1733,6 +1765,7 @@ export class HexBridgeRuntime {
     this.automaticScanContextKey = null
     this.automaticScanPhase = 'waiting'
     this.automaticScanAbsences = 0
+    this.automaticScanAbsenceStartedAt = null
     this.automaticScanErrors = 0
     this.automaticFullAttempts = 0
     this.automaticFingerprint = null
@@ -1806,6 +1839,7 @@ export class HexBridgeRuntime {
           )
           this.automaticScanPhase = 'latched'
           this.automaticScanAbsences = 0
+          this.automaticScanAbsenceStartedAt = null
           this.automaticFingerprint = [...result.fingerprints]
           this.automaticFingerprintCandidate = null
           this.automaticFingerprintSamples = 0

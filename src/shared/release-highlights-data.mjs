@@ -231,4 +231,8 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '0.1.56': Object.freeze([
     '修正 Release notes 测试与真实稳定 Release 列表一致：没有公开 Release 的中间 tag 仍会累计其变更，并使用上一公开 Release 作为 compare 基线。',
   ]),
+  '0.1.57': Object.freeze([
+    '修复卡面刷新动画期间的短暂探测空窗：可靠三卡会在有界宽限内保持挂载，避免未变化的标签随整组三卡一起跳动。',
+    '第二次探测仍缺失后直接等待宽限结束再确认，错误或失焦会重新开始连续性计时，不会在稳定监测中制造高频截图。',
+  ]),
 })

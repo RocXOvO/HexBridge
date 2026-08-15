@@ -31,6 +31,7 @@ function initializeAutomaticState(runtime: any): void {
   runtime.scanTimer = null
   runtime.automaticScanPhase = 'waiting'
   runtime.automaticScanAbsences = 0
+  runtime.automaticScanAbsenceStartedAt = null
   runtime.automaticScanErrors = 0
   runtime.automaticFullAttempts = 0
   runtime.automaticFingerprint = null
@@ -260,7 +261,7 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
   })
 
-  it('runs full OCR once for the same visible cards and rearms after two absences', async () => {
+  it('eventually withdraws the same visible cards after the absence grace expires', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
     runtime.snapshot = { ...activeSnapshot }
@@ -273,7 +274,7 @@ describe('runtime performance scheduling', () => {
       .mockResolvedValueOnce({ status: 'detected', durationMs: 10 })
       .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10 })
       .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10 })
-      .mockResolvedValue({ status: 'detected', durationMs: 10 })
+      .mockResolvedValue({ status: 'not-detected', durationMs: 10 })
     runtime.runScan = vi.fn(async () => ({ ok: true, code: 'MATCHED', message: 'matched' }))
 
     runtime.updateScanLoop()
@@ -289,8 +290,9 @@ describe('runtime performance scheduling', () => {
     await vi.advanceTimersByTimeAsync(700)
     await vi.advanceTimersByTimeAsync(700)
     await vi.advanceTimersByTimeAsync(2_000)
-    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(5)
-    expect(runtime.runScan).toHaveBeenCalledTimes(2)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(6)
+    expect(runtime.runScan).toHaveBeenCalledOnce()
+    expect(runtime.overlay.visible).toBe(false)
     expect(runtime.runScan).toHaveBeenCalledWith(false, undefined, true)
     runtime.stopScanLoop()
   })
@@ -379,7 +381,7 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
   })
 
-  it('withdraws a recognizing surface only after two consecutive absences', async () => {
+  it('keeps a recognizing surface through short absences and withdraws after the grace window', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
     runtime.snapshot = { ...activeSnapshot }
@@ -400,9 +402,7 @@ describe('runtime performance scheduling', () => {
     runtime.automaticScanPhase = 'recognizing'
     runtime.automaticFingerprint = ['dddd', 'eeee', 'ffff']
     runtime.scanner = {
-      probeInterface: vi.fn()
-        .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10, fingerprints: [] })
-        .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10, fingerprints: [] }),
+      probeInterface: vi.fn(async () => ({ status: 'not-detected', durationMs: 10, fingerprints: [] })),
     }
 
     runtime.updateScanLoop()
@@ -412,10 +412,150 @@ describe('runtime performance scheduling', () => {
 
     await vi.advanceTimersByTimeAsync(100)
 
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.automaticScanAbsences).toBe(2)
+    expect(runtime.automaticScanAbsenceStartedAt).not.toBeNull()
+
+    await vi.advanceTimersByTimeAsync(600)
+
     expect(runtime.overlay.visible).toBe(false)
     expect(runtime.overlay.slots).toHaveLength(3)
     expect(runtime.automaticScanPhase).toBe('waiting')
     expect(runtime.automaticFingerprint).toBeNull()
+    runtime.stopScanLoop()
+  })
+
+  it('does not carry an absence run across a probe error', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 10 }, { augmentId: 11 }, { augmentId: 12 }],
+      detectedAt: 1,
+      message: '上一轮推荐',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'recognizing'
+    runtime.scanner = {
+      probeInterface: vi.fn()
+        .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10 })
+        .mockResolvedValueOnce({ status: 'error', durationMs: 10 })
+        .mockResolvedValue({ status: 'not-detected', durationMs: 10 }),
+    }
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(runtime.automaticScanAbsences).toBe(1)
+    expect(runtime.automaticScanAbsenceStartedAt).not.toBeNull()
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(runtime.automaticScanAbsences).toBe(0)
+    expect(runtime.automaticScanAbsenceStartedAt).toBeNull()
+    expect(runtime.overlay.visible).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(runtime.automaticScanAbsences).toBe(1)
+    expect(runtime.overlay.visible).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(runtime.automaticScanAbsences).toBe(2)
+    expect(runtime.overlay.visible).toBe(true)
+    runtime.stopScanLoop()
+  })
+
+  it('starts a fresh absence grace after focus pause and recovery', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 10 }, { augmentId: 11 }, { augmentId: 12 }],
+      detectedAt: 1,
+      message: '上一轮推荐',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'recognizing'
+    runtime.scanner = { probeInterface: vi.fn(async () => ({ status: 'not-detected', durationMs: 10 })) }
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(runtime.automaticScanAbsences).toBe(1)
+    expect(runtime.automaticScanAbsenceStartedAt).not.toBeNull()
+
+    runtime.pauseScanLoop()
+    expect(runtime.automaticScanAbsences).toBe(0)
+    expect(runtime.automaticScanAbsenceStartedAt).toBeNull()
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_000 + 100)
+
+    expect(runtime.automaticScanAbsences).toBe(2)
+    expect(runtime.overlay.visible).toBe(true)
+    runtime.stopScanLoop()
+  })
+
+  it('keeps the surface mounted when cards return at the grace boundary', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    const left = { augmentId: 10 } as any
+    const center = { augmentId: 11 } as any
+    const right = { augmentId: 12 } as any
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [left, center, right],
+      detectedAt: 1,
+      message: '上一轮推荐',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'recognizing'
+    runtime.scanner = {
+      probeInterface: vi.fn()
+        .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10 })
+        .mockResolvedValueOnce({ status: 'not-detected', durationMs: 10 })
+        .mockResolvedValueOnce({ status: 'detected', durationMs: 10, fingerprints: ['new', 'new', 'new'] }),
+    }
+    runtime.runScan = vi.fn(async () => {
+      runtime.overlay = {
+        ...runtime.overlay,
+        slots: reuseUnchangedAugmentSlots(runtime.overlay.slots, [left, { augmentId: 99 }, right] as any),
+      }
+      return { ok: true, code: 'MATCHED', message: 'matched' }
+    })
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_000 + 100)
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(600)
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(3)
+    expect(runtime.runScan).toHaveBeenCalledOnce()
+    expect(runtime.overlay.slots[0]).toBe(left)
+    expect(runtime.overlay.slots[1]).toMatchObject({ augmentId: 99 })
+    expect(runtime.overlay.slots[2]).toBe(right)
     runtime.stopScanLoop()
   })
 
@@ -1036,9 +1176,9 @@ describe('runtime performance scheduling', () => {
 
     runtime.updateSettings({ autoOcr: false })
     expect(runtime.manualOverlayMonitorDeadlineAt).toBe(Date.now() + 45_000)
-    await vi.advanceTimersByTimeAsync(1_100)
+    await vi.advanceTimersByTimeAsync(1_700)
 
-    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(3)
     expect(runtime.runScan).not.toHaveBeenCalled()
     expect(runtime.overlay.visible).toBe(false)
     expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
@@ -1060,7 +1200,7 @@ describe('runtime performance scheduling', () => {
     expect(runtime.scanTimer).toBeNull()
   })
 
-  it('hides the in-game bar after two cheap absence probes even when automatic OCR is disabled', async () => {
+  it('hides the in-game bar after the bounded absence grace even when automatic OCR is disabled', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any
     runtime.snapshot = { ...activeSnapshot }
@@ -1082,9 +1222,9 @@ describe('runtime performance scheduling', () => {
     runtime.runScan = vi.fn()
 
     runtime.updateScanLoop()
-    await vi.advanceTimersByTimeAsync(1_100)
+    await vi.advanceTimersByTimeAsync(1_700)
 
-    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(3)
     expect(runtime.runScan).not.toHaveBeenCalled()
     expect(runtime.overlay.visible).toBe(false)
     expect(runtime.overlay.slots).toHaveLength(3)

@@ -4,6 +4,8 @@
 
 ## 当前正式基线
 
+- 当前候选版本为 `v0.1.57`，公开正式版仍为 `v0.1.56`；本候选修复单卡刷新期间的 absence 空窗和高频探测，尚未 commit / push / tag / Release / Windows workflow，不得预写外部成功结果。
+
 - 当前公开正式版为 `v0.1.56`，五资产、稳定通道、packaged public 与五版滚动保留均通过；它保留 v0.1.54 的脱敏 OCR 调度诊断、v0.1.55 的 packaged UI smoke 7 卡门禁，并修正 Release notes 只以公开 Release 作为稳定基线、累计无 Release 中间 tag 变更。v0.1.54 仅有 tag、未创建公开 Release；不得把自动化门禁写成真实 WeGame 性能已验证。
 
 - 当前公开正式版 `v0.1.56` 已完成 commit / push / tag / Release / 双通道 / 滚动保留；本版修正跨无 Release 中间 tag 的累计说明。真实游戏刷新、国服 history、用户价值和 WeGame 验收仍未完成，不能写成 `VERIFIED`。
