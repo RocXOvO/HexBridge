@@ -11,7 +11,7 @@
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
 - v0.1.34 已正式发布，仅修复 HB-067：日志 / lockfile 凭据与 transport PID 分离后，以同安装根唯一 Ux、明确 lockfile 名称或观测进程名 + PID 精确一致补齐 Main-only 窗口 authority；缺 authority 的可信对局每 10s 低频补元数据，PID 单独变化也触发窗口同步。多进程、跨根或不明确情况 fail-closed，PID / 启动时间 / 路径不进日志、RuntimeState 或 Renderer。Release 说明准确列出相较 v0.1.33 的两项变化；public v2 / root 为 `0.1.34 / 199282299` bytes，五资产完整。HB-067 保持 `FIXED / UNVERIFIED`，等待真实 log-only / lockfile 国服客户端复测。
 - v0.1.35 已正式发布，仅实现 HB-068：诊断页新增选人伴随窗、96px 推荐条与窗口观察器的有限枚举状态，状态转换去重记录且不含 PID、HWND、路径、坐标或标题。Release 说明准确列出相较 v0.1.34 的两项变化；public v2 / root 为 `0.1.35 / 199283491` bytes，五资产完整。HB-068 保持 `FIXED / UNVERIFIED`，等待真实 WeGame 复现时验证诊断有效性。
-- v0.1.36 本地候选仅修复 HB-069：腾讯当前强化榜的极小选取率使用科学计数法，静态海克斯目录根节点为数组；旧解析器依次误拒两者。当前真实四端点受限验证已达 `ready / 20260814 / 172 英雄 / 246 强化`；本地 48 files / 532 passed + 1 skipped、audit 0、typecheck / lint / OCR / source bridge / UI / diff-check 通过，终审 `P0=0 / P1=0`。尚未 commit / push / Windows / tag / Release，公开 Latest 仍为 v0.1.35。
+- v0.1.36 候选仅修复 HB-069：腾讯当前强化榜的极小选取率使用科学计数法，静态海克斯目录根节点为数组；旧解析器依次误拒两者。真实四端点受限验证已达 `ready / 20260814 / 172 英雄 / 246 强化`；commit `7787b44c80cb651e3062b86e5876ae549f31df98` 已 push，Windows run `31886807521` / job `95017207921` 于 5m19s 成功：48 files / 533 tests、4K OCR 246ms、EXE `199283726` bytes、packaged UI / bridge、差分 `1280604 / 199283726` bytes 与校验和全过；artifact `9247530447` / `473521925` bytes。tag-only 发布步骤按预期跳过，尚无 tag / Release，公开 Latest 仍为 v0.1.35。
 
 ## 记忆模块
 

@@ -205,7 +205,7 @@
 
 - 2026-08-15 真实响应证明：207 条强化统计中有 2 条极小 `pick_rate` 使用合法科学计数法，静态目录为 246 项数组；旧代码只接受普通小数与对象根节点，因而整条 provider 无法就绪。
 - 修复仅接受严格十进制 / 科学计数法且为有限 `0..1`；静态目录允许当前 array 与旧 object，原始数量限 `100..500`，无效项拒绝，重复 ID 仅完全同义时去重，任一展示字段冲突继续 fail closed。
-- 真实四端点本地验证已返回 `ready`、172 个英雄、246 个强化；20 项定向回归、48 files / 532 passed + 1 skipped 及完整 source 门禁通过，终审 `P0=0 / P1=0`。尚未 Windows / Release / 用户同机验证，状态保持 `FIXED / UNVERIFIED`。
+- 真实四端点本地验证已返回 `ready`、172 个英雄、246 个强化；终审 `P0=0 / P1=0`。Windows candidate run `31886807521` 通过 48 files / 533 tests、4K OCR、packaged UI / bridge、差分更新和产物门禁，但尚未 tag / Release / 用户同机验证，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 
