@@ -91,7 +91,7 @@
 | HB-077 | 选人助手备战席出现不必要的横向滚动 | FIXED / UNVERIFIED（v0.1.44 已发布） |
 | HB-078 | 高置信度冗余包装器与未引用导出 | FIXED / UNVERIFIED（v0.1.45 已发布） |
 | HB-079 | 当前英雄等级与海克斯可选卡状态缺少受限探测 | IN PROGRESS |
-| HB-080 | 单卡刷新时三张标签仍一起跳动 | FIXED / UNVERIFIED（v0.1.46 候选） |
+| HB-080 | 单卡刷新时三张标签仍一起跳动 | FIXED / UNVERIFIED（v0.1.46 已发布） |
 
 ## 当前重点验收
 
@@ -273,13 +273,13 @@
 
 ### HB-079：Live Client 等级与可选卡诊断
 
-- v0.1.46 候选加入 Main-only、固定 `127.0.0.1:2999` 的 `activeplayer` 等级读取，仅接受 1–18 整数；active、可信游戏进程、generation/champion/sequence、Abort 和 stop 门禁均在代码与定向测试中覆盖。
+- v0.1.46 已发布，加入 Main-only、固定 `127.0.0.1:2999` 的 `activeplayer` 等级读取，仅接受 1–18 整数；active、可信游戏进程、generation/champion/sequence、Abort 和 stop 门禁均在代码与定向测试中覆盖。
 - 诊断页一次性读取固定 `activeplayer` / `eventdata` / `gamestats`，只输出字段路径、JSON 类型、有限枚举/布尔/数值和 OCR surface；不输出原始响应、身份、路径或凭据。等级不能单独判定卡面可选，三时间点真实摘要仍待用户提供。
 - 当前证据为 fake requester / Runtime guard 定向测试；真实 Windows、国服 2999、三时间点差异和可选卡字段均保持 UNVERIFIED。
 
 ### HB-080：单卡刷新动画隔离
 
-- v0.1.46 候选将渲染动画周期改为“本次变化槽位集合”，不再用永久 revision 标记；卡片 key 继续按槽位 + augmentId，未变化的两个标签保持原位。
+- v0.1.46 已发布，将渲染动画周期改为“本次变化槽位集合”，不再用永久 revision 标记；卡片 key 继续按槽位 + augmentId，未变化的两个标签保持原位。
 - renderer contract、Runtime 性能、Live Client 定向测试、typecheck/lint/diff-check 已通过；真实游戏刷新视觉仍待用户复测，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯

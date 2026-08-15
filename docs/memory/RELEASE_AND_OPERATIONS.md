@@ -4,13 +4,13 @@
 
 ## 当前正式基线
 
-- 当前公开正式版 `v0.1.45` 已完成 tag / Release / 双通道 / 滚动保留；候选 `v0.1.46` 正在等待本地门禁和 Windows workflow。真实 WeGame / installed updater 仍不是自动化证据。
+- 当前公开正式版 `v0.1.46` 已完成 tag / Release / 双通道 / 滚动保留。真实 WeGame / installed updater 仍不是自动化证据。
 
-- public Latest：[v0.1.45](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.45)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHvfR`，publishedAt `2026-08-15T18:40:44Z`。
-- tagged commit `ad634380bb060ceb610a589fd84e0eb547c17555`；正式 run `31901536004` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows 48 files / 568 passed，audit、OCR、lint、typecheck、packaged UI / bridge、差分、public packaged 与滚动保留全过；Release 五资产均通过。自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
-- public v2 / root：version `0.1.45`；两通道精确一致，packaged public 为 `updateAvailable=false`。
-- 正式资产：EXE `199288066` bytes / `7f77d1ffdca66302cd780bb9ace8f3064082e91a013cdd827d48d8a35623d944`；blockmap `201396` / `5d89f1b110c5b3ae40bc3661689f5f8c6af016636f9e20c47596ade42a1f1316`；ZIP `274455531` / `404818017b51e2131dc14d0ddfab686ea789f958ff4194354e51df10405d77ed`；latest.yml `346` / `357eb636c2024e71b3f9b4625af2c5183f34f0ff875a69c4a748b4bce2092032`；SHA256SUMS `182` / `59220e136228ea0011d134608ad7fdc7cb930792c8613b348de9678790bc909c`。
-- 当前只保留 v0.1.41～v0.1.45 五个 public stable Releases；v0.1.0～v0.1.45 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
+- public Latest：[v0.1.46](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.46)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WHxYZ`，publishedAt `2026-08-15T19:19:45Z`。
+- tagged commit `e41a32e53c399658ce3a1d3a8fa43dd45b100ee0`；正式 run `31903354587` attempt 2 成功（首次仅稳定 channel 传播超时）。Windows packaged / UI / bridge、差分、public packaged 与滚动保留全过；自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
+- public v2 / root：version `0.1.46`；两通道精确一致，packaged public 为 `updateAvailable=false`。
+- 正式资产：EXE `199291070` bytes / `49800cedbc023a9b0a2a20516e7e47b9840be01d2890c14c3757a6e3a4d01e90`；blockmap `201338` / `3c3a0e698cfb5be4fe300b39f7787287d59a5c36eb0aec7ce808d5dec468e88e`；ZIP `274459713` / `b62b5042f96883385be3abf844f69f9fd5ff00533293b36903a01685bc4dec94`；latest.yml `346` / `29821d73c9dc9478527997a69a4dcdb56ab4a4bbe99084a019702da67d523c53`；SHA256SUMS `182` / `81d9022459ae2b7985fe0439e8d6823d2e6ba80109b02b4820c218e320f93483`。
+- 当前只保留 v0.1.42～v0.1.46 五个 public stable Releases；v0.1.0～v0.1.46 tags 都保留。本地 `release/` 为空；旧 Release / assets 已按滚动策略删除但 tag / source 保留。
 
 ## 更新契约
 
