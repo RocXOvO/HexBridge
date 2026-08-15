@@ -80,7 +80,7 @@
 | HB-066 | legacy 游戏目录进入 Renderer 状态 | VERIFIED（v0.1.33 正式版） |
 | HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 已发布） |
 | HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 已发布） |
-| HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 本地候选） |
+| HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 已发布） |
 
 ## 当前重点验收
 
@@ -106,12 +106,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.35 全验证后删除 v0.1.30 Release / assets、保留 tag；当前仅 v0.1.31～v0.1.35 五个 public stable Releases，36 个 tags（v0.1.0～v0.1.35）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.36 全验证后删除 v0.1.31 Release / assets、保留 tag；当前仅 v0.1.32～v0.1.36 五个 public stable Releases，37 个 tags（v0.1.0～v0.1.36）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.35 Release 已准确列出相较 v0.1.34 的变化，跨版累计链延伸至 0.1.35，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.36 Release 已准确列出相较 v0.1.35 的变化，跨版累计链延伸至 0.1.36，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -205,7 +205,7 @@
 
 - 2026-08-15 真实响应证明：207 条强化统计中有 2 条极小 `pick_rate` 使用合法科学计数法，静态目录为 246 项数组；旧代码只接受普通小数与对象根节点，因而整条 provider 无法就绪。
 - 修复仅接受严格十进制 / 科学计数法且为有限 `0..1`；静态目录允许当前 array 与旧 object，原始数量限 `100..500`，无效项拒绝，重复 ID 仅完全同义时去重，任一展示字段冲突继续 fail closed。
-- 真实四端点本地验证已返回 `ready`、172 个英雄、246 个强化；终审 `P0=0 / P1=0`。Windows candidate run `31886807521` 通过 48 files / 533 tests、4K OCR、packaged UI / bridge、差分更新和产物门禁，但尚未 tag / Release / 用户同机验证，状态保持 `FIXED / UNVERIFIED`。
+- 真实四端点本地验证已返回 `ready`、172 个英雄、246 个强化；终审 `P0=0 / P1=0`。Windows candidate run `31886807521` 与正式幂等复跑 `31887511905` 均通过 48 files / 533 tests、4K OCR、packaged UI / bridge、差分 / public 更新和产物门禁；v0.1.36 已发布，但用户 Windows 同机尚未验证，状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 
