@@ -4,6 +4,7 @@ import { previousStableReleaseTag, renderStableReleaseNotes } from '../scripts/r
 
 describe('stable Release notes', () => {
   const releases = [
+    { tag_name: 'v0.1.36', draft: false, prerelease: false },
     { tag_name: 'v0.1.35', draft: false, prerelease: false },
     { tag_name: 'v0.1.34', draft: false, prerelease: false },
     { tag_name: 'v0.1.33', draft: false, prerelease: false },
@@ -22,31 +23,31 @@ describe('stable Release notes', () => {
   ]
 
   it('selects the immediately preceding public stable version', () => {
-    expect(previousStableReleaseTag(releases, '0.1.36')).toBe('v0.1.35')
+    expect(previousStableReleaseTag(releases, '0.1.37')).toBe('v0.1.36')
   })
 
   it('renders curated changes relative to the previous stable Release', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',
-      version: '0.1.36',
+      version: '0.1.37',
       releases,
     })
-    expect(body).toContain('### 相较 v0.1.35 的更新')
-    expect(body).toContain('腾讯强化榜将极低选取率写成科学计数法')
-    expect(body).toContain('/compare/v0.1.35...v0.1.36')
-    expect(body).not.toContain('v0.1.34：')
+    expect(body).toContain('### 相较 v0.1.36 的更新')
+    expect(body).toContain('实时助手右上角现在只显示当前推荐数据来源')
+    expect(body).toContain('/compare/v0.1.36...v0.1.37')
+    expect(body).not.toContain('v0.1.35：')
   })
 
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',
-      version: '0.1.36',
+      version: '0.1.37',
       releases: [{ tag_name: 'v0.1.24', draft: false, prerelease: false }],
     })
     expect(body).toContain('### 相较 v0.1.24 的更新')
     expect(body).toContain('v0.1.25：')
     expect(body).toContain('v0.1.26：')
-    expect(body).toContain('v0.1.36：')
+    expect(body).toContain('v0.1.37：')
   })
 
   it('fails closed when a version has no curated notes', () => {

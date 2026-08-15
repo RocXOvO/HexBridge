@@ -744,9 +744,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           <div class="page-content live-content">
             <div class="eyebrow-row">
               <span class="eyebrow"><i />{{ statusLabel }}</span>
-              <span class="data-version" :class="{ stale: state.recommendation.stale }">
-                {{ recommendationSourceName }} · {{ state.recommendation.statisticsDate || state.recommendation.dataVersion || '未就绪' }}<template v-if="state.recommendation.stale"> · 缓存</template>
-              </span>
+              <span class="data-version">{{ recommendationSourceName }}</span>
             </div>
 
             <Transition name="hero-presence" mode="out-in">

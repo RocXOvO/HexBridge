@@ -81,6 +81,7 @@
 | HB-067 | log-only LCU 缺少权威 LeagueClientUx PID | FIXED / UNVERIFIED（v0.1.34 已发布） |
 | HB-068 | 伴随窗 / 96px 条缺少脱敏呈现诊断 | FIXED / UNVERIFIED（v0.1.35 已发布） |
 | HB-069 | 腾讯推荐误拒科学计数法 / 数组目录 | FIXED / UNVERIFIED（v0.1.36 已发布） |
+| HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 本地候选） |
 
 ## 当前重点验收
 
@@ -206,6 +207,11 @@
 - 2026-08-15 真实响应证明：207 条强化统计中有 2 条极小 `pick_rate` 使用合法科学计数法，静态目录为 246 项数组；旧代码只接受普通小数与对象根节点，因而整条 provider 无法就绪。
 - 修复仅接受严格十进制 / 科学计数法且为有限 `0..1`；静态目录允许当前 array 与旧 object，原始数量限 `100..500`，无效项拒绝，重复 ID 仅完全同义时去重，任一展示字段冲突继续 fail closed。
 - 真实四端点本地验证已返回 `ready`、172 个英雄、246 个强化；终审 `P0=0 / P1=0`。Windows candidate run `31886807521` 与正式幂等复跑 `31887511905` 均通过 48 files / 533 tests、4K OCR、packaged UI / bridge、差分 / public 更新和产物门禁；v0.1.36 已发布，但用户 Windows 同机尚未验证，状态保持 `FIXED / UNVERIFIED`。
+
+### HB-070：实时助手来源徽标信息过多
+
+- v0.1.37 候选将实时助手右上角限制为只显示当前推荐来源名称；不再显示日期、dataVersion、“未就绪”、缓存后缀或 stale 样式。
+- 日期、新鲜度和错误仍保留在推荐详情、英雄榜、设置与诊断页。终审 `P0=0 / P1=0`；本地 audit 0、48 files / 533 passed + 1 skipped、真实 4K OCR 597ms、typecheck / lint / icon / retention / source bridge / UI / diff-check 全过；Windows 与正式发布尚未完成。
 
 ## 追溯
 

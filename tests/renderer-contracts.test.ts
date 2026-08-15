@@ -16,7 +16,7 @@ const rendererHtml = readFileSync(new URL('../src/renderer/index.html', import.m
 
 describe('main-window recommendation presentation', () => {
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.36'")
+    expect(rendererState).toContain("currentVersion: '0.1.37'")
   })
 
   it('keeps the legacy discovery directory out of every Renderer-visible settings fixture', () => {
@@ -117,6 +117,11 @@ describe('main-window recommendation presentation', () => {
     expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-champion-recommendation', championId)")
     expect(ipcSource).toContain("ipcMain.handle('hexbridge:get-champion-recommendation'")
     expect(ipcSource).toContain("requireSender(event, 'main')")
+  })
+
+  it('keeps the live assistant source badge limited to the provider name', () => {
+    expect(appSource).toContain('<span class="data-version">{{ recommendationSourceName }}</span>')
+    expect(appSource).not.toContain(':class="{ stale: state.recommendation.stale }"')
   })
 
   it('shows both recommendation order and champion-specific pick rate in the in-game strip', () => {
