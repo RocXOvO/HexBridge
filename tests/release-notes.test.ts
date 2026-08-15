@@ -176,6 +176,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.51...v0.1.52')
   })
 
+  it('renders the weighted team strength summary for v0.1.53', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.53',
+      releases,
+    })
+    expect(body).toContain('### 相较 v0.1.52 的更新')
+    expect(body).toContain('队伍强度摘要')
+    expect(body).toContain('/compare/v0.1.52...v0.1.53')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

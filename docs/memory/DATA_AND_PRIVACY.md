@@ -49,6 +49,7 @@
 - Main 固定 current-summoner 与 per-PUUID history GET；跨批次总并发 2、单响应 2 MiB、timeout / Abort、瞬态最多一次重试。
 - Renderer 只见 generation-bound 随机 opaqueKey 和脱敏 summary / detail；PUUID、玩家名、participant、gameId、原始历史、逐局时间戳和路径不出 Main / 日志 / 磁盘。
 - 同 generation 的 roster 变化只在 Main 内按既有 PUUID 绑定更新脱敏 champion / relation / slot；该更新不重查已有历史、既有 opaqueKey 不换。任一分组 hidden、成员不完整或歧义时，该组从公开 presentation 撤下，恢复 exact membership 后再用原缓存显示；用户主动重新读取仍是独立新查询。
+- v0.1.53 候选新增 `allySummary` / `opponentSummary`：只由已经脱敏的公开个人 summary 在 Main 内按样本量加权计算 `rating / winRate / kda / confidence`，不包含 PUUID、玩家名、对局 ID、逐局明细或查询参数；缺失分组保持 `none / partial`，不以平均值填充。
 - Windows / Release 不能替代真实国服 endpoint、身份可见性、隐私与用户价值验收；状态仍 `IN PROGRESS / UNVERIFIED`。
 
 ## 通用数据与日志边界

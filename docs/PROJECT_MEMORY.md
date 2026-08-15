@@ -6,6 +6,7 @@
 ## 当前基线
 
 - 当前公开正式版：[v0.1.52](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.52)，Release ID `RE_kwDOT1eQs84WH4iN`，publishedAt `2026-08-15T21:49:34Z`；tagged commit `5c497570ed732aaeb71a391c18321a8ef55a91d4`。本版修复自动刷新确认期间的短暂 probe miss：recognizing 状态保持可靠三卡，连续两次 absence 才撤下，单卡刷新只替换变化槽位。
+- v0.1.53 为当前本地候选，尚未 commit / push / Windows workflow / tag / Release；新增队友 / 对手队伍强度摘要，不改变已有 Main-only、隐私和请求并发契约。公开正式基线仍为 v0.1.52。
 - v0.1.52 workflow `31910230347` / job `95074070896` 成功；Windows `50` files / `597` passed、真实 4K OCR `259ms`、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过。artifact `9253507912` / `473543056` bytes。真实 Windows WeGame 单卡刷新、帧时间与失焦恢复仍未验，不能写成 `VERIFIED`。
 - v0.1.52 五资产：EXE `199291984` / `3cf9ea5eff32b4d5c6171638809f845c3bf9ee2a9aa6aea000a5020927e340a8`；blockmap `201403` / `08e3abbb10fe843df193881595aa32b8209804f99cd31f9f7bbbe21203e59b6e`；ZIP `274460918` / `5479f7a7f9cc381d30cd20f6eaced242f0b270cbe6e8a88a0c9a73b64ef6e2c6`；latest.yml `346` / `9cea25949528d8843bdc9f1036498c04a415327f0b49bd573262c431dda2ebe7`；SHA256SUMS `182` / `c9fa00a1896e37736b34ada3ce5cbae53f8e9ded7d0dd7fd6434d0e7687452af`。差分 smoke 传输 `1291823` bytes / full `199291984`，10 个 Range、3 个 redirect，基于 v0.1.51。
 - v0.1.51 workflow `31908866405` 首次因稳定通道传播超时 fail closed，幂等重跑成功（job `95071775049`）；Windows `50` files / `594` passed、真实 4K OCR `262ms`、打包 UI / bridge、差分、public packaged 与五版滚动门禁通过。artifact `9253256349` / `473543003` bytes / `bf1b7dc476182bbd9e7296a03253a8688e36de4ce4e013d14569d5ec75687324`。真实 Windows Tencent 接口、切源和用户同机视觉仍未验，不能写成 `VERIFIED`。
@@ -61,6 +62,7 @@
 10. HB-070 / 071：分别完成 v0.1.37 来源徽标视觉确认，以及 v0.1.38 installed 网络波动 / 429 / 恢复验证；Key / 响应正文不得进入日志或文档。
 11. HB-085：在 v0.1.51 Windows 客户端切换 Tencent 101，确认英雄总体选取率在当前英雄、备战席和英雄榜显示且明确口径；缺失数据显示暂无数据，不得与海克斯全局指标混淆。
 12. HB-086：用 v0.1.52 Windows 客户端实测单卡刷新期间短暂空窗、连续两次 absence、失焦恢复和帧时间；确认未变化标签不退场、不重播。
+13. HB-087：用候选客户端确认队伍级摘要与个人卡片口径可读；真实国服 history / 身份门禁和用户价值仍未验。
 
 ## 当前任务边界
 

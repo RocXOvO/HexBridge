@@ -39,6 +39,7 @@ import {
 import { LcuClient } from './lcu/client.js'
 import { logger } from './logger.js'
 import { AugmentScanner } from './ocr/scanner.js'
+import { summarizeOpponentTeam } from './opponent-scout.js'
 import {
   automaticOcrErrorDelay,
   classifyScanContext,
@@ -93,6 +94,8 @@ const DISABLED_OPPONENT_SCOUT: OpponentScoutState = {
   matchGeneration: null,
   allies: [],
   opponents: [],
+  allySummary: null,
+  opponentSummary: null,
   sampledAt: null,
   source: null,
   message: '对手近期状态实验未开启',
@@ -372,6 +375,12 @@ export class HexBridgeRuntime {
             ...this.opponentScout,
             allies: this.opponentScout.allies.map((ally) => ({ ...ally })),
             opponents: this.opponentScout.opponents.map((opponent) => ({ ...opponent })),
+            allySummary: this.opponentScout.allySummary
+              ? { ...this.opponentScout.allySummary }
+              : null,
+            opponentSummary: this.opponentScout.opponentSummary
+              ? { ...this.opponentScout.opponentSummary }
+              : null,
           }
         : { ...DISABLED_OPPONENT_SCOUT },
       overlay: { ...this.overlay, slots: [...this.overlay.slots] },
@@ -942,14 +951,20 @@ export class HexBridgeRuntime {
       this.snapshot.matchGeneration,
     ) ?? null
     if (!presentation) return false
+    const allySummary = summarizeOpponentTeam(presentation.allies)
+    const opponentSummary = summarizeOpponentTeam(presentation.opponents)
     const changed = JSON.stringify({
       allies: this.opponentScout.allies,
       opponents: this.opponentScout.opponents,
-    }) !== JSON.stringify(presentation)
+      allySummary: this.opponentScout.allySummary ?? null,
+      opponentSummary: this.opponentScout.opponentSummary ?? null,
+    }) !== JSON.stringify({ ...presentation, allySummary, opponentSummary })
     if (changed) this.opponentScout = {
       ...this.opponentScout,
       allies: presentation.allies,
       opponents: presentation.opponents,
+      allySummary,
+      opponentSummary,
     }
     return changed
   }

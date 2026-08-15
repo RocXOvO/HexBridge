@@ -94,7 +94,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.52',
+      currentVersion: '0.1.53',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -151,6 +151,8 @@ export function createDemoApi(): HexBridgeApi {
       sampledAt: Date.now(),
       source: 'local-lcu',
       message: '已本地汇总队友与对手最近 20 场',
+      allySummary: { playerCount: 1, ratedCount: 1, sampleSize: 16, rating: 68, tier: '上等马', winRate: .625, kda: 3.4, confidence: 'supported' },
+      opponentSummary: { playerCount: 3, ratedCount: 2, sampleSize: 47, rating: 65, tier: '上等马', winRate: 26 / 47, kda: 3.11, confidence: 'partial' },
       allies: [
         { opaqueKey: 'ally_demo_key_0000000001', relation: 'ally', slot: 1, championId: 103, status: 'ready', rating: 68, tier: '上等马', sampleSize: 16, wins: 10, losses: 6, winRate: .625, kda: 3.4, streak: 2 },
       ],
@@ -265,7 +267,7 @@ export function createDemoApi(): HexBridgeApi {
       sample: {
         sessionId: 'demo-session',
         step,
-      clientVersion: '0.1.52',
+      clientVersion: '0.1.53',
         matchStage: 'selecting',
         matchGeneration: 1,
         currentChampionLevel: null,

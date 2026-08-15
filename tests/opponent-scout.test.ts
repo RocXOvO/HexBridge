@@ -8,6 +8,7 @@ import {
   inspectVisibleOpponentIdentities,
   inspectVisibleTeamIdentities,
   summarizeOpponentHistory,
+  summarizeOpponentTeam,
 } from '../src/main/opponent-scout.js'
 import { isLcuReadOnlyEndpoint, LcuClient } from '../src/main/lcu/client.js'
 import { logger } from '../src/main/logger.js'
@@ -594,6 +595,52 @@ describe('local opponent form experiment', () => {
     }, 1, 63, ENEMY_ONE)
     expect(summary).toMatchObject({ status: 'ready', sampleSize: 12, tier: '上等马' })
     expect(summary.rating).toBeGreaterThanOrEqual(65)
+  })
+
+  it('aggregates team strength by usable sample weight and marks incomplete ratings', () => {
+    const summary = summarizeOpponentTeam([
+      {
+        opaqueKey: 'opaque-a', relation: 'ally', slot: 1, championId: 103,
+        status: 'ready', rating: 80, tier: '上等马', sampleSize: 20,
+        wins: 14, losses: 6, winRate: .7, kda: 3.5, streak: 2,
+      },
+      {
+        opaqueKey: 'opaque-b', relation: 'ally', slot: 2, championId: 81,
+        status: 'ready', rating: 38, tier: '下等马', sampleSize: 12,
+        wins: 4, losses: 8, winRate: 1 / 3, kda: 1.5, streak: -2,
+      },
+      {
+        opaqueKey: null, relation: 'ally', slot: 3, championId: 63,
+        status: 'ready', rating: null, tier: null, sampleSize: 5,
+        wins: 2, losses: 3, winRate: .4, kda: 2, streak: 0,
+      },
+    ])
+    expect(summary).toMatchObject({
+      playerCount: 3,
+      ratedCount: 2,
+      sampleSize: 37,
+      confidence: 'partial',
+      winRate: 20 / 37,
+      kda: (20 * 3.5 + 12 * 1.5 + 5 * 2) / 37,
+      rating: Math.round((80 * 20 + 38 * 12) / 32),
+    })
+    expect(summary.tier).toBe('中等马')
+    expect(Object.keys(summary).sort()).toEqual([
+      'confidence', 'kda', 'playerCount', 'ratedCount', 'rating', 'sampleSize', 'tier', 'winRate',
+    ])
+  })
+
+  it('does not invent a team score when every player lacks usable samples', () => {
+    expect(summarizeOpponentTeam([
+      {
+        opaqueKey: null, relation: 'opponent', slot: 1, championId: null,
+        status: 'unavailable', rating: null, tier: null, sampleSize: 0,
+        wins: 0, losses: 0, winRate: null, kda: null, streak: 0,
+      },
+    ])).toEqual({
+      playerCount: 1, ratedCount: 0, sampleSize: 0, rating: null, tier: null,
+      winRate: null, kda: null, confidence: 'none',
+    })
   })
 
   it('joins multi-participant history through participantIdentities instead of guessing index zero', () => {

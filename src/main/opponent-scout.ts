@@ -2,6 +2,7 @@ import type {
   MatchContextStage,
   OpponentFormSummary,
   OpponentFormTier,
+  OpponentTeamSummary,
   ScoutMatchDetail,
   ScoutRelation,
 } from '../shared/contracts.js'
@@ -606,5 +607,53 @@ export function summarizeOpponentHistory(
     winRate,
     kda,
     streak,
+  }
+}
+
+/**
+ * Combine only the public, already-sanitized player summaries.  The aggregate
+ * is deliberately weighted by the number of usable matches rather than by
+ * the number of cards, so a player with 12 samples cannot outweigh one with
+ * 20 samples simply because both occupy one slot.  A team score is shown only
+ * when every visible player has a supported individual rating; otherwise it
+ * is explicitly marked partial instead of pretending the missing players are
+ * average.
+ */
+export function summarizeOpponentTeam(
+  summaries: readonly OpponentFormSummary[],
+): OpponentTeamSummary {
+  const usable = summaries.filter((summary) =>
+    summary.sampleSize > 0 &&
+    summary.winRate != null &&
+    summary.kda != null,
+  )
+  const rated = summaries.filter((summary) => summary.rating != null)
+  const sampleSize = usable.reduce((total, summary) => total + summary.sampleSize, 0)
+  const wins = usable.reduce((total, summary) =>
+    total + summary.wins, 0)
+  const winRate = sampleSize > 0 ? wins / sampleSize : null
+  const kda = sampleSize > 0
+    ? usable.reduce((total, summary) => total + summary.kda! * summary.sampleSize, 0) / sampleSize
+    : null
+  const ratedWeight = rated.reduce((total, summary) => total + summary.sampleSize, 0)
+  const rating = ratedWeight > 0
+    ? Math.round(rated.reduce((total, summary) =>
+      total + summary.rating! * summary.sampleSize, 0) / ratedWeight)
+    : null
+  const confidence: OpponentTeamSummary['confidence'] = !summaries.length || !usable.length
+    ? 'none'
+    : rated.length === summaries.length
+      ? 'supported'
+      : 'partial'
+
+  return {
+    playerCount: summaries.length,
+    ratedCount: rated.length,
+    sampleSize,
+    rating,
+    tier: rating == null ? null : classifyOpponentForm(rating),
+    winRate,
+    kda,
+    confidence,
   }
 }

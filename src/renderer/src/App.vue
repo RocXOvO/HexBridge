@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ApiConnectionState, ChampionRecommendationView, ChampionSummary, LiveClientDiagnosticSample, LiveClientDiagnosticStep, OpponentFormSummary, RankedAugmentSlot, RecommendationDataState, RuntimeDiagnostics, ScoutPlayerDetails, WallpaperEngineTargetType } from '../../shared/contracts'
+import type { ApiConnectionState, ChampionRecommendationView, ChampionSummary, LiveClientDiagnosticSample, LiveClientDiagnosticStep, OpponentFormSummary, OpponentTeamSummary, RankedAugmentSlot, RecommendationDataState, RuntimeDiagnostics, ScoutPlayerDetails, WallpaperEngineTargetType } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -300,6 +300,18 @@ function opponentStreak(value: number): string {
   if (value > 0) return `连胜 ${value}`
   if (value < 0) return `连败 ${Math.abs(value)}`
   return '—'
+}
+
+function opponentTeamSummary(relation: 'ally' | 'opponent'): OpponentTeamSummary | null {
+  return relation === 'ally'
+    ? state.value.opponentScout.allySummary ?? null
+    : state.value.opponentScout.opponentSummary ?? null
+}
+
+function opponentTeamConfidence(summary: OpponentTeamSummary | null): string {
+  if (!summary || summary.confidence === 'none') return '暂无足够样本'
+  if (summary.confidence === 'partial') return `部分评分 ${summary.ratedCount}/${summary.playerCount}`
+  return `全员评分 ${summary.ratedCount}/${summary.playerCount}`
 }
 
 function manualOcrTime(value: number | null): string {
@@ -876,13 +888,21 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                 <div v-if="state.opponentScout.allies.length || state.opponentScout.opponents.length" class="scout-groups">
                   <section
                     v-for="group in [
-                      { key: 'ally', label: '队友', expected: 4, players: state.opponentScout.allies },
-                      { key: 'opponent', label: '对手', expected: 5, players: state.opponentScout.opponents },
+                      { key: 'ally', label: '队友', expected: 4, players: state.opponentScout.allies, summary: opponentTeamSummary('ally') },
+                      { key: 'opponent', label: '对手', expected: 5, players: state.opponentScout.opponents, summary: opponentTeamSummary('opponent') },
                     ]"
                     :key="group.key"
                     class="scout-group"
                   >
                     <h3>{{ group.label }} <small>{{ group.players.length }}/{{ group.expected }}</small></h3>
+                    <div v-if="group.summary && group.summary.playerCount" class="scout-group-summary">
+                      <strong>队伍强度 {{ group.summary.rating ?? '—' }}<small>/ 100</small></strong>
+                      <span>{{ group.summary.tier || '样本不足' }}</span>
+                      <span>{{ opponentTeamConfidence(group.summary) }}</span>
+                      <span>总体胜率 {{ winRate(group.summary.winRate) }}</span>
+                      <span>KDA {{ group.summary.kda == null ? '—' : group.summary.kda.toFixed(2) }}</span>
+                      <span>{{ group.summary.sampleSize }} 场样本</span>
+                    </div>
                     <div v-if="group.players.length" class="opponent-grid">
                       <button
                         v-for="player in group.players"

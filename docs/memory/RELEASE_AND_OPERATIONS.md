@@ -4,6 +4,8 @@
 
 ## 当前正式基线
 
+- 当前本地候选 `v0.1.53` 尚未 commit / push / Windows workflow / tag / Release；本候选只新增队友 / 对手队伍强度摘要。公开正式版仍为 `v0.1.52`，不得把候选证据写成已发布或真实 WeGame 已验证。
+
 - 当前公开正式版 `v0.1.52` 已完成 tag / Release / 双通道 / 滚动保留；本版修复自动刷新确认空窗与三卡标签联动。真实 Windows WeGame 单卡刷新、帧时间与失焦恢复仍不是自动化证据。
 
 - public Latest：[v0.1.52](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.52)，Release ID `RE_kwDOT1eQs84WH4iN`，publishedAt `2026-08-15T21:49:34Z`；tagged commit `5c497570ed732aaeb71a391c18321a8ef55a91d4`。

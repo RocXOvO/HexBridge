@@ -19,6 +19,7 @@ import {
   inspectScoutRosterObservation,
   inspectVisibleTeamIdentities,
   summarizeOpponentHistory,
+  summarizeOpponentTeam,
   type ScoutIdentity,
 } from '../opponent-scout.js'
 import { discoverLcuCredentials, type LcuCredentials } from './discovery.js'
@@ -705,6 +706,8 @@ export class LcuClient extends EventEmitter {
       matchGeneration: expectedGeneration,
       allies: [],
       opponents: [],
+      allySummary: null,
+      opponentSummary: null,
       sampledAt,
       source: null,
       message,
@@ -951,6 +954,8 @@ export class LcuClient extends EventEmitter {
       matchGeneration: expectedGeneration,
       allies: this.opponentScoutPresentation.allies.map((entry) => ({ ...entry })),
       opponents: this.opponentScoutPresentation.opponents.map((entry) => ({ ...entry })),
+      allySummary: summarizeOpponentTeam(this.opponentScoutPresentation.allies),
+      opponentSummary: summarizeOpponentTeam(this.opponentScoutPresentation.opponents),
       sampledAt: Date.now(),
       source: 'local-lcu',
       message: status === 'ready'

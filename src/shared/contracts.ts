@@ -318,6 +318,23 @@ export interface OpponentFormSummary {
   streak: number
 }
 
+export type OpponentTeamConfidence = 'none' | 'partial' | 'supported'
+
+/**
+ * A privacy-safe aggregate of the already-sanitized player summaries.
+ * It never carries identity, match, or raw history fields.
+ */
+export interface OpponentTeamSummary {
+  playerCount: number
+  ratedCount: number
+  sampleSize: number
+  rating: number | null
+  tier: OpponentFormTier | null
+  winRate: number | null
+  kda: number | null
+  confidence: OpponentTeamConfidence
+}
+
 export interface ScoutMatchDetail {
   championId: number | null
   win: boolean
@@ -362,6 +379,8 @@ export interface OpponentScoutState {
   matchGeneration: number | null
   allies: OpponentFormSummary[]
   opponents: OpponentFormSummary[]
+  allySummary?: OpponentTeamSummary | null
+  opponentSummary?: OpponentTeamSummary | null
   sampledAt: number | null
   source: 'local-lcu' | null
   message: string

@@ -414,6 +414,8 @@ export class WindowManager {
                   matchGeneration: null,
                   allies: [],
                   opponents: [],
+                  allySummary: null,
+                  opponentSummary: null,
                   sampledAt: null,
                   source: null,
                   message: '仅主窗口可见',

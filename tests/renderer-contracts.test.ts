@@ -38,7 +38,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.52'")
+    expect(rendererState).toContain("currentVersion: '0.1.53'")
   })
 
   it('keeps champion selection scrolling inside the assistant without horizontal overflow', () => {
@@ -228,6 +228,9 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('队友与对手近期状态')
     expect(appSource).toContain('state.opponentScout.allies')
     expect(appSource).toContain('state.opponentScout.opponents')
+    expect(appSource).toContain('队伍强度')
+    expect(appSource).toContain('总体胜率')
+    expect(appSource).toContain('opponentTeamConfidence')
     expect(appSource).toContain('api.getScoutPlayerDetails(')
     expect(appSource).not.toContain('player.puuid')
     expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-scout-player-details', opaqueKey, matchGeneration)")

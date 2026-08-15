@@ -98,6 +98,7 @@
 | HB-084 | 自动 probe 在隐藏旧 surface 后复活三卡 | FIXED / UNVERIFIED（v0.1.50 已发布） |
 | HB-085 | Tencent 英雄总体 pickRate 未进入英雄目录 | FIXED / UNVERIFIED（v0.1.51 已发布） |
 | HB-086 | 自动刷新短暂 probe miss 导致三张标签一起跳动 | FIXED / UNVERIFIED（v0.1.52 已发布） |
+| HB-087 | 队友 / 对手强度缺少队伍层量化摘要 | IN PROGRESS / UNVERIFIED（v0.1.53 候选） |
 
 ## 当前重点验收
 
@@ -322,6 +323,12 @@
 - 根因是卡面指纹变化进入 `recognizing` 后，下一次低成本 probe 的短暂 `not-detected` 被当作整张卡面消失；旧三卡先撤下，识别恢复时三张标签一起重新进场。
 - v0.1.52 在 recognizing 状态保留可靠 surface，继续以 100ms 确认；只有连续两次 absence 才清除 visible / fingerprint。主窗口和 compact 仍沿用槽位 + augmentId key，只有实际变化槽位触发动画。
 - 本地定向 Runtime / Renderer / Release notes、typecheck、lint、diff-check 已通过；正式 workflow `31910230347` / job `95074070896` 通过 Windows `50` files / `597` tests、打包 UI / bridge、差分、public packaged 与五版滚动门禁。真实 WeGame 单卡刷新和帧时间仍未验，状态保持 `FIXED / UNVERIFIED`。
+
+### HB-087：队友 / 对手强度缺少队伍层量化摘要
+
+- v0.1.53 候选在既有 Main-only、4 队友 / 5 对手、最多 20 场和至少 12 场评分契约上，新增队伍级脱敏摘要：按可用样本量加权汇总胜率与 KDA，按已有个人评分加权得到队伍强度；不新增 LCU 请求，不把缺失玩家当作平均值。
+- UI 同时显示队伍强度、总体胜率、KDA、样本量和“部分评分 / 全员评分 / 暂无足够样本”，不改变个人头像详情、opaque key 或隐私边界。
+- 本地 `50` files / `599` passed + `1` skipped、typecheck、lint、diff-check 已通过；尚未 commit / push / Windows workflow / Release。真实国服 history schema、身份可见性、用户价值和游戏性能仍未验，不能标记 `VERIFIED`。
 
 ## 追溯
 
