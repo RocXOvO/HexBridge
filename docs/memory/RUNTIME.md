@@ -43,7 +43,7 @@
 
 ## Wallpaper Engine（HB-057）
 
-- v0.1.30 候选默认关闭，仅 Main 保存 `{id}` 英雄 Profile / Playlist 模板和固定恢复目标；目标名、exe 路径和命令不进普通状态、非 Main IPC 或日志。
+- v0.1.30 已发布且默认关闭，仅 Main 保存 `{id}` 英雄 Profile / Playlist 模板和固定恢复目标；目标名、exe 路径和命令不进普通状态、非 Main IPC 或日志。
 - 仅允许 Steam app 431960 的 canonical `wallpaper32/64.exe` 与已运行 CIM `ExecutablePath` 精确匹配，并以 `shell:false` 发送固定 `openProfile / openPlaylist`；不自动启动、关闭、嵌入或扫描第三方壁纸。
 - 英雄切换 350ms 防抖并串行；离局、退出和更新安装前恢复用户指定目标。持久 lease 保证崩溃后下次启动先恢复；恢复失败 / 超时必须保留 lease，普通关窗只隐藏到托盘不恢复。
 - 对局中用户手动更改壁纸不作为新恢复点；多屏建议 Profile，Playlist 不保证原条目 / 进度。真实 Windows / Steam 多库 / Wallpaper Engine CLI 仍 `UNVERIFIED`。

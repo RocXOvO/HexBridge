@@ -4,13 +4,12 @@
 
 ## 当前正式基线
 
-- public Latest：[v0.1.29](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.29)，non-draft / non-prerelease；Release ID `370967612`，publishedAt `2026-08-15T05:30:10Z`。
-- annotated tag object `57ec7515a657502ceac379e8a915ffabdf0534e3` 解引用 commit `f506de56bedf29493a9f36e7d04e66990f5cbd8b`。
-- 正式 run `31866876217` attempt 1 已创建 Release / 五资产并发布 v2 / root，但 public packaged 在 100s 内仍读到 v0.1.28，fail closed 且未 prune；attempt 2 / job `94970078474` 按 canonical 现状幂等 skip publish，于 `2026-08-15T05:38:00Z` 成功完成 public / prune。
-- attempt 2 证据：Windows 44 files / 470 tests、audit、真实 4K 276ms、lint、typecheck、retention、packaged UI / bridge 全过；synthetic v0.1.30 差分为 `1,233,098 / 199,274,612` bytes、11 个 Range 与 3 个 redirect。artifact `9242422794` 为 `473501818` bytes，digest `sha256:a7b6852fc240885a1dabed43d60e6797a506689b65d9784d6084994c59817c33`。fake / synthetic 不等于真实 WeGame、腾讯接口、DPI、性能或 installed updater。
-- public v2 / root：version `0.1.29`、size `199274613`、SHA-512 `X2w8gQYl/0J+KAnkKHL82/eMFQDYjJyEY4aLVjM7YLV4jITx+ud5J5M6Q6Uwmu605IMyTdGDz1v4D96YfMKFCQ==`；packaged public 为 `updateAvailable=false`。
-- 正式资产 SHA-256：EXE `49bb95d52aa1239da20898fada89f41cc2fd1ea9fbdd3a8f9c3b3b04050b57f5`（`199274613` bytes）；blockmap `a2b8a35b61dc3b32be7fb48bc2a431eacaa63c661c347cd327610d9ff438965b`（`201330`）；ZIP `54d06a9f5f7069b6813c55cd695c79594570746bd8ff0c7e8062a0b9e18969cd`（`274437928`）；latest.yml `0214e5e6987c2055a23eee70ccc7da0d01e47b58c03565d58a85a29b649b1e41`（`346`）；SHA256SUMS `d0b3c28aeb656d9de5bf43ad722047416b8a6e872d09edd75ac1a5c0f2b659b2`（`182`）。
-- 当前只保留 v0.1.25～v0.1.29 五个 public stable Releases；v0.1.0～v0.1.29 共 30 个 tags 都保留。本地 `release/` 为空。v0.1.24 Release / assets 已删除但 tag / source 保留。
+- public Latest：[v0.1.30](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.30)，non-draft / non-prerelease；Release ID `370978432`，publishedAt `2026-08-15T06:33:48Z`。
+- annotated tag object `d87ad14ba67525adcd573d6cf1eabb5baba4b1d4` 解引用 commit `1f172de0225cc6abde86fc04997442c9219acb51`。
+- 正式 run `31869511329` / job `94975841740` 首次即于 6m7s 成功；Windows 46 files / 499 tests、audit、真实 4K 185ms、lint、typecheck、retention、packaged UI / bridge 全过。synthetic v0.1.31 差分为 `1,200,432 / 199,280,687` bytes、9 个 Range 与 3 个 redirect；artifact `9243077215` 为 `473,516,251` bytes，digest `sha256:1c61882deedcf68be8cf16cd2e934301ae475b7c9a8833fbfb57dec644f687a4`。fake / synthetic 不等于真实 WeGame、Wallpaper Engine、DPI、性能或 installed updater。
+- public v2 / root：version `0.1.30`、size `199280687`、SHA-512 `Tm1BfPD+0k0H1IYr1ediM0l9Ce/OgGdqeeL6g69YMJ26HshQwwn78Th8p14Pi4wx3TAt69cE5/1/v7yVi7a3BA==`；权威 / raw 均首次通过，packaged public 为 `updateAvailable=false`。
+- 正式资产 SHA-256：EXE `adecf21eadfe9481c8e965afd87552699c54728fde0da180d6beea1af8401ecf`（`199280687` bytes）；blockmap `725854b8dffd79a4e8a6ac6ff7419a150e2db4fcf87404f19b3403165a79b77f`（`201338`）；ZIP `d4764e28afa31c67aaafbb9872ecae5d7cb2ed60313d3aeff9c74e8734d56614`（`274446034`）；latest.yml `2dea6f741dba0cc31728458531d092b548a4325788e2e49606ff1e47e74a4da8`（`346`）；SHA256SUMS `39deefc1d9bdcbb30c8a2796ddb108b4171036836664a08f41343380fdec6dc6`（`182`）。
+- 当前只保留 v0.1.26～v0.1.30 五个 public stable Releases；v0.1.0～v0.1.30 共 31 个 tags 都保留。本地 `release/` 为空。v0.1.25 Release / assets 已删除但 tag / source 保留。
 
 ## 更新契约
 

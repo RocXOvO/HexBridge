@@ -5,12 +5,11 @@
 
 ## 当前基线
 
-- 当前公开正式版：[v0.1.29](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.29)，Release ID `370967612`；annotated tag object `57ec7515a657502ceac379e8a915ffabdf0534e3` 解引用产品 / 记忆 commit `f506de56bedf29493a9f36e7d04e66990f5cbd8b`。
-- 正式 Windows run `31866876217` attempt 1 已创建 Release / 五资产与双通道，但 public packaged 在 100s 内仍读到 v0.1.28，fail closed 且未 prune；attempt 2 / job `94970078474` 幂等跳过发布并通过 44 files / 470 tests、packaged UI / bridge、public packaged 与五版滚动。这些不等于真实 WeGame、腾讯接口、DPI、性能或 installed updater 验证。
-- GitHub 当前只保留 v0.1.25～v0.1.29 五个正式 Releases；v0.1.0～v0.1.29 共 30 个 tags 全部保留。本地 `release/` 为空。
+- 当前公开正式版：[v0.1.30](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.30)，Release ID `370978432`；annotated tag object `d87ad14ba67525adcd573d6cf1eabb5baba4b1d4` 解引用 tagged commit `1f172de0225cc6abde86fc04997442c9219acb51`。
+- 正式 Windows run `31869511329` / job `94975841740` 首次即于 6m7s 成功：46 files / 499 tests、真实 4K OCR 185ms、packaged UI / bridge、差分 `1,200,432 / 199,280,687` bytes、五资产、v2 / root、public packaged 与滚动保留全过。这些不等于真实 WeGame、Wallpaper Engine / Steam 多库、DPI、性能或 installed updater 验证。
+- GitHub 当前只保留 v0.1.26～v0.1.30 五个正式 Releases；v0.1.0～v0.1.30 共 31 个 tags 全部保留。本地 `release/` 为空。
 - HB-058 腾讯 101 provider 已完成技术实现与审查（`P0=0 / P1=0`）。用户确认适用的书面授权已在仓库外取得；授权正文、身份、条款和附件均属保密信息，不写入源码、文档、日志或发布资产。
-- v0.1.29 已正式发布；Release 说明准确列出相较 v0.1.28 的三项变化，public v2 / root 为 `0.1.29 / 199274613` bytes，正式五资产完整。HB-058 仍为 `FIXED / UNVERIFIED`，不得用发布结果替代真实 Windows / 腾讯接口与 WeGame 同机验收。
-- v0.1.30 candidate commit `049ead00dbfe505c6cdbdbfcb2dc099d0f762664` 已 push；Windows workflow_dispatch run `31869193242` / job `94975052284` 于 5m28s 内成功，46 files / 499 tests、真实 4K OCR 257ms、packaged UI / bridge、synthetic v0.1.31 差分 `1,200,432 / 199,280,687` bytes、checksums 与 artifact `9242988330 / 473,516,312` bytes 全过。tag-only 发布步骤按预期跳过；尚无 v0.1.30 tag / Release，Latest 仍为 v0.1.29。
+- v0.1.30 已正式发布；Release 说明准确列出相较 v0.1.29 的三项 Wallpaper Engine 变化，public v2 / root 为 `0.1.30 / 199280687` bytes，正式五资产完整。HB-057 / 058 均保持 `FIXED / UNVERIFIED`，不得用发布结果替代真实外部程序 / 接口与 WeGame 同机验收。
 
 ## 记忆模块
 
@@ -32,7 +31,7 @@
 
 1. HB-058：完成真实 Windows 下的腾讯接口、切源、当前英雄 / OCR / 紧凑条同源与 stale / error 显示验收；不以书面授权或 Release 成功替代技术验证。
 2. 真实 WeGame 验收：交接 / 终局 / 第二局、快捷键、OCR 刷新、96px 生命周期、LeagueClientUx 跟随、Lobby PrintWindow、DPI 与性能。
-3. HB-057 Wallpaper Engine：v0.1.30 Windows 候选已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义通过完整门禁；待正式 Release 与真实 Wallpaper Engine / Steam 多库实机验收。
+3. HB-057 Wallpaper Engine：v0.1.30 已按用户确认的 Profile / Playlist 英雄切换与离局恢复语义正式发布；待真实 Wallpaper Engine / Steam 多库实机验收。
 4. HB-056、HB-059、HB-060、HB-064 继续保持各自 `IN PROGRESS / UNVERIFIED` 或 `FIXED / UNVERIFIED`，直到对应真实环境门禁完成。
 
 ## 当前任务边界
