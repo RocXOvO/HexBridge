@@ -1,6 +1,6 @@
 # HexBridge 缺陷与验收索引
 
-> 最后更新：2026-08-15。详细历史证据保留在 Git 历史、GitHub Actions 与 Releases；本文件只保留问题状态、当前边界和验收出口，避免 `PROJECT_MEMORY.md` 无限膨胀。
+> 最后更新：2026-08-16。详细历史证据保留在 Git 历史、GitHub Actions 与 Releases；本文件只保留问题状态、当前边界和验收出口，避免 `PROJECT_MEMORY.md` 无限膨胀。
 
 ## 状态规则
 
@@ -84,7 +84,7 @@
 | HB-070 | 实时助手来源徽标混入统计日期 / 缓存后缀 | FIXED / UNVERIFIED（v0.1.37 已发布） |
 | HB-071 | data.dtodo 单详情失败导致全局离线 / 无恢复 | FIXED / UNVERIFIED（v0.1.38 已发布） |
 | HB-072 | 同局换英雄 / 备战席换位后队伍头像冻结 | FIXED / UNVERIFIED（v0.1.39 已发布） |
-| HB-073 | 腾讯 101 改为默认推荐来源 | FIXED / UNVERIFIED（v0.1.40 Windows 候选） |
+| HB-073 | 腾讯 101 改为默认推荐来源 | FIXED / UNVERIFIED（v0.1.40 已发布） |
 
 ## 当前重点验收
 
@@ -110,12 +110,12 @@
 
 ### HB-062：GitHub Release 滚动保留与双通道
 
-- v0.1.39 全验证后删除 v0.1.34 Release / assets、保留 tag；当前仅 v0.1.35～v0.1.39 五个 public stable Releases，40 个 tags（v0.1.0～v0.1.39）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
+- v0.1.40 全验证后删除 v0.1.35 Release / assets、保留 tag；当前仅 v0.1.36～v0.1.40 五个 public stable Releases，41 个 tags（v0.1.0～v0.1.40）与源码全部保留。既有删除不可恢复，除非依 tag 重建；root 精确镜像 v2，超窗升级可 full fallback。状态 `VERIFIED`。
 - 本地 release 为空；本地旧构建可重打包 / 下载恢复，与已删除远端 Release / assets 的边界不同。
 
 ### HB-063：跨版本升级与 Release 说明
 
-- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.39 Release 已准确列出相较 v0.1.38 的变化，跨版累计链延伸至 0.1.39，状态 `VERIFIED`。
+- 客户端与 GitHub publisher 共用逐版本清单并按 `previous < entry <= current` 累计；v0.1.40 Release 已准确列出相较 v0.1.39 的变化，跨版累计链延伸至 0.1.40，状态 `VERIFIED`。
 
 ### HB-024～026：OCR、快捷键、性能
 
@@ -232,7 +232,7 @@
 
 - 新安装和尚未持久化 revision 7 来源选择的配置默认 `tencent101`；revision 7 / 8 中已保存的合法 `dtodo` 或 `tencent101` 选择不被升级重写，未知值 fail-closed 到腾讯默认。无 auto、无跨源回退；出装继续独立使用 data.dtodo。
 - 设置 UI、Renderer 安全 fallback、Main bridge smoke、README 与隐私记忆统一默认口径。Release 说明只描述该独立 patch，跨版本累计规则不变。
-- 本地 audit 0、OCR synthetic、真实 4K 159ms、48 files / 559 passed + 1 skipped及完整 source 门禁全过。candidate `3587cde` 已 push；Windows run `31893923167` / job `95034187403` 于 5m20s 通过 48 files / 560 tests、真实 4K 271ms、EXE `199286400`、packaged UI / bridge、synthetic v0.1.41 差分、checksums 与 artifact 门禁。tag-only 按预期跳过；尚无 v0.1.40 tag / Release，真实 installed 迁移与腾讯接口仍待验，状态 `FIXED / UNVERIFIED`。
+- 本地完整门禁与 candidate `31893923167` 均通过。正式 run `31894224065` attempt 1 创建 Release / 五资产和双通道后因 Raw 100s 未传播而 fail closed、未 prune；attempt 2 / job `95035875831` 于 5m35s 幂等通过 48 files / 560 tests、真实 4K 265ms、packaged UI / bridge、public packaged 与五版滚动门禁。v0.1.40 已发布；真实 installed 迁移与腾讯接口仍待验，状态 `FIXED / UNVERIFIED`。
 
 ## 追溯
 
