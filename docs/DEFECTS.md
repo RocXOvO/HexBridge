@@ -106,7 +106,7 @@
 | HB-092 | 单卡刷新仍重复三槽 OCR / 混合帧风险 | FIXED / UNVERIFIED（v0.1.58 已发布；v0.1.59 修正整组三卡外层过渡） |
 | HB-093 | Tencent 强化榜未按 `bestHeroes` 反向生成英雄候选 | IN PROGRESS / UNVERIFIED（v0.1.62 已发布；真实 Tencent / 同机未验） |
 | HB-094 | 英雄榜缺少 OP/T1–T5 分组与点击详情出装 | IN PROGRESS / UNVERIFIED（v0.1.64 已发布；真实同机未验） |
-| HB-095 | 英雄详情推荐被独立出装请求阻塞、data.dtodo 配置入口分散 | FIXED / UNVERIFIED（v0.1.66 候选；Windows / 同机未验） |
+| HB-095 | 英雄详情推荐被独立出装请求阻塞、data.dtodo 配置入口分散 | FIXED / UNVERIFIED（v0.1.66 已发布；真实同机未验） |
 
 ## 当前重点验收
 
@@ -382,7 +382,7 @@
 
 - v0.1.65 将英雄海克斯详情与独立出装拆成两条并行的 Renderer 请求链；出装 Key 缺失、请求失败或响应较慢时，当前来源的推荐卡仍会独立显示，迟到的换英雄 / 换来源响应不会覆盖当前详情。
 - 设置页的 `data.dtodo` 来源卡直接进入专属 API Key 页面，主设置不再重复放置 Key 输入或独立入口卡；预览桥接也提供示例推荐卡与出装，避免点击英雄后出现空详情。
-- v0.1.65 的 tag-only workflow 在打包 UI smoke 处因旧 `.dtodo-entry-card` 选择器 fail closed；v0.1.66 将门禁改为点击新的 `.source-config-link` 来源卡按钮。本地完整门禁需在该候选重新执行；真实 Windows / Tencent 同机显示仍待验收，不能标记 `VERIFIED`。
+- v0.1.65 的 tag-only workflow 在打包 UI smoke 处因旧 `.dtodo-entry-card` 选择器 fail closed；v0.1.66 将门禁改为点击新的 `.source-config-link` 来源卡按钮。v0.1.66 workflow 重跑后 Windows 打包 UI / bridge、差分、双通道和最近五个 Release 保留均通过；真实 Windows / Tencent 同机显示仍待验收，不能标记 `VERIFIED`。
 
 ## 追溯
 
