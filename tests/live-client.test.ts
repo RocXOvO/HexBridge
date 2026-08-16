@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import {
   LIVE_CLIENT_HOST,
   LIVE_CLIENT_PORT,
@@ -96,5 +99,30 @@ describe('Live Client level adapter', () => {
     adapter.stop()
     rejectRequest?.(new DOMException('raw detail', 'AbortError'))
     await expect(pending).resolves.toEqual({ level: null, code: 'aborted' })
+  })
+
+  it('keeps the opt-in private capture local while preserving the complete payload', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'hexbridge-live-client-private-'))
+    try {
+      const adapter = new LiveClientAdapter(vi.fn(async () => ({
+        activePlayer: { summonerName: 'private-name', puuid: 'private-puuid', level: 4 },
+        allPlayers: [{ summonerName: 'other-private-name', championName: 'Annie' }],
+        gameData: { gameMode: 'KIWI', gameTime: 123.4 },
+      })))
+      const result = await adapter.capturePrivateAllGameData('cards-visible', directory)
+      expect(result.ok).toBe(true)
+      expect(result.fileName).toMatch(/-cards-visible\.json$/)
+      const raw = await readFile(path.join(directory, result.fileName as string), 'utf8')
+      expect(raw).toContain('private-puuid')
+      expect(raw).toContain('other-private-name')
+      expect((await readdir(directory)).length).toBe(2)
+      await expect(adapter.clearPrivateAllGameData(directory)).resolves.toEqual({
+        ok: true,
+        message: '已清除 2 个本机全量采样文件',
+      })
+      await expect(readdir(directory)).resolves.toEqual([])
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 })

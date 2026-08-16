@@ -273,6 +273,19 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.59...v0.1.60')
   })
 
+  it('renders the private full Live Client capture for v0.1.61', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.61',
+      releases: [...releases, { tag_name: 'v0.1.59', draft: false, prerelease: false }, { tag_name: 'v0.1.60', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.60 的更新')
+    expect(body).toContain('个人研究模式')
+    expect(body).toContain('完整 allgamedata')
+    expect(body).toContain('不进入 Renderer')
+    expect(body).toContain('/compare/v0.1.60...v0.1.61')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

@@ -53,6 +53,8 @@ const scoutDetailsDialog = ref<HTMLElement | null>(null)
 const scoutDetailsCloseButton = ref<HTMLButtonElement | null>(null)
 const liveClientSample = ref<LiveClientDiagnosticSample | null>(null)
 const liveClientSampleBusy = ref(false)
+const liveClientPrivateCaptureBusy = ref(false)
+const liveClientPrivateCaptureMessage = ref('')
 let scoutDetailsTrigger: HTMLElement | null = null
 let scoutDetailsSequence = 0
 const matchStatus = computed(() => describeMatchStatus(state.value.snapshot, state.value.lcu.connected))
@@ -681,6 +683,35 @@ async function sampleLiveClient(step: LiveClientDiagnosticStep): Promise<void> {
   }
 }
 
+async function captureLiveClientPrivate(step: LiveClientDiagnosticStep): Promise<void> {
+  if (liveClientPrivateCaptureBusy.value) return
+  liveClientPrivateCaptureBusy.value = true
+  try {
+    const result = await api.captureLiveClientPrivateData(step)
+    liveClientPrivateCaptureMessage.value = result.ok
+      ? `${result.message} 文件大小 ${result.bytes ?? 0} 字节。`
+      : result.message
+    showToast(result.message, !result.ok)
+  } catch (error) {
+    liveClientPrivateCaptureMessage.value = error instanceof Error ? error.message : '完整数据读取失败'
+    showToast(liveClientPrivateCaptureMessage.value, true)
+  } finally {
+    liveClientPrivateCaptureBusy.value = false
+  }
+}
+
+async function clearLiveClientPrivate(): Promise<void> {
+  if (liveClientPrivateCaptureBusy.value) return
+  try {
+    const result = await api.clearLiveClientPrivateData()
+    liveClientPrivateCaptureMessage.value = result.message
+    showToast(result.message, !result.ok)
+  } catch (error) {
+    liveClientPrivateCaptureMessage.value = error instanceof Error ? error.message : '清除完整采样失败'
+    showToast(liveClientPrivateCaptureMessage.value, true)
+  }
+}
+
 async function startCalibration(): Promise<void> {
   if (calibrationBusy.value) return
   calibrationBusy.value = true
@@ -1097,7 +1128,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           <div class="page-heading"><div><small>系统状态</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">{{ state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别' }}</button></div></div>
           <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', ['ready','stale'].includes(state.recommendation.status) ? 'ok' : 'warn']">●</span><div><small>推荐来源</small><b>{{ recommendationSourceName }} · {{ recommendationStatusText[state.recommendation.status] }}</b><p>{{ state.recommendation.lastError || `统计日期 ${state.recommendation.statisticsDate || state.recommendation.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DTDODO / 出装</small><b>{{ apiStatusText[state.api.status] }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.manualOcrStatus === 'idle' ? (state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms`) : `${state.diagnostics.manualOcrMessage} · ${manualOcrCodeText[state.diagnostics.manualOcrCode]} · ${manualOcrTime(state.diagnostics.manualOcrTriggeredAt)}` }}</p></div></article><article data-testid="ocr-schedule-diagnostic"><span :class="['health-icon', state.diagnostics.ocrSchedule.phase === 'stopped' ? 'warn' : 'ok']">●</span><div><small>OCR 调度</small><b>{{ ocrSchedulePhaseText[state.diagnostics.ocrSchedule.phase] }} · {{ ocrScheduleOutcomeText[state.diagnostics.ocrSchedule.lastOutcome] }}</b><p>探测 {{ state.diagnostics.ocrSchedule.cheapProbeCount }} 次（最近 {{ ocrDuration(state.diagnostics.ocrSchedule.cheapProbeLastDurationMs) }}，峰值 {{ ocrDuration(state.diagnostics.ocrSchedule.cheapProbeMaxDurationMs) }}）；完整识别 {{ state.diagnostics.ocrSchedule.fullOcrCount }} 次（最近 {{ ocrDuration(state.diagnostics.ocrSchedule.fullOcrLastDurationMs) }}，峰值 {{ ocrDuration(state.diagnostics.ocrSchedule.fullOcrMaxDurationMs) }}）；下次 {{ state.diagnostics.ocrSchedule.nextDelayMs == null ? '—' : `${state.diagnostics.ocrSchedule.nextDelayMs}ms` }}</p></div></article><article data-testid="champion-companion-diagnostic"><span :class="['health-icon', state.diagnostics.presentation.championCompanion === 'visible' ? 'ok' : 'warn']">●</span><div><small>选人伴随窗</small><b>{{ championCompanionStatusText[state.diagnostics.presentation.championCompanion] }}</b><p>{{ observerStatusText[state.diagnostics.presentation.observer] }}</p></div></article><article data-testid="augment-companion-diagnostic"><span :class="['health-icon', state.diagnostics.presentation.augmentCompanion === 'visible' ? 'ok' : 'warn']">●</span><div><small>游戏内推荐条</small><b>{{ augmentCompanionStatusText[state.diagnostics.presentation.augmentCompanion] }}</b><p>只显示脱敏状态，不记录窗口位置或进程标识</p></div></article></div>
           <div class="log-panel"><header><b>本地日志</b><span>{{ state.diagnostics.logLines.length }} 行</span></header><pre>{{ state.diagnostics.logLines.join('\n') || '暂无日志' }}</pre></div>
-          <section class="diagnostic-sample-card" aria-labelledby="live-client-sample-title"><header><div><small>Live Client Data API</small><h2 id="live-client-sample-title">可选卡状态脱敏采样</h2><p>等级可作为唤醒信号，但不能单独证明卡面可选。请在三个时间点各点击一次；每次会额外做一次受限 allgamedata 读取（最多 2 MiB）。这里只显示字段路径、类型和有限值，不保存原始响应。</p></div><span v-if="liveClientSample">会话 {{ liveClientSample.sessionId }} · {{ liveClientSample.step }}</span></header><div class="diagnostic-sample-actions"><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('no-card')">卡面未出现</button><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('cards-visible')">三卡已出现</button><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('selection-complete')">选卡完成</button></div><div v-if="liveClientSample" class="diagnostic-sample-result"><p>等级：{{ liveClientSample.currentChampionLevel ?? '不可用' }} · OCR surface：{{ liveClientSample.ocrSurface }} · generation {{ liveClientSample.matchGeneration }}</p><div v-for="endpoint in liveClientSample.endpointStatus" :key="endpoint.endpoint"><b>{{ endpoint.endpoint }} · {{ endpoint.status }}</b><small>{{ endpoint.fields.map((field) => `${field.path}:${field.type}${field.value !== undefined ? `=${field.value}` : ''}`).join(' · ') || '无可公开字段摘要' }}</small></div></div></section>
+          <section class="diagnostic-sample-card" aria-labelledby="live-client-sample-title"><header><div><small>Live Client Data API</small><h2 id="live-client-sample-title">可选卡状态脱敏采样</h2><p>等级可作为唤醒信号，但不能单独证明卡面可选。请在三个时间点各点击一次；每次会额外做一次受限 allgamedata 读取（最多 2 MiB）。这里只显示字段路径、类型和有限值，不保存原始响应。</p></div><span v-if="liveClientSample">会话 {{ liveClientSample.sessionId }} · {{ liveClientSample.step }}</span></header><div class="diagnostic-sample-actions"><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('no-card')">卡面未出现</button><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('cards-visible')">三卡已出现</button><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('selection-complete')">选卡完成</button></div><div v-if="liveClientSample" class="diagnostic-sample-result"><p>等级：{{ liveClientSample.currentChampionLevel ?? '不可用' }} · OCR surface：{{ liveClientSample.ocrSurface }} · generation {{ liveClientSample.matchGeneration }}</p><div v-for="endpoint in liveClientSample.endpointStatus" :key="endpoint.endpoint"><b>{{ endpoint.endpoint }} · {{ endpoint.status }}</b><small>{{ endpoint.fields.map((field) => `${field.path}:${field.type}${field.value !== undefined ? `=${field.value}` : ''}`).join(' · ') || '无可公开字段摘要' }}</small></div></div><div class="diagnostic-private-actions"><small>个人研究：以下按钮会把完整 allgamedata 原文只保存到此 Windows 本机，不进入 Renderer、日志、网络或 Release。</small><div><button class="ghost" :disabled="liveClientPrivateCaptureBusy" @click="captureLiveClientPrivate('no-card')">保存未出卡全量</button><button class="ghost" :disabled="liveClientPrivateCaptureBusy" @click="captureLiveClientPrivate('cards-visible')">保存三卡全量</button><button class="ghost" :disabled="liveClientPrivateCaptureBusy" @click="captureLiveClientPrivate('selection-complete')">保存选卡后全量</button><button class="ghost" :disabled="liveClientPrivateCaptureBusy" @click="clearLiveClientPrivate">清除本机全量</button></div><p v-if="liveClientPrivateCaptureMessage">{{ liveClientPrivateCaptureMessage }}</p></div></section>
           <p class="choice-note">诊断截图仅在手动识别时保存，最多保留 60 张裁切图。</p>
           <div v-if="isPreview" class="preview-banner">浏览器视觉预览模式 · Electron 中将显示实时数据</div>
         </section>

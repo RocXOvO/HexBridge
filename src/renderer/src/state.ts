@@ -60,7 +60,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.60',
+    currentVersion: '0.1.61',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -166,6 +166,8 @@ const unavailableApi: HexBridgeApi = {
   retryWallpaperEngine: async () => ({ ok: false, message: '安全桥接未加载' }),
   clearDiagnosticScreenshots: async () => ({ ok: false, message: '安全桥接未加载' }),
   sampleLiveClientDiagnostics: async () => ({ ok: false, message: '安全桥接未加载', sample: null }),
+  captureLiveClientPrivateData: async () => ({ ok: false, message: '安全桥接未加载', fileName: null, bytes: null }),
+  clearLiveClientPrivateData: async () => ({ ok: false, message: '安全桥接未加载' }),
   retryLcuConnection: async () => ({ ok: false, message: '安全桥接未加载' }),
   startCalibration: async () => undefined,
   getCalibrationContext: async () => null,

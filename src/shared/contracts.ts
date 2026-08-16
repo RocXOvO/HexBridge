@@ -579,6 +579,13 @@ export interface LiveClientDiagnosticSampleResult {
   sample: LiveClientDiagnosticSample | null
 }
 
+export interface LiveClientPrivateCaptureResult {
+  ok: boolean
+  message: string
+  fileName: string | null
+  bytes: number | null
+}
+
 export interface HexBridgeApi {
   getState(): Promise<RuntimeState>
   onStateChanged(callback: (state: RuntimeState) => void): () => void
@@ -599,6 +606,8 @@ export interface HexBridgeApi {
   retryWallpaperEngine(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
   sampleLiveClientDiagnostics(step: LiveClientDiagnosticStep): Promise<LiveClientDiagnosticSampleResult>
+  captureLiveClientPrivateData(step: LiveClientDiagnosticStep): Promise<LiveClientPrivateCaptureResult>
+  clearLiveClientPrivateData(): Promise<{ ok: boolean; message: string }>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>
   startCalibration(): Promise<void>
   getCalibrationContext(): Promise<CalibrationContext | null>

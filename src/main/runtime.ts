@@ -18,6 +18,7 @@ import type {
   RankedAugmentSlot,
   LiveClientDiagnosticStep,
   LiveClientDiagnosticSampleResult,
+  LiveClientPrivateCaptureResult,
   OcrScheduleOutcome,
   OcrSlotResult,
   WallpaperEnginePreferences,
@@ -695,6 +696,37 @@ export class HexBridgeRuntime {
         ocrSurface: this.windows.getPresentationDiagnostics().augmentCompanion,
       },
     }
+  }
+
+  async captureLiveClientPrivateData(step: LiveClientDiagnosticStep): Promise<LiveClientPrivateCaptureResult> {
+    if (!['no-card', 'cards-visible', 'selection-complete'].includes(step)) {
+      return { ok: false, message: '采样步骤无效', fileName: null, bytes: null }
+    }
+    if (process.platform !== 'win32') {
+      return { ok: false, message: '完整 Live Client 实验仅支持 Windows 本机', fileName: null, bytes: null }
+    }
+    if (this.snapshot.matchStage !== 'active') {
+      return { ok: false, message: '仅在进行中的对局里读取完整数据', fileName: null, bytes: null }
+    }
+    const generation = this.snapshot.matchGeneration
+    const result = await this.liveClient.capturePrivateAllGameData(
+      step,
+      path.join(app.getPath('userData'), 'private-live-client-experiment'),
+    )
+    if (
+      result.ok && (
+        this.stopping ||
+        this.snapshot.matchStage !== 'active' ||
+        generation !== this.snapshot.matchGeneration
+      )
+    ) {
+      return { ok: false, message: '对局已变化；本次完整采样未纳入当前会话', fileName: result.fileName, bytes: result.bytes }
+    }
+    return result
+  }
+
+  async clearLiveClientPrivateData(): Promise<{ ok: boolean; message: string }> {
+    return this.liveClient.clearPrivateAllGameData(path.join(app.getPath('userData'), 'private-live-client-experiment'))
   }
 
   clearApiKey(): void {

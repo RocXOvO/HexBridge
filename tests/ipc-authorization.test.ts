@@ -38,11 +38,15 @@ describe('IPC sender authorization', () => {
     retryLcu: ReturnType<typeof vi.fn>
     updateSettings: ReturnType<typeof vi.fn>
     sampleLiveClient: ReturnType<typeof vi.fn>
+    captureLiveClientPrivate: ReturnType<typeof vi.fn>
+    clearLiveClientPrivate: ReturnType<typeof vi.fn>
   } {
     const clearDiagnostics = vi.fn(() => 'cleared')
     const retryLcu = vi.fn(() => 'retried')
     const updateSettings = vi.fn((patch) => patch)
     const sampleLiveClient = vi.fn((step) => ({ ok: true, message: 'sampled', sample: { step } }))
+    const captureLiveClientPrivate = vi.fn((step) => ({ ok: true, message: 'captured', fileName: `${step}.json`, bytes: 12 }))
+    const clearLiveClientPrivate = vi.fn(() => ({ ok: true, message: 'cleared-private' }))
     const windowManager = {
       isWindowSender: vi.fn((name: 'main' | 'calibration', sender: unknown) =>
         name === 'main' ? sender === mainSender : sender === calibrationSender),
@@ -53,8 +57,10 @@ describe('IPC sender authorization', () => {
       retryLcuConnection: retryLcu,
       updateSettings,
       sampleLiveClientDiagnostics: sampleLiveClient,
+      captureLiveClientPrivateData: captureLiveClientPrivate,
+      clearLiveClientPrivateData: clearLiveClientPrivate,
     } as any)
-    return { clearDiagnostics, retryLcu, updateSettings, sampleLiveClient }
+    return { clearDiagnostics, retryLcu, updateSettings, sampleLiveClient, captureLiveClientPrivate, clearLiveClientPrivate }
   }
 
   it.each([
@@ -108,5 +114,24 @@ describe('IPC sender authorization', () => {
     expect(runtime.sampleLiveClient).toHaveBeenCalledWith('cards-visible')
     expect(() => handler?.({ sender: championSender }, 'cards-visible')).toThrow('该操作不允许从当前窗口调用')
     expect(runtime.sampleLiveClient).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps full Live Client capture and deletion Main-only', () => {
+    const runtime = setup()
+    const captureHandler = electronMock.handlers.get('hexbridge:capture-live-client-private-data')
+    const clearHandler = electronMock.handlers.get('hexbridge:clear-live-client-private-data')
+    expect(captureHandler?.({ sender: mainSender }, 'cards-visible')).toEqual({
+      ok: true,
+      message: 'captured',
+      fileName: 'cards-visible.json',
+      bytes: 12,
+    })
+    expect(clearHandler?.({ sender: mainSender })).toEqual({ ok: true, message: 'cleared-private' })
+    expect(runtime.captureLiveClientPrivate).toHaveBeenCalledWith('cards-visible')
+    expect(runtime.clearLiveClientPrivate).toHaveBeenCalledTimes(1)
+    expect(() => captureHandler?.({ sender: championSender }, 'cards-visible')).toThrow('该操作不允许从当前窗口调用')
+    expect(() => clearHandler?.({ sender: championSender })).toThrow('该操作不允许从当前窗口调用')
+    expect(runtime.captureLiveClientPrivate).toHaveBeenCalledTimes(1)
+    expect(runtime.clearLiveClientPrivate).toHaveBeenCalledTimes(1)
   })
 })

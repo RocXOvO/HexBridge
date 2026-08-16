@@ -94,7 +94,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.60',
+      currentVersion: '0.1.61',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -278,7 +278,7 @@ export function createDemoApi(): HexBridgeApi {
       sample: {
         sessionId: 'demo-session',
         step,
-        clientVersion: '0.1.60',
+        clientVersion: '0.1.61',
         matchStage: 'selecting',
         matchGeneration: 1,
         currentChampionLevel: null,
@@ -291,6 +291,8 @@ export function createDemoApi(): HexBridgeApi {
         ocrSurface: 'visible',
       },
     }),
+    captureLiveClientPrivateData: async () => ({ ok: true, message: '预览模式：完整数据仅会保存到本机', fileName: 'demo-private.json', bytes: 0 }),
+    clearLiveClientPrivateData: async () => ({ ok: true, message: '预览模式：已清除本机全量采样' }),
     retryLcuConnection: async () => ({ ok: false, message: '预览模式：未连接客户端' }),
     startCalibration: async () => undefined,
     getCalibrationContext: async () => null,

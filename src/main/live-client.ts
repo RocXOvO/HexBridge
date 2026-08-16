@@ -1,5 +1,7 @@
 import { request as httpsRequest } from 'node:https'
 import type { IncomingMessage } from 'node:http'
+import { mkdir, readdir, unlink, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 
 export const LIVE_CLIENT_HOST = '127.0.0.1'
 export const LIVE_CLIENT_PORT = 2_999
@@ -43,6 +45,13 @@ export interface LiveClientEndpointSummary {
 export interface LiveClientDiagnosticReadResult {
   level: number | null
   endpoints: LiveClientEndpointSummary[]
+}
+
+export interface LiveClientPrivateCaptureResult {
+  ok: boolean
+  message: string
+  fileName: string | null
+  bytes: number | null
 }
 
 export function liveClientEndpointUrl(endpoint: LiveClientEndpoint): string {
@@ -95,6 +104,10 @@ function summarizeFields(value: unknown, path = '', fields: LiveClientFieldSumma
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
+}
+
+function privateCaptureStamp(): string {
+  return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
 }
 
 function requestJson(endpoint: LiveClientEndpoint, signal: AbortSignal): Promise<unknown> {
@@ -219,6 +232,62 @@ export class LiveClientAdapter {
     } finally {
       this.controller = null
       this.busy = false
+    }
+  }
+
+  async capturePrivateAllGameData(
+    step: 'no-card' | 'cards-visible' | 'selection-complete',
+    directory: string,
+  ): Promise<LiveClientPrivateCaptureResult> {
+    if (this.busy) return { ok: false, message: 'Live Client 读取正在进行，请稍后重试', fileName: null, bytes: null }
+    this.busy = true
+    const controller = new AbortController()
+    this.controller = controller
+    try {
+      const payload = await this.requestJson('allgamedata', controller.signal)
+      const raw = JSON.stringify(payload)
+      const fileName = `${privateCaptureStamp()}-${step}.json`
+      await mkdir(directory, { recursive: true })
+      await writeFile(path.join(directory, fileName), raw, { encoding: 'utf8', mode: 0o600 })
+      await writeFile(path.join(directory, `${fileName}.meta.json`), JSON.stringify({
+        step,
+        capturedAt: new Date().toISOString(),
+        endpoint: `https://${LIVE_CLIENT_HOST}:${LIVE_CLIENT_PORT}${ENDPOINT_PATHS.allgamedata}`,
+        bytes: Buffer.byteLength(raw, 'utf8'),
+      }, null, 2), { encoding: 'utf8', mode: 0o600 })
+      return {
+        ok: true,
+        message: `完整数据已仅保存到本机（${fileName}）；请勿把原始 JSON 上传或发送给他人`,
+        fileName,
+        bytes: Buffer.byteLength(raw, 'utf8'),
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        message: controller.signal.aborted || isAbortError(error)
+          ? '完整数据读取已取消'
+          : '完整数据读取失败；未生成可用采样文件',
+        fileName: null,
+        bytes: null,
+      }
+    } finally {
+      this.controller = null
+      this.busy = false
+    }
+  }
+
+  async clearPrivateAllGameData(directory: string): Promise<{ ok: boolean; message: string }> {
+    if (this.busy) return { ok: false, message: 'Live Client 读取正在进行，请稍后再清除' }
+    try {
+      const names = await readdir(directory)
+      const files = names.filter((name) => /^\d{8}T\d{6}Z-(?:no-card|cards-visible|selection-complete)\.json(?:\.meta\.json)?$/.test(name))
+      await Promise.all(files.map((name) => unlink(path.join(directory, name))))
+      return { ok: true, message: files.length ? `已清除 ${files.length} 个本机全量采样文件` : '没有可清除的本机全量采样文件' }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'ENOENT') {
+        return { ok: true, message: '没有可清除的本机全量采样文件' }
+      }
+      return { ok: false, message: '清除本机全量采样失败' }
     }
   }
 

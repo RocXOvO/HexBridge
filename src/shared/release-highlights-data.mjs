@@ -248,4 +248,8 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '可选卡状态诊断增加一次性 allgamedata 脱敏探测；请求固定在本机 127.0.0.1:2999，限制 2 MiB 和超时。',
   'allgamedata 只输出字段路径、类型和有限值，不保存原始响应，也不会把等级或事件字段冒充可选卡状态。',
 ]),
+'0.1.61': Object.freeze([
+  '新增 Windows 个人研究模式：按“未出卡 / 三卡出现 / 选卡完成”显式保存完整 allgamedata 到本机私有目录，便于分析敏感字段。',
+  '完整原文不进入 Renderer、IPC、日志、网络或 Release；诊断页只显示文件大小与清除按钮，用户可随时删除本机采样。',
+]),
 })

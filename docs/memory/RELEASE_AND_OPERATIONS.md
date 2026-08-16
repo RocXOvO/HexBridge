@@ -4,6 +4,8 @@
 
 ## 当前正式基线
 
+- v0.1.61 当前仅为本地候选，尚未 commit / push / tag / Release；它新增 Windows 个人研究用的本机完整 `allgamedata` 采样，发布前仍需完整门禁和用户确认。
+
 - 当前公开正式版为 `v0.1.60`。v0.1.60 的 workflow `31922234089` / job `95104645401`、Release ID `RE_kwDOT1eQs84WIEMo` 和 v2/root channel 均已成功；本版加入显式一次性 `allgamedata` 脱敏探测。Windows / WeGame 的真实选卡字段仍待验，不能把本地门禁写成真实用户验证。
 - 当前正式版本为 `v0.1.60`，已完成 commit / push / tag / Release / 双通道 / packaged public check / 五版滚动保留；探测固定 `127.0.0.1:2999`，2 MiB / 超时 / Main-only，不做后台轮询，也不把等级或事件当作选卡状态。真实 WeGame 三时间点采样仍未验，不能写成 `VERIFIED`。
 

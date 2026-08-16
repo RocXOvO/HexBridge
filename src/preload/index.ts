@@ -74,6 +74,9 @@ const api = {
   clearDiagnosticScreenshots: () => ipcRenderer.invoke('hexbridge:clear-diagnostics'),
   sampleLiveClientDiagnostics: (step: LiveClientDiagnosticStep) =>
     ipcRenderer.invoke('hexbridge:sample-live-client-diagnostics', step),
+  captureLiveClientPrivateData: (step: LiveClientDiagnosticStep) =>
+    ipcRenderer.invoke('hexbridge:capture-live-client-private-data', step),
+  clearLiveClientPrivateData: () => ipcRenderer.invoke('hexbridge:clear-live-client-private-data'),
   retryLcuConnection: () => ipcRenderer.invoke('hexbridge:retry-lcu'),
   startCalibration: () => ipcRenderer.invoke('hexbridge:start-calibration'),
   getCalibrationContext: () => ipcRenderer.invoke('hexbridge:get-calibration-context'),

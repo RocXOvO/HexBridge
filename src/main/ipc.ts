@@ -158,6 +158,17 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
     }
     return runtime.sampleLiveClientDiagnostics(step as LiveClientDiagnosticStep)
   })
+  ipcMain.handle('hexbridge:capture-live-client-private-data', (event, step) => {
+    requireSender(event, 'main')
+    if (step !== 'no-card' && step !== 'cards-visible' && step !== 'selection-complete') {
+      return { ok: false, message: '采样步骤无效', fileName: null, bytes: null }
+    }
+    return runtime.captureLiveClientPrivateData(step as LiveClientDiagnosticStep)
+  })
+  ipcMain.handle('hexbridge:clear-live-client-private-data', (event) => {
+    requireSender(event, 'main')
+    return runtime.clearLiveClientPrivateData()
+  })
   ipcMain.handle('hexbridge:retry-lcu', (event) => {
     requireSender(event, 'main')
     return runtime.retryLcuConnection()
