@@ -4,19 +4,15 @@
 
 ## 当前正式基线
 
-- 当前候选版本为 `v0.1.57`，公开正式版仍为 `v0.1.56`；本候选修复单卡刷新期间的 absence 空窗和高频探测，尚未 commit / push / tag / Release / Windows workflow，不得预写外部成功结果。
+- 当前正式版本为 `v0.1.57`，已完成 commit / push / tag / Release / 双通道 / packaged public check / 五版滚动保留；本版修复单卡刷新期间的 absence 空窗和高频探测。真实 WeGame 刷新动画仍未验，不能写成 `VERIFIED`。
 
-- 当前公开正式版为 `v0.1.56`，五资产、稳定通道、packaged public 与五版滚动保留均通过；它保留 v0.1.54 的脱敏 OCR 调度诊断、v0.1.55 的 packaged UI smoke 7 卡门禁，并修正 Release notes 只以公开 Release 作为稳定基线、累计无 Release 中间 tag 变更。v0.1.54 仅有 tag、未创建公开 Release；不得把自动化门禁写成真实 WeGame 性能已验证。
+- 上一版 `v0.1.56` 的五资产、稳定通道、packaged public 与五版滚动保留均通过；它保留 v0.1.54 的脱敏 OCR 调度诊断、v0.1.55 的 packaged UI smoke 7 卡门禁，并修正 Release notes 只以公开 Release 作为稳定基线、累计无 Release 中间 tag 变更。v0.1.54 仅有 tag、未创建公开 Release；不得把自动化门禁写成真实 WeGame 性能已验证。
 
-- 当前公开正式版 `v0.1.56` 已完成 commit / push / tag / Release / 双通道 / 滚动保留；本版修正跨无 Release 中间 tag 的累计说明。真实游戏刷新、国服 history、用户价值和 WeGame 验收仍未完成，不能写成 `VERIFIED`。
+- public Latest：[v0.1.57](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.57)，Release ID `371188111`，publishedAt `2026-08-16T00:00:45Z`；annotated tag object `71256a18b08943ccde3ead90d819ed94c0fec4e1` 解引用 commit `8b624765128779b43adb58681383b3ef125d6d3c`。
+- workflow `31915913496` / job `95088396802` 重跑成功；五资产、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9255026857` / `473547229` bytes / `sha256:5b6cd1928ae4b43b12702146d21fb75e8e62b931d4e2cbb25f9443451596e93e`。
+- public v2 / root：version `0.1.57`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.52、v0.1.53、v0.1.55、v0.1.56、v0.1.57（v0.1.54 仅 tag），本地 `release/` 为空。
 
-- 当前公开正式版 `v0.1.56` 已完成 tag / Release / 双通道 / 滚动保留；正式 run `31914401071` 重跑成功，五资产与 public packaged 均通过；真实 Windows WeGame 刷新视觉、帧耗和国服 history 仍不是自动化证据。
-
-- public Latest：[v0.1.56](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.56)，Release ID `371182988`，publishedAt `2026-08-15T23:24:29Z`；tagged commit `da178bf`。
-- 正式 run `31914401071` 重跑成功；五资产、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9254662188` / `473546830` bytes。
-- public v2 / root：version `0.1.56`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.51～v0.1.56 中除 v0.1.54 的五个 Release，本地 `release/` 为空。
-
-- v0.1.50 是上一版正式基线；真实 WeGame / installed updater 仍不是自动化证据。
+- 历史记录：v0.1.50 的真实 WeGame / installed updater 仍不是自动化证据。
 
 - public Latest：[v0.1.51](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.51)，non-draft / non-prerelease；Release ID `RE_kwDOT1eQs84WH3OK`，publishedAt `2026-08-15T21:20:22Z`。
 - tagged commit `8c200033c3fa200fbf3d1c81e76738d8037d21a1`；正式 run `31908866405` 首次稳定通道传播超时后幂等重跑成功（成功 job `95071775049`）。Windows `50` files / `594` tests、真实 4K OCR `262ms`、packaged UI / bridge、差分、public packaged 与滚动保留全过；自动化不等于真实 WeGame、腾讯接口或 installed updater 验证。
