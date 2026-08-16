@@ -106,6 +106,7 @@
 | HB-092 | 单卡刷新仍重复三槽 OCR / 混合帧风险 | FIXED / UNVERIFIED（v0.1.58 已发布；v0.1.59 修正整组三卡外层过渡） |
 | HB-093 | Tencent 强化榜未按 `bestHeroes` 反向生成英雄候选 | IN PROGRESS / UNVERIFIED（v0.1.62 已发布；真实 Tencent / 同机未验） |
 | HB-094 | 英雄榜缺少 OP/T1–T5 分组与点击详情出装 | IN PROGRESS / UNVERIFIED（v0.1.64 已发布；真实同机未验） |
+| HB-095 | 英雄详情推荐被独立出装请求阻塞、data.dtodo 配置入口分散 | FIXED / UNVERIFIED（v0.1.65 候选；Windows / 同机未验） |
 
 ## 当前重点验收
 
@@ -376,6 +377,12 @@
 - 点击英雄后保留原有来源 / snapshot / 日期守卫，海克斯详情和独立 `data.dtodo` 出装通过两个 Main-only IPC 并行读取；无 dtodo Key 时只显示出装不可用，不阻断 Tencent 英雄 / 海克斯推荐。
 - v0.1.63 / v0.1.64 将榜单项目改为头像卡片，胜率与选取率集中放在头像下方；点击后进入独立英雄详情页，海克斯推荐横向展示，出装单独成模块。设置页将腾讯来源与 data.dtodo Key 配置拆开，点击 data.dtodo 后再进入 Key 页面；v0.1.64 同步修正 Windows 打包校准入口烟测文案。
 - v0.1.64 Windows workflow `31944699823` 重跑 job `95159756249` 通过 `51` files / `641` passed + `1` skipped、typecheck、lint、build、packaged UI / bridge、差分、双通道、公网 packaged 与五版滚动保留；首次 root 通道传播超时后幂等重跑成功。真实 Tencent 同机显示、长中文和多分辨率验收仍未完成，状态保持 `IN PROGRESS / UNVERIFIED`。
+
+### HB-095：英雄详情推荐与 data.dtodo 配置入口
+
+- v0.1.65 将英雄海克斯详情与独立出装拆成两条并行的 Renderer 请求链；出装 Key 缺失、请求失败或响应较慢时，当前来源的推荐卡仍会独立显示，迟到的换英雄 / 换来源响应不会覆盖当前详情。
+- 设置页的 `data.dtodo` 来源卡直接进入专属 API Key 页面，主设置不再重复放置 Key 输入或独立入口卡；预览桥接也提供示例推荐卡与出装，避免点击英雄后出现空详情。
+- 本地 `51` files / `642` passed + `1` skipped、typecheck、lint、diff-check 已通过；尚未 commit / push / Windows workflow / Release，真实 Windows / Tencent 同机显示仍待验收，不能标记 `VERIFIED`。
 
 ## 追溯
 

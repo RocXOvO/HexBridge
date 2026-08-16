@@ -48,7 +48,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.64'")
+    expect(rendererState).toContain("currentVersion: '0.1.65'")
   })
 
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
@@ -168,7 +168,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps Tencent browsing source-bound, keyboard reachable and locally filterable', () => {
-    expect(appSource).toContain("recommendationDataSource: 'tencent101'")
+    expect(appSource).toContain("selectRecommendationSource('tencent101')")
     expect(appSource).toContain('api.getChampionRecommendation(championId)')
     expect(appSource).toContain('state.value.recommendation.dataVersion')
     expect(appSource).toContain('state.value.recommendation.statisticsDate')
@@ -185,13 +185,27 @@ describe('main-window recommendation presentation', () => {
     expect(ipcSource).toContain("requireSender(event, 'main')")
   })
 
+  it('keeps hero recommendations visible when the independent build request fails', () => {
+    expect(appSource).toContain('const championBuild = ref<ChampionBuildRecommendation | null>(null)')
+    expect(appSource).toContain('const championBuildBusy = ref(false)')
+    expect(appSource).toContain('const recommendationTask = api.getChampionRecommendation(championId)')
+    expect(appSource).toContain('const buildTask = api.getChampionBuild(championId)')
+    expect(appSource).toContain('await Promise.allSettled([recommendationTask, buildTask])')
+    expect(appSource).toContain('championBuild.value = result.ok ? result.build : null')
+    expect(appSource).not.toContain('championRecommendation?.build')
+    expect(rendererDemoState).toContain("cards: demoState.currentRecommendation?.cards ?? []")
+    expect(rendererDemoState).toContain("message: '预览模式：出装推荐已读取'")
+  })
+
   it('presents Tencent 101 as the default without removing the explicit dtodo choice', () => {
     expect(rendererState).toContain("recommendationDataSource: 'tencent101'")
     expect(bridgeSmoke).toContain("recommendationDataSource: 'tencent101'")
     expect(appSource).toContain('<b>腾讯英雄联盟数据站</b><small>无需 Key · 腾讯官网统计')
     expect(appSource).toContain('<b>data.dtodo</b><small>需要个人 API Key · 英雄、海克斯、出装')
     expect(appSource).toContain("page === 'dtodo-settings'")
-    expect(appSource).toContain("@click=\"navigate('dtodo-settings')\"")
+    expect(appSource).toContain('class="source-config-link"')
+    expect(appSource).toContain('@click.stop="openDtodoSettings"')
+    expect(appSource).not.toContain('dtodo-entry-card')
   })
 
   it('keeps the live assistant source badge limited to the provider name', () => {

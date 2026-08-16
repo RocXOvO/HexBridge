@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ApiConnectionState, ChampionRecommendationView, ChampionSummary, LiveClientDiagnosticSample, LiveClientDiagnosticStep, OpponentFormSummary, OpponentTeamSummary, RankedAugmentSlot, RecommendationDataState, RuntimeDiagnostics, ScoutPlayerDetails, WallpaperEngineTargetType } from '../../shared/contracts'
+import type { ApiConnectionState, ChampionBuildRecommendation, ChampionRecommendationView, ChampionSummary, LiveClientDiagnosticSample, LiveClientDiagnosticStep, OpponentFormSummary, OpponentTeamSummary, RankedAugmentSlot, RecommendationDataState, RecommendationDataSource, RuntimeDiagnostics, ScoutPlayerDetails, WallpaperEngineTargetType } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -18,6 +18,8 @@ const selectedChampionId = ref<number | null>(null)
 const championRecommendation = ref<ChampionRecommendationView | null>(null)
 const championRecommendationBusy = ref(false)
 const championRecommendationMessage = ref('选择英雄后查看推荐海克斯')
+const championBuild = ref<ChampionBuildRecommendation | null>(null)
+const championBuildBusy = ref(false)
 const championBuildMessage = ref('')
 const championRecommendationSort = ref<'recommendation' | 'globalPick' | 'globalWin'>('recommendation')
 const championRecommendationRarity = ref<'all' | '白银' | '黄金' | '棱彩'>('all')
@@ -365,51 +367,102 @@ function slotPickRateLabel(slot: RankedAugmentSlot): string {
   return slot.recommendationSource === 'tencent101' ? '全局选取率' : '该英雄选取率'
 }
 
+type ChampionDetailRequestContext = {
+  source: RecommendationDataSource
+  snapshotId: string
+  dataVersion: string
+  statisticsDate: string
+}
+
+function championDetailRequestCurrent(
+  championId: number,
+  sequence: number,
+  context: ChampionDetailRequestContext,
+): boolean {
+  return sequence === championRecommendationSequence &&
+    selectedChampionId.value === championId &&
+    context.source === state.value.settings.recommendationDataSource &&
+    context.snapshotId === state.value.recommendation.snapshotId &&
+    context.dataVersion === state.value.recommendation.dataVersion &&
+    context.statisticsDate === state.value.recommendation.statisticsDate
+}
+
 async function selectRankingChampion(championId: number): Promise<void> {
   selectedChampionId.value = championId
   page.value = 'champion-detail'
   championRecommendation.value = null
+  championBuild.value = null
   championRecommendationBusy.value = true
+  championBuildBusy.value = true
   championRecommendationMessage.value = '正在读取当前来源的英雄推荐…'
   championBuildMessage.value = '正在读取独立出装推荐…'
   const sequence = ++championRecommendationSequence
-  const source = state.value.settings.recommendationDataSource
-  const snapshotId = state.value.recommendation.snapshotId
-  const dataVersion = state.value.recommendation.dataVersion
-  const statisticsDate = state.value.recommendation.statisticsDate
-  try {
-    const [result, buildResult] = await Promise.all([
-      api.getChampionRecommendation(championId),
-      api.getChampionBuild(championId).catch(() => ({ ok: false, message: '出装读取失败', build: null })),
-    ])
-    if (
-      sequence !== championRecommendationSequence ||
-      source !== state.value.settings.recommendationDataSource ||
-      snapshotId !== state.value.recommendation.snapshotId ||
-      dataVersion !== state.value.recommendation.dataVersion ||
-      statisticsDate !== state.value.recommendation.statisticsDate ||
-      (result.detail != null && (
-        result.detail.source !== source ||
-        result.detail.snapshotId !== snapshotId ||
-        result.detail.dataVersion !== dataVersion ||
-        result.detail.statisticsDate !== statisticsDate
-      ))
-    ) return
-    championRecommendation.value = result.detail
-      ? { ...result.detail, build: buildResult.ok ? buildResult.build : null }
-      : null
-    championRecommendationMessage.value = result.message
-    championBuildMessage.value = buildResult.message
-  } catch (error) {
-    if (sequence !== championRecommendationSequence) return
-    championRecommendationMessage.value = error instanceof Error ? error.message : '英雄推荐读取失败'
-  } finally {
-    if (sequence === championRecommendationSequence) championRecommendationBusy.value = false
+  const context: ChampionDetailRequestContext = {
+    source: state.value.settings.recommendationDataSource,
+    snapshotId: state.value.recommendation.snapshotId,
+    dataVersion: state.value.recommendation.dataVersion,
+    statisticsDate: state.value.recommendation.statisticsDate,
   }
+
+  const recommendationTask = api.getChampionRecommendation(championId)
+    .then((result) => {
+      if (!championDetailRequestCurrent(championId, sequence, context)) return
+      if (
+        result.detail && (
+          result.detail.source !== context.source ||
+          result.detail.snapshotId !== context.snapshotId ||
+          result.detail.dataVersion !== context.dataVersion ||
+          result.detail.statisticsDate !== context.statisticsDate
+        )
+      ) {
+        championRecommendation.value = null
+        championRecommendationMessage.value = '推荐来源数据已更新，请重新选择英雄'
+        return
+      }
+      championRecommendation.value = result.detail
+      championRecommendationMessage.value = result.message
+    })
+    .catch((error) => {
+      if (!championDetailRequestCurrent(championId, sequence, context)) return
+      championRecommendation.value = null
+      championRecommendationMessage.value = error instanceof Error ? error.message : '英雄推荐读取失败'
+    })
+    .finally(() => {
+      if (championDetailRequestCurrent(championId, sequence, context)) championRecommendationBusy.value = false
+    })
+
+  const buildTask = api.getChampionBuild(championId)
+    .then((result) => {
+      if (!championDetailRequestCurrent(championId, sequence, context)) return
+      championBuild.value = result.ok ? result.build : null
+      championBuildMessage.value = result.message
+    })
+    .catch((error) => {
+      if (!championDetailRequestCurrent(championId, sequence, context)) return
+      championBuild.value = null
+      championBuildMessage.value = error instanceof Error ? error.message : '出装读取失败'
+    })
+    .finally(() => {
+      if (championDetailRequestCurrent(championId, sequence, context)) championBuildBusy.value = false
+    })
+
+  await Promise.allSettled([recommendationTask, buildTask])
 }
 
 async function updateSettings(patch: Parameters<typeof api.updateSettings>[0]): Promise<void> {
   await api.updateSettings(patch)
+}
+
+async function selectRecommendationSource(source: RecommendationDataSource): Promise<void> {
+  await updateSettings({ recommendationDataSource: source })
+  if (source === 'dtodo') page.value = 'dtodo-settings'
+}
+
+async function openDtodoSettings(): Promise<void> {
+  if (state.value.settings.recommendationDataSource !== 'dtodo') {
+    await updateSettings({ recommendationDataSource: 'dtodo' })
+  }
+  page.value = 'dtodo-settings'
 }
 
 async function loadWallpaperEnginePreferences(): Promise<void> {
@@ -807,10 +860,13 @@ watch(
   () => {
     championRecommendationSequence += 1
     championRecommendation.value = null
+    championBuild.value = null
     championRecommendationBusy.value = false
+    championBuildBusy.value = false
     championRecommendationRarity.value = 'all'
     championRecommendationSort.value = 'recommendation'
     championRecommendationMessage.value = '推荐来源已变化，请重新选择英雄'
+    championBuildMessage.value = '推荐来源已变化；出装仍独立使用 data.dtodo'
   },
 )
 
@@ -1090,13 +1146,13 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <p v-else>{{ championRecommendation?.cards.length ? '当前筛选无结果。' : championRecommendationMessage }}</p>
           </section>
           <section class="champion-build-detail detail-panel" aria-live="polite">
-            <header><div><small>data.dtodo</small><h2>出装推荐</h2></div><span v-if="championRecommendation?.build">{{ championRecommendation.build.label }} · {{ championRecommendation.build.patch || '补丁未标注' }}</span></header>
-            <div v-if="championRecommendation?.build" class="build-groups">
-              <div><small>出门装</small><div v-if="championRecommendation.build.startingItems.length" class="build-items"><span v-for="item in championRecommendation.build.startingItems" :key="`browse-start-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
-              <div><small>核心装</small><div v-if="championRecommendation.build.coreItems.length" class="build-items"><span v-for="item in championRecommendation.build.coreItems" :key="`browse-core-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
-              <div><small>情境装备</small><div v-if="championRecommendation.build.situationalItems.length" class="build-items compact"><span v-for="item in championRecommendation.build.situationalItems" :key="`browse-situational-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+            <header><div><small>data.dtodo</small><h2>出装推荐</h2></div><span v-if="championBuild">{{ championBuild.label }} · {{ championBuild.patch || '补丁未标注' }}</span><span v-else-if="championBuildBusy">读取中…</span></header>
+            <div v-if="championBuild" class="build-groups">
+              <div><small>出门装</small><div v-if="championBuild.startingItems.length" class="build-items"><span v-for="item in championBuild.startingItems" :key="`browse-start-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+              <div><small>核心装</small><div v-if="championBuild.coreItems.length" class="build-items"><span v-for="item in championBuild.coreItems" :key="`browse-core-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+              <div><small>情境装备</small><div v-if="championBuild.situationalItems.length" class="build-items compact"><span v-for="item in championBuild.situationalItems" :key="`browse-situational-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
             </div>
-            <p v-else>{{ championBuildMessage || (state.api.configured ? '暂无出装数据。' : '出装需配置 data.dtodo API Key。') }}</p>
+            <p v-else>{{ championBuildBusy ? '正在读取独立出装推荐…' : (championBuildMessage || (state.api.configured ? '暂无出装数据。' : '出装需配置 data.dtodo API Key。')) }}</p>
           </section>
         </section>
 
@@ -1107,14 +1163,10 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
               <h3>推荐来源</h3>
               <p>影响英雄榜、海克斯和实时推荐；出装独立使用 data.dtodo。</p>
               <div class="recommendation-source-options" role="radiogroup" aria-label="英雄与海克斯推荐来源">
-                <label :class="{ selected: state.settings.recommendationDataSource === 'tencent101' }"><input type="radio" name="recommendation-source" value="tencent101" :checked="state.settings.recommendationDataSource === 'tencent101'" @change="updateSettings({ recommendationDataSource: 'tencent101' })" /><span><b>腾讯英雄联盟数据站</b><small>无需 Key · 腾讯官网统计</small></span></label>
-                <label :class="{ selected: state.settings.recommendationDataSource === 'dtodo' }"><input type="radio" name="recommendation-source" value="dtodo" :checked="state.settings.recommendationDataSource === 'dtodo'" @change="updateSettings({ recommendationDataSource: 'dtodo' })" /><span><b>data.dtodo</b><small>需要个人 API Key · 英雄、海克斯、出装</small></span></label>
+                <label :class="{ selected: state.settings.recommendationDataSource === 'tencent101' }"><input type="radio" name="recommendation-source" value="tencent101" :checked="state.settings.recommendationDataSource === 'tencent101'" @change="selectRecommendationSource('tencent101')" /><span><b>腾讯英雄联盟数据站</b><small>无需 Key · 腾讯官网统计</small></span></label>
+                <label :class="{ selected: state.settings.recommendationDataSource === 'dtodo' }"><input type="radio" name="recommendation-source" value="dtodo" :checked="state.settings.recommendationDataSource === 'dtodo'" @change="selectRecommendationSource('dtodo')" /><span><b>data.dtodo</b><small>需要个人 API Key · 英雄、海克斯、出装<button type="button" class="source-config-link" @click.stop="openDtodoSettings">进入 data.dtodo 配置 →</button></small></span></label>
               </div>
               <p class="recommendation-source-state">当前：{{ recommendationSourceName }} · {{ recommendationStatusText[state.recommendation.status] }}</p>
-            </article>
-            <article class="settings-card wide dtodo-entry-card" role="button" tabindex="0" aria-label="打开 data.dtodo API Key 配置" @click="navigate('dtodo-settings')" @keydown.enter.prevent="navigate('dtodo-settings')" @keydown.space.prevent="navigate('dtodo-settings')">
-              <div><small>独立出装服务</small><h3>data.dtodo</h3><p>{{ state.api.configured ? `API Key：${apiStatusText[state.api.status]}` : '未配置 API Key' }}</p></div>
-              <button class="primary" @click.stop="navigate('dtodo-settings')">配置 API Key</button>
             </article>
             <article class="settings-card"><h3>目标显示器</h3><p>三卡位置不准时再校准。</p><select :value="state.settings.displayId" @change="updateSettings({ displayId: ($event.target as HTMLSelectElement).value })"><option value="">自动选择主显示器</option><option v-for="display in state.displays" :key="display.id" :value="display.id">{{ display.label }} · {{ display.width }}×{{ display.height }}</option></select><button class="ghost full" :disabled="calibrationBusy" @click="startCalibration">{{ calibrationBusy ? '准备中…' : '框选三张卡片' }}</button><small class="calibration-entry-hint">依次框住左、中、右。</small></article>
             <article class="settings-card"><h3>识别快捷键</h3><div class="hotkey-row"><kbd :class="{ unavailable: !state.settings.hotkey }">{{ state.settings.hotkey || '未注册' }}</kbd><button class="ghost" :class="{ recording: recordingHotkey }" @click="recordingHotkey = !recordingHotkey">{{ recordingHotkey ? '请按快捷键…' : '录制快捷键' }}</button></div><small :class="{ 'hotkey-error': !state.settings.hotkey }">{{ hotkeyFeedback || (state.settings.hotkey ? 'Esc 取消。' : '快捷键不可用。') }}</small></article>

@@ -94,7 +94,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.64',
+      currentVersion: '0.1.65',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -241,10 +241,10 @@ export function createDemoApi(): HexBridgeApi {
         statisticsDate: '2026-08-10',
         stale: false,
         message: '英雄推荐已读取',
-        cards: [],
+        cards: demoState.currentRecommendation?.cards ?? [],
       },
     }),
-    getChampionBuild: async () => ({ ok: false, message: '预览模式：未配置独立出装数据', build: null }),
+    getChampionBuild: async () => ({ ok: true, message: '预览模式：出装推荐已读取', build: demoState.currentBuild }),
     applyUpdate: async () => {
       demoState.update = { ...demoState.update, status: 'downloaded', percent: 100, message: '更新已下载' }
       return { ok: true, message: demoState.update.message }
@@ -279,7 +279,7 @@ export function createDemoApi(): HexBridgeApi {
       sample: {
         sessionId: 'demo-session',
         step,
-        clientVersion: '0.1.64',
+        clientVersion: '0.1.65',
         matchStage: 'selecting',
         matchGeneration: 1,
         currentChampionLevel: null,

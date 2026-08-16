@@ -5,7 +5,7 @@
 
 ## 当前基线
 
-- 当前公开正式版为 [v0.1.64](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.64)，tag 解引用 commit `1c3f831d9a251b9c8e14bcb8d5c5443a544e3793`；v0.1.63 仅保留 tag、未创建公开 Release。v0.1.64 延续英雄榜头像卡片、独立英雄详情页与 data.dtodo Key 配置入口，并修正 Windows 打包 UI smoke 的校准入口断言；HB-093/HB-094 仍保持 `IN PROGRESS / UNVERIFIED`，真实 Tencent 与用户同机验收不由 CI 外推。
+- 当前候选版为 `v0.1.65`，公开正式版仍为 [v0.1.64](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.64)，tag 解引用 commit `1c3f831d9a251b9c8e14bcb8d5c5443a544e3793`；v0.1.63 仅保留 tag、未创建公开 Release。v0.1.65 修复英雄详情推荐与独立出装互相阻塞，并将 data.dtodo Key 配置收回来源卡片；HB-093/HB-094/HB-095 的真实 Tencent 与用户同机验收不由 CI 外推，候选尚未 commit / push / Windows / tag / Release。
 - v0.1.64 workflow `31944699823` / 重跑 job `95159756249` 于 `2026-08-16T11:43:17Z–11:49:12Z` 成功；Release ID `371309425`，Windows `51` files / `641` passed + `1` skipped，packaged UI / bridge、差分、双通道、公网 packaged 更新检查和最近五个 Release 保留均通过。首次尝试只在 root 通道传播窗口超时，幂等重跑成功；Node 20 弃用提示和既有 AugmentOverlay 缩进警告不阻断。
 - v0.1.64 五资产：EXE `199299824` / `4efc477357f12c6027fae33e05d8a986cf49eef4c131fe8ee24956c33b7ee477`；blockmap `201466` / `0078478d0fc3ba89deb6642684bb5b145f219d3dda1f03448705b020e7acf634`；ZIP `274471588` / `1347b2fd229883f13c36f624bb9a17cea163fb11c3b82b68d14f51e35338facd`；latest.yml `346` / `623670a2c16f918bb2e566e14044b62609e77ec8770fe70af0aa02bf428c17ef`；SHA256SUMS `182` / `6eb3086f48dd67ec68a65aec47c9e1cf28da086fa8c3b3803c6e16f3ca6b6e82`。artifact `9263119526` / `473561441` bytes；公开滚动窗口为 v0.1.59、v0.1.60、v0.1.61、v0.1.62、v0.1.64（v0.1.63 无 Release），tag 保留。
 - v0.1.61 正式 workflow `31924005321` / 成功重跑 job `95109448523`，Release ID `RE_kwDOT1eQs84WIGEP`，tag 解引用 commit `9108348a501fc5d460ff75f9e56bd632e59d6bf0`；Windows 全量门禁、v2/root、public packaged 与五版滚动保留均通过。artifact `9257432760` / `473553962` bytes；真实 WeGame 字段仍未验证。
@@ -84,6 +84,7 @@
 14. HB-088：用候选客户端在真实单卡刷新期间记录脱敏 OCR 调度摘要、CPU/GPU、FPS / frametime；确认诊断数据不含截图、OCR 文本、坐标、进程标识、路径或身份，再决定是否需要自适应探测退避。
 15. HB-093：在 Windows / 真实 Tencent 响应中确认 `bestHeroes` 关联、同英雄扩展推荐数量、切源 / stale 和 OCR 三卡排序口径；全局 `pick_rank` 不能冒充英雄专属 pickRate。
 16. HB-094：确认 OP/T1–T5 分组在两种来源下的可读性；点击英雄时海克斯与独立出装请求不互相阻塞，换源 / 换代后不残留旧详情。
+17. HB-095：用 v0.1.65 Windows 客户端确认英雄详情推荐在 data.dtodo Key 缺失 / 失败时仍可显示，且从来源卡进入 Key 页面；真实 Tencent 与同机视觉仍不由自动化外推。
 
 ## 当前任务边界
 

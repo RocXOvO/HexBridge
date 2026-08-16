@@ -265,4 +265,8 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
 '0.1.64': Object.freeze([
   '修正 Windows 打包 UI smoke 的校准入口断言，使新设置页文案与发布门禁保持一致。',
 ]),
+'0.1.65': Object.freeze([
+  '修复英雄榜点击详情后推荐与独立出装互相阻塞的问题：出装 Key 缺失、失败或较慢时，当前来源的海克斯推荐仍会独立显示。',
+  'data.dtodo API Key 配置收回到对应来源卡片；点击 data.dtodo 后直接进入专属配置页，主设置页不再重复放置 Key 配置入口。',
+]),
 })
