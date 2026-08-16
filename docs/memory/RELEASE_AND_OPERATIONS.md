@@ -4,9 +4,12 @@
 
 ## 当前正式基线
 
-- 当前候选版本为 `v0.1.64`，公开正式版仍为 `v0.1.62`；v0.1.63 tag 仅触发 Windows UI smoke 失败、没有公开 Release。本候选包含界面重构及 smoke 文案修复，尚未 commit / push / tag / Release。通过完整门禁和 Windows workflow 后才更新正式基线。
+- 当前公开正式版为 `v0.1.64`；v0.1.63 仅保留 tag、未创建公开 Release。本版包含界面重构及 Windows UI smoke 校准入口断言修复。
 
-- 当前公开正式版为 `v0.1.62`：Tencent `bestHeroes` 英雄适配扩展、OP/T1–T5 英雄榜分组和独立英雄详情出装已随本版发布；真实 Tencent 接口和用户同机验收仍未完成。
+- v0.1.64 workflow `31944699823` / 重跑 job `95159756249` 于 `2026-08-16T11:43:17Z–11:49:12Z` 成功，Release ID `371309425`，tag commit `1c3f831d9a251b9c8e14bcb8d5c5443a544e3793`；Windows `51` files / `641` passed + `1` skipped、packaged UI / bridge、差分、v2/root、public packaged 与最近五个 Release 保留均通过。首次尝试因 root 通道 100s 传播窗口超时，幂等重跑成功。
+- v0.1.64 五资产：EXE `199299824` / `4efc477357f12c6027fae33e05d8a986cf49eef4c131fe8ee24956c33b7ee477`；blockmap `201466` / `0078478d0fc3ba89deb6642684bb5b145f219d3dda1f03448705b020e7acf634`；ZIP `274471588` / `1347b2fd229883f13c36f624bb9a17cea163fb11c3b82b68d14f51e35338facd`；latest.yml `346` / `623670a2c16f918bb2e566e14044b62609e77ec8770fe70af0aa02bf428c17ef`；SHA256SUMS `182` / `6eb3086f48dd67ec68a65aec47c9e1cf28da086fa8c3b3803c6e16f3ca6b6e82`。artifact `9263119526` / `473561441` bytes；滚动窗口为 v0.1.59、v0.1.60、v0.1.61、v0.1.62、v0.1.64，v0.1.63 只保留 tag。
+
+- 历史 `v0.1.62`：Tencent `bestHeroes` 英雄适配扩展、OP/T1–T5 英雄榜分组和独立英雄详情出装已随本版发布；真实 Tencent 接口和用户同机验收仍未完成。
 
 - v0.1.62 workflow `31933785471`（重跑成功）/ job `95133301137`、Release ID `RE_kwDOT1eQs84WIP5E`、tag commit `bae79a96ae6a1ad32a5dd84e1e61c4156d3341ed`；Windows `51` files / `640` passed、真实 4K OCR `209ms`、packaged UI / bridge、差分、双通道、public packaged 与滚动保留全过。artifact `9260203991` / `473560262` bytes。首次 run 仅因稳定通道 100s 传播超时失败，幂等重跑成功。
 - v0.1.62 五资产：EXE `199299489` / `ac5779c6e55b0f13311bf41b53e09fcc05407edebd9cfb1b5d7311b48ed9888c`；blockmap `201323` / `e2f849fd298bfba91b9e1ed51df8e4e1a7951be3b2b0a27a1b8854cb72cab2e1`；ZIP `274471161` / `e00a7b07aa9f33b2b44eb7aa14b4bf41a8255f58aa86bfe34b56a8faf9e7e003`；latest.yml `346` / `30996302e2c5ddf2f3885ecda17eceb57398532bbd74e3ca91ae8d7234dcd567`；SHA256SUMS `182` / `06460294520797118218e8f720e36b149803edbb8989e2bebecc7810592dbd2a`。v2/root 均为 `0.1.62`，滚动窗口为 v0.1.58–v0.1.62，v0.1.57 Release 已删除但 tag 保留。
