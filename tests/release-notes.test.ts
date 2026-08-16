@@ -286,6 +286,19 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.60...v0.1.61')
   })
 
+  it('renders the Tencent bestHeroes and grouped champion ranking release for v0.1.62', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.62',
+      releases: [...releases, { tag_name: 'v0.1.60', draft: false, prerelease: false }, { tag_name: 'v0.1.61', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.61 的更新')
+    expect(body).toContain('bestHeroes')
+    expect(body).toContain('OP、T1–T5')
+    expect(body).toContain('独立 data.dtodo 出装')
+    expect(body).toContain('/compare/v0.1.61...v0.1.62')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

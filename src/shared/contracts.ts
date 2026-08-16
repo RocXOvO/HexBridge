@@ -16,6 +16,7 @@ export type VisualMode = 'cinematic' | 'balanced' | 'eco'
 export type VisualModePreference = VisualMode | 'auto'
 export type MatchContextStage = 'none' | 'selecting' | 'launching' | 'active'
 export type RecommendationDataSource = 'dtodo' | 'tencent101'
+export type TencentHeroRecommendationBasis = 'lowest_rank_runes' | 'bestHeroes_pick_rank'
 export type LiveClientDiagnosticStep = 'no-card' | 'cards-visible' | 'selection-complete'
 export type WallpaperEngineTargetType = 'profile' | 'playlist'
 
@@ -192,6 +193,8 @@ export interface RecommendationAugmentRank {
   augmentId: number
   heroRecommendationRank: number | null
   heroRecommendationTotal: number | null
+  /** Tencent-only: whether this rank came from the ordered hero list or bestHeroes inversion. */
+  heroRecommendationBasis?: TencentHeroRecommendationBasis | null
   heroTier: number | null
   championPickRate: number | null
   globalPickRate: number | null
@@ -249,6 +252,8 @@ export interface ChampionRecommendationView {
   stale: boolean
   cards: ChampionRecommendationCard[]
   message: string
+  /** Independent data.dtodo build; absent when no build key/cache is available. */
+  build?: ChampionBuildRecommendation | null
 }
 
 export interface ChampionRecommendationResult {
@@ -595,6 +600,7 @@ export interface HexBridgeApi {
   clearApiKey(): Promise<void>
   refreshData(): Promise<{ ok: boolean; message: string }>
   getChampionRecommendation(championId: number): Promise<ChampionRecommendationResult>
+  getChampionBuild(championId: number): Promise<{ ok: boolean; message: string; build: ChampionBuildRecommendation | null }>
   applyUpdate(): Promise<{ ok: boolean; message: string }>
   openDeveloperPage(): Promise<{ ok: boolean; message: string }>
   dismissReleaseHighlights(): Promise<void>

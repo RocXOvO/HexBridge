@@ -263,6 +263,9 @@ describe('Runtime recommendation provider guards', () => {
       getChampions: () => [{ id: 103 }],
       getChampionView: vi.fn(() => pending.promise),
     }
+    runtime.data = {
+      getState: () => ({ configured: false, dataVersion: '', status: 'missing' }),
+    }
 
     const operation = runtime.getChampionRecommendation(103)
     state = { ...state, dataVersion: '20260815', statisticsDate: '20260815' }
@@ -292,6 +295,9 @@ describe('Runtime recommendation provider guards', () => {
         throw new Error('上游返回 HTTP 401')
       }),
     }
+    runtime.data = {
+      getState: () => ({ configured: false, dataVersion: '', status: 'missing' }),
+    }
 
     await expect(runtime.getChampionRecommendation(103)).resolves.toMatchObject({
       ok: false,
@@ -299,5 +305,30 @@ describe('Runtime recommendation provider guards', () => {
     })
     expect(runtime.sync).toHaveBeenCalledOnce()
     expect(state.status).toBe('unauthorized')
+  })
+
+  it('loads a selected hero build through the independent dtodo module', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.data = {
+      getState: () => ({ configured: true, dataVersion: '16.16.1', status: 'ready' }),
+      getChampionAugments: vi.fn(async () => ({ builds: [{ label: '标准', patch: '16.16', source: 'iesdev', startingItems: [], coreItems: [], situationalItems: [] }] })),
+    }
+
+    await expect(runtime.getChampionBuild(103)).resolves.toMatchObject({
+      ok: true,
+      message: '出装推荐已读取',
+      build: { label: '标准', source: 'iesdev' },
+    })
+    expect(runtime.data.getChampionAugments).toHaveBeenCalledWith(103)
+  })
+
+  it('does not make the independent build module block when no key is configured', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.data = { getState: () => ({ configured: false, dataVersion: '', status: 'missing' }) }
+    await expect(runtime.getChampionBuild(103)).resolves.toEqual({
+      ok: false,
+      message: '出装仍需单独配置 data.dtodo API Key',
+      build: null,
+    })
   })
 })

@@ -252,4 +252,9 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '新增 Windows 个人研究模式：按“未出卡 / 三卡出现 / 选卡完成”显式保存完整 allgamedata 到本机私有目录，便于分析敏感字段。',
   '完整原文不进入 Renderer、IPC、日志、网络或 Release；诊断页只显示文件大小与清除按钮，用户可随时删除本机采样。',
 ]),
+'0.1.62': Object.freeze([
+  '腾讯强化榜的 bestHeroes 关联现在会纳入对应英雄的扩展推荐：lowest_rank_runes 保持首要推荐顺序，其后按腾讯全局选取排名追加，绝不冒充英雄专属统计。',
+  '英雄榜重构为 OP、T1–T5 分组；点击英雄可并行查看当前来源的海克斯推荐与独立 data.dtodo 出装，腾讯推荐不可用时不会阻塞出装模块。',
+  '来源、统计日期、英雄和对局序列继续严格隔离；旧缓存、迟到响应和无 data.dtodo Key 的腾讯模式均 fail closed。',
+]),
 })

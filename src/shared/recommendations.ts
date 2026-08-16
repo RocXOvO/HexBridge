@@ -81,6 +81,7 @@ export function dtodoRecommendationDetail(
       augmentId: rank.augmentId,
       heroRecommendationRank: rank.rank,
       heroRecommendationTotal: rank.total,
+      heroRecommendationBasis: null,
       heroTier: rank.tier,
       championPickRate: rank.pickRate,
       globalPickRate: null,
@@ -131,7 +132,9 @@ function rankReason(
 ): string {
   if (source === 'tencent101') {
     if (rank?.heroRecommendationRank != null) {
-      return `腾讯英雄推荐第 ${rank.heroRecommendationRank}`
+      return rank.heroRecommendationBasis === 'bestHeroes_pick_rank'
+        ? `腾讯英雄适配榜·全局选取排名第 ${rank.globalPickRank ?? rank.heroRecommendationRank}`
+        : `腾讯英雄推荐第 ${rank.heroRecommendationRank}`
     }
     if (rank?.globalPickRank != null) return `腾讯全局排名第 ${rank.globalPickRank}`
     return '腾讯数据站暂无可靠的推荐依据'

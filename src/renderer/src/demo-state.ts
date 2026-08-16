@@ -94,7 +94,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.61',
+      currentVersion: '0.1.62',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -244,6 +244,7 @@ export function createDemoApi(): HexBridgeApi {
         cards: [],
       },
     }),
+    getChampionBuild: async () => ({ ok: false, message: '预览模式：未配置独立出装数据', build: null }),
     applyUpdate: async () => {
       demoState.update = { ...demoState.update, status: 'downloaded', percent: 100, message: '更新已下载' }
       return { ok: true, message: demoState.update.message }
@@ -278,7 +279,7 @@ export function createDemoApi(): HexBridgeApi {
       sample: {
         sessionId: 'demo-session',
         step,
-        clientVersion: '0.1.61',
+        clientVersion: '0.1.62',
         matchStage: 'selecting',
         matchGeneration: 1,
         currentChampionLevel: null,

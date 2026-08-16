@@ -64,6 +64,8 @@ const api = {
   refreshData: () => ipcRenderer.invoke('hexbridge:refresh-data'),
   getChampionRecommendation: (championId: number) =>
     ipcRenderer.invoke('hexbridge:get-champion-recommendation', championId),
+  getChampionBuild: (championId: number) =>
+    ipcRenderer.invoke('hexbridge:get-champion-build', championId),
   applyUpdate: () => ipcRenderer.invoke('hexbridge:apply-update'),
   openDeveloperPage: () => ipcRenderer.invoke('hexbridge:open-developer-page'),
   dismissReleaseHighlights: () => ipcRenderer.invoke('hexbridge:dismiss-release-highlights'),

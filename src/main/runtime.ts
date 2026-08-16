@@ -827,6 +827,28 @@ export class HexBridgeRuntime {
     }
   }
 
+  async getChampionBuild(championId: number): Promise<{ ok: boolean; message: string; build: import('../shared/contracts.js').ChampionBuildRecommendation | null }> {
+    const state = this.data.getState()
+    if (!state.configured || !state.dataVersion) {
+      return { ok: false, message: '出装仍需单独配置 data.dtodo API Key', build: null }
+    }
+    try {
+      const detail = await this.data.getChampionAugments(championId)
+      const build = detail.builds[0] ?? null
+      return {
+        ok: build != null,
+        message: build ? '出装推荐已读取' : '暂无该英雄的出装数据',
+        build,
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : '出装读取失败',
+        build: null,
+      }
+    }
+  }
+
   applyUpdate(): Promise<{ ok: boolean; message: string }> {
     return this.updates.applyUpdate()
   }

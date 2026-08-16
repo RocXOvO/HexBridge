@@ -26,11 +26,11 @@ const compressed = (value: Record<string, unknown>, duplicate?: string) => {
   }
 }
 
-const runePayload = (date = '20260814', pickRates: Record<number, string> = {}) => compressed({
+const runePayload = (date = '20260814', pickRates: Record<number, string> = {}, bestHeroes = '1,2') => compressed({
   dtstatdate: date,
   augmentlist: Array.from({ length: 60 }, (_, index) => {
     const id = 1001 + index
-    return `${id}_255_${pickRates[index] ?? (0.1 + index / 1000).toFixed(3)}_${index + 1}_0_${(0.4 + index / 1000).toFixed(3)}_${60 - index}_0_1,2`
+    return `${id}_255_${pickRates[index] ?? (0.1 + index / 1000).toFixed(3)}_${index + 1}_0_${(0.4 + index / 1000).toFixed(3)}_${60 - index}_0_${bestHeroes}`
   }).join('#'),
 })
 
@@ -92,6 +92,7 @@ describe('Tencent 101 compressed fixtures', () => {
     expect(runes.statisticsDate).toBe('20260814')
     expect(runes.rows[0]).toEqual({
       augmentId: 1001,
+      bestHeroIds: [1, 2],
       pickRate: .1,
       pickRank: 1,
       pickRankChange: 0,
@@ -107,6 +108,8 @@ describe('Tencent 101 compressed fixtures', () => {
     expect(() => parseTencentRuneRank(compressed({ dtstatdate: '20260814', augmentlist: '1_255_0.1' }))).toThrow(/条目数量/)
     expect(() => parseTencentHeroRank(heroPayload('1001,1001'))).toThrow(/重复/)
     expect(() => parseTencentRuneRank(runePayload('20260230'))).toThrow(/有效统计日期/)
+    expect(() => parseTencentRuneRank(runePayload('20260814', {}, '1,1'))).toThrow(/无效或重复/)
+    expect(() => parseTencentRuneRank(runePayload('20260814', {}, '1,2,3,4,5,6,7'))).toThrow(/无效或重复/)
   })
 
   it('accepts the verified direct data._fieldValues JSON-string envelope', () => {
@@ -172,12 +175,20 @@ describe('Tencent101Adapter', () => {
     expect(detail).toMatchObject({ source: 'tencent101', championId: 1, statisticsDate: '20260814' })
     expect(detail.ranks.find((rank) => rank.augmentId === 1003)).toMatchObject({
       heroRecommendationRank: 1,
+      heroRecommendationBasis: 'lowest_rank_runes',
       championPickRate: null,
       globalPickRate: .102,
       globalWinRate: .402,
       statsSource: 'tencent',
       statsRegion: 'CN',
     })
+    expect(detail.ranks.find((rank) => rank.augmentId === 1004)).toMatchObject({
+      heroRecommendationRank: 4,
+      heroRecommendationTotal: 60,
+      heroRecommendationBasis: 'bestHeroes_pick_rank',
+      globalPickRank: 4,
+    })
+    expect(detail.ranks.filter((rank) => rank.heroRecommendationRank != null)).toHaveLength(60)
     await adapter.initialize()
     expect(fetcher).toHaveBeenCalledTimes(4)
   })

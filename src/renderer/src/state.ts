@@ -60,7 +60,7 @@ const unavailableState: RuntimeState = {
   },
   update: {
     status: 'unsupported',
-    currentVersion: '0.1.61',
+    currentVersion: '0.1.62',
     availableVersion: null,
     releaseName: null,
     releaseNotes: '',
@@ -151,6 +151,7 @@ const unavailableApi: HexBridgeApi = {
   clearApiKey: async () => undefined,
   refreshData: async () => ({ ok: false, message: '安全桥接未加载' }),
   getChampionRecommendation: async () => ({ ok: false, message: '安全桥接未加载', detail: null }),
+  getChampionBuild: async () => ({ ok: false, message: '安全桥接未加载', build: null }),
   applyUpdate: async () => ({ ok: false, message: '安全桥接未加载' }),
   openDeveloperPage: async () => ({ ok: false, message: '安全桥接未加载' }),
   dismissReleaseHighlights: async () => undefined,

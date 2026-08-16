@@ -5,8 +5,9 @@
 
 ## 当前基线
 
-- 当前公开正式版为 [v0.1.61](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.61)；本版在显式可选卡诊断采样中增加 Windows 个人研究模式，固定本机 `127.0.0.1:2999`、2 MiB / 超时 / Main-only，按三个时间点把完整 `allgamedata` 写入用户数据目录的私有实验子目录。Renderer / IPC 返回仅有成功状态、文件名和字节数，日志、网络、RuntimeState 与 Release 不含原文，并提供清除按钮；不接入后台轮询、不把等级或事件字段当作选卡状态。真实 Windows 三时间点字段仍待用户提供，HB-079 保持 `IN PROGRESS / UNVERIFIED`。
+- 当前候选版本为 `v0.1.62`，公开正式版仍为 [v0.1.61](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.61)；候选包含 Tencent `bestHeroes` 英雄适配扩展、OP/T1–T5 英雄榜分组和独立英雄详情出装。Windows / 真实 Tencent 同机验收仍待完成，不能预写 tag、Release 或 `VERIFIED`。
 - v0.1.61 正式 workflow `31924005321` / 成功重跑 job `95109448523`，Release ID `RE_kwDOT1eQs84WIGEP`，tag 解引用 commit `9108348a501fc5d460ff75f9e56bd632e59d6bf0`；Windows 全量门禁、v2/root、public packaged 与五版滚动保留均通过。artifact `9257432760` / `473553962` bytes；真实 WeGame 字段仍未验证。
+- v0.1.62 候选本地门禁：`51` files / `638` passed + `1` skipped、typecheck、lint、build、diff-check 已通过；bestHeroes、OP/T1–T5 和独立出装均已写入候选源码，尚未完成 Windows / 真实用户验收。
 - v0.1.60 正式 workflow `31922234089` / job `95104645401` 重跑成功；Windows 构建、`50` files 全量门禁、打包 UI / bridge、差分、public packaged、双通道和五版滚动保留均通过。Release ID `RE_kwDOT1eQs84WIEMo`，publishedAt `2026-08-16T02:40:35Z`，annotated tag 解引用到 commit `86edf4fabb9fa031f096805623f4eef33119e296`。自动化门禁不等于真实 WeGame 字段或性能验证。
 - v0.1.60 五资产：EXE `199296093` / `1ce386e01337255c737845ecb287609d3fe47d4c807d454de446bbde05e9865f`；blockmap `201438` / `9215f1c56d198e5ea0a97f5700c995bfeda859979c34ba8a0f2d94c3c0ba248e`；ZIP `274466380` / `dc0cf6b67a5eaf1930c0a583443314bcf73fd16df029d8ddff05570d74cda4f4`；latest.yml `346` / `221ed634f3113e11a12acd257cdaf1bbba67767bef40176b3cd9b44b2049fc48`；SHA256SUMS `182` / `f51c7e14e8838ceaaddfa25ae7092c967de84dafd8efc925675388190c4fdf2d`。历史滚动窗口为 v0.1.56～v0.1.60；当前窗口已由 v0.1.61 接替，tags / source 仍保留，本地 `release/` 为空。
 - v0.1.59 Release ID（API node）`RE_kwDOT1eQs84WIBmU`，publishedAt `2026-08-16T01:31:58Z`；annotated tag object `360466c92332e961f5358e6be5dfa877cacdd146` 解引用到 commit `cabcd68d03877b8e6f4d37635118a7a3a7e16386`。正式 workflow `31919544169` / job `95097946275` 首次传播窗口超时后幂等重跑成功；Windows 全链、五资产、v2/root 双通道、public packaged 与五版滚动保留通过。真实 WeGame 单卡刷新、帧时间仍待用户复测，HB-092 保持 `FIXED / UNVERIFIED`。
@@ -78,6 +79,8 @@
 12. HB-086：用 v0.1.52 Windows 客户端实测单卡刷新期间短暂空窗、连续两次 absence、失焦恢复和帧时间；确认未变化标签不退场、不重播。
 13. HB-087：用 v0.1.53 客户端确认队伍级摘要与个人卡片口径可读；真实国服 history / 身份门禁和用户价值仍未验。
 14. HB-088：用候选客户端在真实单卡刷新期间记录脱敏 OCR 调度摘要、CPU/GPU、FPS / frametime；确认诊断数据不含截图、OCR 文本、坐标、进程标识、路径或身份，再决定是否需要自适应探测退避。
+15. HB-093：在 Windows / 真实 Tencent 响应中确认 `bestHeroes` 关联、同英雄扩展推荐数量、切源 / stale 和 OCR 三卡排序口径；全局 `pick_rank` 不能冒充英雄专属 pickRate。
+16. HB-094：确认 OP/T1–T5 分组在两种来源下的可读性；点击英雄时海克斯与独立出装请求不互相阻塞，换源 / 换代后不残留旧详情。
 
 ## 当前任务边界
 
