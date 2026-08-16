@@ -4,7 +4,10 @@
 
 ## 当前正式基线
 
-- 当前候选为 `v0.1.62`，公开正式版仍为 `v0.1.61`；本候选包含 Tencent `bestHeroes` 英雄适配扩展、OP/T1–T5 英雄榜分组和独立英雄详情出装。Windows workflow、真实 Tencent 接口和用户同机验收尚未发生，不得预写 tag、Release、稳定通道或验证结果。
+- 当前公开正式版为 `v0.1.62`：Tencent `bestHeroes` 英雄适配扩展、OP/T1–T5 英雄榜分组和独立英雄详情出装已随本版发布；真实 Tencent 接口和用户同机验收仍未完成。
+
+- v0.1.62 workflow `31933785471`（重跑成功）/ job `95133301137`、Release ID `RE_kwDOT1eQs84WIP5E`、tag commit `bae79a96ae6a1ad32a5dd84e1e61c4156d3341ed`；Windows `51` files / `640` passed、真实 4K OCR `209ms`、packaged UI / bridge、差分、双通道、public packaged 与滚动保留全过。artifact `9260203991` / `473560262` bytes。首次 run 仅因稳定通道 100s 传播超时失败，幂等重跑成功。
+- v0.1.62 五资产：EXE `199299489` / `ac5779c6e55b0f13311bf41b53e09fcc05407edebd9cfb1b5d7311b48ed9888c`；blockmap `201323` / `e2f849fd298bfba91b9e1ed51df8e4e1a7951be3b2b0a27a1b8854cb72cab2e1`；ZIP `274471161` / `e00a7b07aa9f33b2b44eb7aa14b4bf41a8255f58aa86bfe34b56a8faf9e7e003`；latest.yml `346` / `30996302e2c5ddf2f3885ecda17eceb57398532bbd74e3ca91ae8d7234dcd567`；SHA256SUMS `182` / `06460294520797118218e8f720e36b149803edbb8989e2bebecc7810592dbd2a`。v2/root 均为 `0.1.62`，滚动窗口为 v0.1.58–v0.1.62，v0.1.57 Release 已删除但 tag 保留。
 
 - v0.1.61 已正式发布：新增 Windows 个人研究用的本机完整 `allgamedata` 采样；用户主动点击后写入本机私有目录，原文不进入 Renderer、IPC、日志、网络或 Release。真实 WeGame 字段仍待用户采样，不能写成 `VERIFIED`。
 

@@ -104,8 +104,8 @@
 | HB-090 | Release notes 将无公开 Release 的中间 tag 当作稳定基线 | FIXED / UNVERIFIED（v0.1.56 已发布） |
 | HB-091 | 刷新动画空窗导致整组三卡撤下和高频探测 | FIXED / UNVERIFIED（v0.1.57 已发布） |
 | HB-092 | 单卡刷新仍重复三槽 OCR / 混合帧风险 | FIXED / UNVERIFIED（v0.1.58 已发布；v0.1.59 修正整组三卡外层过渡） |
-| HB-093 | Tencent 强化榜未按 `bestHeroes` 反向生成英雄候选 | IN PROGRESS / UNVERIFIED（v0.1.62 候选） |
-| HB-094 | 英雄榜缺少 OP/T1–T5 分组与点击详情出装 | IN PROGRESS / UNVERIFIED（v0.1.62 候选） |
+| HB-093 | Tencent 强化榜未按 `bestHeroes` 反向生成英雄候选 | IN PROGRESS / UNVERIFIED（v0.1.62 已发布；真实 Tencent / 同机未验） |
+| HB-094 | 英雄榜缺少 OP/T1–T5 分组与点击详情出装 | IN PROGRESS / UNVERIFIED（v0.1.62 已发布；真实同机未验） |
 
 ## 当前重点验收
 
@@ -368,13 +368,13 @@
 
 - 腾讯强化榜每条记录当前包含 `bestHeroes`，表示该强化关联的少量英雄 ID；2026-08-16 受限响应为 207 条强化，206 条含 6 个英雄、1 条含 3 个英雄，合计 119 个不同英雄 ID。该字段没有公开的稳定上限承诺，解析器因此只接受 1–6 个唯一正整数并 fail closed。
 - 当前未发布实现把 `bestHeroes` 写入 Tencent snapshot：英雄的 `lowest_rank_runes` 仍作为前三项明确顺序；随后追加命中该英雄的强化，并按全局 `pick_rank` 排序。理由明确区分“腾讯英雄推荐”和“腾讯英雄适配榜·全局选取排名”，不把全局指标改写为英雄专属统计。
-- 迁移到缓存 schema 2；旧 schema 不读取，需重新获取同日快照。本地 `51` files / `638` passed + `1` skipped、typecheck、lint、build、diff-check 已通过；v0.1.62 尚未完成 Windows / 真实接口更新、切源和用户同机显示，状态保持 `IN PROGRESS / UNVERIFIED`。
+- 迁移到缓存 schema 2；旧 schema 不读取，需重新获取同日快照。v0.1.62 Windows workflow 的 `51` files / `640` tests、真实 4K OCR `209ms`、typecheck、lint、build、packaged UI / bridge、差分与公开通道均通过；真实 Tencent 接口更新、切源和用户同机显示仍未验，状态保持 `IN PROGRESS / UNVERIFIED`。
 
 ### HB-094：英雄榜缺少 OP/T1–T5 分组与点击详情出装
 
 - 英雄榜现在按 OP、T1、T2、T3、T4、T5 分组。dtodo 使用现有 T1–T5 数据，并将当前 T1 中胜率最高的 3 名显示为 OP；Tencent 的 `tier` 是总体名次，因此按稳定名次分段，不把这些 UI 分组冒充腾讯官方 Tier 字段。
 - 点击英雄后保留原有来源 / snapshot / 日期守卫，海克斯详情和独立 `data.dtodo` 出装通过两个 Main-only IPC 并行读取；无 dtodo Key 时只显示出装不可用，不阻断 Tencent 英雄 / 海克斯推荐。
-- 本地 `51` files / `638` passed + `1` skipped、typecheck、lint、build、diff-check 已通过；v0.1.62 尚未完成 Windows / 真实 Tencent 同机显示、长中文和多分辨率验收，状态保持 `IN PROGRESS / UNVERIFIED`。
+- v0.1.62 Windows workflow 的 `51` files / `640` tests、typecheck、lint、build、packaged UI / bridge 与差分均通过；真实 Tencent 同机显示、长中文和多分辨率验收仍未完成，状态保持 `IN PROGRESS / UNVERIFIED`。
 
 ## 追溯
 
