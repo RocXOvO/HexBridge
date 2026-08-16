@@ -4,6 +4,8 @@
 
 ## 当前正式基线
 
+- 当前候选为 `v0.1.62`，公开正式版仍为 `v0.1.61`；本候选包含 Tencent `bestHeroes` 英雄适配扩展、OP/T1–T5 英雄榜分组和独立英雄详情出装。Windows workflow、真实 Tencent 接口和用户同机验收尚未发生，不得预写 tag、Release、稳定通道或验证结果。
+
 - v0.1.61 已正式发布：新增 Windows 个人研究用的本机完整 `allgamedata` 采样；用户主动点击后写入本机私有目录，原文不进入 Renderer、IPC、日志、网络或 Release。真实 WeGame 字段仍待用户采样，不能写成 `VERIFIED`。
 
 - 当前公开正式版为 `v0.1.61`。workflow `31924005321` / 成功重跑 job `95109448523`、Release ID `RE_kwDOT1eQs84WIGEP` 和 v2/root channel 均已成功；完整 Windows 门禁、public packaged 与五版滚动保留通过。探测固定 `127.0.0.1:2999`，2 MiB / 超时 / Main-only，不做后台轮询，也不把等级或事件当作选卡状态。

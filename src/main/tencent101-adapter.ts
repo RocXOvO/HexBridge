@@ -16,7 +16,7 @@ const RUNE_PATH = '/go/battle_info/odp_proxy/fuwen_aram_rune_rank_v2?augmentid_l
 const HERO_PATH = '/go/battle_info/odp_proxy/fuwen_aram_hero_rank_v2'
 const AUGMENT_CATALOG_PATH = '/images/lol/act/img/js/kiwi/kiwi_augments.json'
 const HERO_CATALOG_PATH = '/images/lol/act/img/js/heroList/hero_list.js'
-const CACHE_SCHEMA = 1
+const CACHE_SCHEMA = 2
 const RESPONSE_LIMIT_BYTES = 2 * 1024 * 1024
 const CACHE_POINTER_LIMIT_BYTES = 4 * 1024
 const CACHE_SNAPSHOT_LIMIT_BYTES = 8 * 1024 * 1024
@@ -26,6 +26,8 @@ const NETWORK_RETRY_INTERVAL_MS = 15 * 60 * 1_000
 
 interface TencentAugmentStatistic {
   augmentId: number
+  /** The Tencent page's bestHeroes field: up to six heroes associated with this augment. */
+  bestHeroIds: number[]
   pickRate: number
   pickRank: number
   pickRankChange: number
@@ -43,7 +45,7 @@ interface TencentHeroStatistic {
 }
 
 export interface Tencent101Snapshot {
-  schema: 1
+  schema: 2
   source: 'tencent101'
   statisticsDate: string
   fetchedAt: number
@@ -55,7 +57,7 @@ export interface Tencent101Snapshot {
 }
 
 interface Tencent101Pointer {
-  schema: 1
+  schema: 2
   source: 'tencent101'
   statisticsDate: string
   snapshotId: string
@@ -92,6 +94,16 @@ function integer(value: unknown): number | null {
   if (!/^-?\d+$/.test(text)) return null
   const parsed = Number(text)
   return Number.isSafeInteger(parsed) ? parsed : null
+}
+
+function bestHeroIds(value: unknown): number[] | null {
+  if (typeof value !== 'string') return null
+  const text = value.trim()
+  if (!text) return null
+  const ids = text.split(',').map((entry) => positiveInteger(entry.trim()))
+  if (ids.length < 1 || ids.length > 6 || ids.some((id) => id == null)) return null
+  const normalized = ids as number[]
+  return new Set(normalized).size === normalized.length ? normalized : null
 }
 
 function ratio(value: unknown): number | null {
@@ -190,12 +202,13 @@ export function parseTencentRuneRank(payload: unknown): {
     const winRate = ratio(fields[5])
     const winRank = positiveInteger(fields[6])
     const winRankChange = integer(fields[7])
+    const associatedHeroIds = bestHeroIds(fields[8])
     if (
       !augmentId || level !== 255 || pickRate == null || !pickRank || pickRankChange == null ||
-      winRate == null || !winRank || winRankChange == null || ids.has(augmentId)
+      winRate == null || !winRank || winRankChange == null || associatedHeroIds == null || ids.has(augmentId)
     ) throw new Error('腾讯强化榜包含无效或重复字段')
     ids.add(augmentId)
-    return { augmentId, pickRate, pickRank, pickRankChange, winRate, winRank, winRankChange }
+    return { augmentId, bestHeroIds: associatedHeroIds, pickRate, pickRank, pickRankChange, winRate, winRank, winRankChange }
   })
   return { statisticsDate, rows }
 }
@@ -366,10 +379,13 @@ function validCachedAugment(value: unknown): boolean {
 
 function validCachedAugmentStatistic(value: unknown): boolean {
   const item = record(value)
+  const heroIds = item && Array.isArray(item.bestHeroIds) ? item.bestHeroIds.map(positiveInteger) : []
   return Boolean(
     item && positiveInteger(item.augmentId) && ratio(item.pickRate) != null &&
     positiveInteger(item.pickRank) && integer(item.pickRankChange) != null &&
-    ratio(item.winRate) != null && positiveInteger(item.winRank) && integer(item.winRankChange) != null
+    ratio(item.winRate) != null && positiveInteger(item.winRank) && integer(item.winRankChange) != null &&
+    heroIds.length >= 1 && heroIds.length <= 6 && heroIds.every((id) => id != null) &&
+    new Set(heroIds).size === heroIds.length
   )
 }
 
@@ -409,7 +425,8 @@ function isSnapshot(value: unknown): value is Tencent101Snapshot {
     !uniquePositiveIds(item.heroStatistics, (entry) => positiveInteger(entry.heroId))
   ) return false
   const championIds = new Set(item.champions.map((entry) => positiveInteger(record(entry)?.id)))
-  return item.heroStatistics.every((entry) => championIds.has(positiveInteger(record(entry)?.heroId)))
+  return item.heroStatistics.every((entry) => championIds.has(positiveInteger(record(entry)?.heroId))) &&
+    item.augmentStatistics.every((entry) => entry.bestHeroIds.every((id: number) => championIds.has(id)))
 }
 
 async function readJsonResponse(response: Response): Promise<unknown> {
@@ -476,15 +493,37 @@ export class Tencent101Adapter {
     if (!snapshot) throw new Error('腾讯 101 推荐数据尚未就绪')
     const hero = snapshot.heroStatistics.find((entry) => entry.heroId === championId)
     if (!hero) throw new Error('腾讯数据站暂无该英雄的推荐海克斯')
-    const recommendationOrder = new Map(hero.recommendedAugmentIds.map((id, index) => [id, index + 1]))
+    const recommendationOrder = new Map<number, { rank: number; basis: 'lowest_rank_runes' | 'bestHeroes_pick_rank' }>()
+    for (const [index, augmentId] of hero.recommendedAugmentIds.entries()) {
+      if (!recommendationOrder.has(augmentId)) {
+        recommendationOrder.set(augmentId, { rank: index + 1, basis: 'lowest_rank_runes' })
+      }
+    }
+    const heroMatched = snapshot.augmentStatistics
+      .filter((entry) => entry.bestHeroIds.includes(championId))
+      .sort((left, right) => left.pickRank - right.pickRank || left.augmentId - right.augmentId)
+    let nextRank = recommendationOrder.size
+    let previousPickRank: number | null = null
+    for (const entry of heroMatched) {
+      if (recommendationOrder.has(entry.augmentId)) continue
+      if (previousPickRank !== entry.pickRank) nextRank += 1
+      recommendationOrder.set(entry.augmentId, { rank: nextRank, basis: 'bestHeroes_pick_rank' })
+      previousPickRank = entry.pickRank
+    }
     const statistics = new Map(snapshot.augmentStatistics.map((entry) => [entry.augmentId, entry]))
-    const ids = new Set([...snapshot.augments.map((entry) => entry.id), ...hero.recommendedAugmentIds])
+    const ids = new Set([
+      ...snapshot.augments.map((entry) => entry.id),
+      ...hero.recommendedAugmentIds,
+      ...heroMatched.map((entry) => entry.augmentId),
+    ])
     const ranks: RecommendationAugmentRank[] = [...ids].map((augmentId) => {
       const global = statistics.get(augmentId)
+      const recommendation = recommendationOrder.get(augmentId)
       return {
         augmentId,
-        heroRecommendationRank: recommendationOrder.get(augmentId) ?? null,
-        heroRecommendationTotal: hero.recommendedAugmentIds.length || null,
+        heroRecommendationRank: recommendation?.rank ?? null,
+        heroRecommendationTotal: recommendationOrder.size || null,
+        heroRecommendationBasis: recommendation?.basis ?? null,
         heroTier: null,
         championPickRate: null,
         globalPickRate: global?.pickRate ?? null,

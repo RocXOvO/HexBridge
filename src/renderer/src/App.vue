@@ -5,6 +5,7 @@ import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
 import { matchesChampionSearch } from '../../shared/champion-search'
+import { groupChampionsByTier } from '../../shared/champion-tier-groups'
 import { describeUpdateAction, shouldShowUpdateAction } from '../../shared/update-presentation'
 import { nextAugmentAnimationState } from '../../shared/augment-animation'
 
@@ -17,6 +18,7 @@ const selectedChampionId = ref<number | null>(null)
 const championRecommendation = ref<ChampionRecommendationView | null>(null)
 const championRecommendationBusy = ref(false)
 const championRecommendationMessage = ref('选择英雄后查看推荐海克斯')
+const championBuildMessage = ref('')
 const championRecommendationSort = ref<'recommendation' | 'globalPick' | 'globalWin'>('recommendation')
 const championRecommendationRarity = ref<'all' | '白银' | '黄金' | '棱彩'>('all')
 let championRecommendationSequence = 0
@@ -217,13 +219,15 @@ const augmentCardClass = (slot: RankedAugmentSlot): string[] => [
   ...(overlayCardAnimationBySlot.value[slot.slot] === overlayCardAnimationCycle.value ? ['augment-card-refresh'] : []),
 ]
 
-const ranking = computed(() => {
+const rankingGroups = computed(() => {
   const query = search.value.trim().toLowerCase()
   const rows = state.value.champions.filter((item) => matchesChampionSearch(item, query))
-  return [...rows].sort((a, b) => {
-    if (rankingSort.value === 'winRate') return (b.winRate ?? -1) - (a.winRate ?? -1)
-    return (a.tier ?? 99) - (b.tier ?? 99) || (b.winRate ?? -1) - (a.winRate ?? -1)
-  })
+  return groupChampionsByTier(
+    rows,
+    state.value.recommendation.source,
+    rankingSort.value,
+    state.value.champions,
+  )
 })
 
 const recommendationSourceName = computed(() =>
@@ -372,13 +376,17 @@ async function selectRankingChampion(championId: number): Promise<void> {
   championRecommendation.value = null
   championRecommendationBusy.value = true
   championRecommendationMessage.value = '正在读取当前来源的英雄推荐…'
+  championBuildMessage.value = '正在读取独立出装推荐…'
   const sequence = ++championRecommendationSequence
   const source = state.value.settings.recommendationDataSource
   const snapshotId = state.value.recommendation.snapshotId
   const dataVersion = state.value.recommendation.dataVersion
   const statisticsDate = state.value.recommendation.statisticsDate
   try {
-    const result = await api.getChampionRecommendation(championId)
+    const [result, buildResult] = await Promise.all([
+      api.getChampionRecommendation(championId),
+      api.getChampionBuild(championId).catch(() => ({ ok: false, message: '出装读取失败', build: null })),
+    ])
     if (
       sequence !== championRecommendationSequence ||
       source !== state.value.settings.recommendationDataSource ||
@@ -393,7 +401,10 @@ async function selectRankingChampion(championId: number): Promise<void> {
       ))
     ) return
     championRecommendation.value = result.detail
+      ? { ...result.detail, build: buildResult.ok ? buildResult.build : null }
+      : null
     championRecommendationMessage.value = result.message
+    championBuildMessage.value = buildResult.message
   } catch (error) {
     if (sequence !== championRecommendationSequence) return
     championRecommendationMessage.value = error instanceof Error ? error.message : '英雄推荐读取失败'
@@ -906,7 +917,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                     </article>
                   </div>
                   <p v-else>{{ state.recommendation.status === 'loading' ? '当前推荐来源正在加载。' : (state.recommendation.lastError || '当前来源暂无该英雄的推荐海克斯。') }}</p>
-                  <footer v-if="state.currentRecommendation?.source === 'tencent101'">英雄专属顺序来自 lowest_rank_runes；选取率与胜率是腾讯全局统计，不是该英雄专属统计。</footer>
+                  <footer v-if="state.currentRecommendation?.source === 'tencent101'">前 3 项来自 lowest_rank_runes；其余为该英雄命中 bestHeroes 后按全局选取排名扩展。选取率与胜率是腾讯全局统计，不是该英雄专属统计。</footer>
                 </section>
                 <section class="build-recommendation" aria-live="polite">
                   <header>
@@ -1001,7 +1012,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <Transition name="assistant-reveal">
               <section v-if="augmentAssistantVisible" class="augment-assistant" aria-live="polite">
                 <header>
-                  <div><small>实时推荐 · {{ recommendationSourceName }}</small><h2>海克斯推荐</h2><p v-if="state.recommendation.source === 'tencent101'">腾讯英雄推荐顺序优先；选取率与胜率均为全局统计，不是该英雄专属统计。{{ state.recommendation.statisticsDate || '统计日期未就绪' }}<template v-if="state.recommendation.stale"> · 旧缓存</template></p><p v-else>优先采用上游提供的英雄专属推荐顺序；该英雄选取率仅作参考。{{ state.api.gamePatch || '补丁未标注' }} · {{ state.recommendation.dataVersion || '数据未就绪' }}<template v-if="state.recommendation.stale"> · 已过期</template></p></div>
+                  <div><small>实时推荐 · {{ recommendationSourceName }}</small><h2>海克斯推荐</h2><p v-if="state.recommendation.source === 'tencent101'">前 3 项使用英雄推荐顺序，其余命中该英雄的 bestHeroes 按全局选取排名扩展；选取率与胜率均为全局统计，不是该英雄专属统计。{{ state.recommendation.statisticsDate || '统计日期未就绪' }}<template v-if="state.recommendation.stale"> · 旧缓存</template></p><p v-else>优先采用上游提供的英雄专属推荐顺序；该英雄选取率仅作参考。{{ state.api.gamePatch || '补丁未标注' }} · {{ state.recommendation.dataVersion || '数据未就绪' }}<template v-if="state.recommendation.stale"> · 已过期</template></p></div>
                   <button class="ghost" :disabled="state.diagnostics.ocrBusy" @click="triggerOcr">
                     {{ state.diagnostics.ocrBusy ? '识别中…' : (state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别') }}
                   </button>
@@ -1047,8 +1058,8 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
         </section>
 
         <section v-else-if="page === 'ranking'" :key="'ranking'" class="page-content standard-page">
-          <div class="page-heading"><div><small>{{ recommendationSourceName }} · {{ state.recommendation.statisticsDate || state.recommendation.dataVersion || '数据未就绪' }}</small><h1>英雄榜</h1><p>浏览当前推荐来源的英雄数据；英雄详情不会改变实时助手当前英雄。</p></div><button class="ghost" :disabled="busy" @click="refresh">刷新数据</button></div>
-          <div class="toolbar"><label class="search"><span>⌕</span><input v-model="search" placeholder="搜索英雄名、称号或别名（如 VN）" /></label><div class="segmented"><button v-for="sort in (['tier','winRate'] as const)" :key="sort" :class="{ active: rankingSort === sort }" @click="rankingSort = sort">{{ sort === 'tier' ? championStrengthLabel() : '胜率' }}</button></div></div>
+          <div class="page-heading"><div><small>{{ recommendationSourceName }} · {{ state.recommendation.statisticsDate || state.recommendation.dataVersion || '数据未就绪' }}</small><h1>英雄榜</h1><p>浏览当前推荐来源的英雄数据；{{ state.recommendation.source === 'dtodo' ? 'OP 为当前 T1 中胜率最高的 3 名，其余按来源 Tier 分组。' : 'OP/T1–T5 按腾讯英雄榜名次分段。' }}点击英雄可查看海克斯与独立出装推荐。</p></div><button class="ghost" :disabled="busy" @click="refresh">刷新数据</button></div>
+          <div class="toolbar"><label class="search"><span>⌕</span><input v-model="search" placeholder="搜索英雄名、称号或别名（如 VN）" /></label><div class="segmented"><button v-for="sort in (['tier','winRate'] as const)" :key="sort" :class="{ active: rankingSort === sort }" @click="rankingSort = sort">{{ sort === 'tier' ? '榜单顺序' : '胜率' }}</button></div></div>
           <aside v-if="selectedChampionId" class="champion-recommendation-detail" aria-live="polite">
             <header><div><small>{{ recommendationSourceName }}</small><h2>{{ championById(selectedChampionId)?.name || `英雄 #${selectedChampionId}` }} · 推荐海克斯</h2><p>{{ championRecommendation?.statisticsDate || state.recommendation.statisticsDate || '统计日期未就绪' }}<template v-if="championRecommendation?.stale"> · 旧缓存</template></p></div><div class="champion-detail-controls"><div class="segmented"><button v-for="rarity in (['all','白银','黄金','棱彩'] as const)" :key="rarity" :class="{ active: championRecommendationRarity === rarity }" @click="championRecommendationRarity = rarity">{{ rarity === 'all' ? '全部品质' : rarity }}</button></div><div class="segmented"><button v-for="sort in (['recommendation','globalPick','globalWin'] as const)" :key="sort" :disabled="state.recommendation.source !== 'tencent101' && sort !== 'recommendation'" :class="{ active: championRecommendationSort === sort }" @click="championRecommendationSort = sort">{{ sort === 'recommendation' ? '推荐序' : sort === 'globalPick' ? '全局选取率' : '全局胜率' }}</button></div></div></header>
             <p v-if="championRecommendationBusy">正在读取当前来源的英雄推荐…</p>
@@ -1058,11 +1069,26 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
               </article>
             </div>
             <p v-else>{{ championRecommendation?.cards.length ? '当前品质筛选下暂无推荐海克斯。' : championRecommendationMessage }}</p>
+            <section class="champion-build-detail" aria-live="polite">
+              <header><div><small>独立出装模块 · data.dtodo</small><h3>出装推荐</h3></div><span v-if="championRecommendation?.build">{{ championRecommendation.build.label }} · {{ championRecommendation.build.patch || '补丁未标注' }}</span></header>
+              <div v-if="championRecommendation?.build" class="build-groups">
+                <div><small>出门装</small><div v-if="championRecommendation.build.startingItems.length" class="build-items"><span v-for="item in championRecommendation.build.startingItems" :key="`browse-start-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+                <div><small>核心装</small><div v-if="championRecommendation.build.coreItems.length" class="build-items"><span v-for="item in championRecommendation.build.coreItems" :key="`browse-core-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+                <div><small>情境装备</small><div v-if="championRecommendation.build.situationalItems.length" class="build-items compact"><span v-for="item in championRecommendation.build.situationalItems" :key="`browse-situational-${item.id}`" :title="item.name"><img :src="item.iconUrl" :alt="item.name" /><b>{{ item.name }}</b></span></div><p v-else class="build-empty">暂无数据</p></div>
+              </div>
+              <p v-else>{{ championBuildMessage || (state.api.configured ? '暂无该英雄的出装数据。' : '出装仍需单独配置 data.dtodo API Key；不影响英雄与海克斯推荐。') }}</p>
+            </section>
           </aside>
-          <div class="ranking-list">
-            <article v-for="(item, index) in ranking" :key="item.id" :class="['tier-row', `tier-${item.tier || 0}`, { selected: selectedChampionId === item.id }]" :style="{ '--tier-level': String(item.tier || 0) }" role="button" tabindex="0" :aria-label="`查看 ${item.name} 的推荐海克斯`" @click="selectRankingChampion(item.id)" @keydown.enter.prevent="selectRankingChampion(item.id)" @keydown.space.prevent="selectRankingChampion(item.id)">
-              <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><div class="rank-name"><b>{{ item.name }}</b><small>{{ item.title || '海克斯大乱斗英雄' }}</small></div><div class="rank-tier"><small>{{ championStrengthLabel() }}</small><b>{{ championStrengthValue(item.tier) }}</b></div><div class="rank-wr"><small>{{ championWinRateLabel() }}</small><b>{{ winRate(item.winRate) }}</b></div><div class="rank-pick"><template v-if="state.recommendation.source === 'tencent101'"><small>英雄选取率</small><b>{{ championPickRate(item.championPickRate) }}</b></template></div>
-            </article>
+          <div class="ranking-groups">
+            <section v-for="group in rankingGroups" :key="group.key" class="ranking-group">
+              <header class="ranking-group-header"><div><span class="tier-badge" :class="`tier-badge-${group.key.toLowerCase()}`">{{ group.label }}</span><div><h2>{{ group.label }}</h2><small>{{ group.items.length }} 位英雄</small></div></div><span v-if="group.key === 'OP'" class="ranking-group-note">当前来源榜单中的优先候选</span></header>
+              <div class="ranking-list">
+                <article v-for="(item, index) in group.items" :key="item.id" :class="['tier-row', `tier-${group.key.toLowerCase()}`, { selected: selectedChampionId === item.id }]" role="button" tabindex="0" :aria-label="`查看 ${item.name} 的推荐海克斯与出装`" @click="selectRankingChampion(item.id)" @keydown.enter.prevent="selectRankingChampion(item.id)" @keydown.space.prevent="selectRankingChampion(item.id)">
+                  <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><div class="rank-name"><b>{{ item.name }}</b><small>{{ item.title || '海克斯大乱斗英雄' }}</small></div><div class="rank-tier"><small>{{ championStrengthLabel() }}</small><b>{{ championStrengthValue(item.tier) }}</b></div><div class="rank-wr"><small>{{ championWinRateLabel() }}</small><b>{{ winRate(item.winRate) }}</b></div><div class="rank-pick"><template v-if="state.recommendation.source === 'tencent101'"><small>英雄选取率</small><b>{{ championPickRate(item.championPickRate) }}</b></template></div>
+                </article>
+              </div>
+            </section>
+            <p v-if="!rankingGroups.length" class="ranking-empty">当前筛选条件下没有英雄。</p>
           </div>
         </section>
 

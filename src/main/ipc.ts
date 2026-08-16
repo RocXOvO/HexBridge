@@ -101,6 +101,13 @@ export function registerIpc(runtime: HexBridgeRuntime): void {
     }
     return runtime.getChampionRecommendation(championId)
   })
+  ipcMain.handle('hexbridge:get-champion-build', (event, championId) => {
+    requireSender(event, 'main')
+    if (!Number.isInteger(championId) || championId < 1 || championId > 10_000) {
+      return { ok: false, message: '英雄参数无效', build: null }
+    }
+    return runtime.getChampionBuild(championId)
+  })
   ipcMain.handle('hexbridge:apply-update', (event) => {
     requireSender(event, 'main')
     return runtime.applyUpdate()

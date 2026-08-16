@@ -93,7 +93,7 @@ describe('augment recommendations', () => {
       statisticsDate: '20260814',
       ranks: [
         { augmentId: 1, heroRecommendationRank: null, heroRecommendationTotal: null, heroTier: null, championPickRate: null, globalPickRate: .99, globalWinRate: .9, globalPickRank: 2, globalWinRank: 1, globalPickRankChange: 0, globalWinRankChange: 0, statsSource: 'tencent', statsRegion: 'CN' },
-        { augmentId: 2, heroRecommendationRank: 2, heroRecommendationTotal: 3, heroTier: null, championPickRate: null, globalPickRate: .01, globalWinRate: .1, globalPickRank: 80, globalWinRank: 80, globalPickRankChange: 0, globalWinRankChange: 0, statsSource: 'tencent', statsRegion: 'CN' },
+        { augmentId: 2, heroRecommendationRank: 2, heroRecommendationTotal: 3, heroRecommendationBasis: 'bestHeroes_pick_rank', heroTier: null, championPickRate: null, globalPickRate: .01, globalWinRate: .1, globalPickRank: 80, globalWinRank: 80, globalPickRankChange: 0, globalWinRankChange: 0, statsSource: 'tencent', statsRegion: 'CN' },
         { augmentId: 3, heroRecommendationRank: 1, heroRecommendationTotal: 3, heroTier: null, championPickRate: null, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, globalPickRankChange: null, globalWinRankChange: null, statsSource: null, statsRegion: null },
       ],
     }
@@ -106,6 +106,7 @@ describe('augment recommendations', () => {
       recommendationSource: 'tencent101',
       statisticsDate: '20260814',
     })
+    expect(result[1]?.reason).toBe('腾讯英雄适配榜·全局选取排名第 80')
     expect(result[0]).toMatchObject({ reason: '腾讯全局排名第 2', globalPickRate: .99, globalWinRate: .9, metricScope: 'global' })
   })
 

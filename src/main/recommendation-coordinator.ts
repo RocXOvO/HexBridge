@@ -113,7 +113,9 @@ export class RecommendationCoordinator {
       if (!augment) return []
       const reason = source === 'tencent101'
         ? rank.heroRecommendationRank != null
-          ? `腾讯英雄推荐第 ${rank.heroRecommendationRank}`
+            ? rank.heroRecommendationBasis === 'bestHeroes_pick_rank'
+            ? `腾讯英雄适配榜·全局选取排名第 ${rank.globalPickRank ?? rank.heroRecommendationRank}`
+            : `腾讯英雄推荐第 ${rank.heroRecommendationRank}`
           : rank.globalPickRank != null ? `腾讯全局排名第 ${rank.globalPickRank}` : '暂无可靠的推荐依据'
         : rank.heroRecommendationRank != null
           ? `该英雄适配度排名第 ${rank.heroRecommendationRank}`
