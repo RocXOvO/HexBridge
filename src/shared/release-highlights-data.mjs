@@ -257,4 +257,9 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '英雄榜重构为 OP、T1–T5 分组；点击英雄可并行查看当前来源的海克斯推荐与独立 data.dtodo 出装，腾讯推荐不可用时不会阻塞出装模块。',
   '来源、统计日期、英雄和对局序列继续严格隔离；旧缓存、迟到响应和无 data.dtodo Key 的腾讯模式均 fail closed。',
 ]),
+'0.1.63': Object.freeze([
+  '英雄榜改为头像卡片布局，胜率与选取率集中显示在头像下方，浏览更紧凑。',
+  '英雄详情独立成页，腾讯海克斯推荐横向展示，data.dtodo 出装作为独立模块呈现。',
+  '设置页将腾讯来源与 data.dtodo API Key 配置分开，点击 data.dtodo 后再进入 Key 配置页。',
+]),
 })

@@ -48,7 +48,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.62'")
+    expect(rendererState).toContain("currentVersion: '0.1.63'")
   })
 
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
@@ -117,9 +117,9 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps Wallpaper Engine target names and controls behind the Main-only bridge', () => {
-    expect(appSource).toContain('Wallpaper Engine 英雄桌面')
+    expect(appSource).toContain('Wallpaper Engine')
     expect(appSource).toContain('HexBridge-{id}')
-    expect(appSource).toContain('不会自动启动或关闭它')
+    expect(appSource).toContain('默认关闭；只发送受限切换命令。')
     expect(preloadSource).toContain("rendererRoute === 'main' ? {")
     expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-wallpaper-engine-preferences')")
     expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:save-wallpaper-engine-preferences', preferences)")
@@ -131,7 +131,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the raw Tier label visibly rendered instead of replacing it with a strength adjective', () => {
-    expect(appSource).toContain('class="rank-tier"')
+    expect(appSource).toContain('class="rank-stats"')
     expect(appSource).toContain("return state.value.recommendation.source === 'tencent101' ? '腾讯排名' : 'Tier'")
     expect(appSource).toContain('championStrengthValue(item.tier)')
     expect(appSource).not.toContain('强度顶尖')
@@ -163,7 +163,7 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('championPickRate(current.championPickRate)')
     expect(appSource).toContain('championPickRate(item.championPickRate)')
     expect(stylesSource).toContain('.rank-pick')
-    expect(stylesSource).toContain('grid-template-columns: 42px 48px minmax(170px,1fr) 72px 104px 104px')
+    expect(stylesSource).toContain('grid-template-columns: repeat(auto-fill, minmax(116px, 1fr))')
     expect(rendererDemoState).toContain('championPickRate: null')
   })
 
@@ -176,8 +176,10 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('@keydown.space.prevent="selectRankingChampion(item.id)"')
     expect(appSource).toContain("['all','白银','黄金','棱彩']")
     expect(appSource).toContain('championRecommendationRarity.value')
-    expect(appSource).toContain('globalRank(card.globalPickRank, card.globalPickRankChange)')
-    expect(appSource).toContain('腾讯 101 官网当前未文档化 Web 统计接口')
+    expect(appSource).toContain('class="champion-augment-card"')
+    expect(appSource).toContain("page === 'champion-detail'")
+    expect(appSource).toContain('returnToRanking')
+    expect(appSource).toContain('无需 Key · 腾讯官网统计')
     expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-champion-recommendation', championId)")
     expect(ipcSource).toContain("ipcMain.handle('hexbridge:get-champion-recommendation'")
     expect(ipcSource).toContain("requireSender(event, 'main')")
@@ -186,8 +188,10 @@ describe('main-window recommendation presentation', () => {
   it('presents Tencent 101 as the default without removing the explicit dtodo choice', () => {
     expect(rendererState).toContain("recommendationDataSource: 'tencent101'")
     expect(bridgeSmoke).toContain("recommendationDataSource: 'tencent101'")
-    expect(appSource).toContain('<b>腾讯英雄联盟数据站</b><small>默认来源，无需 dtodo Key')
-    expect(appSource).toContain('<b>data.dtodo</b><small>需要个人 API Key')
+    expect(appSource).toContain('<b>腾讯英雄联盟数据站</b><small>无需 Key · 腾讯官网统计')
+    expect(appSource).toContain('<b>data.dtodo</b><small>需要个人 API Key · 英雄、海克斯、出装')
+    expect(appSource).toContain("page === 'dtodo-settings'")
+    expect(appSource).toContain("@click=\"navigate('dtodo-settings')\"")
   })
 
   it('keeps the live assistant source badge limited to the provider name', () => {

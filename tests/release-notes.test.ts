@@ -299,6 +299,18 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.61...v0.1.62')
   })
 
+  it('renders the hero-card and dedicated detail page release for v0.1.63', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.63',
+      releases: [...releases, { tag_name: 'v0.1.62', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.62 的更新')
+    expect(body).toContain('英雄榜改为头像卡片布局')
+    expect(body).toContain('英雄详情独立成页')
+    expect(body).toContain('/compare/v0.1.62...v0.1.63')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

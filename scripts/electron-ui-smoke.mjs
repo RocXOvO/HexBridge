@@ -269,8 +269,18 @@ try {
       return true
     })()`)
     await waitUntil(
-      () => mainCdp.evaluate(`Boolean(document.querySelector('.key-row input'))`),
+      () => mainCdp.evaluate(`Boolean(document.querySelector('.dtodo-entry-card'))`),
       'the transitioned settings page',
+    )
+    await mainCdp.evaluate(`(() => {
+      const entry = document.querySelector('.dtodo-entry-card')
+      if (!entry) throw new Error('Missing data.dtodo settings entry')
+      entry.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      return true
+    })()`)
+    await waitUntil(
+      () => mainCdp.evaluate(`Boolean(document.querySelector('.key-row input'))`),
+      'the data.dtodo API Key page',
     )
     const keyResult = await mainCdp.evaluate(`(async () => {
       const input = document.querySelector('.key-row input')

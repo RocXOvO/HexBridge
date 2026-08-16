@@ -4,6 +4,8 @@
 
 ## 当前正式基线
 
+- 当前候选版本为 `v0.1.63`，公开正式版仍为 `v0.1.62`；本候选只包含英雄榜 / 英雄详情 / data.dtodo 配置页的界面重构，尚未 commit / push / tag / Release。通过完整门禁和 Windows workflow 后才更新正式基线。
+
 - 当前公开正式版为 `v0.1.62`：Tencent `bestHeroes` 英雄适配扩展、OP/T1–T5 英雄榜分组和独立英雄详情出装已随本版发布；真实 Tencent 接口和用户同机验收仍未完成。
 
 - v0.1.62 workflow `31933785471`（重跑成功）/ job `95133301137`、Release ID `RE_kwDOT1eQs84WIP5E`、tag commit `bae79a96ae6a1ad32a5dd84e1e61c4156d3341ed`；Windows `51` files / `640` passed、真实 4K OCR `209ms`、packaged UI / bridge、差分、双通道、public packaged 与滚动保留全过。artifact `9260203991` / `473560262` bytes。首次 run 仅因稳定通道 100s 传播超时失败，幂等重跑成功。
