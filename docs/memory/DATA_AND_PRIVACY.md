@@ -20,7 +20,7 @@
 
 ## Live Client 受限诊断（HB-079）
 
-- `activeplayer` 等级读取和三时间点诊断均固定为 Main-only `https://127.0.0.1:2999`；v0.1.60 候选仅在用户点击诊断按钮时额外读取一次 `allgamedata`，不进入后台轮询或推荐状态机。
+- `activeplayer` 等级读取和三时间点诊断均固定为 Main-only `https://127.0.0.1:2999`；v0.1.60 已在用户点击诊断按钮时额外读取一次 `allgamedata`，不进入后台轮询或推荐状态机。
 - 每个响应统一限制 2 MiB / 超时，摘要只保留有限字段路径、JSON 类型、布尔 / 枚举 / 数值；`activePlayer`、`allPlayers` 及姓名、RiotID、PUUID、装备、符文、原始响应均不进入 RuntimeState、日志、磁盘或 Renderer。
 - allgamedata 是否包含稳定的卡面状态仍待真实 Windows 三时间点实验；在得到跨回合一致证据前，等级 / 事件只能唤醒短期 cheap probe，OCR 仍是卡面最终确认。
 
