@@ -94,7 +94,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.58',
+      currentVersion: '0.1.59',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -278,7 +278,7 @@ export function createDemoApi(): HexBridgeApi {
       sample: {
         sessionId: 'demo-session',
         step,
-      clientVersion: '0.1.58',
+      clientVersion: '0.1.59',
         matchStage: 'selecting',
         matchGeneration: 1,
         currentChampionLevel: null,

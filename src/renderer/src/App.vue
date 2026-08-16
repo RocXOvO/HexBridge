@@ -189,7 +189,14 @@ watch(
   }),
   (next) => {
     if (!next.visible) {
-      overlayCardSignatures.clear()
+      // Keep the last reliable slot identities while the surface is in a
+      // bounded refresh/absence window.  Clearing them here makes the next
+      // frame look like a brand-new three-card surface, so all three tags
+      // receive the arrival animation even when only one card changed.
+      if (next.slots.length === 0) {
+        overlayCardSignatures.clear()
+        overlayCardAnimationBySlot.value = {}
+      }
       return
     }
     const animation = nextAugmentAnimationState(overlayCardSignatures, overlayCardAnimationCycle.value, next.slots)
@@ -969,7 +976,11 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                   </button>
                 </header>
                 <p :class="['manual-ocr-state', state.diagnostics.manualOcrStatus]">{{ state.diagnostics.manualOcrMessage }}</p>
-                <Transition name="augment-surface" mode="out-in">
+                <!-- The card surface itself must not use a group enter/leave
+                     transition.  Only the changed physical slot gets an
+                     animation; a short refresh state must not animate all
+                     three cards as one block. -->
+                <div class="augment-surface">
                   <div v-if="state.overlay.visible && state.overlay.slots.length" key="cards" class="augment-live-grid">
                     <article v-for="slot in state.overlay.slots" :key="`${slot.slot}-${slot.augmentId ?? 'unknown'}`" :class="augmentCardClass(slot)">
                         <span class="place">{{ slotLabel(slot.position, slot.tied) }}</span>
@@ -985,7 +996,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                   <div v-else key="waiting" class="augment-waiting">
                     <span>◇</span><div><b>等待三张海克斯</b><p>停在三卡界面后按 {{ state.settings.hotkey || '主窗口按钮' }}，识别完成后将在此排序。</p></div>
                   </div>
-                </Transition>
+                </div>
               </section>
             </Transition>
 

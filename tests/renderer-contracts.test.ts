@@ -35,10 +35,20 @@ describe('main-window recommendation presentation', () => {
       { slot: 'right', augmentId: 12 },
     ])
     expect(metadataOnly.changedBySlot).toEqual({})
+
+    // A transient hidden/refresh state keeps the last reliable signatures;
+    // when the surface returns, only the actually changed physical slot is
+    // animated instead of replaying all three cards.
+    const afterTransientHide = nextAugmentAnimationState(second.signatures, second.cycle, [
+      { slot: 'left', augmentId: 10 },
+      { slot: 'center', augmentId: 101 },
+      { slot: 'right', augmentId: 12 },
+    ])
+    expect(afterTransientHide.changedBySlot).toEqual({ center: 3 })
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.58'")
+    expect(rendererState).toContain("currentVersion: '0.1.59'")
   })
 
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
@@ -195,7 +205,9 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('`${slot.slot}-${slot.augmentId ?? \'unknown\'}`')
     expect(appSource).toContain('overlayCardAnimationBySlot.value[slot.slot] === overlayCardAnimationCycle.value')
     expect(appSource).toContain('nextAugmentAnimationState(overlayCardSignatures')
-    expect(appSource).toContain('name="augment-surface"')
+    expect(appSource).toContain('class="augment-surface"')
+    expect(appSource).not.toContain('name="augment-surface"')
+    expect(appSource).toContain('if (next.slots.length === 0)')
     expect(appSource).toContain('augment-card-refresh')
     expect(appSource).not.toContain('<TransitionGroup v-if="state.overlay.visible && state.overlay.slots.length"')
     expect(augmentOverlaySource).toContain('overlay-card-refresh')

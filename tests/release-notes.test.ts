@@ -250,6 +250,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.57...v0.1.58')
   })
 
+  it('renders the no-group-transition fix for v0.1.59', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.59',
+      releases: [...releases, { tag_name: 'v0.1.58', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.58 的更新')
+    expect(body).toContain('整组三卡进出场过渡')
+    expect(body).toContain('/compare/v0.1.58...v0.1.59')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

@@ -4,7 +4,7 @@
 
 ## 当前正式基线
 
-- 当前候选为 `v0.1.58`；公开正式版仍为 `v0.1.57`。候选尚未 commit / push / tag / Release；本候选用有界 1.8s absence lease 与幂等 compact sync 避免刷新空窗/重复重显，不能把本地全量门禁或审查写成 Windows、Release 或真实 WeGame 已验证。
+- 当前候选为 `v0.1.59`；公开正式版为 `v0.1.58`。本候选移除整组三卡外层过渡并保留短暂隐藏期间的槽位签名；Windows / WeGame 视觉与帧时间仍待验，不能把本地门禁或审查写成真实用户验证。
 - 当前正式版本为 `v0.1.57`，已完成 commit / push / tag / Release / 双通道 / packaged public check / 五版滚动保留；本版修复单卡刷新期间的 absence 空窗和高频探测。真实 WeGame 刷新动画仍未验，不能写成 `VERIFIED`。
 
 - 上一版 `v0.1.56` 的五资产、稳定通道、packaged public 与五版滚动保留均通过；它保留 v0.1.54 的脱敏 OCR 调度诊断、v0.1.55 的 packaged UI smoke 7 卡门禁，并修正 Release notes 只以公开 Release 作为稳定基线、累计无 Release 中间 tag 变更。v0.1.54 仅有 tag、未创建公开 Release；不得把自动化门禁写成真实 WeGame 性能已验证。

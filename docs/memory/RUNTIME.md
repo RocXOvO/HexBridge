@@ -33,6 +33,7 @@
 - 卡面变化后用 100ms 窗口确认新指纹；recognizing 期间的单次短暂 `not-detected` 不撤下可靠三卡，只有连续两次 absence、刷新、禁用、终局或 45s expiry 清除。失焦只 pause / hide，回前台 cheap probe，不重做 full OCR。
 - v0.1.57 已发布，把可靠 surface 的 absence 确认改为有界 700ms：前两次快速确认，第二次后等待剩余宽限再做第三次；error / pause 清除连续性计时，避免跨边界误撤和宽限期内高频截图。v0.1.58 候选把该租约延长至 1.8s，并让几何安全的手动 OCR 保留 96px 小窗、同一 compact DTO 幂等发送；真实 WeGame 刷新动画仍未验。
 - v0.1.58 候选在双帧指纹确认恰好一个槽变化时只做该槽增量 OCR；旧/确认指纹、旧三槽签名、source/date/context 与 1440px 新指纹均需一致，任何混合帧或迟到结果都拒绝并下一轮完整 OCR。未变化槽位继续保持 `slot + augmentId` 节点和动画状态。真实 WeGame / FPS 仍未验。
+- v0.1.59 候选移除推荐区整组三卡外层 `out-in` 过渡；短暂隐藏/恢复时保留可靠槽位签名，只有变化的 `slot + augmentId` 节点重播动画。真实 WeGame 单卡刷新和帧时间仍未验。
 - v0.1.56 已发布并延续 `ocrSchedule` 脱敏诊断：只暴露 `stopped / paused / waiting / recognizing / latched`、下一次延迟、cheap probe / full OCR 次数与最近 / 16 次滚动耗时峰值；换代、停止或旧 epoch 迟到时清零，不含截图、文本、坐标、进程标识或路径。同步保留 v0.1.55 packaged UI smoke 的 7 卡门禁，并修正跨无 Release 中间 tag 的累积发布说明。
 - 选人伴随窗绑定权威 LeagueClientUx PID / HWND，使用 Win32 / DWM bounds 跟随，并在移动后保持非激活的 topmost/floating 层级。LCU transport PID 与 Ux 窗口 authority 必须分离；日志 / lockfile 连接只在同安装根唯一 Ux、明确 Ux lockfile 名称或观测 Ux 名称 + PID 精确一致时补齐，不能回退任意同名窗口。PID / HWND / 路径不进日志、RuntimeState 或 Renderer；synthetic fake 不是真实 WeGame / DPI / 多屏证据。
 - 呈现诊断只允许有限枚举：窗口观察器 `stopped / starting / retrying / observing`，选人伴随窗与 96px 条只暴露资格、结果完整性、前台和显示决策。状态必须与实际 show / hide 共用输入并按转换去重；禁止 PID、HWND、路径、bounds、标题或截图进入 DTO / 日志。
