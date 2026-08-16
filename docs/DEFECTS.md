@@ -90,7 +90,7 @@
 | HB-076 | 选人伴随窗恢复后脱离客户端图层 | FIXED / UNVERIFIED（v0.1.42 已发布） |
 | HB-077 | 选人助手备战席出现不必要的横向滚动 | FIXED / UNVERIFIED（v0.1.44 已发布） |
 | HB-078 | 高置信度冗余包装器与未引用导出 | FIXED / UNVERIFIED（v0.1.45 已发布） |
-| HB-079 | 当前英雄等级与海克斯可选卡状态缺少受限探测 | IN PROGRESS / UNVERIFIED（v0.1.61 候选增加 Windows 个人全量采样） |
+| HB-079 | 当前英雄等级与海克斯可选卡状态缺少受限探测 | IN PROGRESS / UNVERIFIED（v0.1.61 已发布 Windows 个人全量采样） |
 | HB-080 | 单卡刷新时三张标签仍一起跳动 | FIXED / UNVERIFIED（v0.1.46 已发布） |
 | HB-081 | 96px 推荐条某槽位变化后持续重复播放动画 | FIXED / UNVERIFIED（v0.1.47 已发布） |
 | HB-082 | 手动刷新首轮识别不完整导致整组三卡退场重进 | FIXED / UNVERIFIED（v0.1.48 已发布） |
@@ -289,7 +289,7 @@
 - v0.1.60 已在显式三时间点采样中增加固定 `allgamedata` 读取；仍限制 2 MiB / 超时，只输出字段路径、JSON 类型、有限枚举/布尔/数值和 OCR surface，不输出原始响应、身份、路径或凭据。
 - 用户提供的三份真实摘要中，`activeplayer` 等级均为 3，`eventdata` 只有默认事件结构，`gamestats` 只变化游戏时间 / 金币等普通运行数据，尚未出现稳定的选卡字段；等级与事件仍只能作为唤醒信号，OCR 才是最终卡面确认。
 - v0.1.60 Windows workflow、全量测试、打包 UI / bridge、差分与公开通道门禁已通过；allgamedata 仍待用户 Windows 三时间点采样。fake requester / Runtime guard 与自动化门禁不等于真实国服字段验证，状态保持 UNVERIFIED。
-- v0.1.61 候选增加显式的 Windows 个人研究按钮：完整响应只写本机用户数据目录，IPC 只返回文件名 / 大小，且可在诊断页清除；它不上传、不进入日志或 RuntimeState。候选尚未发布，真实三时间点字段仍未验证。
+- v0.1.61 已发布显式的 Windows 个人研究按钮：完整响应只写本机用户数据目录，IPC 只返回文件名 / 大小，且可在诊断页清除；它不上传、不进入日志或 RuntimeState。真实三时间点字段仍未验证，不能把全量采样写成“可选卡状态已支持”。
 
 ### HB-080：单卡刷新动画隔离
 

@@ -4,16 +4,16 @@
 
 ## 当前正式基线
 
-- v0.1.61 当前仅为本地候选，尚未 commit / push / tag / Release；它新增 Windows 个人研究用的本机完整 `allgamedata` 采样，发布前仍需完整门禁和用户确认。
+- v0.1.61 已正式发布：新增 Windows 个人研究用的本机完整 `allgamedata` 采样；用户主动点击后写入本机私有目录，原文不进入 Renderer、IPC、日志、网络或 Release。真实 WeGame 字段仍待用户采样，不能写成 `VERIFIED`。
 
-- 当前公开正式版为 `v0.1.60`。v0.1.60 的 workflow `31922234089` / job `95104645401`、Release ID `RE_kwDOT1eQs84WIEMo` 和 v2/root channel 均已成功；本版加入显式一次性 `allgamedata` 脱敏探测。Windows / WeGame 的真实选卡字段仍待验，不能把本地门禁写成真实用户验证。
-- 当前正式版本为 `v0.1.60`，已完成 commit / push / tag / Release / 双通道 / packaged public check / 五版滚动保留；探测固定 `127.0.0.1:2999`，2 MiB / 超时 / Main-only，不做后台轮询，也不把等级或事件当作选卡状态。真实 WeGame 三时间点采样仍未验，不能写成 `VERIFIED`。
+- 当前公开正式版为 `v0.1.61`。workflow `31924005321` / 成功重跑 job `95109448523`、Release ID `RE_kwDOT1eQs84WIGEP` 和 v2/root channel 均已成功；完整 Windows 门禁、public packaged 与五版滚动保留通过。探测固定 `127.0.0.1:2999`，2 MiB / 超时 / Main-only，不做后台轮询，也不把等级或事件当作选卡状态。
+- v0.1.61 五资产：EXE `199297171` / `6fec3340dd7dce6ffd6ac060bd855dc9864c05e270b9a5c2074c7770b6b034bd`；blockmap `201302` / `365df8020e1f41870fc030c0e26b9cc67991765bab91140c63d5e74b70161f74`；ZIP `274468001` / `99c14912e20a31d7b915b2c6162d46e89611ebb5c43b2abb79cdabbe4daa3149`；latest.yml `346` / `9944304af1c9674f4a845eb4e0537ad13a3e82627fdf49307a4fb0d1db931f0f`；SHA256SUMS `182` / `b84142d2f7e193654698f5ffe1dba1e60c03e6f0788b380ca3b1d4e16f56ef2a`。artifact `9257432760` / `473553962` bytes。五版滚动保留为 v0.1.57～v0.1.61，本地 `release/` 为空。
 
 - 上一版 `v0.1.56` 的五资产、稳定通道、packaged public 与五版滚动保留均通过；它保留 v0.1.54 的脱敏 OCR 调度诊断、v0.1.55 的 packaged UI smoke 7 卡门禁，并修正 Release notes 只以公开 Release 作为稳定基线、累计无 Release 中间 tag 变更。v0.1.54 仅有 tag、未创建公开 Release；不得把自动化门禁写成真实 WeGame 性能已验证。
 
-- public Latest：[v0.1.60](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.60)，Release ID `RE_kwDOT1eQs84WIEMo`，publishedAt `2026-08-16T02:40:35Z`；tag 解引用 commit `86edf4fabb9fa031f096805623f4eef33119e296`。
+- 历史 v0.1.60：[Release](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.60)，Release ID `RE_kwDOT1eQs84WIEMo`，publishedAt `2026-08-16T02:40:35Z`；tag 解引用 commit `86edf4fabb9fa031f096805623f4eef33119e296`。
 - workflow `31922234089` / job `95104645401` 重跑成功；Windows 构建、全量测试、打包 UI / bridge、差分、public packaged 与滚动保留全过。artifact `9256857484` / `473550840` bytes（重跑产生的同名 artifact `9256765537` 也已存在）。
-- public v2 / root：version `0.1.60`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.56、v0.1.57、v0.1.58、v0.1.59、v0.1.60，本地 `release/` 为空。
+- 历史 v0.1.60 public v2 / root：两通道精确一致，packaged public 为 `updateAvailable=false`；随后已由 v0.1.61 接替公开基线。
 
 - 历史记录：v0.1.50 的真实 WeGame / installed updater 仍不是自动化证据。
 
