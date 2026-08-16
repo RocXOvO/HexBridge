@@ -237,6 +237,19 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.56...v0.1.57')
   })
 
+  it('renders incremental single-slot OCR for v0.1.58', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.58',
+      releases: [...releases, { tag_name: 'v0.1.57', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.57 的更新')
+    expect(body).toContain('单个物理卡位做增量 OCR')
+    expect(body).toContain('1.8 秒保留租约')
+    expect(body).toContain('不隐藏 96px 小窗')
+    expect(body).toContain('/compare/v0.1.57...v0.1.58')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

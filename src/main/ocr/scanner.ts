@@ -45,6 +45,14 @@ export interface AugmentScannerDependencies {
   captureDisplay?(display: Electron.Display, maximumWidth: number): Promise<Buffer>
 }
 
+export interface OcrScanOptions {
+  /**
+   * Incremental automatic OCR may target exactly one physically changed slot.
+   * Any missing/invalid option falls back to the complete three-slot path.
+   */
+  onlySlots?: readonly AugmentSlot[]
+}
+
 interface CapturedTitleCrops {
   ocr: Buffer[]
   probe: Buffer[]
@@ -179,6 +187,7 @@ export class AugmentScanner {
     manual = false,
     afterCapture?: () => void,
     interfaceAlreadyDetected = false,
+    options: OcrScanOptions = {},
   ): Promise<ScanResult> {
     if (this.busy) return { status: 'busy', slots: [], fingerprints: [], durationMs: 0, error: null }
     this.busy = true
@@ -188,6 +197,10 @@ export class AugmentScanner {
       const settings = this.getSettings()
       const display = this.resolveDisplay(settings.displayId)
       const rects = settings.calibration ?? DEFAULT_RECTS
+      const requestedSlots = options.onlySlots ?? SLOTS
+      const ocrSlots = requestedSlots.length === 1 && SLOTS.includes(requestedSlots[0] as AugmentSlot)
+        ? [requestedSlots[0] as AugmentSlot]
+        : SLOTS
 
       // Automatic polling only captures a small thumbnail first. A 4K OCR
       // frame is requested only after at least two title slots look active.
@@ -199,7 +212,7 @@ export class AugmentScanner {
         }
       }
 
-      const captured = await this.captureTitleCrops(display, OCR_CAPTURE_WIDTH, rects, true, afterCapture)
+      const captured = await this.captureTitleCrops(display, OCR_CAPTURE_WIDTH, rects, true, afterCapture, ocrSlots)
       const analyses = await Promise.all(captured.probe.map((crop) => this.analyzeInterfaceSignal(crop)))
 
       if (manual) await this.engine.initialize(true)
@@ -225,13 +238,13 @@ export class AugmentScanner {
       try {
         for (let index = 0; index < captured.ocr.length; index += 1) {
           const rawText = await this.engine.recognize(captured.ocr[index] as Buffer)
-          recognized.push(matchAugmentText(SLOTS[index] as AugmentSlot, rawText, augments, 0.9))
+          recognized.push(matchAugmentText(ocrSlots[index] as AugmentSlot, rawText, augments, 0.9))
         }
       } finally {
         this.recordFullOcrDuration(Date.now() - fullOcrStartedAt, performanceEpoch)
       }
 
-      const allReliable = recognized.length === 3 && recognized.every((slot) => slot.augmentId != null)
+      const allReliable = recognized.length === ocrSlots.length && recognized.every((slot) => slot.augmentId != null)
       const fingerprints = allReliable
         ? analyses.map((analysis) => analysis.fingerprint)
         : []
@@ -365,6 +378,7 @@ export class AugmentScanner {
     rects: CalibrationRects,
     prepareForOcr: boolean,
     afterCapture?: () => void,
+    ocrSlots: readonly AugmentSlot[] = SLOTS,
   ): Promise<CapturedTitleCrops> {
     if (this.dependencies.captureDisplay) {
       const screenshot = await this.dependencies.captureDisplay(display, maximumWidth)
@@ -372,7 +386,7 @@ export class AugmentScanner {
       const probe = await this.cropTitles(screenshot, rects, false)
       return {
         probe,
-        ocr: prepareForOcr ? await this.prepareTitleCrops(probe) : probe,
+        ocr: prepareForOcr ? await this.prepareTitleCrops(probe, ocrSlots) : probe,
       }
     }
     const physicalWidth = Math.max(1, Math.round(display.bounds.width * display.scaleFactor))
@@ -393,7 +407,7 @@ export class AugmentScanner {
     const probe = croppedImages.map((crop) => crop.toPNG())
     return {
       probe,
-      ocr: prepareForOcr ? await this.prepareTitleCrops(probe) : probe,
+      ocr: prepareForOcr ? await this.prepareTitleCrops(probe, ocrSlots) : probe,
     }
   }
 
@@ -416,8 +430,8 @@ export class AugmentScanner {
     }))
   }
 
-  private prepareTitleCrops(crops: Buffer[]): Promise<Buffer[]> {
-    return Promise.all(crops.map((crop) => sharp(crop)
+  private prepareTitleCrops(crops: Buffer[], slots: readonly AugmentSlot[] = SLOTS): Promise<Buffer[]> {
+    return Promise.all(slots.map((slot) => sharp(crops[SLOTS.indexOf(slot)] as Buffer)
       .resize({ height: 180, fit: 'inside', withoutEnlargement: false })
       .sharpen()
       .png()

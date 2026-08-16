@@ -15,7 +15,7 @@ vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 
 import { app, desktopCapturer, screen } from 'electron'
 import { logger } from '../src/main/logger.js'
-import { WindowManager } from '../src/main/window-manager.js'
+import { WindowManager, sameAugmentOverlayView } from '../src/main/window-manager.js'
 
 const state = {
   settings: {
@@ -44,6 +44,76 @@ function fakeWindow(options: { visible: boolean; focused: boolean }) {
 }
 
 describe('WindowManager shutdown lifecycle', () => {
+  it('keeps a visible augment window idempotent across identical syncs', () => {
+    const manager = new WindowManager({} as any, { platform: 'linux' })
+    const send = vi.fn()
+    let visible = false
+    const augment = {
+      ...fakeWindow({ visible: false, focused: false }),
+      isVisible: vi.fn(() => visible),
+      showInactive: vi.fn(() => { visible = true }),
+      hide: vi.fn(() => { visible = false }),
+      webContents: { isDestroyed: () => false, send },
+      setBounds: vi.fn(),
+      getBounds: vi.fn(() => ({ x: 0, y: 0, width: 960, height: 96 })),
+    }
+    ;(manager as any).windows.set('augment', augment)
+    vi.spyOn((manager as any).leagueWindows, 'setEnabled').mockImplementation(() => {})
+    vi.spyOn(manager as any, 'positionAugmentWindow').mockImplementation(() => {})
+    const visibleState = {
+      settings: { showChampionPanel: false, showInGameRecommendations: true, autoOcr: false, calibration: null },
+      snapshot: { phase: 'InProgress', matchStage: 'active', matchGeneration: 1, modeActive: true, currentChampionId: 103 },
+      overlay: { visible: true, slots: [{ slot: 'left', augmentId: 1 }, { slot: 'center', augmentId: 2 }, { slot: 'right', augmentId: 3 }], message: '推荐已更新' },
+    } as any
+
+    manager.sync(visibleState)
+    manager.sync(visibleState)
+    expect(send).toHaveBeenCalledOnce()
+    expect(augment.showInactive).toHaveBeenCalledOnce()
+    expect(augment.hide).not.toHaveBeenCalled()
+
+    manager.sync({ ...visibleState, overlay: { ...visibleState.overlay, message: '确认完成' } })
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(augment.showInactive).toHaveBeenCalledOnce()
+
+    manager.sync({ ...visibleState, overlay: { ...visibleState.overlay, visible: false } })
+    manager.sync({ ...visibleState, overlay: { ...visibleState.overlay, visible: false } })
+    expect(augment.hide).toHaveBeenCalledOnce()
+  })
+
+  it('recognizes a safely placed compact window as outside the OCR capture', () => {
+    const manager = new WindowManager({} as any)
+    const display = { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } }
+    vi.mocked(screen.getAllDisplays).mockReturnValue([display] as any)
+    vi.mocked(screen.getPrimaryDisplay).mockReturnValue(display as any)
+    const main = fakeWindow({ visible: true, focused: false })
+    const champion = fakeWindow({ visible: true, focused: false })
+    const augment = {
+      ...fakeWindow({ visible: true, focused: false }),
+      getBounds: vi.fn(() => ({ x: 438, y: 85, width: 1062, height: 96 })),
+    }
+    ;(manager as any).windows.set('main', main)
+    ;(manager as any).windows.set('champion', champion)
+    ;(manager as any).windows.set('augment', augment)
+    ;(manager as any).latestState = {
+      settings: { showInGameRecommendations: true, displayId: '', calibration: null },
+      snapshot: { matchStage: 'active' },
+      overlay: { visible: true, slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }] },
+    } as any
+
+    expect((manager as any).isAugmentOutsideCapture(augment)).toBe(true)
+  })
+
+  it('compares compact DTOs by rendered fields only', () => {
+    const view = {
+      slots: [{ slot: 'left', augmentId: 1, name: 'A', position: 1, tied: false, reason: 'r', pickRate: null, globalPickRate: null, globalWinRate: null, recommendationSource: 'dtodo', statisticsDate: '', metricScope: null }],
+      layout: [{ slot: 'left', left: 0, width: 1 }],
+      message: 'm',
+    } as any
+    expect(sameAugmentOverlayView(view, { ...view, slots: [...view.slots] })).toBe(true)
+    expect(sameAugmentOverlayView(view, { ...view, message: 'n' })).toBe(false)
+  })
+
   it('hides visible windows for a manual capture and restores without stealing focus', async () => {
     const manager = new WindowManager({} as any)
     const main = fakeWindow({ visible: true, focused: false })
@@ -396,7 +466,7 @@ describe('WindowManager shutdown lifecycle', () => {
       overlay: { visible: true, slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }] },
     })
     expect(manager.getPresentationDiagnostics().augmentCompanion).toBe('game-background')
-    expect(augment.hide).toHaveBeenCalled()
+    expect(augment.hide).not.toHaveBeenCalled()
 
     vi.mocked(leagueWindows.isGameForeground).mockReturnValue(true)
     manager.sync({

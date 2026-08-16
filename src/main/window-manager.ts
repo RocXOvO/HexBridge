@@ -9,7 +9,11 @@ import type {
   PresentationDiagnostics,
   RuntimeState,
 } from '../shared/contracts.js'
-import { calculateAugmentOverlayBounds, calculateAugmentOverlayColumns } from '../shared/augment-overlay-layout.js'
+import {
+  calculateAugmentOverlayBounds,
+  calculateAugmentOverlayColumns,
+  resolveAugmentCardRects,
+} from '../shared/augment-overlay-layout.js'
 import {
   classifyAugmentCompanion,
   classifyChampionCompanion,
@@ -25,6 +29,30 @@ import { shouldShowAugmentCompanion, shouldShowChampionCompanion } from './runti
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url))
 
 type ManagedWindow = 'main' | 'champion' | 'augment' | 'calibration'
+
+export function sameAugmentOverlayView(
+  left: AugmentOverlayViewState | null,
+  right: AugmentOverlayViewState,
+): boolean {
+  if (!left || left.message !== right.message || left.slots.length !== right.slots.length || left.layout.length !== right.layout.length) return false
+  const sameSlot = (a: AugmentOverlayViewState['slots'][number], b: AugmentOverlayViewState['slots'][number]): boolean =>
+    a.slot === b.slot &&
+    a.augmentId === b.augmentId &&
+    a.name === b.name &&
+    a.position === b.position &&
+    a.tied === b.tied &&
+    a.reason === b.reason &&
+    a.pickRate === b.pickRate &&
+    a.globalPickRate === b.globalPickRate &&
+    a.globalWinRate === b.globalWinRate &&
+    a.recommendationSource === b.recommendationSource &&
+    a.statisticsDate === b.statisticsDate &&
+    a.metricScope === b.metricScope
+  const sameLayout = (a: AugmentOverlayViewState['layout'][number], b: AugmentOverlayViewState['layout'][number]): boolean =>
+    a.slot === b.slot && a.left === b.left && a.width === b.width
+  return left.slots.every((slot, index) => sameSlot(slot, right.slots[index] as AugmentOverlayViewState['slots'][number])) &&
+    left.layout.every((layout, index) => sameLayout(layout, right.layout[index] as AugmentOverlayViewState['layout'][number]))
+}
 
 export function resolvePreloadPath(): string {
   return path.resolve(moduleDirectory, '../preload/index.cjs')
@@ -76,6 +104,8 @@ export class WindowManager {
   private championDismissedGeneration: number | null = null
   private leagueClientProcessId: number | null = null
   private presentationDiagnostics: PresentationDiagnostics = { ...DEFAULT_PRESENTATION_DIAGNOSTICS }
+  private augmentViewWindow: BrowserWindow | null = null
+  private lastAugmentView: AugmentOverlayViewState | null = null
   private readonly leagueWindows = new LeagueWindowObserver(() => this.notifyActivityChanged())
   private lobbyBackgroundPresentation: LobbyBackgroundPresentation = {
     livePageVisible: false,
@@ -200,7 +230,7 @@ export class WindowManager {
     augment.setAlwaysOnTop(true, 'floating')
     augment.setIgnoreMouseEvents(true)
     augment.webContents.on('did-finish-load', () => {
-      if (this.latestState) this.sendAugmentView(augment, this.latestState)
+      if (this.latestState) this.sendAugmentView(augment, this.latestState, true)
     })
   }
 
@@ -304,9 +334,9 @@ export class WindowManager {
     if (shouldShowAugment && augment) {
       this.positionAugmentWindow(augment, state)
       this.sendAugmentView(augment, state)
-      augment.showInactive()
-    } else {
-      augment?.hide()
+      if (!augment.isVisible()) augment.showInactive()
+    } else if (augment?.isVisible()) {
+      augment.hide()
     }
 
     const nextPresentation: PresentationDiagnostics = {
@@ -364,6 +394,8 @@ export class WindowManager {
         minimized: Boolean(window?.isMinimized()),
       }
     })
+    const augment = original.find((entry) => entry.name === 'augment')
+    const keepAugmentVisible = Boolean(augment?.visible && augment.window && this.isAugmentOutsideCapture(augment.window))
     this.captureTransactionInFlight = true
     this.captureWindowsHidden = true
     this.lobbyBackground.stop()
@@ -376,6 +408,7 @@ export class WindowManager {
         for (const entry of original) {
           const window = this.getLiveWindow(entry.name)
           if (!entry.visible || entry.minimized || !window) continue
+          if (entry.name === 'augment' && keepAugmentVisible) continue
           window.showInactive()
         }
         this.notifyActivityChanged()
@@ -383,6 +416,7 @@ export class WindowManager {
     }
     try {
       for (const entry of original) {
+        if (entry.name === 'augment' && keepAugmentVisible) continue
         if (entry.visible && !entry.window?.isDestroyed()) entry.window?.hide()
       }
       this.notifyActivityChanged()
@@ -450,7 +484,60 @@ export class WindowManager {
     }
   }
 
-  private sendAugmentView(window: BrowserWindow, state: RuntimeState): void {
+  private isAugmentOutsideCapture(window: BrowserWindow): boolean {
+    const state = this.latestState
+    if (
+      !state ||
+      !state.settings.showInGameRecommendations ||
+      state.snapshot.matchStage !== 'active' ||
+      !state.overlay.visible ||
+      state.overlay.slots.length !== 3 ||
+      state.overlay.slots.some((slot) => slot.augmentId == null) ||
+      typeof window.isVisible !== 'function' ||
+      !window.isVisible() ||
+      typeof window.getBounds !== 'function'
+    ) return false
+    try {
+      const displays = screen.getAllDisplays()
+      const display = displays.find((candidate) => String(candidate.id) === state.settings.displayId) ??
+        screen.getPrimaryDisplay()
+      const bounds = display?.bounds
+      const overlay = window.getBounds()
+      if (!bounds || !overlay) return false
+      const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+      if (![bounds.x, bounds.y, bounds.width, bounds.height, overlay.x, overlay.y, overlay.width, overlay.height].every(finite)) return false
+      if (bounds.width <= 0 || bounds.height <= 0 || overlay.width <= 0 || overlay.height <= 0) return false
+      const rects = resolveAugmentCardRects(state.settings.calibration)
+      const cardLeft = Math.min(rects.left.x, rects.center.x, rects.right.x)
+      const cardTop = Math.min(rects.left.y, rects.center.y, rects.right.y)
+      const cardRight = Math.max(
+        rects.left.x + rects.left.width,
+        rects.center.x + rects.center.width,
+        rects.right.x + rects.right.width,
+      )
+      const cardBottom = Math.max(
+        rects.left.y + rects.left.height,
+        rects.center.y + rects.center.height,
+        rects.right.y + rects.right.height,
+      )
+      const card = {
+        x: bounds.x + cardLeft * bounds.width,
+        y: bounds.y + cardTop * bounds.height,
+        width: (cardRight - cardLeft) * bounds.width,
+        height: (cardBottom - cardTop) * bounds.height,
+      }
+      return !(
+        overlay.x < card.x + card.width &&
+        overlay.x + overlay.width > card.x &&
+        overlay.y < card.y + card.height &&
+        overlay.y + overlay.height > card.y
+      )
+    } catch {
+      return false
+    }
+  }
+
+  private sendAugmentView(window: BrowserWindow, state: RuntimeState, force = false): void {
     if (window.isDestroyed() || window.webContents.isDestroyed()) return
     const view: AugmentOverlayViewState = {
       slots: state.overlay.slots.map(({ slot, augmentId, name, position, tied, reason, pickRate, globalPickRate, globalWinRate, recommendationSource, statisticsDate, metricScope }) => ({
@@ -470,7 +557,13 @@ export class WindowManager {
       layout: calculateAugmentOverlayColumns(state.settings.calibration),
       message: state.overlay.message,
     }
+    if (this.augmentViewWindow !== window) {
+      this.augmentViewWindow = window
+      this.lastAugmentView = null
+    }
+    if (!force && sameAugmentOverlayView(this.lastAugmentView, view)) return
     window.webContents.send('hexbridge:augment-overlay', view)
+    this.lastAugmentView = view
   }
 
   async startCalibration(): Promise<void> {

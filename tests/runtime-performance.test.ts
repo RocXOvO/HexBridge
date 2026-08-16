@@ -15,7 +15,7 @@ vi.mock('../src/main/logger.js', () => ({
 
 vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 
-import { HexBridgeRuntime, reuseUnchangedAugmentSlots } from '../src/main/runtime.js'
+import { HexBridgeRuntime, mergeIncrementalOcrSlots, reuseUnchangedAugmentSlots } from '../src/main/runtime.js'
 import { AugmentRoundTracker } from '../src/main/augment-round.js'
 
 const activeSnapshot = {
@@ -60,6 +60,176 @@ afterEach(() => {
 })
 
 describe('runtime performance scheduling', () => {
+  it('merges a guarded single-slot OCR result without replacing unchanged slots', () => {
+    const previous = [
+      { slot: 'left', rawText: '左', augmentId: 1, name: '左', confidence: 1 },
+      { slot: 'center', rawText: '中', augmentId: 2, name: '中', confidence: 1 },
+      { slot: 'right', rawText: '右', augmentId: 3, name: '右', confidence: 1 },
+    ] as any
+    const update = [{ slot: 'center', rawText: '新中', augmentId: 9, name: '新中', confidence: 1 }] as any
+
+    const merged = mergeIncrementalOcrSlots(previous, update, ['center'])
+
+    expect(merged).toHaveLength(3)
+    expect(merged?.[0]).toMatchObject({ slot: 'left', augmentId: 1 })
+    expect(merged?.[1]).toMatchObject({ slot: 'center', augmentId: 9 })
+    expect(merged?.[2]).toMatchObject({ slot: 'right', augmentId: 3 })
+    expect(merged?.[0]).not.toBe(previous[0])
+    expect(mergeIncrementalOcrSlots(previous, update, ['left'])).toBeNull()
+    expect(mergeIncrementalOcrSlots(previous, [{ ...update[0], augmentId: null }], ['center'])).toBeNull()
+  })
+
+  it('passes a single changed slot through runtime and preserves the other physical cards', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    runtime.config = { getSettings: () => ({ recommendationDataSource: 'dtodo', autoOcr: true }) }
+    const augments = [1, 2, 3, 9].map((id) => ({
+      id,
+      name: `海克斯${id}`,
+      iconUrl: `https://example.test/${id}.png`,
+      rarity: 1,
+      rarityName: '白银',
+      description: '',
+      globalTier: id,
+    }))
+    const card = (slot: 'left' | 'center' | 'right', augmentId: number) => ({
+      slot,
+      rawText: `海克斯${augmentId}`,
+      augmentId,
+      name: `海克斯${augmentId}`,
+      confidence: 1,
+      position: augmentId,
+      tied: false,
+      reason: '暂无可靠的推荐依据',
+      iconUrl: `https://example.test/${augmentId}.png`,
+      rarityName: '白银',
+      pickRate: null,
+      globalPickRate: null,
+      globalWinRate: null,
+      globalPickRank: null,
+      globalWinRank: null,
+      recommendationSource: 'dtodo',
+      statisticsDate: '',
+      metricScope: null,
+      statsSource: null,
+      statsRegion: null,
+    })
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [card('left', 1), card('center', 2), card('right', 3)],
+      detectedAt: 1,
+      message: '推荐已更新',
+    }
+    runtime.automaticScanContextKey = 'ctx'
+    runtime.selectedRecommendationSource = () => 'dtodo'
+    runtime.getRecommendationState = () => ({
+      source: 'dtodo', status: 'ready', snapshotId: 'v1', dataVersion: 'v1', statisticsDate: '', stale: false, lastError: null,
+    })
+    runtime.getRecommendationAugments = () => augments
+    runtime.scanContextKey = () => 'ctx'
+    runtime.currentRecommendationDetail = () => null
+    runtime.getAugmentRound = () => ({ observe: () => ({ commitMatched: true, clearPrevious: false }) })
+    runtime.setOcrScheduleOutcome = vi.fn()
+    runtime.setManualOverlayMonitorDeadline = vi.fn()
+    runtime.sync = vi.fn()
+    runtime.lcu = { confirmGameActive: vi.fn() }
+    runtime.scanner = {
+      scan: vi.fn(async (...args: unknown[]) => {
+        expect(args[4]).toEqual({ onlySlots: ['center'] })
+        return {
+          status: 'matched',
+          slots: [{ slot: 'center', rawText: '海克斯9', augmentId: 9, name: '海克斯9', confidence: 1 }],
+          fingerprints: ['aaaa', 'ffff', 'cccc'],
+          durationMs: 10,
+          error: null,
+        }
+      }),
+    }
+
+    await expect(runtime.runScan(false, undefined, true, {
+      slots: ['center'],
+      previousFingerprints: ['aaaa', 'bbbb', 'cccc'],
+      confirmedFingerprints: ['aaaa', 'ffff', 'cccc'],
+      contextKey: 'ctx',
+      previousOverlay: [
+        { slot: 'left', augmentId: 1 },
+        { slot: 'center', augmentId: 2 },
+        { slot: 'right', augmentId: 3 },
+      ],
+    })).resolves.toMatchObject({ ok: true, code: 'MATCHED' })
+    expect(runtime.scanner.scan).toHaveBeenCalledOnce()
+    expect(runtime.overlay.slots[0]).toMatchObject({ slot: 'left', augmentId: 1 })
+    expect(runtime.overlay.slots[1]).toMatchObject({ slot: 'center', augmentId: 9 })
+    expect(runtime.overlay.slots[2]).toMatchObject({ slot: 'right', augmentId: 3 })
+  })
+
+  it('rejects a mixed-frame incremental result and lets the next scan use all slots', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    runtime.config = { getSettings: () => ({ recommendationDataSource: 'dtodo', autoOcr: true }) }
+    const augments = [1, 2, 3, 9].map((id) => ({
+      id, name: `海克斯${id}`, iconUrl: `https://example.test/${id}.png`, rarity: 1,
+      rarityName: '白银', description: '', globalTier: id,
+    }))
+    const slot = (name: 'left' | 'center' | 'right', augmentId: number) => ({
+      slot: name, rawText: `海克斯${augmentId}`, augmentId, name: `海克斯${augmentId}`, confidence: 1,
+      position: augmentId, tied: false, reason: '暂无可靠的推荐依据',
+      iconUrl: `https://example.test/${augmentId}.png`, rarityName: '白银',
+      pickRate: null, globalPickRate: null, globalWinRate: null,
+      globalPickRank: null, globalWinRank: null, recommendationSource: 'dtodo',
+      statisticsDate: '', metricScope: null, statsSource: null, statsRegion: null,
+    })
+    runtime.overlay = {
+      visible: true, championId: 103, slots: [slot('left', 1), slot('center', 2), slot('right', 3)],
+      detectedAt: 1, message: '推荐已更新',
+    }
+    runtime.automaticScanContextKey = 'ctx'
+    runtime.selectedRecommendationSource = () => 'dtodo'
+    runtime.getRecommendationState = () => ({
+      source: 'dtodo', status: 'ready', snapshotId: 'v1', dataVersion: 'v1', statisticsDate: '', stale: false, lastError: null,
+    })
+    runtime.getRecommendationAugments = () => augments
+    runtime.scanContextKey = () => 'ctx'
+    runtime.currentRecommendationDetail = () => null
+    runtime.getAugmentRound = () => ({ observe: () => ({ commitMatched: true, clearPrevious: false }) })
+    runtime.setOcrScheduleOutcome = vi.fn()
+    runtime.setManualOverlayMonitorDeadline = vi.fn()
+    runtime.sync = vi.fn()
+    runtime.lcu = { confirmGameActive: vi.fn() }
+    const request = {
+      slots: ['center'], previousFingerprints: ['aaaa', 'bbbb', 'cccc'],
+      confirmedFingerprints: ['aaaa', 'ffff', 'cccc'], contextKey: 'ctx',
+      previousOverlay: [
+        { slot: 'left', augmentId: 1 }, { slot: 'center', augmentId: 2 }, { slot: 'right', augmentId: 3 },
+      ],
+    }
+    const scan = vi.fn()
+      .mockResolvedValueOnce({
+        status: 'matched',
+        slots: [{ slot: 'center', rawText: '海克斯9', augmentId: 9, name: '海克斯9', confidence: 1 }],
+        fingerprints: ['aaaa', 'ffff', 'gggg'], durationMs: 10, error: null,
+      })
+      .mockResolvedValueOnce({
+        status: 'matched',
+        slots: [
+          { slot: 'left', rawText: '海克斯1', augmentId: 1, name: '海克斯1', confidence: 1 },
+          { slot: 'center', rawText: '海克斯9', augmentId: 9, name: '海克斯9', confidence: 1 },
+          { slot: 'right', rawText: '海克斯3', augmentId: 3, name: '海克斯3', confidence: 1 },
+        ],
+        fingerprints: ['aaaa', 'ffff', 'gggg'], durationMs: 10, error: null,
+      })
+    runtime.scanner = { scan }
+
+    await expect(runtime.runScan(false, undefined, true, request)).resolves.toMatchObject({ ok: false, code: 'UNRELIABLE' })
+    expect(runtime.overlay.slots[1]).toMatchObject({ augmentId: 2 })
+    await expect(runtime.runScan(false, undefined, true, null)).resolves.toMatchObject({ ok: true, code: 'MATCHED' })
+    expect(scan).toHaveBeenCalledTimes(2)
+    expect(scan.mock.calls[0]?.[4]).toEqual({ onlySlots: ['center'] })
+    expect(scan.mock.calls[1]?.[4]).toBeUndefined()
+    expect(runtime.overlay.slots[1]).toMatchObject({ augmentId: 9 })
+  })
+
   it('reuses unchanged card objects while replacing only changed slots', () => {
     const slot = (name: string, augmentId: number) => ({
       slot: name,
@@ -288,12 +458,12 @@ describe('runtime performance scheduling', () => {
     }
     await vi.advanceTimersByTimeAsync(700)
     await vi.advanceTimersByTimeAsync(700)
-    await vi.advanceTimersByTimeAsync(700)
+    await vi.advanceTimersByTimeAsync(1_700)
     await vi.advanceTimersByTimeAsync(2_000)
-    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(6)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(5)
     expect(runtime.runScan).toHaveBeenCalledOnce()
     expect(runtime.overlay.visible).toBe(false)
-    expect(runtime.runScan).toHaveBeenCalledWith(false, undefined, true)
+    expect(runtime.runScan).toHaveBeenCalledWith(false, undefined, true, null)
     runtime.stopScanLoop()
   })
 
@@ -334,6 +504,50 @@ describe('runtime performance scheduling', () => {
       slots: [{ augmentId: 10 }, { augmentId: 11 }, { augmentId: 12 }],
       message: '检测到卡牌刷新，正在识别新一轮',
     })
+    runtime.stopScanLoop()
+  })
+
+  it('passes the confirmed single-slot request first, then falls back to full OCR after failure', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = { getMainActivity: () => ({ visible: true, focused: true, minimized: false }), isLeagueGameForeground: () => true }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [
+        { slot: 'left', augmentId: 10, recommendationSource: 'dtodo', statisticsDate: '' },
+        { slot: 'center', augmentId: 11, recommendationSource: 'dtodo', statisticsDate: '' },
+        { slot: 'right', augmentId: 12, recommendationSource: 'dtodo', statisticsDate: '' },
+      ],
+      detectedAt: 1,
+      message: '上一轮推荐',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.scanner = {
+      probeInterface: vi.fn()
+        .mockResolvedValue({ status: 'detected', durationMs: 10, fingerprints: ['aaaa', 'ffff', 'cccc'] }),
+    }
+    runtime.runScan = vi.fn(async () => ({ ok: false, code: 'UNRELIABLE', message: 'fixture' }))
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(700 + 100)
+
+    expect(runtime.runScan).toHaveBeenCalledTimes(1)
+    expect(runtime.runScan.mock.calls[0]?.[3]).toMatchObject({
+      slots: ['center'],
+      previousFingerprints: ['aaaa', 'bbbb', 'cccc'],
+      confirmedFingerprints: ['aaaa', 'ffff', 'cccc'],
+      contextKey: '1:103',
+    })
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(runtime.runScan).toHaveBeenCalledTimes(2)
+    expect(runtime.runScan.mock.calls[1]?.[3]).toBeNull()
     runtime.stopScanLoop()
   })
 
@@ -416,7 +630,7 @@ describe('runtime performance scheduling', () => {
     expect(runtime.automaticScanAbsences).toBe(2)
     expect(runtime.automaticScanAbsenceStartedAt).not.toBeNull()
 
-    await vi.advanceTimersByTimeAsync(600)
+    await vi.advanceTimersByTimeAsync(1_700)
 
     expect(runtime.overlay.visible).toBe(false)
     expect(runtime.overlay.slots).toHaveLength(3)
@@ -549,13 +763,49 @@ describe('runtime performance scheduling', () => {
     expect(runtime.overlay.visible).toBe(true)
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
 
-    await vi.advanceTimersByTimeAsync(600)
+    await vi.advanceTimersByTimeAsync(1_700)
     expect(runtime.overlay.visible).toBe(true)
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(3)
     expect(runtime.runScan).toHaveBeenCalledOnce()
     expect(runtime.overlay.slots[0]).toBe(left)
     expect(runtime.overlay.slots[1]).toMatchObject({ augmentId: 99 })
     expect(runtime.overlay.slots[2]).toBe(right)
+    runtime.stopScanLoop()
+  })
+
+  it('does not hide a reliable surface during a long title-only refresh gap', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: true, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 10 }, { augmentId: 11 }, { augmentId: 12 }],
+      detectedAt: 1,
+      message: '上一轮推荐',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'recognizing'
+    runtime.scanner = { probeInterface: vi.fn(async () => ({ status: 'not-detected', durationMs: 10 })) }
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_000 + 100)
+    expect(runtime.automaticScanAbsences).toBe(2)
+    expect(runtime.overlay.visible).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(1_699)
+    expect(runtime.overlay.visible).toBe(true)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(3)
     runtime.stopScanLoop()
   })
 
@@ -1176,7 +1426,7 @@ describe('runtime performance scheduling', () => {
 
     runtime.updateSettings({ autoOcr: false })
     expect(runtime.manualOverlayMonitorDeadlineAt).toBe(Date.now() + 45_000)
-    await vi.advanceTimersByTimeAsync(1_700)
+    await vi.advanceTimersByTimeAsync(2_800)
 
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(3)
     expect(runtime.runScan).not.toHaveBeenCalled()
@@ -1222,7 +1472,7 @@ describe('runtime performance scheduling', () => {
     runtime.runScan = vi.fn()
 
     runtime.updateScanLoop()
-    await vi.advanceTimersByTimeAsync(1_700)
+    await vi.advanceTimersByTimeAsync(2_800)
 
     expect(runtime.scanner.probeInterface).toHaveBeenCalledTimes(3)
     expect(runtime.runScan).not.toHaveBeenCalled()

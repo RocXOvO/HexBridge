@@ -3,6 +3,7 @@ import path from 'node:path'
 import type {
   AppSettings,
   AugmentOverlayState,
+  AugmentSlot,
   ChampionAugmentData,
   ChampionRecommendationResult,
   ChampSelectSnapshot,
@@ -18,6 +19,7 @@ import type {
   LiveClientDiagnosticStep,
   LiveClientDiagnosticSampleResult,
   OcrScheduleOutcome,
+  OcrSlotResult,
   WallpaperEnginePreferences,
   WallpaperEngineState,
 } from '../shared/contracts.js'
@@ -48,6 +50,7 @@ import {
   isMatchContextOcrEligible,
   isCurrentChampionRequest,
   fingerprintDistance,
+  fingerprintChangedSlots,
   sameLcuState,
   sameSnapshot,
   shouldRunOcr,
@@ -118,6 +121,14 @@ interface ScanActionResult {
   message: string
 }
 
+interface IncrementalOcrRequest {
+  slots: readonly AugmentSlot[]
+  previousFingerprints: readonly string[]
+  confirmedFingerprints: readonly string[]
+  contextKey: string
+  previousOverlay: readonly { slot: AugmentSlot; augmentId: number | null }[]
+}
+
 const AUTO_OCR_WAIT_MS = 2_000
 const AUTO_OCR_VISIBLE_MS = 700
 // Stable cards are sampled slowly. Once a fingerprint changes, use a short
@@ -128,7 +139,11 @@ const AUTO_OCR_CHANGE_CONFIRM_MS = 100
 // the last reliable three-card surface mounted during that bounded interval;
 // otherwise the whole compact window leaves and re-enters, making unchanged
 // tags animate together with the card that actually changed.
-const AUTO_OCR_SURFACE_ABSENCE_GRACE_MS = 700
+// A title ROI can be blank for longer than one animation frame while the
+// card artwork is replaced. Keep the last reliable surface mounted for a
+// bounded 1.8s lease; the probe schedule still caps confirmation at three
+// screenshots, so this is not a high-frequency polling loop.
+const AUTO_OCR_SURFACE_ABSENCE_GRACE_MS = 1_800
 const AUTO_OCR_UNRELIABLE_RETRY_LIMIT = 4
 const MANUAL_OVERLAY_FIRST_PROBE_MS = 500
 const MANUAL_OVERLAY_PROBE_MS = 1_000
@@ -175,6 +190,62 @@ export function reuseUnchangedAugmentSlots(
   })
 }
 
+/**
+ * Merge one guarded incremental OCR result into the last reliable three-card
+ * surface. Reject every shape that could create a mixed-generation result.
+ */
+export function mergeIncrementalOcrSlots(
+  previous: RankedAugmentSlot[],
+  update: OcrSlotResult[],
+  expectedSlots: readonly AugmentSlot[],
+): OcrSlotResult[] | null {
+  if (
+    previous.length !== 3 ||
+    update.length !== 1 ||
+    expectedSlots.length !== 1 ||
+    previous.some((slot) => slot.augmentId == null) ||
+    new Set(previous.map((slot) => slot.slot)).size !== 3
+  ) return null
+  const expected = expectedSlots[0]
+  const changed = update[0]
+  if (!expected || !changed || changed.slot !== expected || changed.augmentId == null) return null
+  const previousBySlot = new Map(previous.map((slot) => [slot.slot, slot]))
+  if (!previousBySlot.has(expected)) return null
+  return previous.map((slot) => slot.slot === expected ? changed : {
+    slot: slot.slot,
+    rawText: slot.rawText,
+    augmentId: slot.augmentId,
+    name: slot.name,
+    confidence: slot.confidence,
+  })
+}
+
+function sameIncrementalOverlayBaseline(
+  overlay: Pick<AugmentOverlayState, 'visible' | 'slots'>,
+  expected: readonly { slot: AugmentSlot; augmentId: number | null }[],
+): boolean {
+  return overlay.visible && overlay.slots.length === 3 && expected.length === 3 &&
+    overlay.slots.every((slot, index) =>
+      slot.slot === expected[index]?.slot && slot.augmentId === expected[index]?.augmentId,
+    )
+}
+
+function incrementalFingerprintsStillMatch(
+  request: IncrementalOcrRequest,
+  fingerprints: readonly string[],
+): boolean {
+  if (
+    request.slots.length !== 1 ||
+    request.previousFingerprints.length !== 3 ||
+    request.confirmedFingerprints.length !== 3 ||
+    fingerprints.length !== 3 ||
+    fingerprints.some((value) => !value)
+  ) return false
+  if (fingerprintDistance([...fingerprints], [...request.confirmedFingerprints]) >= 0.08) return false
+  const changed = fingerprintChangedSlots([...request.previousFingerprints], [...fingerprints])
+  return changed?.length === 1 && changed[0] === request.slots[0]
+}
+
 export class HexBridgeRuntime {
   private readonly config = new ConfigStore(app.getVersion())
   private readonly data: DataService
@@ -209,6 +280,7 @@ export class HexBridgeRuntime {
   private automaticFingerprint: string[] | null = null
   private automaticFingerprintCandidate: string[] | null = null
   private automaticFingerprintSamples = 0
+  private automaticPendingChangedSlots: IncrementalOcrRequest | null = null
   private automaticScanEpoch = 0
   private automaticScanContextKey: string | null = null
   private automaticScanInFlightEpoch: number | null = null
@@ -1495,6 +1567,7 @@ export class HexBridgeRuntime {
         // confirmation window instead of inheriting stale misses.
         this.automaticScanAbsences = 0
         this.automaticScanAbsenceStartedAt = null
+        this.automaticPendingChangedSlots = null
         this.automaticScanErrors = Math.min(3, this.automaticScanErrors + 1)
         nextDelay = automaticOcrErrorDelay(this.automaticScanErrors - 1)
         if (this.overlay.visible && this.automaticScanErrors >= 2) {
@@ -1507,6 +1580,7 @@ export class HexBridgeRuntime {
           this.automaticFingerprint = null
           this.automaticFingerprintCandidate = null
           this.automaticFingerprintSamples = 0
+          this.automaticPendingChangedSlots = null
           this.overlay = {
             ...this.overlay,
             visible: false,
@@ -1551,6 +1625,7 @@ export class HexBridgeRuntime {
           this.automaticFingerprint = null
           this.automaticFingerprintCandidate = null
           this.automaticFingerprintSamples = 0
+          this.automaticPendingChangedSlots = null
           nextDelay = AUTO_OCR_WAIT_MS
           if (this.overlay.visible && this.overlay.slots.length) {
             this.setManualOverlayMonitorDeadline(null)
@@ -1589,6 +1664,27 @@ export class HexBridgeRuntime {
             }
             nextDelay = AUTO_OCR_CHANGE_CONFIRM_MS
             if (this.automaticFingerprintSamples >= 2) {
+              const previousFingerprints = [...this.automaticFingerprint]
+              const changedSlots = fingerprintChangedSlots(previousFingerprints, fingerprints)
+              const contextKey = this.automaticScanContextKey
+              const previousOverlay = this.overlay.slots.map((slot) => ({
+                slot: slot.slot,
+                augmentId: slot.augmentId,
+              }))
+              const canIncremental = automaticRecognitionEnabled &&
+                this.overlay.visible &&
+                this.overlay.slots.length === 3 &&
+                contextKey != null &&
+                changedSlots?.length === 1
+              this.automaticPendingChangedSlots = canIncremental
+                ? {
+                    slots: [...(changedSlots as AugmentSlot[])],
+                    previousFingerprints,
+                    confirmedFingerprints: [...fingerprints],
+                    contextKey,
+                    previousOverlay,
+                  }
+                : null
               this.automaticScanPhase = 'recognizing'
               this.automaticFullAttempts = 0
               this.automaticFingerprint = [...fingerprints]
@@ -1619,10 +1715,13 @@ export class HexBridgeRuntime {
           } else {
             this.automaticFingerprintCandidate = null
             this.automaticFingerprintSamples = 0
+            this.automaticPendingChangedSlots = null
           }
         }
         if (this.automaticScanPhase !== 'latched' && automaticRecognitionEnabled) {
-          const result = await this.runScan(false, undefined, true)
+          const incrementalRequest = this.automaticPendingChangedSlots
+          this.automaticPendingChangedSlots = null
+          const result = await this.runScan(false, undefined, true, incrementalRequest)
           if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
           if (result.ok) {
             this.automaticScanErrors = 0
@@ -1754,6 +1853,7 @@ export class HexBridgeRuntime {
     this.automaticScanAbsenceStartedAt = null
     this.automaticFingerprintCandidate = null
     this.automaticFingerprintSamples = 0
+    this.automaticPendingChangedSlots = null
   }
 
   private stopScanLoop(resetDiagnostics = true): void {
@@ -1771,6 +1871,7 @@ export class HexBridgeRuntime {
     this.automaticFingerprint = null
     this.automaticFingerprintCandidate = null
     this.automaticFingerprintSamples = 0
+    this.automaticPendingChangedSlots = null
     this.manualSurfaceFirstProbePending = false
     if (resetDiagnostics) this.resetOcrDiagnostics()
   }
@@ -1779,6 +1880,7 @@ export class HexBridgeRuntime {
     manual: boolean,
     afterCapture?: () => void,
     interfaceAlreadyDetected = false,
+    incrementalRequest?: IncrementalOcrRequest | null,
   ): Promise<ScanActionResult> {
     if (!isMatchContextOcrEligible(this.snapshot)) {
       return { ok: false, code: 'NOT_ELIGIBLE', message: '当前没有可识别的海克斯大乱斗对局' }
@@ -1792,7 +1894,34 @@ export class HexBridgeRuntime {
     }
     const augments = this.getRecommendationAugments(scanSource)
     if (!augments.length) return { ok: false, code: 'NO_CATALOG', message: '海克斯目录尚未就绪' }
-    const result = await this.scanner.scan(augments, manual, afterCapture, interfaceAlreadyDetected)
+    const contextKey = this.scanContextKey(
+      scanSource,
+      scanRecommendationState,
+      scanGeneration,
+      scanChampionId,
+    )
+    const incrementalRequestEligible = !manual &&
+      incrementalRequest != null &&
+      incrementalRequest.slots.length === 1 &&
+      this.automaticScanContextKey === contextKey &&
+      this.overlay.visible &&
+      this.overlay.championId === scanChampionId &&
+      this.overlay.slots.length === 3 &&
+      sameIncrementalOverlayBaseline(this.overlay, incrementalRequest.previousOverlay) &&
+      this.overlay.slots.every((slot) =>
+        slot.augmentId != null &&
+        slot.recommendationSource === scanSource &&
+        slot.statisticsDate === scanRecommendationState.statisticsDate,
+      )
+      ? incrementalRequest
+      : null
+    const result = await this.scanner.scan(
+      augments,
+      manual,
+      afterCapture,
+      interfaceAlreadyDetected,
+      incrementalRequestEligible ? { onlySlots: incrementalRequestEligible.slots } : undefined,
+    )
     const contextDisposition = classifyScanContext(this.snapshot, scanGeneration, scanChampionId)
     const currentRecommendationState = this.getRecommendationState(scanSource)
     const recommendationSwitched = (
@@ -1817,15 +1946,28 @@ export class HexBridgeRuntime {
     this.setOcrScheduleOutcome(result.status)
     if (result.status === 'busy') return { ok: false, code: 'BUSY', message: '识别任务正在运行' }
     if (result.status === 'matched') {
+      const incrementalResultCurrent = incrementalRequestEligible &&
+        this.automaticScanContextKey === incrementalRequestEligible.contextKey &&
+        sameIncrementalOverlayBaseline(this.overlay, incrementalRequestEligible.previousOverlay) &&
+        incrementalFingerprintsStillMatch(incrementalRequestEligible, result.fingerprints)
+      const recognizedSlots = incrementalRequestEligible
+        ? incrementalResultCurrent
+          ? mergeIncrementalOcrSlots(this.overlay.slots, result.slots, incrementalRequestEligible.slots)
+          : null
+        : result.slots
+      if (!recognizedSlots) {
+        this.setOcrScheduleOutcome('unreliable')
+        return { ok: false, code: 'UNRELIABLE', message: '单卡增量识别结果不完整，等待完整识别重试' }
+      }
       this.lcu.confirmGameActive('augment-interface', scanGeneration, scanChampionId)
       const detail = this.currentRecommendationDetail(scanSource)
-      const combination = result.slots.map((slot) => slot.augmentId).join(':')
+      const combination = recognizedSlots.map((slot) => slot.augmentId).join(':')
       const decision = this.getAugmentRound().observe('matched', {
         combination,
         manual,
       })
       if (decision.commitMatched) {
-        const ranked = rankRecommendationSlots(result.slots, detail, augments, scanSource)
+        const ranked = rankRecommendationSlots(recognizedSlots, detail, augments, scanSource)
         const stableSlots = reuseUnchangedAugmentSlots(this.overlay.slots, ranked)
         const slotsChanged = stableSlots.some((slot, index) => slot !== this.overlay.slots[index]) ||
           stableSlots.length !== this.overlay.slots.length
@@ -1843,6 +1985,7 @@ export class HexBridgeRuntime {
           this.automaticFingerprint = [...result.fingerprints]
           this.automaticFingerprintCandidate = null
           this.automaticFingerprintSamples = 0
+          this.automaticPendingChangedSlots = null
           this.manualSurfaceFirstProbePending = !this.config.getSettings().autoOcr
         }
         this.setManualOverlayMonitorDeadline(manual && !this.config.getSettings().autoOcr

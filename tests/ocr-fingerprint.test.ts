@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
 import { analyzeAugmentTitleCrop } from '../src/main/ocr/scanner.js'
-import { fingerprintDistance } from '../src/main/runtime-guards.js'
+import { fingerprintChangedSlots, fingerprintDistance } from '../src/main/runtime-guards.js'
 
 const fixture = (name: string) => readFile(new URL(`./fixtures/ocr/${name}`, import.meta.url))
 
@@ -52,5 +52,18 @@ describe('low-cost augment title fingerprints', () => {
       [manual.fingerprint, manual.fingerprint, manual.fingerprint],
       [probe.fingerprint, manual.fingerprint, manual.fingerprint],
     )).toBeLessThan(.08)
+  })
+
+  it('returns only the physically changed slot and fails closed for incomplete samples', () => {
+    expect(fingerprintChangedSlots(
+      ['aaaa', 'bbbb', 'cccc'],
+      ['aaaa', 'ffff', 'cccc'],
+    )).toEqual(['center'])
+    expect(fingerprintChangedSlots(
+      ['aaaa', 'bbbb', 'cccc'],
+      ['ffff', 'ffff', 'cccc'],
+    )).toEqual(['left', 'center'])
+    expect(fingerprintChangedSlots(['aaaa', 'bbbb'], ['aaaa', 'ffff'])).toBeNull()
+    expect(fingerprintChangedSlots(['aaaa', 'bbbb', 'cccc'], ['aaaa', 'bb', 'cccc'])).toBeNull()
   })
 })

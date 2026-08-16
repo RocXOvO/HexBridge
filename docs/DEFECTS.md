@@ -103,6 +103,7 @@
 | HB-089 | 打包 UI smoke 未随 OCR 调度诊断卡扩展 | FIXED / UNVERIFIED（v0.1.55 已公开 Release） |
 | HB-090 | Release notes 将无公开 Release 的中间 tag 当作稳定基线 | FIXED / UNVERIFIED（v0.1.56 已发布） |
 | HB-091 | 刷新动画空窗导致整组三卡撤下和高频探测 | FIXED / UNVERIFIED（v0.1.57 已发布） |
+| HB-092 | 单卡刷新仍重复三槽 OCR / 混合帧风险 | FIXED / UNVERIFIED（v0.1.58 候选） |
 
 ## 当前重点验收
 
@@ -350,6 +351,13 @@
 - 用户仍观察到单卡刷新时三个 Tag 一起跳动。源码审计确认：可靠三卡在两次约 100ms 的 `not-detected` 后会整体隐藏，刷新动画的标题空窗因此触发整窗离场、再入场；若把宽限简单拆成连续 100ms 探测，又会在 700ms 内制造新的高频截图。
 - v0.1.57 已发布并通过 Windows workflow：可靠三卡使用有界 700ms absence grace；第二次缺失后只等待剩余宽限再做第三次确认；检测恢复期间保持 surface 和未变化槽位，error / pause / stop 会清除连续性计时。Renderer 继续按 `slot + augmentId` 只替换变化卡片。
 - 本地 Runtime、Renderer/OCR、Windows 全链、Release、双通道、公网 packaged check 与五版滚动保留均通过；真实 Windows WeGame 刷新动画、三卡不位移和 FPS / frametime 仍待用户同机验收，不能标记 `VERIFIED`。
+
+### HB-092：单卡刷新增量 OCR与跨帧一致性
+
+- v0.1.58 候选在可靠三卡保持可见、同一对局 / 英雄 / 来源 / 日期且稳定指纹只变化一个物理槽时，仅对该槽执行 OCR；左右未变化卡继续按 `slot + augmentId` 复用。
+- 增量请求绑定旧指纹、确认指纹、旧三槽签名和 context；1440px 结果必须同时满足跨尺度指纹、仍恰好单槽变化和当前 overlay 基线一致，否则不提交混合结果，下一次自动扫描回退完整三槽 OCR。
+- 标题短暂空白不再以约 700ms 直接撤下可靠 surface，而是使用有界 `1.8s` 连续缺失租约；确认仍无卡面后才隐藏。手动 OCR 在 96px 窗口与卡面几何不相交时保留小窗，同一可见 compact DTO 不重复 IPC/重显。
+- 本地 `50` files / `627` passed + `1` skipped、typecheck、lint、diff-check 与 mixed-frame / 自动回退 / compact 幂等回归通过；尚未 commit / push / Windows workflow / Release。真实 WeGame 单卡刷新、视觉动画和 FPS / frametime 仍未验证。
 
 ## 追溯
 

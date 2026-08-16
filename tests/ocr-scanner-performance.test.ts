@@ -78,6 +78,37 @@ describe('low-cost OCR capture plan', () => {
     ])
   })
 
+  it('recognizes only the one physically changed slot for incremental OCR', async () => {
+    const { scanner, widths } = await scannerFixture()
+    vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')
+      .mockResolvedValue({ detected: true, fingerprint: '1111' })
+    const recognize = vi.mocked(scanner.engine.recognize)
+    recognize.mockReset().mockResolvedValue('冰寒')
+
+    const result = await scanner.scan(augments, false, undefined, true, { onlySlots: ['center'] })
+
+    expect(result.status).toBe('matched')
+    expect(result.slots).toHaveLength(1)
+    expect(result.slots[0]).toMatchObject({ slot: 'center', augmentId: 2 })
+    expect(recognize).toHaveBeenCalledOnce()
+    expect(widths).toEqual([augmentScannerDefaults.ocrCaptureWidth])
+    expect(result.fingerprints).toHaveLength(3)
+  })
+
+  it('falls back to full OCR when more than one slot is requested', async () => {
+    const { scanner } = await scannerFixture()
+    vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')
+      .mockResolvedValue({ detected: true, fingerprint: '1111' })
+    const recognize = vi.mocked(scanner.engine.recognize)
+    recognize.mockReset().mockResolvedValue('由心及物')
+
+    const result = await scanner.scan(augments, false, undefined, true, { onlySlots: ['left', 'center'] })
+
+    expect(result.status).toBe('matched')
+    expect(result.slots).toHaveLength(3)
+    expect(recognize).toHaveBeenCalledTimes(3)
+  })
+
   it('manual recognition skips polling and captures only one bounded OCR frame', async () => {
     const { scanner, widths } = await scannerFixture()
     vi.spyOn(scanner as unknown as { analyzeInterfaceSignal(crop: Buffer): Promise<{ detected: boolean; fingerprint: string }> }, 'analyzeInterfaceSignal')

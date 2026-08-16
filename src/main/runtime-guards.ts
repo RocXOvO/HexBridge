@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  AugmentSlot,
   ChampionAugmentData,
   ChampionBuildRecommendation,
   ChampSelectSnapshot,
@@ -96,6 +97,34 @@ export function fingerprintDistance(left: string[], right: string[]): number {
     maximum = Math.max(maximum, changed / a.length)
   }
   return maximum
+}
+
+/**
+ * Return the physically changed title slots when both fingerprints are
+ * complete. A null result is deliberately fail-closed: incomplete or
+ * differently sized fingerprints must use the existing three-slot OCR path.
+ */
+export function fingerprintChangedSlots(
+  left: readonly string[],
+  right: readonly string[],
+  threshold = 0.08,
+): AugmentSlot[] | null {
+  if (
+    left.length !== 3 ||
+    right.length !== 3 ||
+    left.some((value, index) => !value || value.length !== right[index]?.length)
+  ) return null
+
+  const slots: AugmentSlot[] = ['left', 'center', 'right']
+  return slots.filter((_slot, index) => {
+    const a = left[index] as string
+    const b = right[index] as string
+    let changed = 0
+    for (let character = 0; character < a.length; character += 1) {
+      if (a[character] !== b[character]) changed += 1
+    }
+    return changed / a.length >= threshold
+  })
 }
 
 export function isMatchContextOcrEligible(snapshot: ChampSelectSnapshot): boolean {
