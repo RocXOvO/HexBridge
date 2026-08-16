@@ -18,6 +18,12 @@
 - 不保存或传输截图、OCR 文本、坐标、窗口 / 进程标识、路径、token、PUUID 或其他玩家身份；换 generation、停止和旧 epoch 迟到结果都会清理或丢弃指标。
 - v0.1.58 候选的增量 OCR 只在 Main 内保留短期指纹与物理槽位签名；这些值不进入公开诊断或持久缓存，混合帧与迟到结果 fail closed。
 
+## Live Client 受限诊断（HB-079）
+
+- `activeplayer` 等级读取和三时间点诊断均固定为 Main-only `https://127.0.0.1:2999`；v0.1.60 候选仅在用户点击诊断按钮时额外读取一次 `allgamedata`，不进入后台轮询或推荐状态机。
+- 每个响应统一限制 2 MiB / 超时，摘要只保留有限字段路径、JSON 类型、布尔 / 枚举 / 数值；`activePlayer`、`allPlayers` 及姓名、RiotID、PUUID、装备、符文、原始响应均不进入 RuntimeState、日志、磁盘或 Renderer。
+- allgamedata 是否包含稳定的卡面状态仍待真实 Windows 三时间点实验；在得到跨回合一致证据前，等级 / 事件只能唤醒短期 cheap probe，OCR 仍是卡面最终确认。
+
 ## 腾讯 101（HB-058）
 
 来源页面是 [腾讯 101 海克斯榜](https://101.qq.com/?ADTAG=cooperation.glzx.web#/rankings/hextech)。2026-08-14 用户已对腾讯页面当前使用的以下 Web 接口做过无登录 / 无 Key HTTP 200 验证：

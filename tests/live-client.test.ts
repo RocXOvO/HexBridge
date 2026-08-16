@@ -3,6 +3,7 @@ import {
   LIVE_CLIENT_HOST,
   LIVE_CLIENT_PORT,
   LiveClientAdapter,
+  type LiveClientEndpoint,
   liveClientEndpointUrl,
   parseActivePlayerLevel,
 } from '../src/main/live-client.js'
@@ -21,6 +22,9 @@ describe('Live Client level adapter', () => {
       `https://${LIVE_CLIENT_HOST}:${LIVE_CLIENT_PORT}/liveclientdata/activeplayer`,
     )
     expect(liveClientEndpointUrl('activeplayer')).not.toContain('summoner')
+    expect(liveClientEndpointUrl('allgamedata')).toBe(
+      `https://${LIVE_CLIENT_HOST}:${LIVE_CLIENT_PORT}/liveclientdata/allgamedata`,
+    )
   })
 
   it('keeps one request in flight and drops aborted work without exposing payloads', async () => {
@@ -60,9 +64,30 @@ describe('Live Client level adapter', () => {
     expect(JSON.stringify(result)).not.toContain('secret-puuid')
   })
 
+  it('probes allgamedata only through the explicit diagnostic read and redacts player branches', async () => {
+    const requester = vi.fn(async (endpoint: LiveClientEndpoint) => endpoint === 'allgamedata'
+      ? {
+          activePlayer: { level: 3, summonerName: 'secret-name', puuid: 'secret-puuid' },
+          allPlayers: [{ summonerName: 'other-secret', championName: 'Annie' }],
+          gameData: { gameMode: 'KIWI', gameTime: 61.25, mapNumber: 12 },
+          events: [{ EventID: 0, EventTime: 0.03, EventName: 'GameStart' }],
+        }
+      : { level: endpoint === 'activeplayer' ? 3 : undefined })
+    const adapter = new LiveClientAdapter(requester)
+    const result = await adapter.sampleDiagnostics()
+    expect(requester.mock.calls.map(([endpoint]) => endpoint)).toEqual([
+      'activeplayer', 'eventdata', 'gamestats', 'allgamedata',
+    ])
+    const allGameData = result.endpoints.find((endpoint) => endpoint.endpoint === 'allgamedata')
+    expect(allGameData?.status).toBe('ready')
+    expect(allGameData?.fields).toContainEqual({ path: 'gameData.gameMode', type: 'string', value: 'KIWI' })
+    expect(allGameData?.fields).toContainEqual({ path: 'gameData.gameTime', type: 'number', value: 61.25 })
+    expect(JSON.stringify(allGameData)).not.toMatch(/secret|summoner|puuid|allPlayers/i)
+  })
+
   it('aborts a request on stop and classifies the result without raw error text', async () => {
     let rejectRequest: ((error: Error) => void) | undefined
-    const requester = vi.fn((_endpoint: 'activeplayer' | 'eventdata' | 'gamestats', signal: AbortSignal) => new Promise<unknown>((_resolve, reject) => {
+    const requester = vi.fn((_endpoint: LiveClientEndpoint, signal: AbortSignal) => new Promise<unknown>((_resolve, reject) => {
       rejectRequest = reject
       signal.addEventListener('abort', () => reject(new DOMException('raw detail', 'AbortError')), { once: true })
     }))

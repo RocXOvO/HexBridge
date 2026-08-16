@@ -6,16 +6,17 @@ export const LIVE_CLIENT_PORT = 2_999
 export const LIVE_CLIENT_MAX_BODY_BYTES = 2 * 1024 * 1024
 export const LIVE_CLIENT_TIMEOUT_MS = 1_200
 
-export type LiveClientEndpoint = 'activeplayer' | 'eventdata' | 'gamestats'
+export type LiveClientEndpoint = 'activeplayer' | 'eventdata' | 'gamestats' | 'allgamedata'
 
 const ENDPOINT_PATHS: Record<LiveClientEndpoint, string> = {
   activeplayer: '/liveclientdata/activeplayer',
   eventdata: '/liveclientdata/eventdata',
   gamestats: '/liveclientdata/gamestats',
+  allgamedata: '/liveclientdata/allgamedata',
 }
 
 export const LIVE_CLIENT_DIAGNOSTIC_ENDPOINTS: readonly LiveClientEndpoint[] = [
-  'activeplayer', 'eventdata', 'gamestats',
+  'activeplayer', 'eventdata', 'gamestats', 'allgamedata',
 ]
 
 export type LiveClientLevelCode = 'ready' | 'unavailable' | 'invalid' | 'aborted' | 'error'

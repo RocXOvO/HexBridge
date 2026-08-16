@@ -562,7 +562,7 @@ export interface LiveClientDiagnosticSample {
   matchGeneration: number
   currentChampionLevel: number | null
   endpointStatus: Array<{
-    endpoint: 'activeplayer' | 'eventdata' | 'gamestats'
+    endpoint: 'activeplayer' | 'eventdata' | 'gamestats' | 'allgamedata'
     status: 'ready' | 'unavailable' | 'invalid' | 'aborted'
     fields: Array<{
       path: string

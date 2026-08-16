@@ -261,6 +261,18 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.58...v0.1.59')
   })
 
+  it('renders the allgamedata diagnostic experiment for v0.1.60', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.60',
+      releases: [...releases, { tag_name: 'v0.1.58', draft: false, prerelease: false }, { tag_name: 'v0.1.59', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.59 的更新')
+    expect(body).toContain('allgamedata')
+    expect(body).toContain('不保存原始响应')
+    expect(body).toContain('/compare/v0.1.59...v0.1.60')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

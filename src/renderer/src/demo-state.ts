@@ -94,7 +94,7 @@ export function createDemoApi(): HexBridgeApi {
     },
     update: {
       status: 'up-to-date',
-      currentVersion: '0.1.59',
+      currentVersion: '0.1.60',
       availableVersion: null,
       releaseName: null,
       releaseNotes: '',
@@ -278,7 +278,7 @@ export function createDemoApi(): HexBridgeApi {
       sample: {
         sessionId: 'demo-session',
         step,
-      clientVersion: '0.1.59',
+        clientVersion: '0.1.60',
         matchStage: 'selecting',
         matchGeneration: 1,
         currentChampionLevel: null,
@@ -286,6 +286,7 @@ export function createDemoApi(): HexBridgeApi {
           { endpoint: 'activeplayer', status: 'unavailable', fields: [] },
           { endpoint: 'eventdata', status: 'unavailable', fields: [] },
           { endpoint: 'gamestats', status: 'unavailable', fields: [] },
+          { endpoint: 'allgamedata', status: 'unavailable', fields: [] },
         ],
         ocrSurface: 'visible',
       },
