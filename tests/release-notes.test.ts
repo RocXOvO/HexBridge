@@ -335,6 +335,17 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.64...v0.1.65')
   })
 
+  it('renders the source-card packaged smoke follow-up for v0.1.66', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.66',
+      releases: [...releases, { tag_name: 'v0.1.64', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.64 的更新')
+    expect(body).toContain('来源卡片配置入口')
+    expect(body).toContain('/compare/v0.1.64...v0.1.66')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

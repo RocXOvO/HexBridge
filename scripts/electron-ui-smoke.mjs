@@ -269,13 +269,13 @@ try {
       return true
     })()`)
     await waitUntil(
-      () => mainCdp.evaluate(`Boolean(document.querySelector('.dtodo-entry-card'))`),
+      () => mainCdp.evaluate(`Boolean(document.querySelector('.source-config-link'))`),
       'the transitioned settings page',
     )
     await mainCdp.evaluate(`(() => {
-      const entry = document.querySelector('.dtodo-entry-card')
-      if (!entry) throw new Error('Missing data.dtodo settings entry')
-      entry.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      const entry = document.querySelector('.source-config-link')
+      if (!(entry instanceof HTMLButtonElement)) throw new Error('Missing data.dtodo settings entry')
+      entry.click()
       return true
     })()`)
     await waitUntil(

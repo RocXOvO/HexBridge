@@ -48,7 +48,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.65'")
+    expect(rendererState).toContain("currentVersion: '0.1.66'")
   })
 
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
