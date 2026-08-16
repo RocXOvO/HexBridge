@@ -262,4 +262,7 @@ export const RELEASE_HIGHLIGHTS = Object.freeze({
   '英雄详情独立成页，腾讯海克斯推荐横向展示，data.dtodo 出装作为独立模块呈现。',
   '设置页将腾讯来源与 data.dtodo API Key 配置分开，点击 data.dtodo 后再进入 Key 配置页。',
 ]),
+'0.1.64': Object.freeze([
+  '修正 Windows 打包 UI smoke 的校准入口断言，使新设置页文案与发布门禁保持一致。',
+]),
 })

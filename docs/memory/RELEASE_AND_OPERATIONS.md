@@ -4,7 +4,7 @@
 
 ## 当前正式基线
 
-- 当前候选版本为 `v0.1.63`，公开正式版仍为 `v0.1.62`；本候选只包含英雄榜 / 英雄详情 / data.dtodo 配置页的界面重构，尚未 commit / push / tag / Release。通过完整门禁和 Windows workflow 后才更新正式基线。
+- 当前候选版本为 `v0.1.64`，公开正式版仍为 `v0.1.62`；v0.1.63 tag 仅触发 Windows UI smoke 失败、没有公开 Release。本候选包含界面重构及 smoke 文案修复，尚未 commit / push / tag / Release。通过完整门禁和 Windows workflow 后才更新正式基线。
 
 - 当前公开正式版为 `v0.1.62`：Tencent `bestHeroes` 英雄适配扩展、OP/T1–T5 英雄榜分组和独立英雄详情出装已随本版发布；真实 Tencent 接口和用户同机验收仍未完成。
 

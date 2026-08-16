@@ -433,12 +433,12 @@ try {
       })()`)
       await waitUntil(
         () => mainCdp.evaluate(`(() => [...document.querySelectorAll('.settings-card button')]
-          .some((item) => item.textContent.includes('框选三张完整海克斯卡片')))()`),
+          .some((item) => item.textContent.includes('框选三张卡片')))()`),
         'the calibration entry after the settings page transition',
       )
       await mainCdp.evaluate(`(() => {
         const button = [...document.querySelectorAll('.settings-card button')]
-          .find((item) => item.textContent.includes('框选三张完整海克斯卡片'))
+          .find((item) => item.textContent.includes('框选三张卡片'))
         if (!button) throw new Error('Missing calibration entry')
         button.click()
         return true

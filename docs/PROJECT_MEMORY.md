@@ -5,7 +5,7 @@
 
 ## 当前基线
 
-- 当前候选版本为 `v0.1.63`，公开正式版仍为 [v0.1.62](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.62)；候选优化英雄榜头像卡片布局、独立英雄详情页与 data.dtodo Key 配置入口。尚未 commit / push / tag / Release，不预写 Windows 或真实用户验收结果；HB-093/HB-094 仍保持 `IN PROGRESS / UNVERIFIED`。
+- 当前候选版本为 `v0.1.64`，公开正式版仍为 [v0.1.62](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.62)；v0.1.63 tag 仅触发了 Windows smoke 失败、没有公开 Release。候选延续英雄榜头像卡片、独立英雄详情页与 data.dtodo Key 配置入口，并修正校准入口烟测文案。尚未 commit / push / tag / Release，不预写 Windows 或真实用户验收结果；HB-093/HB-094 仍保持 `IN PROGRESS / UNVERIFIED`。
 - v0.1.61 正式 workflow `31924005321` / 成功重跑 job `95109448523`，Release ID `RE_kwDOT1eQs84WIGEP`，tag 解引用 commit `9108348a501fc5d460ff75f9e56bd632e59d6bf0`；Windows 全量门禁、v2/root、public packaged 与五版滚动保留均通过。artifact `9257432760` / `473553962` bytes；真实 WeGame 字段仍未验证。
 - v0.1.62 正式 workflow `31933785471`（重跑成功）/ job `95133301137` 于 `2026-08-16T07:32:08Z–07:37:52Z` 通过；Release ID `RE_kwDOT1eQs84WIP5E`，tag 解引用 commit `bae79a96ae6a1ad32a5dd84e1e61c4156d3341ed`。Windows `51` files / `640` passed、真实 4K OCR `209ms`、packaged UI / bridge、差分、public packaged 与五版滚动保留均通过；真实 Tencent 接口、用户同机和 Windows 性能外推仍未验证。
 - v0.1.62 五资产：EXE `199299489` / `ac5779c6e55b0f13311bf41b53e09fcc05407edebd9cfb1b5d7311b48ed9888c`；blockmap `201323` / `e2f849fd298bfba91b9e1ed51df8e4e1a7951be3b2b0a27a1b8854cb72cab2e1`；ZIP `274471161` / `e00a7b07aa9f33b2b44eb7aa14b4bf41a8255f58aa86bfe34b56a8faf9e7e003`；latest.yml `346` / `30996302e2c5ddf2f3885ecda17eceb57398532bbd74e3ca91ae8d7234dcd567`；SHA256SUMS `182` / `06460294520797118218e8f720e36b149803edbb8989e2bebecc7810592dbd2a`。artifact `9260203991` / `473560262` bytes，v2/root channel `0.1.62` 精确一致，packaged public `updateAvailable=false`；五版滚动保留 v0.1.58–v0.1.62，v0.1.57 Release 已删除、tag 保留，本地 `release/` 为空。

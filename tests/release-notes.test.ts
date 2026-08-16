@@ -311,6 +311,18 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.62...v0.1.63')
   })
 
+  it('accumulates a tag-only v0.1.63 when rendering v0.1.64', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.64',
+      releases: [...releases, { tag_name: 'v0.1.62', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.62 的更新')
+    expect(body).toContain('v0.1.63：')
+    expect(body).toContain('v0.1.64：')
+    expect(body).toContain('/compare/v0.1.62...v0.1.64')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',
