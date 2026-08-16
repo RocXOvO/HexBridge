@@ -346,6 +346,19 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.64...v0.1.66')
   })
 
+  it('renders hero-specialized live OCR ranking for v0.1.67', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.67',
+      releases: [...releases, { tag_name: 'v0.1.64', draft: false, prerelease: false }, { tag_name: 'v0.1.66', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.66 的更新')
+    expect(body).toContain('实时 OCR 三卡')
+    expect(body).toContain('当前英雄')
+    expect(body).toContain('部分卡位通过')
+    expect(body).toContain('/compare/v0.1.66...v0.1.67')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

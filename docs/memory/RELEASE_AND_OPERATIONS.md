@@ -4,6 +4,7 @@
 
 ## 当前正式基线
 
+- 当前本地候选为 `v0.1.67`，尚未 commit / push / tag / Release；公开正式版仍为 `v0.1.66`。候选变更为英雄特化实时 OCR 重排与选卡后部分标题门控的有界撤条，真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 - 当前正式版为 `v0.1.66`；v0.1.63、v0.1.65 仅保留 tag、未创建公开 Release。v0.1.66 workflow `31946880393` 重跑 job `95165108217` 成功，Release ID `RE_kwDOT1eQs84WIeI3`；Windows 打包 UI / bridge、差分、双通道与最近五个 Release 保留均通过。真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
 
 - v0.1.64 workflow `31944699823` / 重跑 job `95159756249` 于 `2026-08-16T11:43:17Z–11:49:12Z` 成功，Release ID `371309425`，tag commit `1c3f831d9a251b9c8e14bcb8d5c5443a544e3793`；Windows `51` files / `641` passed + `1` skipped、packaged UI / bridge、差分、v2/root、public packaged 与最近五个 Release 保留均通过。首次尝试因 root 通道 100s 传播窗口超时，幂等重跑成功。

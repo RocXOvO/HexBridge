@@ -1226,6 +1226,39 @@ describe('runtime performance scheduling', () => {
     runtime.stopScanLoop()
   })
 
+  it('treats a partial title gate as absence once a reliable surface is visible', async () => {
+    vi.useFakeTimers()
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    runtime.snapshot = { ...activeSnapshot }
+    initializeAutomaticState(runtime)
+    runtime.config = { getSettings: () => ({ autoOcr: false, showInGameRecommendations: true }) }
+    runtime.windows = {
+      getMainActivity: () => ({ visible: true, focused: true, minimized: false }),
+      isLeagueGameForeground: () => true,
+    }
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: [{ augmentId: 1 }, { augmentId: 2 }, { augmentId: 3 }],
+      detectedAt: 1,
+      message: '推荐已更新',
+    }
+    runtime.automaticScanContextKey = '1:103'
+    runtime.automaticScanPhase = 'latched'
+    runtime.automaticFingerprint = ['aaaa', 'bbbb', 'cccc']
+    runtime.setManualOverlayMonitorDeadline(Date.now() + 45_000)
+    runtime.scanner = {
+      probeInterface: vi.fn(async () => ({ status: 'detected', detectedCount: 2, durationMs: 10, fingerprints: ['aaaa', 'bbbb', 'cccc'] })),
+    }
+
+    runtime.updateScanLoop()
+    await vi.advanceTimersByTimeAsync(2_800)
+
+    expect(runtime.overlay.visible).toBe(false)
+    expect(runtime.manualOverlayMonitorDeadlineAt).toBeNull()
+    runtime.stopScanLoop()
+  })
+
   it('pauses on focus loss without revoking the compact surface or its fingerprint', async () => {
     vi.useFakeTimers()
     const runtime = Object.create(HexBridgeRuntime.prototype) as any

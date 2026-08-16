@@ -107,6 +107,7 @@
 | HB-093 | Tencent 强化榜未按 `bestHeroes` 反向生成英雄候选 | IN PROGRESS / UNVERIFIED（v0.1.62 已发布；真实 Tencent / 同机未验） |
 | HB-094 | 英雄榜缺少 OP/T1–T5 分组与点击详情出装 | IN PROGRESS / UNVERIFIED（v0.1.64 已发布；真实同机未验） |
 | HB-095 | 英雄详情推荐被独立出装请求阻塞、data.dtodo 配置入口分散 | FIXED / UNVERIFIED（v0.1.66 已发布；真实同机未验） |
+| HB-096 | 实时 OCR 推荐未及时按当前英雄特化、选卡后残留标签 | IN PROGRESS / UNVERIFIED（v0.1.67 候选） |
 
 ## 当前重点验收
 
@@ -383,6 +384,12 @@
 - v0.1.65 将英雄海克斯详情与独立出装拆成两条并行的 Renderer 请求链；出装 Key 缺失、请求失败或响应较慢时，当前来源的推荐卡仍会独立显示，迟到的换英雄 / 换来源响应不会覆盖当前详情。
 - 设置页的 `data.dtodo` 来源卡直接进入专属 API Key 页面，主设置不再重复放置 Key 输入或独立入口卡；预览桥接也提供示例推荐卡与出装，避免点击英雄后出现空详情。
 - v0.1.65 的 tag-only workflow 在打包 UI smoke 处因旧 `.dtodo-entry-card` 选择器 fail closed；v0.1.66 将门禁改为点击新的 `.source-config-link` 来源卡按钮。v0.1.66 workflow 重跑后 Windows 打包 UI / bridge、差分、双通道和最近五个 Release 保留均通过；真实 Windows / Tencent 同机显示仍待验收，不能标记 `VERIFIED`。
+
+### HB-096：英雄特化实时推荐与选卡后残留标签
+
+- OCR 可能先于当前英雄详情完成，先显示同来源的全局 / Tier 回退排序；详情到达后若不重新应用排序，实时助手会停留在非英雄特化顺序。
+- v0.1.67 候选在 source、英雄和 generation 仍匹配时只重排已有三卡，不重新截图；未变化槽位保持节点与动画状态。可靠三卡已存在时，低成本 gate 若只剩部分标题通过会进入连续 absence 规则，避免选卡后残留标签长期维持；不把等级或未知接口字段当作选卡完成信号。
+- 候选目前只具备本地测试、typecheck、lint 与 diff-check 证据；真实 Windows / WeGame 选卡撤条、失焦恢复和 FPS / frametime 仍未验证，不能标记 `FIXED` 或 `VERIFIED`。
 
 ## 追溯
 

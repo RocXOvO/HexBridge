@@ -38,6 +38,8 @@ export interface InterfaceProbeResult {
   status: 'detected' | 'not-detected' | 'busy' | 'error'
   durationMs: number
   fingerprints: string[]
+  /** Number of title ROIs that passed the cheap signal gate. */
+  detectedCount?: number
 }
 
 export interface AugmentScannerDependencies {
@@ -271,10 +273,12 @@ export class AugmentScanner {
       const rects = settings.calibration ?? DEFAULT_RECTS
       const gateCrops = await this.captureTitleCrops(display, AUTO_GATE_WIDTH, rects, false)
       const analyses = await Promise.all(gateCrops.probe.map((crop) => this.analyzeInterfaceSignal(crop)))
+      const detectedCount = analyses.filter((item) => item.detected).length
       return {
-        status: analyses.filter((item) => item.detected).length >= 2 ? 'detected' : 'not-detected',
+        status: detectedCount >= 2 ? 'detected' : 'not-detected',
         durationMs: Date.now() - startedAt,
         fingerprints: analyses.map((item) => item.fingerprint),
+        detectedCount,
       }
     } catch (error) {
       logger.warn('OCR interface probe failed', {

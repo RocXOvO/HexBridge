@@ -10,6 +10,7 @@ vi.mock('../src/main/config-store.js', () => ({ ConfigStore: class {} }))
 
 import type { RecommendationDataSource, RecommendationDataState, RecommendationDetail } from '../src/shared/contracts.js'
 import { HexBridgeRuntime } from '../src/main/runtime.js'
+import { rankRecommendationSlots } from '../src/shared/recommendations.js'
 
 const detail = (source: RecommendationDataSource, snapshotId: string): RecommendationDetail => ({
   source,
@@ -113,6 +114,116 @@ describe('Runtime recommendation provider guards', () => {
 
     expect(runtime.recommendationDetail).toEqual(recommendation)
     expect(runtime.detail).toBeUndefined()
+  })
+
+  it('re-ranks an already visible live OCR surface when hero detail arrives', async () => {
+    const runtime = Object.create(HexBridgeRuntime.prototype) as any
+    const augments = [1, 2, 3].map((id) => ({
+      id,
+      name: `强化${id}`,
+      iconUrl: `https://example.test/${id}.png`,
+      rarity: 1,
+      rarityName: '金色',
+      description: '',
+      globalTier: id,
+    }))
+    const slotNames = ['left', 'center', 'right'] as const
+    const recognized = [1, 2, 3].map((id, index) => ({
+      slot: slotNames[index]!,
+      rawText: `强化${id}`,
+      augmentId: id,
+      name: `强化${id}`,
+      confidence: 1,
+    }))
+    const initialSlots = rankRecommendationSlots(recognized, null, augments, 'tencent101')
+    const recommendation: RecommendationDetail = {
+      ...detail('tencent101', 'tencent-v1'),
+      dataVersion: '20260814',
+      ranks: [
+        {
+          augmentId: 2,
+          heroRecommendationRank: 2,
+          heroRecommendationTotal: 2,
+          heroRecommendationBasis: null,
+          heroTier: null,
+          championPickRate: null,
+          globalPickRate: .2,
+          globalWinRate: .5,
+          globalPickRank: 30,
+          globalWinRank: 20,
+          globalPickRankChange: 0,
+          globalWinRankChange: 0,
+          statsSource: 'tencent',
+          statsRegion: 'CN',
+        },
+        {
+          augmentId: 3,
+          heroRecommendationRank: 1,
+          heroRecommendationTotal: 2,
+          heroRecommendationBasis: null,
+          heroTier: null,
+          championPickRate: null,
+          globalPickRate: .1,
+          globalWinRate: .6,
+          globalPickRank: 40,
+          globalWinRank: 10,
+          globalPickRankChange: 0,
+          globalWinRankChange: 0,
+          statsSource: 'tencent',
+          statsRegion: 'CN',
+        },
+        {
+          augmentId: 1,
+          heroRecommendationRank: null,
+          heroRecommendationTotal: null,
+          heroRecommendationBasis: null,
+          heroTier: null,
+          championPickRate: null,
+          globalPickRate: .9,
+          globalWinRate: .4,
+          globalPickRank: 3,
+          globalWinRank: 30,
+          globalPickRankChange: 0,
+          globalWinRankChange: 0,
+          statsSource: 'tencent',
+          statsRegion: 'CN',
+        },
+      ],
+    }
+    runtime.config = { getSettings: () => ({ recommendationDataSource: 'tencent101' }) }
+    runtime.snapshot = { modeActive: true, currentChampionId: 103, matchGeneration: 7 }
+    runtime.championRequestSequence = 12
+    runtime.recommendationDetailAbort = null
+    runtime.recommendationDetail = null
+    runtime.overlay = {
+      visible: true,
+      championId: 103,
+      slots: initialSlots,
+      detectedAt: 1,
+      message: '暂无可靠数据',
+    }
+    runtime.sync = vi.fn()
+    runtime.getRecommendationAugments = () => augments
+    runtime.recommendations = {
+      getState: () => ({
+        source: 'tencent101', status: 'ready', snapshotId: 'tencent-v1', dataVersion: '20260814',
+        statisticsDate: '20260814', stale: false, lastError: null,
+      }),
+      getChampionRecommendation: vi.fn(async () => recommendation),
+    }
+    runtime.data = { getState: () => ({ configured: false, dataVersion: '' }) }
+
+    await runtime.refreshCurrentDetail(103, 12)
+
+    expect(runtime.recommendationDetail).toEqual(recommendation)
+    expect(runtime.overlay.slots.map((slot: any) => slot.position)).toEqual([3, 2, 1])
+    expect(runtime.overlay.slots.map((slot: any) => slot.reason)).toEqual([
+      '腾讯全局排名第 3',
+      '腾讯英雄推荐第 2',
+      '腾讯英雄推荐第 1',
+    ])
+    expect(runtime.overlay.message).toBe('推荐已更新')
+    expect(runtime.sync).toHaveBeenCalled()
   })
 
   it('drops the previous generation even when the next game has the same hero and source', async () => {

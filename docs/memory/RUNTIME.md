@@ -28,6 +28,7 @@
 ## OCR 与窗口
 
 - 手动 OCR 为单帧；自动路径仅 active + eligible，先低分辨率 gate，再进行完整 OCR，single-flight、退避、同一卡面锁存。三卡渲染固定按槽位复用 DOM，只有 augmentId 变化的槽位播放入场动画；手动监测发现变化时也保持已有可靠三卡挂载，继续有界低成本探测，避免整组三卡退场重进。
+- 当前英雄详情可晚于 OCR 结果到达；Runtime 在 source、英雄、generation 守卫通过后只重排已有三卡，不重新截图。可靠三卡 surface 下 gate 只剩部分标题通过时按 absence 处理，避免选卡后旧推荐条被残留标题长期维持。
 - 截图后先恢复 HexBridge 窗口，重 OCR 不得持续隐藏主窗；模型线程限制不得与游戏抢占无界 CPU。
 - 96px compact 位于三卡上方，透明、点击穿透、不聚焦；仅在可靠 3/3、游戏前台和卡面存在时显示。
 - 卡面变化后用 100ms 窗口确认新指纹；recognizing 期间的单次短暂 `not-detected` 不撤下可靠三卡，只有连续两次 absence、刷新、禁用、终局或 45s expiry 清除。失焦只 pause / hide，回前台 cheap probe，不重做 full OCR。

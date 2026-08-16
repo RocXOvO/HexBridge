@@ -1440,6 +1440,51 @@ export class HexBridgeRuntime {
       : null
   }
 
+  /**
+   * Apply hero-specific recommendation data to an already visible OCR surface.
+   *
+   * OCR may finish before the provider detail request does. In that window we
+   * can safely show the recognized cards, but they must not remain ranked by
+   * global/tier fallback after the current champion's detail arrives. Re-rank
+   * the existing three slots in Main without taking another screenshot; the
+   * renderer's slot+augmentId animation guard keeps unchanged cards mounted.
+   */
+  private rerankVisibleOverlayForCurrentRecommendation(
+    source: RecommendationDataSource,
+    championId: number,
+    generation: number,
+  ): boolean {
+    if (
+      !this.snapshot.modeActive ||
+      this.snapshot.matchGeneration !== generation ||
+      this.snapshot.currentChampionId !== championId ||
+      !this.overlay.visible ||
+      this.overlay.championId !== championId ||
+      this.overlay.slots.length !== 3
+    ) return false
+
+    const detail = this.currentRecommendationDetail(source)
+    const augments = this.getRecommendationAugments(source)
+    if (!detail || !augments.length) return false
+
+    const ranked = rankRecommendationSlots(this.overlay.slots, detail, augments, source)
+    const stableSlots = reuseUnchangedAugmentSlots(this.overlay.slots, ranked)
+    const message = stableSlots.some((slot) => slot.position != null)
+      ? '推荐已更新'
+      : this.overlay.message
+    const slotsChanged = stableSlots.some((slot, index) => slot !== this.overlay.slots[index]) ||
+      stableSlots.length !== this.overlay.slots.length
+    const messageChanged = message !== this.overlay.message
+    if (!slotsChanged && !messageChanged) return false
+
+    this.overlay = {
+      ...this.overlay,
+      slots: stableSlots,
+      message,
+    }
+    return true
+  }
+
   private currentChampionRecommendationView(
     source: RecommendationDataSource,
     championId: number,
@@ -1510,6 +1555,7 @@ export class HexBridgeRuntime {
         value.snapshotId === recommendationState.snapshotId
       ) {
         this.recommendationDetail = value
+        this.rerankVisibleOverlayForCurrentRecommendation(source, championId, generation)
         this.sync()
       }
     }).catch((error) => {
@@ -1614,8 +1660,19 @@ export class HexBridgeRuntime {
     try {
       const probe = await this.scanner.probeInterface()
       if (!this.isAutomaticScanCurrent(epoch, generation, championId)) return
-      this.setOcrScheduleOutcome(probe.status === 'detected' ? 'detected' : probe.status)
-      if (probe.status === 'error') {
+      // The initial gate intentionally accepts 2/3 title ROIs to avoid
+      // missing a real card surface. Once a reliable three-card result is
+      // already visible, however, a partial gate is stronger evidence of
+      // disappearance than presence. Treat it as absence so a selected-card
+      // screen with one or two residual title-like regions cannot keep the
+      // old recommendation bar alive indefinitely.
+      const reliableSurfaceVisible = this.overlay.visible && this.overlay.slots.length === 3
+      const probeStatus = probe.status === 'detected' && reliableSurfaceVisible &&
+        probe.detectedCount != null && probe.detectedCount < 3
+        ? 'not-detected'
+        : probe.status
+      this.setOcrScheduleOutcome(probeStatus === 'detected' ? 'detected' : probeStatus)
+      if (probeStatus === 'error') {
         // An error is not evidence that the card surface is absent. Break
         // the absence run so a later probe must establish a fresh, bounded
         // confirmation window instead of inheriting stale misses.
@@ -1642,7 +1699,7 @@ export class HexBridgeRuntime {
           }
           this.sync()
         }
-      } else if (probe.status === 'not-detected') {
+      } else if (probeStatus === 'not-detected') {
         this.getAugmentRound().observe('not-detected')
         this.automaticScanErrors = 0
         this.automaticScanAbsences += 1
@@ -1691,7 +1748,7 @@ export class HexBridgeRuntime {
             this.sync()
           }
         }
-      } else if (probe.status === 'detected') {
+      } else if (probeStatus === 'detected') {
         this.getAugmentRound().observe('detected')
         this.automaticScanAbsences = 0
         this.automaticScanAbsenceStartedAt = null
