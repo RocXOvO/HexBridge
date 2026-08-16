@@ -107,7 +107,7 @@
 | HB-093 | Tencent 强化榜未按 `bestHeroes` 反向生成英雄候选 | IN PROGRESS / UNVERIFIED（v0.1.62 已发布；真实 Tencent / 同机未验） |
 | HB-094 | 英雄榜缺少 OP/T1–T5 分组与点击详情出装 | IN PROGRESS / UNVERIFIED（v0.1.64 已发布；真实同机未验） |
 | HB-095 | 英雄详情推荐被独立出装请求阻塞、data.dtodo 配置入口分散 | FIXED / UNVERIFIED（v0.1.66 已发布；真实同机未验） |
-| HB-096 | 实时 OCR 推荐未及时按当前英雄特化、选卡后残留标签 | IN PROGRESS / UNVERIFIED（v0.1.67 候选） |
+| HB-096 | 实时 OCR 推荐未及时按当前英雄特化、选卡后残留标签 | FIXED / UNVERIFIED（v0.1.67 已发布；真实同机未验） |
 
 ## 当前重点验收
 
@@ -388,8 +388,8 @@
 ### HB-096：英雄特化实时推荐与选卡后残留标签
 
 - OCR 可能先于当前英雄详情完成，先显示同来源的全局 / Tier 回退排序；详情到达后若不重新应用排序，实时助手会停留在非英雄特化顺序。
-- v0.1.67 候选在 source、英雄和 generation 仍匹配时只重排已有三卡，不重新截图；未变化槽位保持节点与动画状态。可靠三卡已存在时，低成本 gate 若只剩部分标题通过会进入连续 absence 规则，避免选卡后残留标签长期维持；不把等级或未知接口字段当作选卡完成信号。
-- 候选目前只具备本地测试、typecheck、lint 与 diff-check 证据；真实 Windows / WeGame 选卡撤条、失焦恢复和 FPS / frametime 仍未验证，不能标记 `FIXED` 或 `VERIFIED`。
+- v0.1.67 在 source、英雄和 generation 仍匹配时只重排已有三卡，不重新截图；未变化槽位保持节点与动画状态。可靠三卡已存在时，低成本 gate 若只剩部分标题通过会进入连续 absence 规则，避免选卡后残留标签长期维持；不把等级或未知接口字段当作选卡完成信号。
+- v0.1.67 Windows workflow `31948637363` 重跑成功，`51` files / `648` passed，打包 UI / bridge、差分、公网双通道和滚动保留通过。真实 Windows / WeGame 选卡撤条、失焦恢复和 FPS / frametime 仍未验证，因此状态保持 `FIXED / UNVERIFIED`。
 
 ## 追溯
 

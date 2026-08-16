@@ -2,7 +2,7 @@
 
 HexBridge 是面向 Windows 10/11 x64、国服 / WeGame、简体中文的海克斯大乱斗个人实验助手。它以只读方式连接本机 League Client Update（LCU），在选人阶段整理当前英雄和备战席的 Tier / 胜率，并在对局中通过屏幕裁切与本地 OCR 比较实际出现的三张海克斯。
 
-> 当前候选：v0.1.67；公开正式版仍为 [v0.1.66](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.66)。本候选让实时 OCR 三卡在当前英雄详情到达后自动按英雄专属推荐重新排序；真实 Windows / Tencent 同机验收仍待完成。这是个人实验工具，不受 Riot Games、腾讯游戏或 ARAMGG 认可、赞助或支持。强化胜率展示和代替玩家决策的产品可能不符合 Riot 当前产品政策；扩大分发前必须重新评估合规性与数据授权。
+> 当前正式版：v0.1.67（[GitHub Release](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.67)）。实时 OCR 三卡会在当前英雄详情到达后按英雄专属推荐重新排序；可靠三卡下部分标题门控会按有界 absence 规则撤下旧推荐条。真实 Windows / Tencent 同机验收仍待完成。这是个人实验工具，不受 Riot Games、腾讯游戏或 ARAMGG 认可、赞助或支持。强化胜率展示和代替玩家决策的产品可能不符合 Riot 当前产品政策；扩大分发前必须重新评估合规性与数据授权。
 
 ## 能力
 

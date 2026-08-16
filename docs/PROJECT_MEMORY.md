@@ -5,8 +5,8 @@
 
 ## 当前基线
 
-- 当前候选为 `v0.1.67`，尚未 commit / push / tag / Release；公开正式版仍为 `v0.1.66`。候选包含英雄详情到达后的实时 OCR 三卡重排，以及可靠三卡 surface 下部分标题门控按连续 absence 撤下旧推荐条。本地代码门禁完成后仍需 Windows / WeGame 同机复测，不能预写发布或用户验收结果。
-- 当前正式版为 [v0.1.66](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.66)，tag 解引用 commit `9d34a99939628a97fb46e646947c1235df66e1f1`；v0.1.65 仅保留 tag、因旧 smoke 选择器 fail closed 未创建公开 Release。workflow `31946880393` 重跑 job `95165108217` 成功，包含 Windows 打包 UI / bridge、差分、双通道与最近五个 Release 保留；Release ID `RE_kwDOT1eQs84WIeI3`，artifact `9263709816` / `473561722` bytes。当前公开滚动窗口为 v0.1.60、v0.1.61、v0.1.62、v0.1.64、v0.1.66；HB-093/HB-094/HB-095 的真实 Tencent 与用户同机验收不由 CI 外推，仍保持 `UNVERIFIED`。
+- 当前正式版为 [v0.1.67](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.67)，tag 解引用 commit `2e15619b3e3017b26ee749f2494f7459fbceef2e`；workflow `31948637363`（重跑 job `95169405811`）成功，Windows `51` files / `648` passed，打包 UI / bridge、差分、双通道、公网 packaged 与最近五个 Release 保留均通过。Release ID `371327696`，artifact `9264160747` / `473562497` bytes；差分 smoke 传输 `1330835` bytes、10 个 Range / 3 个 redirect，基于 v0.1.66。公开滚动窗口为 v0.1.61、v0.1.62、v0.1.64、v0.1.66、v0.1.67；真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
+- 历史 v0.1.66 仍保留 tag 与 Release；v0.1.65 仅保留 tag、因旧 smoke 选择器 fail closed 未创建公开 Release。HB-093/HB-094/HB-095/HB-096 的真实 Tencent 与用户同机验收不由 CI 外推，仍保持 `UNVERIFIED`。
 - v0.1.64 workflow `31944699823` / 重跑 job `95159756249` 于 `2026-08-16T11:43:17Z–11:49:12Z` 成功；Release ID `371309425`，Windows `51` files / `641` passed + `1` skipped，packaged UI / bridge、差分、双通道、公网 packaged 更新检查和最近五个 Release 保留均通过。首次尝试只在 root 通道传播窗口超时，幂等重跑成功；Node 20 弃用提示和既有 AugmentOverlay 缩进警告不阻断。
 - v0.1.64 五资产：EXE `199299824` / `4efc477357f12c6027fae33e05d8a986cf49eef4c131fe8ee24956c33b7ee477`；blockmap `201466` / `0078478d0fc3ba89deb6642684bb5b145f219d3dda1f03448705b020e7acf634`；ZIP `274471588` / `1347b2fd229883f13c36f624bb9a17cea163fb11c3b82b68d14f51e35338facd`；latest.yml `346` / `623670a2c16f918bb2e566e14044b62609e77ec8770fe70af0aa02bf428c17ef`；SHA256SUMS `182` / `6eb3086f48dd67ec68a65aec47c9e1cf28da086fa8c3b3803c6e16f3ca6b6e82`。artifact `9263119526` / `473561441` bytes；公开滚动窗口为 v0.1.59、v0.1.60、v0.1.61、v0.1.62、v0.1.64（v0.1.63 无 Release），tag 保留。
 - v0.1.61 正式 workflow `31924005321` / 成功重跑 job `95109448523`，Release ID `RE_kwDOT1eQs84WIGEP`，tag 解引用 commit `9108348a501fc5d460ff75f9e56bd632e59d6bf0`；Windows 全量门禁、v2/root、public packaged 与五版滚动保留均通过。artifact `9257432760` / `473553962` bytes；真实 WeGame 字段仍未验证。
@@ -86,7 +86,7 @@
 15. HB-093：在 Windows / 真实 Tencent 响应中确认 `bestHeroes` 关联、同英雄扩展推荐数量、切源 / stale 和 OCR 三卡排序口径；全局 `pick_rank` 不能冒充英雄专属 pickRate。
 16. HB-094：确认 OP/T1–T5 分组在两种来源下的可读性；点击英雄时海克斯与独立出装请求不互相阻塞，换源 / 换代后不残留旧详情。
 17. HB-095：v0.1.66 已发布；Windows 自动化确认英雄详情推荐与独立出装分离、来源卡可进入 data.dtodo Key 页面；真实 Tencent 与同机视觉仍不由自动化外推。
-18. HB-096：v0.1.67 候选让实时 OCR 结果在当前英雄详情迟到时按同一来源重排，并把可靠 surface 下的部分标题门控视作连续 absence；真实选卡后撤条与 FPS 仍待 Windows / WeGame 验收。
+18. HB-096：v0.1.67 已发布；实时 OCR 结果在当前英雄详情迟到时按同一来源重排，可靠 surface 下的部分标题门控按连续 absence 撤条；真实选卡后撤条与 FPS 仍待 Windows / WeGame 验收。
 
 ## 当前任务边界
 
