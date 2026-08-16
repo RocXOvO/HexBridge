@@ -355,10 +355,10 @@
 ### HB-092：单卡刷新增量 OCR与跨帧一致性
 
 - v0.1.58 已发布：可靠三卡保持可见、同一对局 / 英雄 / 来源 / 日期且稳定指纹只变化一个物理槽时，仅对该槽执行 OCR；左右未变化卡继续按 `slot + augmentId` 复用。
-- v0.1.59 候选移除推荐区整组三卡 `out-in` 过渡，并在短暂隐藏/恢复期间保留可靠槽位签名；恢复时仍只对变化卡片重播动画，三卡真正清空才重置签名。Windows / WeGame 单卡刷新仍待同机验证。
+- v0.1.59 已发布：移除推荐区整组三卡 `out-in` 过渡，并在短暂隐藏/恢复期间保留可靠槽位签名；恢复时仍只对变化卡片重播动画，三卡真正清空才重置签名。Windows / WeGame 单卡刷新仍待同机验证。
 - 增量请求绑定旧指纹、确认指纹、旧三槽签名和 context；1440px 结果必须同时满足跨尺度指纹、仍恰好单槽变化和当前 overlay 基线一致，否则不提交混合结果，下一次自动扫描回退完整三槽 OCR。
 - 标题短暂空白不再以约 700ms 直接撤下可靠 surface，而是使用有界 `1.8s` 连续缺失租约；确认仍无卡面后才隐藏。手动 OCR 在 96px 窗口与卡面几何不相交时保留小窗，同一可见 compact DTO 不重复 IPC/重显。
-- v0.1.58 已完成本地与 Windows workflow 门禁；本地 v0.1.59 候选为 `50` files / `628` passed + `1` skipped，typecheck、lint、diff-check 与渲染/增量 OCR 回归通过。真实 WeGame 单卡刷新、视觉动画和 FPS / frametime 仍未验证。
+- v0.1.59 已完成本地与 Windows workflow 门禁；本地 `50` files / `628` passed + `1` skipped，typecheck、lint、diff-check 与渲染/增量 OCR 回归通过。真实 WeGame 单卡刷新、视觉动画和 FPS / frametime 仍未验证。
 
 ## 追溯
 

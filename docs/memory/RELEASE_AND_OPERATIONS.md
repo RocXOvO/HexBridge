@@ -4,14 +4,14 @@
 
 ## 当前正式基线
 
-- 当前候选为 `v0.1.59`；公开正式版为 `v0.1.58`。v0.1.58 的 workflow `31918661001` / job `95095618306`、Release ID `371198640` 和 v2/root channel 均已成功；本候选移除整组三卡外层过渡并保留短暂隐藏期间的槽位签名。Windows / WeGame 视觉与帧时间仍待验，不能把本地门禁或审查写成真实用户验证。
-- 当前正式版本为 `v0.1.58`，已完成 commit / push / tag / Release / 双通道 / packaged public check / 五版滚动保留；本版完成单卡增量 OCR、1.8s absence lease 和幂等 compact sync。真实 WeGame 刷新动画仍未验，不能写成 `VERIFIED`。
+- 当前公开正式版为 `v0.1.59`。v0.1.59 的 workflow `31919544169` / job `95097946275`、Release ID `RE_kwDOT1eQs84WIBmU` 和 v2/root channel 均已成功；本版移除整组三卡外层过渡并保留短暂隐藏期间的槽位签名。Windows / WeGame 视觉与帧时间仍待验，不能把本地门禁或审查写成真实用户验证。
+- 当前正式版本为 `v0.1.59`，已完成 commit / push / tag / Release / 双通道 / packaged public check / 五版滚动保留；本版完成单卡增量 OCR、1.8s absence lease、幂等 compact sync，并修正整组三卡外层过渡。真实 WeGame 刷新动画仍未验，不能写成 `VERIFIED`。
 
 - 上一版 `v0.1.56` 的五资产、稳定通道、packaged public 与五版滚动保留均通过；它保留 v0.1.54 的脱敏 OCR 调度诊断、v0.1.55 的 packaged UI smoke 7 卡门禁，并修正 Release notes 只以公开 Release 作为稳定基线、累计无 Release 中间 tag 变更。v0.1.54 仅有 tag、未创建公开 Release；不得把自动化门禁写成真实 WeGame 性能已验证。
 
-- public Latest：[v0.1.57](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.57)，Release ID `371188111`，publishedAt `2026-08-16T00:00:45Z`；annotated tag object `71256a18b08943ccde3ead90d819ed94c0fec4e1` 解引用 commit `8b624765128779b43adb58681383b3ef125d6d3c`。
-- workflow `31915913496` / job `95088396802` 重跑成功；五资产、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9255026857` / `473547229` bytes / `sha256:5b6cd1928ae4b43b12702146d21fb75e8e62b931d4e2cbb25f9443451596e93e`。
-- public v2 / root：version `0.1.57`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.52、v0.1.53、v0.1.55、v0.1.56、v0.1.57（v0.1.54 仅 tag），本地 `release/` 为空。
+- public Latest：[v0.1.59](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.59)，Release ID `RE_kwDOT1eQs84WIBmU`，publishedAt `2026-08-16T01:31:58Z`；annotated tag object `360466c92332e961f5358e6be5dfa877cacdd146` 解引用 commit `cabcd68d03877b8e6f4d37635118a7a3a7e16386`。
+- workflow `31919544169` / job `95097946275` 幂等重跑成功；五资产、packaged UI / bridge、差分、public packaged 与滚动保留全过。artifact `9256096670` / `473550965` bytes。
+- public v2 / root：version `0.1.59`；两通道精确一致，packaged public 为 `updateAvailable=false`。五版滚动保留现为 v0.1.55、v0.1.56、v0.1.57、v0.1.58、v0.1.59（v0.1.54 仅 tag），本地 `release/` 为空。
 
 - 历史记录：v0.1.50 的真实 WeGame / installed updater 仍不是自动化证据。
 
