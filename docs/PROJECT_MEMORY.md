@@ -5,7 +5,11 @@
 
 ## 当前基线
 
-- 当前候选为 v0.1.71，公开正式版为 v0.1.70；本候选让实时对局三卡只使用当前英雄专属推荐，并将英雄榜边框改为炫彩卡牌渐变高亮。真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
+- 当前正式版为 v0.1.71（tag object `e616a58d8d98acd416a9068a84031b87d2418175` → commit `5baad9f32c8be677b90d10f6e91f8ef2661a40cb`）。实时对局三卡只使用当前英雄专属 `lowest_rank_runes`，不以腾讯全局数据补位；英雄榜边框使用炫彩卡牌渐变高亮。真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
+
+- v0.1.71 正式发布：workflow `32027965777`（attempt 1 的稳定通道传播超时后，attempt 2 / job `95383745232` 于 `2026-08-17T12:13:20Z–12:19:00Z` 成功），Release ID `RE_kwDOT1eQs84WKCQr`，publishedAt `2026-08-17T12:10:35Z`。Windows `51` files / `650` passed，OCR 4K fixture `276ms`，打包 UI / bridge、差分、公网 packaged 更新检查和五版滚动保留均通过；artifact `9288219837` / `473555362` bytes。v2/root 稳定更新通道均为 `0.1.71`，public packaged `updateAvailable=false`，公开滚动窗口为 v0.1.67–v0.1.71；v0.1.66 Release 已删除、tag 保留。真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
+- v0.1.71 五资产：EXE `199298055` / `04ab67d1f8192122669e0e16619ba38bd588fab29d12f7d08cb82547472f8bd2`；blockmap `201311` / `36dfbb77aad032d6209288e30bab693fb2ad9b2d7e796caf3794afa4f847b53d`；ZIP `274468414` / `942e0dcc7447f3e4da143c034a58b2e3ad671c27987172cda8455f61c30c2b48`；latest.yml `346` / `73dd9b4247514578d9ce0d0c5df8c5a7d97818c14345aef158d6284db15537ba`；SHA256SUMS `182` / `90687679156243fd82f3df0ec06a237050ab08e7a50a10c7aec535599b588f9a`。
+- v0.1.71 packaged differential smoke：available `0.1.72` synthetic candidate，基于 v0.1.70，传输 `1318567` bytes / full `199298056`，10 个 Range、3 个 redirect；正式 Release 不包含 0.1.72，更新通道仍锁定 `0.1.71`。
 
 - v0.1.70 已正式发布：workflow `32024534498` / 成功重跑 job `95373245840`（attempt 2）完成 Windows 全量门禁、打包 UI / bridge、差分、public packaged 更新检查和五版滚动保留。Release ID `RE_kwDOT1eQs84WJ8f0`，publishedAt `2026-08-17T11:27:22Z`；artifact `9286989776` / `473555854` bytes；EXE `199298053` bytes，blockmap `201392` bytes，ZIP `274468675` bytes，latest.yml `346` bytes，SHA256SUMS `182` bytes。v2/root 稳定更新通道均为 `0.1.70`，公开滚动窗口为 v0.1.66、v0.1.67、v0.1.68、v0.1.69、v0.1.70；真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
 - 历史 v0.1.66 仍保留 tag 与 Release；v0.1.65 仅保留 tag、因旧 smoke 选择器 fail closed 未创建公开 Release。HB-093/HB-094/HB-095/HB-096 的真实 Tencent 与用户同机验收不由 CI 外推，仍保持 `UNVERIFIED`。

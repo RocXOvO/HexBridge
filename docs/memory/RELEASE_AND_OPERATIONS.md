@@ -4,7 +4,10 @@
 
 ## 当前候选 / 正式基线
 
-- 当前候选为 `v0.1.71`，公开正式版为 `v0.1.70`；本候选让实时对局三卡只使用当前英雄专属推荐，并将英雄榜边框改为炫彩卡牌渐变高亮。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
+- 当前正式版为 `v0.1.71`；实时对局三卡只使用当前英雄专属 `lowest_rank_runes`，不以腾讯全局数据补位；英雄榜边框使用炫彩卡牌渐变高亮。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
+
+- `v0.1.71` 已正式发布：workflow `32027965777` attempt 1 在稳定通道传播窗口超时后，attempt 2 / job `95383745232` 于 `2026-08-17T12:13:20Z–12:19:00Z` 成功；Release ID `RE_kwDOT1eQs84WKCQr`，publishedAt `2026-08-17T12:10:35Z`，tag commit `5baad9f32c8be677b90d10f6e91f8ef2661a40cb`。Windows `51` files / `650` passed、OCR 4K fixture `276ms`、打包 UI / bridge、差分、公网 packaged 更新检查和五版滚动保留均通过；artifact `9288219837` / `473555362` bytes；v2/root channel 均为 `0.1.71`。公开滚动窗口为 v0.1.67–v0.1.71，v0.1.66 Release 已删除但 tag 保留。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
+- 五资产摘要：EXE `199298055` / `04ab67d1…f8bd2`，blockmap `201311` / `36dfbb7…7b53d`，ZIP `274468414` / `942e0dcc…c2b48`，latest.yml `346` / `73dd9b42…537ba`，SHA256SUMS `182` / `90687679…8f9a`。差分 smoke 传输 `1318567` bytes / full `199298056`，10 个 Range、3 个 redirect，基于 v0.1.70。
 
 - `v0.1.70` 已正式发布；workflow `32024534498` / 成功重跑 job `95373245840`（attempt 2），Release ID `RE_kwDOT1eQs84WJ8f0`。Windows 全量门禁、打包 UI / bridge、差分、公网 packaged 更新检查和最近五个 Release 保留均通过；v2/root 稳定更新通道均为 `0.1.70`，公开滚动窗口为 `v0.1.66`–`v0.1.70`。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 - 历史 v0.1.68、v0.1.67、v0.1.66、v0.1.64 保留 tag 与 Release；更早版本按滚动保留策略移除公开 Release、tag 仍保留。
