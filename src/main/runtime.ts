@@ -16,9 +16,6 @@ import type {
   RecommendationDataState,
   RecommendationDetail,
   RankedAugmentSlot,
-  LiveClientDiagnosticStep,
-  LiveClientDiagnosticSampleResult,
-  LiveClientPrivateCaptureResult,
   OcrScheduleOutcome,
   OcrSlotResult,
   WallpaperEnginePreferences,
@@ -63,7 +60,6 @@ import { resolveAutomaticVisualMode } from './visual-policy.js'
 import { AugmentRoundTracker } from './augment-round.js'
 import { WallpaperEngineController, type WallpaperEngineContext } from './wallpaper-engine.js'
 import { LiveClientAdapter } from './live-client.js'
-import { randomBytes } from 'node:crypto'
 
 const EMPTY_SNAPSHOT: ChampSelectSnapshot = {
   phase: 'None',
@@ -306,7 +302,6 @@ export class HexBridgeRuntime {
   private liveClientLevelSequence = 0
   private trustedGameProcessRunning = false
   private currentChampionLevel: number | null = null
-  private liveClientDiagnosticSessionId: string | null = null
   private leagueClientProcessId: number | null = null
   private readonly gameProcessExitGuard = new GameProcessExitGuard()
   private augmentRound = new AugmentRoundTracker()
@@ -666,69 +661,6 @@ export class HexBridgeRuntime {
     return result
   }
 
-  async sampleLiveClientDiagnostics(step: LiveClientDiagnosticStep): Promise<LiveClientDiagnosticSampleResult> {
-    if (!['no-card', 'cards-visible', 'selection-complete'].includes(step)) {
-      return { ok: false, message: '采样步骤无效', sample: null }
-    }
-    if (this.snapshot.matchStage !== 'active') {
-      return { ok: false, message: '仅在进行中的对局里采样', sample: null }
-    }
-    const generation = this.snapshot.matchGeneration
-    const result = await this.liveClient.sampleDiagnostics()
-    if (
-      this.stopping ||
-      this.snapshot.matchStage !== 'active' ||
-      generation !== this.snapshot.matchGeneration
-    ) return { ok: false, message: '对局已变化，已丢弃迟到采样', sample: null }
-    if (!result.endpoints.length) return { ok: false, message: 'Live Client 采样正在进行，请稍后重试', sample: null }
-    this.liveClientDiagnosticSessionId ??= randomBytes(6).toString('hex')
-    return {
-      ok: true,
-      message: '已生成脱敏采样摘要；它不代表已识别可选卡字段',
-      sample: {
-        sessionId: this.liveClientDiagnosticSessionId,
-        step,
-        clientVersion: app.getVersion(),
-        matchStage: this.snapshot.matchStage,
-        matchGeneration: generation,
-        currentChampionLevel: result.level,
-        endpointStatus: result.endpoints,
-        ocrSurface: this.windows.getPresentationDiagnostics().augmentCompanion,
-      },
-    }
-  }
-
-  async captureLiveClientPrivateData(step: LiveClientDiagnosticStep): Promise<LiveClientPrivateCaptureResult> {
-    if (!['no-card', 'cards-visible', 'selection-complete'].includes(step)) {
-      return { ok: false, message: '采样步骤无效', fileName: null, bytes: null }
-    }
-    if (process.platform !== 'win32') {
-      return { ok: false, message: '完整 Live Client 实验仅支持 Windows 本机', fileName: null, bytes: null }
-    }
-    if (this.snapshot.matchStage !== 'active') {
-      return { ok: false, message: '仅在进行中的对局里读取完整数据', fileName: null, bytes: null }
-    }
-    const generation = this.snapshot.matchGeneration
-    const result = await this.liveClient.capturePrivateAllGameData(
-      step,
-      path.join(app.getPath('userData'), 'private-live-client-experiment'),
-    )
-    if (
-      result.ok && (
-        this.stopping ||
-        this.snapshot.matchStage !== 'active' ||
-        generation !== this.snapshot.matchGeneration
-      )
-    ) {
-      return { ok: false, message: '对局已变化；本次完整采样未纳入当前会话', fileName: result.fileName, bytes: result.bytes }
-    }
-    return result
-  }
-
-  async clearLiveClientPrivateData(): Promise<{ ok: boolean; message: string }> {
-    return this.liveClient.clearPrivateAllGameData(path.join(app.getPath('userData'), 'private-live-client-experiment'))
-  }
-
   clearApiKey(): void {
     this.config.clearApiKey()
     void this.data.initialize().finally(() => this.sync())
@@ -1055,7 +987,6 @@ export class HexBridgeRuntime {
     this.data.dispose()
     this.lcu.stop()
     this.liveClient?.stop?.()
-    this.liveClientDiagnosticSessionId = null
   }
 
   private handleLcuUpdate(snapshot: ChampSelectSnapshot, state: LcuConnectionState): void {
@@ -1083,9 +1014,6 @@ export class HexBridgeRuntime {
       snapshot.matchStage !== 'active'
     ) {
       this.resetCurrentChampionLevel()
-    }
-    if (snapshot.matchGeneration !== previousGeneration || snapshot.matchStage === 'none') {
-      this.liveClientDiagnosticSessionId = null
     }
     this.wallpaper?.reconcile?.(this.wallpaperContext())
     this.windows?.setLeagueClientProcessId?.(nextLeagueClientProcessId)

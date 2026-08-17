@@ -359,6 +359,19 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.66...v0.1.67')
   })
 
+  it('renders the concise leaderboard, history fallback and retired card sampling for v0.1.68', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.68',
+      releases: [...releases, { tag_name: 'v0.1.64', draft: false, prerelease: false }, { tag_name: 'v0.1.66', draft: false, prerelease: false }, { tag_name: 'v0.1.67', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.67 的更新')
+    expect(body).toContain('简洁的 OP、T1–T5 分组')
+    expect(body).toContain('唯一 PUUID')
+    expect(body).toContain('移除已确认无法可靠判断选卡完成状态')
+    expect(body).toContain('/compare/v0.1.67...v0.1.68')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

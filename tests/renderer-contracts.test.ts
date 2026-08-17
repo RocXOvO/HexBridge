@@ -48,7 +48,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.67'")
+    expect(rendererState).toContain("currentVersion: '0.1.68'")
   })
 
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
@@ -130,12 +130,13 @@ describe('main-window recommendation presentation', () => {
     expect(ipcSource).toContain("if (action === 'quit') requireSender(event, 'main')")
   })
 
-  it('keeps the raw Tier label visibly rendered instead of replacing it with a strength adjective', () => {
-    expect(appSource).toContain('class="rank-stats"')
-    expect(appSource).toContain("return state.value.recommendation.source === 'tencent101' ? '腾讯排名' : 'Tier'")
-    expect(appSource).toContain('championStrengthValue(item.tier)')
-    expect(appSource).not.toContain('强度顶尖')
-    expect(appSource).not.toContain('tierLabel(')
+  it('keeps the hero ranking visually concise and makes aliases primary', () => {
+    expect(appSource).not.toContain('class="rank-stats"')
+    expect(appSource).not.toContain("sort === 'winRate'")
+    expect(appSource).toContain('championPrimaryLabel(item)')
+    expect(appSource).toContain('championSecondaryLabel(item)')
+    expect(appSource).not.toContain('胜率</small><b>{{ winRate(item.winRate) }}')
+    expect(appSource).not.toContain('选取率</small><b>{{ state.recommendation.source')
   })
 
   it('keeps diagnostics deletion and LCU rediscovery behind the Main sender guard', () => {
@@ -148,23 +149,11 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps dtodo champion metrics and Tencent global metrics explicitly separated', () => {
-    expect(appSource).toContain('该英雄选取率')
     expect(appSource).toContain('优先采用上游提供的英雄专属推荐顺序')
-    expect(appSource).toContain('data.dtodo 单英雄详情')
-    expect(appSource).toContain('选取率仅作参考')
     expect(appSource).toContain('全局选取率')
     expect(appSource).toContain('全局胜率')
     expect(appSource).toContain('不是该英雄专属统计')
     expect(appSource).toContain('state.currentRecommendation.cards.slice(0, 3)')
-  })
-
-  it('surfaces Tencent overall champion pick rate without using it for ranking', () => {
-    expect(appSource).toContain('英雄选取率')
-    expect(appSource).toContain('championPickRate(current.championPickRate)')
-    expect(appSource).toContain('championPickRate(item.championPickRate)')
-    expect(stylesSource).toContain('.rank-pick')
-    expect(stylesSource).toContain('grid-template-columns: repeat(auto-fill, minmax(116px, 1fr))')
-    expect(rendererDemoState).toContain('championPickRate: null')
   })
 
   it('keeps Tencent browsing source-bound, keyboard reachable and locally filterable', () => {
@@ -174,9 +163,9 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('state.value.recommendation.statisticsDate')
     expect(appSource).toContain('@keydown.enter.prevent="selectRankingChampion(item.id)"')
     expect(appSource).toContain('@keydown.space.prevent="selectRankingChampion(item.id)"')
-    expect(appSource).toContain("['all','白银','黄金','棱彩']")
-    expect(appSource).toContain('championRecommendationRarity.value')
     expect(appSource).toContain('class="champion-augment-card"')
+    expect(appSource).toContain('championRecommendationCards')
+    expect(appSource).toContain('class="champion-build-detail detail-panel"')
     expect(appSource).toContain("page === 'champion-detail'")
     expect(appSource).toContain('returnToRanking')
     expect(appSource).toContain('无需 Key · 腾讯官网统计')
@@ -195,6 +184,14 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).not.toContain('championRecommendation?.build')
     expect(rendererDemoState).toContain("cards: demoState.currentRecommendation?.cards ?? []")
     expect(rendererDemoState).toContain("message: '预览模式：出装推荐已读取'")
+  })
+
+  it('removes the abandoned Live Client card-state sampling path from settings', () => {
+    expect(appSource).not.toContain('可选卡状态脱敏采样')
+    expect(appSource).not.toContain('allgamedata')
+    expect(preloadSource).not.toContain('sample-live-client')
+    expect(ipcSource).not.toContain('sample-live-client')
+    expect(ipcSource).not.toContain('capture-live-client-private')
   })
 
   it('presents Tencent 101 as the default without removing the explicit dtodo choice', () => {

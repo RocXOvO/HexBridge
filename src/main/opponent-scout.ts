@@ -456,6 +456,14 @@ const participantForPlayer = (game: any, targetPuuid?: string): any | null => {
     ? game.participantIdentities
     : []
   if (!participants.length) return null
+  // Some LCU history payloads omit participantIdentities entirely but retain
+  // the target PUUID on the participant row.  This is an explicit, unique
+  // join and is safe to use; never fall back to an array position.
+  const directMatches = participants.filter((participant: any) =>
+    participant?.puuid === targetPuuid || participant?.player?.puuid === targetPuuid,
+  )
+  if (directMatches.length === 1) return directMatches[0]
+  if (directMatches.length > 1) return null
   const explicitPuuidValues = identities.flatMap((entry: any) => {
     const value = entry?.player?.puuid ?? entry?.puuid
     return value === undefined || value === null ? [] : [value]

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ApiConnectionState, ChampionBuildRecommendation, ChampionRecommendationView, ChampionSummary, LiveClientDiagnosticSample, LiveClientDiagnosticStep, OpponentFormSummary, OpponentTeamSummary, RankedAugmentSlot, RecommendationDataState, RecommendationDataSource, RuntimeDiagnostics, ScoutPlayerDetails, WallpaperEngineTargetType } from '../../shared/contracts'
+import type { ApiConnectionState, ChampionBuildRecommendation, ChampionRecommendationView, ChampionSummary, OpponentFormSummary, OpponentTeamSummary, RankedAugmentSlot, RecommendationDataState, RecommendationDataSource, RuntimeDiagnostics, ScoutPlayerDetails, WallpaperEngineTargetType } from '../../shared/contracts'
 import LogoMark from './logo-mark.vue'
 import { describeMatchStatus } from '../../shared/match-status'
 import { api, useRuntime } from './state'
@@ -13,7 +13,6 @@ type Page = 'live' | 'ranking' | 'champion-detail' | 'settings' | 'dtodo-setting
 const { state, isPreview, bridgeError } = useRuntime()
 const page = ref<Page>('live')
 const search = ref('')
-const rankingSort = ref<'tier' | 'winRate'>('tier')
 const selectedChampionId = ref<number | null>(null)
 const championRecommendation = ref<ChampionRecommendationView | null>(null)
 const championRecommendationBusy = ref(false)
@@ -21,8 +20,6 @@ const championRecommendationMessage = ref('选择英雄后查看推荐海克斯'
 const championBuild = ref<ChampionBuildRecommendation | null>(null)
 const championBuildBusy = ref(false)
 const championBuildMessage = ref('')
-const championRecommendationSort = ref<'recommendation' | 'globalPick' | 'globalWin'>('recommendation')
-const championRecommendationRarity = ref<'all' | '白银' | '黄金' | '棱彩'>('all')
 let championRecommendationSequence = 0
 const apiKey = ref('')
 const toast = ref('')
@@ -55,10 +52,6 @@ const scoutDetailsBusy = ref(false)
 const scoutDetailsMessage = ref('')
 const scoutDetailsDialog = ref<HTMLElement | null>(null)
 const scoutDetailsCloseButton = ref<HTMLButtonElement | null>(null)
-const liveClientSample = ref<LiveClientDiagnosticSample | null>(null)
-const liveClientSampleBusy = ref(false)
-const liveClientPrivateCaptureBusy = ref(false)
-const liveClientPrivateCaptureMessage = ref('')
 let scoutDetailsTrigger: HTMLElement | null = null
 let scoutDetailsSequence = 0
 const matchStatus = computed(() => describeMatchStatus(state.value.snapshot, state.value.lcu.connected))
@@ -227,7 +220,7 @@ const rankingGroups = computed(() => {
   return groupChampionsByTier(
     rows,
     state.value.recommendation.source,
-    rankingSort.value,
+    'tier',
     state.value.champions,
   )
 })
@@ -249,21 +242,7 @@ const recommendationStatusText: Record<RecommendationDataState['status'], string
   error: '来源不可用',
 }
 
-const sortedChampionRecommendationCards = computed(() => {
-  const cards = [...(championRecommendation.value?.cards ?? [])].filter((card) =>
-    championRecommendationRarity.value === 'all' || card.rarityName === championRecommendationRarity.value,
-  )
-  if (championRecommendationSort.value === 'globalPick') {
-    return cards.sort((a, b) => (b.globalPickRate ?? -1) - (a.globalPickRate ?? -1))
-  }
-  if (championRecommendationSort.value === 'globalWin') {
-    return cards.sort((a, b) => (b.globalWinRate ?? -1) - (a.globalWinRate ?? -1))
-  }
-  return cards.sort((a, b) =>
-    (a.recommendationRank ?? Number.POSITIVE_INFINITY) -
-    (b.recommendationRank ?? Number.POSITIVE_INFINITY),
-  )
-})
+const championRecommendationCards = computed(() => championRecommendation.value?.cards ?? [])
 
 function winRate(value: number | null): string {
   return value == null ? '—' : `${(value * 100).toFixed(1)}%`
@@ -271,6 +250,17 @@ function winRate(value: number | null): string {
 
 function championPickRate(value: number | null | undefined): string {
   return value == null ? '暂无数据' : `${(value * 100).toFixed(1)}%`
+}
+
+function championPrimaryLabel(champion: ChampionSummary | null): string {
+  if (!champion) return '未知英雄'
+  return champion.searchAliases?.find((alias) => alias.trim())?.trim() || champion.alias || champion.name
+}
+
+function championSecondaryLabel(champion: ChampionSummary | null): string {
+  if (!champion) return ''
+  const primary = championPrimaryLabel(champion)
+  return champion.name !== primary ? champion.name : champion.title
 }
 
 function championStrengthLabel(): string {
@@ -732,48 +722,6 @@ async function clearDiagnostics(): Promise<void> {
   }
 }
 
-async function sampleLiveClient(step: LiveClientDiagnosticStep): Promise<void> {
-  if (liveClientSampleBusy.value) return
-  liveClientSampleBusy.value = true
-  try {
-    const result = await api.sampleLiveClientDiagnostics(step)
-    if (result.ok && result.sample) liveClientSample.value = result.sample
-    showToast(result.message, !result.ok)
-  } catch (error) {
-    showToast(error instanceof Error ? error.message : 'Live Client 采样失败', true)
-  } finally {
-    liveClientSampleBusy.value = false
-  }
-}
-
-async function captureLiveClientPrivate(step: LiveClientDiagnosticStep): Promise<void> {
-  if (liveClientPrivateCaptureBusy.value) return
-  liveClientPrivateCaptureBusy.value = true
-  try {
-    const result = await api.captureLiveClientPrivateData(step)
-    liveClientPrivateCaptureMessage.value = result.ok
-      ? `${result.message} 文件大小 ${result.bytes ?? 0} 字节。`
-      : result.message
-    showToast(result.message, !result.ok)
-  } catch (error) {
-    liveClientPrivateCaptureMessage.value = error instanceof Error ? error.message : '完整数据读取失败'
-    showToast(liveClientPrivateCaptureMessage.value, true)
-  } finally {
-    liveClientPrivateCaptureBusy.value = false
-  }
-}
-
-async function clearLiveClientPrivate(): Promise<void> {
-  if (liveClientPrivateCaptureBusy.value) return
-  try {
-    const result = await api.clearLiveClientPrivateData()
-    liveClientPrivateCaptureMessage.value = result.message
-    showToast(result.message, !result.ok)
-  } catch (error) {
-    liveClientPrivateCaptureMessage.value = error instanceof Error ? error.message : '清除完整采样失败'
-    showToast(liveClientPrivateCaptureMessage.value, true)
-  }
-}
 
 async function startCalibration(): Promise<void> {
   if (calibrationBusy.value) return
@@ -863,8 +811,6 @@ watch(
     championBuild.value = null
     championRecommendationBusy.value = false
     championBuildBusy.value = false
-    championRecommendationRarity.value = 'all'
-    championRecommendationSort.value = 'recommendation'
     championRecommendationMessage.value = '推荐来源已变化，请重新选择英雄'
     championBuildMessage.value = '推荐来源已变化；出装仍独立使用 data.dtodo'
   },
@@ -946,7 +892,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
               <div v-if="current" :key="current.id" class="hero-presence">
                 <div class="current-hero">
                   <img :src="current.iconUrl" :alt="championAlt(current)" />
-                  <div class="hero-name"><small>当前英雄</small><h1>{{ current.name }}</h1><p>{{ current.title || '海克斯大乱斗' }}</p></div>
+                  <div class="hero-name"><small>当前英雄</small><h1>{{ championPrimaryLabel(current) }}</h1><p>{{ championSecondaryLabel(current) || '海克斯大乱斗' }}</p></div>
                   <div class="hero-metrics">
                     <div><small>{{ championStrengthLabel() }}</small><b class="tier-value">{{ championStrengthValue(current.tier) }}</b></div>
                     <div><small>{{ championWinRateLabel() }}</small><b>{{ winRate(current.winRate) }}</b></div>
@@ -1103,7 +1049,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
               <TransitionGroup name="reorder" tag="div" class="bench-grid">
                 <article v-for="item in bench" :key="item.id" :class="['bench-card', { best: item.isBest }]">
                   <img :src="item.iconUrl" :alt="championAlt(item)" />
-                  <div class="bench-info"><b>{{ item.name }}</b><small>{{ item.title || '可选英雄' }}</small></div>
+                  <div class="bench-info"><b>{{ championPrimaryLabel(item) }}</b><small>{{ championSecondaryLabel(item) || '可选英雄' }}</small></div>
                   <div class="bench-stats"><b>{{ championStrengthValue(item.tier) }}</b><span>{{ winRate(item.winRate) }}</span><span v-if="state.recommendation.source === 'tencent101'">英雄选取率 {{ championPickRate(item.championPickRate) }}</span></div>
                   <div v-if="item.isBest" class="best-strip">首选 · 较当前 {{ item.winRateDelta != null && item.winRateDelta >= 0 ? '+' : '' }}{{ item.winRateDelta == null ? '—' : (item.winRateDelta * 100).toFixed(1) + '%' }}</div>
                 </article>
@@ -1115,13 +1061,13 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 
         <section v-else-if="page === 'ranking'" :key="'ranking'" class="page-content standard-page">
           <div class="page-heading"><div><small>{{ recommendationSourceName }} · {{ state.recommendation.statisticsDate || state.recommendation.dataVersion || '数据未就绪' }}</small><h1>英雄榜</h1><p>按排名排列。点击头像查看详情。</p></div><button class="ghost" :disabled="busy" @click="refresh">刷新</button></div>
-          <div class="toolbar"><label class="search"><span>⌕</span><input v-model="search" placeholder="搜索英雄名、称号或别名（如 VN）" /></label><div class="segmented"><button v-for="sort in (['tier','winRate'] as const)" :key="sort" :class="{ active: rankingSort === sort }" @click="rankingSort = sort">{{ sort === 'tier' ? '榜单顺序' : '胜率' }}</button></div></div>
+          <div class="toolbar"><label class="search"><span>⌕</span><input v-model="search" placeholder="搜索英雄名、称号或别名（如 VN）" /></label></div>
           <div class="ranking-groups">
             <section v-for="group in rankingGroups" :key="group.key" class="ranking-group">
               <header class="ranking-group-header"><div><span class="tier-badge" :class="`tier-badge-${group.key.toLowerCase()}`">{{ group.label }}</span><div><h2>{{ group.label }}</h2><small>{{ group.items.length }} 位英雄</small></div></div><span v-if="group.key === 'OP'" class="ranking-group-note">当前来源榜单中的优先候选</span></header>
               <div class="ranking-list">
-                <article v-for="(item, index) in group.items" :key="item.id" :class="['tier-row', `tier-${group.key.toLowerCase()}`, { selected: selectedChampionId === item.id }]" role="button" tabindex="0" :aria-label="`查看 ${item.name} 的推荐海克斯与出装`" @click="selectRankingChampion(item.id)" @keydown.enter.prevent="selectRankingChampion(item.id)" @keydown.space.prevent="selectRankingChampion(item.id)">
-                  <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><b class="rank-name">{{ item.name }}</b><small class="rank-title">{{ item.title || '海克斯大乱斗英雄' }}</small><div class="rank-stats"><span><small>胜率</small><b>{{ winRate(item.winRate) }}</b></span><span><small>选取率</small><b>{{ state.recommendation.source === 'tencent101' ? championPickRate(item.championPickRate) : '—' }}</b></span></div>
+                <article v-for="(item, index) in group.items" :key="item.id" :class="['tier-row', `tier-${group.key.toLowerCase()}`, { selected: selectedChampionId === item.id }]" role="button" tabindex="0" :aria-label="`查看 ${championPrimaryLabel(item)} 的推荐海克斯与出装`" @click="selectRankingChampion(item.id)" @keydown.enter.prevent="selectRankingChampion(item.id)" @keydown.space.prevent="selectRankingChampion(item.id)">
+                  <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><b class="rank-name">{{ championPrimaryLabel(item) }}</b><small class="rank-title">{{ championSecondaryLabel(item) || '海克斯大乱斗英雄' }}</small>
                 </article>
               </div>
             </section>
@@ -1131,16 +1077,14 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
 
         <section v-else-if="page === 'champion-detail'" :key="'champion-detail'" class="page-content standard-page champion-detail-page">
           <div class="page-heading champion-detail-heading">
-            <div><button class="back-link" @click="returnToRanking">← 英雄榜</button><small>{{ recommendationSourceName }}</small><h1>{{ championById(selectedChampionId)?.name || `英雄 #${selectedChampionId}` }}</h1><p>海克斯推荐与独立出装。</p></div>
-            <div v-if="championById(selectedChampionId)" class="detail-hero-summary"><img :src="championById(selectedChampionId)?.iconUrl" :alt="championAlt(championById(selectedChampionId))" /><span><small>胜率</small><b>{{ winRate(championById(selectedChampionId)?.winRate ?? null) }}</b></span><span><small>选取率</small><b>{{ state.recommendation.source === 'tencent101' ? championPickRate(championById(selectedChampionId)?.championPickRate) : '—' }}</b></span></div>
+            <div><button class="back-link" @click="returnToRanking">← 英雄榜</button><small>{{ recommendationSourceName }}</small><h1>{{ championPrimaryLabel(championById(selectedChampionId)) || `英雄 #${selectedChampionId}` }}</h1><p>{{ championSecondaryLabel(championById(selectedChampionId)) || '海克斯大乱斗英雄' }} · 出装与海克斯</p></div>
           </div>
           <section class="detail-panel" aria-live="polite">
-            <header class="detail-panel-header"><div><small>推荐序 · {{ championRecommendation?.statisticsDate || state.recommendation.statisticsDate || '数据未就绪' }}<template v-if="championRecommendation?.stale"> · 旧缓存</template></small><h2>推荐海克斯</h2></div><div class="champion-detail-controls"><div class="segmented"><button v-for="rarity in (['all','白银','黄金','棱彩'] as const)" :key="rarity" :class="{ active: championRecommendationRarity === rarity }" @click="championRecommendationRarity = rarity">{{ rarity === 'all' ? '全部' : rarity }}</button></div><div class="segmented"><button v-for="sort in (['recommendation','globalPick','globalWin'] as const)" :key="sort" :disabled="state.recommendation.source !== 'tencent101' && sort !== 'recommendation'" :class="{ active: championRecommendationSort === sort }" @click="championRecommendationSort = sort">{{ sort === 'recommendation' ? '推荐序' : sort === 'globalPick' ? '全局选取率' : '全局胜率' }}</button></div></div></header>
+            <header class="detail-panel-header"><div><small>{{ recommendationSourceName }} · 推荐序</small><h2>海克斯选择</h2></div></header>
             <p v-if="championRecommendationBusy">正在读取…</p>
-            <div v-else-if="sortedChampionRecommendationCards.length" class="champion-augment-cards">
-              <article v-for="card in sortedChampionRecommendationCards" :key="card.augmentId" class="champion-augment-card" :title="card.description || card.name">
+            <div v-else-if="championRecommendationCards.length" class="champion-augment-cards">
+              <article v-for="card in championRecommendationCards" :key="card.augmentId" class="champion-augment-card" :title="card.description || card.name">
                 <span class="augment-rank">{{ card.recommendationRank == null ? '—' : `#${card.recommendationRank}` }}</span><img :src="card.iconUrl" :alt="card.name" /><b>{{ card.name }}</b><small>{{ card.rarityName || '海克斯强化' }}</small><em>{{ card.reason }}</em>
-                <dl v-if="championRecommendation?.source === 'tencent101'"><div><dt>全局选取率</dt><dd>{{ augmentPickRate(card.globalPickRate) }}</dd></div><div><dt>全局胜率</dt><dd>{{ augmentPickRate(card.globalWinRate) }}</dd></div></dl><dl v-else><div><dt>该英雄选取率</dt><dd>{{ augmentPickRate(card.championPickRate) }}</dd></div></dl>
               </article>
             </div>
             <p v-else>{{ championRecommendation?.cards.length ? '当前筛选无结果。' : championRecommendationMessage }}</p>
@@ -1223,7 +1167,6 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
           <div class="page-heading"><div><small>系统状态</small><h1>诊断</h1><p>日志会自动过滤 LCU token、API Key 与账号标识。</p></div><div class="page-actions"><button class="ghost" @click="clearDiagnostics">清除截图</button><button class="ghost" @click="triggerOcr">{{ state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别' }}</button></div></div>
           <div class="health-grid"><article><span :class="['health-icon', state.lcu.connected || retainedMatch ? 'ok' : 'warn']">●</span><div><small>LCU</small><b>{{ state.lcu.connected ? '只读连接正常' : retainedMatch ? '游戏客户端接管中' : '等待客户端' }}</b><p>{{ retainedMatch ? 'LCU 连接已交接，本局英雄与 OCR 上下文仍保留' : (state.lcu.lastError || `发现来源：${state.lcu.source || '—'}`) }}</p></div></article><article><span :class="['health-icon', ['ready','stale'].includes(state.recommendation.status) ? 'ok' : 'warn']">●</span><div><small>推荐来源</small><b>{{ recommendationSourceName }} · {{ recommendationStatusText[state.recommendation.status] }}</b><p>{{ state.recommendation.lastError || `统计日期 ${state.recommendation.statisticsDate || state.recommendation.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.api.status === 'ready' ? 'ok' : 'warn']">●</span><div><small>DTDODO / 出装</small><b>{{ apiStatusText[state.api.status] }}</b><p>{{ state.api.lastError || `数据版本 ${state.api.dataVersion || '—'}` }}</p></div></article><article><span :class="['health-icon', state.diagnostics.ocrReady ? 'ok' : 'warn']">●</span><div><small>OCR</small><b>{{ state.diagnostics.ocrReady ? '模型已就绪' : '模型未就绪' }}</b><p>{{ state.diagnostics.manualOcrStatus === 'idle' ? (state.diagnostics.ocrLastError || `上次 ${state.diagnostics.ocrLastDurationMs ?? '—'}ms`) : `${state.diagnostics.manualOcrMessage} · ${manualOcrCodeText[state.diagnostics.manualOcrCode]} · ${manualOcrTime(state.diagnostics.manualOcrTriggeredAt)}` }}</p></div></article><article data-testid="ocr-schedule-diagnostic"><span :class="['health-icon', state.diagnostics.ocrSchedule.phase === 'stopped' ? 'warn' : 'ok']">●</span><div><small>OCR 调度</small><b>{{ ocrSchedulePhaseText[state.diagnostics.ocrSchedule.phase] }} · {{ ocrScheduleOutcomeText[state.diagnostics.ocrSchedule.lastOutcome] }}</b><p>探测 {{ state.diagnostics.ocrSchedule.cheapProbeCount }} 次（最近 {{ ocrDuration(state.diagnostics.ocrSchedule.cheapProbeLastDurationMs) }}，峰值 {{ ocrDuration(state.diagnostics.ocrSchedule.cheapProbeMaxDurationMs) }}）；完整识别 {{ state.diagnostics.ocrSchedule.fullOcrCount }} 次（最近 {{ ocrDuration(state.diagnostics.ocrSchedule.fullOcrLastDurationMs) }}，峰值 {{ ocrDuration(state.diagnostics.ocrSchedule.fullOcrMaxDurationMs) }}）；下次 {{ state.diagnostics.ocrSchedule.nextDelayMs == null ? '—' : `${state.diagnostics.ocrSchedule.nextDelayMs}ms` }}</p></div></article><article data-testid="champion-companion-diagnostic"><span :class="['health-icon', state.diagnostics.presentation.championCompanion === 'visible' ? 'ok' : 'warn']">●</span><div><small>选人伴随窗</small><b>{{ championCompanionStatusText[state.diagnostics.presentation.championCompanion] }}</b><p>{{ observerStatusText[state.diagnostics.presentation.observer] }}</p></div></article><article data-testid="augment-companion-diagnostic"><span :class="['health-icon', state.diagnostics.presentation.augmentCompanion === 'visible' ? 'ok' : 'warn']">●</span><div><small>游戏内推荐条</small><b>{{ augmentCompanionStatusText[state.diagnostics.presentation.augmentCompanion] }}</b><p>只显示脱敏状态，不记录窗口位置或进程标识</p></div></article></div>
           <div class="log-panel"><header><b>本地日志</b><span>{{ state.diagnostics.logLines.length }} 行</span></header><pre>{{ state.diagnostics.logLines.join('\n') || '暂无日志' }}</pre></div>
-          <section class="diagnostic-sample-card" aria-labelledby="live-client-sample-title"><header><div><small>Live Client Data API</small><h2 id="live-client-sample-title">可选卡状态脱敏采样</h2><p>等级可作为唤醒信号，但不能单独证明卡面可选。请在三个时间点各点击一次；每次会额外做一次受限 allgamedata 读取（最多 2 MiB）。这里只显示字段路径、类型和有限值，不保存原始响应。</p></div><span v-if="liveClientSample">会话 {{ liveClientSample.sessionId }} · {{ liveClientSample.step }}</span></header><div class="diagnostic-sample-actions"><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('no-card')">卡面未出现</button><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('cards-visible')">三卡已出现</button><button class="ghost" :disabled="liveClientSampleBusy" @click="sampleLiveClient('selection-complete')">选卡完成</button></div><div v-if="liveClientSample" class="diagnostic-sample-result"><p>等级：{{ liveClientSample.currentChampionLevel ?? '不可用' }} · OCR surface：{{ liveClientSample.ocrSurface }} · generation {{ liveClientSample.matchGeneration }}</p><div v-for="endpoint in liveClientSample.endpointStatus" :key="endpoint.endpoint"><b>{{ endpoint.endpoint }} · {{ endpoint.status }}</b><small>{{ endpoint.fields.map((field) => `${field.path}:${field.type}${field.value !== undefined ? `=${field.value}` : ''}`).join(' · ') || '无可公开字段摘要' }}</small></div></div><div class="diagnostic-private-actions"><small>个人研究：以下按钮会把完整 allgamedata 原文只保存到此 Windows 本机，不进入 Renderer、日志、网络或 Release。</small><div><button class="ghost" :disabled="liveClientPrivateCaptureBusy" @click="captureLiveClientPrivate('no-card')">保存未出卡全量</button><button class="ghost" :disabled="liveClientPrivateCaptureBusy" @click="captureLiveClientPrivate('cards-visible')">保存三卡全量</button><button class="ghost" :disabled="liveClientPrivateCaptureBusy" @click="captureLiveClientPrivate('selection-complete')">保存选卡后全量</button><button class="ghost" :disabled="liveClientPrivateCaptureBusy" @click="clearLiveClientPrivate">清除本机全量</button></div><p v-if="liveClientPrivateCaptureMessage">{{ liveClientPrivateCaptureMessage }}</p></div></section>
           <p class="choice-note">诊断截图仅在手动识别时保存，最多保留 60 张裁切图。</p>
           <div v-if="isPreview" class="preview-banner">浏览器视觉预览模式 · Electron 中将显示实时数据</div>
         </section>

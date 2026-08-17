@@ -2,7 +2,9 @@
 
 > 最后更新：2026-08-16。只保留当前正式基线和可继续执行的发布规则；旧流水从 Git / Actions / Releases 追溯。
 
-## 当前正式基线
+## 当前候选 / 正式基线
+
+- 当前候选为 `v0.1.68`，公开正式版仍为 `v0.1.67`；本候选包含简洁英雄榜 / 详情、队友历史兼容与撤销不可行的 Live Client 选卡采样入口。Windows / tag / Release 尚未发生前不得写成已发布。
 
 - 当前正式版为 `v0.1.67`；workflow `31948637363` 重跑 job `95169405811` 成功，Release ID `371327696`，Windows `51` files / `648` passed，打包 UI / bridge、差分、双通道、公网 packaged 与最近五个 Release 保留均通过。差分 smoke 传输 `1330835` bytes（10 个 Range / 3 个 redirect，基于 v0.1.66）；真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 - 历史 v0.1.66 保留 tag 与 Release；v0.1.63、v0.1.65 仅保留 tag、未创建公开 Release。v0.1.67 公开滚动窗口为 v0.1.61、v0.1.62、v0.1.64、v0.1.66、v0.1.67。

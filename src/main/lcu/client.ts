@@ -743,7 +743,10 @@ export class LcuClient extends EventEmitter {
       : currentSummonerResult.value == null
         ? new Error('LCU endpoint unavailable')
         : opponentPayloadFailure(currentSummonerResult.value)
-    if (currentSummonerFailure) {
+    const cachedCurrentSummoner = isPuuid(this.currentSummonerPuuid)
+      ? { puuid: this.currentSummonerPuuid }
+      : null
+    if (currentSummonerFailure && !cachedCurrentSummoner) {
       logger.debug('Opponent identity source unavailable', {
         matchStage: this.snapshot.matchStage,
         reason: 'current-summoner-request-failed',
@@ -769,9 +772,10 @@ export class LcuClient extends EventEmitter {
         'identity-source-unavailable',
       )
     }
-    const currentSummoner = currentSummonerResult.status === 'fulfilled'
+    const currentSummoner = currentSummonerResult.status === 'fulfilled' &&
+      isPuuid((currentSummonerResult.value as any)?.puuid)
       ? currentSummonerResult.value
-      : null
+      : cachedCurrentSummoner
     const identitySource = identitySourceResult.status === 'fulfilled'
       ? identitySourceResult.value
       : null
@@ -1189,7 +1193,7 @@ export class LcuClient extends EventEmitter {
             chunks.push(buffer)
           })
           response.on('end', () => {
-            if (response.statusCode === 404) return finish(resolve, null)
+            if (response.statusCode === 404) return finish(reject, new Error('LCU HTTP 404'))
             if (response.statusCode === 401) return finish(reject, new Error('LCU authorization expired'))
             if (!response.statusCode || response.statusCode >= 400) {
               return finish(reject, new Error(`LCU HTTP ${response.statusCode ?? 0}`))

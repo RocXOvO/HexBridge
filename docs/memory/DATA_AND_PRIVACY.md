@@ -18,12 +18,11 @@
 - 不保存或传输截图、OCR 文本、坐标、窗口 / 进程标识、路径、token、PUUID 或其他玩家身份；换 generation、停止和旧 epoch 迟到结果都会清理或丢弃指标。
 - v0.1.58 候选的增量 OCR 只在 Main 内保留短期指纹与物理槽位签名；这些值不进入公开诊断或持久缓存，混合帧与迟到结果 fail closed。
 
-## Live Client 受限诊断（HB-079）
+## Live Client 当前英雄等级（HB-079）
 
-- `activeplayer` 等级读取和三时间点诊断均固定为 Main-only `https://127.0.0.1:2999`；v0.1.60 已在用户点击诊断按钮时额外读取一次 `allgamedata`，不进入后台轮询或推荐状态机。
-- 每个响应统一限制 2 MiB / 超时，摘要只保留有限字段路径、JSON 类型、布尔 / 枚举 / 数值；`activePlayer`、`allPlayers` 及姓名、RiotID、PUUID、装备、符文、原始响应均不进入 RuntimeState、日志、磁盘或 Renderer。
-- allgamedata 是否包含稳定的卡面状态仍待真实 Windows 三时间点实验；在得到跨回合一致证据前，等级 / 事件只能唤醒短期 cheap probe，OCR 仍是卡面最终确认。
-- v0.1.61 已发布显式 Windows 个人研究模式：用户主动点击后，完整 `allgamedata`（仍受现有 2 MiB / 超时限制）只写入 `userData/private-live-client-experiment`；Renderer / IPC 只收到成功状态、文件名和字节数，原文不进日志、RuntimeState、网络或 Release。诊断页提供清除按钮；这是用户明确 opt-in 的本机敏感数据存储，不默认触发。真实 WeGame 字段仍待用户采样。
+- 当前运行时只保留 Main-only `activeplayer` 等级读取，固定为 `https://127.0.0.1:2999`，仅在 active / InProgress 且游戏进程可信时低频 single-flight 读取；离局、换 generation、停止或迟到响应会清空 / 丢弃。
+- 只保留整数 `1..18` 的 `level`，RuntimeState 只公开当前等级；姓名、RiotID、PUUID、装备、符文和原始响应不进入 RuntimeState、日志、磁盘或 Renderer。
+- v0.1.68 撤销三时间点字段摘要与完整 `allgamedata` 保存入口：实测响应没有跨时间点稳定、可证明的“卡片可选择”字段，等级或事件不能替代 OCR 的卡面确认。历史 v0.1.60 / v0.1.61 release 说明保留作追溯，不代表当前版本仍提供该入口。
 
 ## 腾讯 101（HB-058）
 

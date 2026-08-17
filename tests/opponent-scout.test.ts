@@ -662,6 +662,22 @@ describe('local opponent form experiment', () => {
     expect(extractRecentMatchSamples(payload, ENEMY_TWO)).toEqual([])
   })
 
+  it('joins a full history payload through one unique direct PUUID without using participant position', () => {
+    const payload = {
+      games: { games: [{
+        gameDuration: 900,
+        participants: [
+          { puuid: SELF, participantId: 1, stats: { win: false, kills: 1, deaths: 8, assists: 2 } },
+          { puuid: ENEMY_ONE, participantId: 2, stats: { win: true, kills: 9, deaths: 1, assists: 7 } },
+        ],
+      }] },
+    }
+    expect(extractRecentMatchSamples(payload, ENEMY_ONE)).toEqual([
+      { win: true, kills: 9, deaths: 1, assists: 7 },
+    ])
+    expect(extractRecentMatchSamples(payload, ENEMY_TWO)).toEqual([])
+  })
+
   it('accepts a target-scoped legacy history item only when it has one participant and no PUUID identities', () => {
     const scoped = {
       games: { games: [{
@@ -851,6 +867,51 @@ describe('local opponent form experiment', () => {
     expect(JSON.stringify(details)).not.toContain('participantId')
     client.snapshot = { ...client.snapshot, matchGeneration: 8 }
     expect(client.getScoutPlayerDetails(7, opaqueKey as string)).toBeNull()
+  })
+
+  it('uses the same-generation Main-only summoner cache during a transient current-summoner failure', async () => {
+    const requests: string[] = []
+    const client = new LcuClient(() => '', {
+      disableWebSocket: true,
+      request: vi.fn(async (endpoint: string) => {
+        requests.push(endpoint)
+        if (endpoint === '/lol-summoner/v1/current-summoner') throw new Error('LCU HTTP 503')
+        if (endpoint === '/lol-gameflow/v1/session') {
+          return {
+            gameData: {
+              teamOne: activeOwnTeam(),
+              teamTwo: [ENEMY_ONE, ENEMY_TWO, ENEMY_THREE, ENEMY_FOUR, ENEMY_FIVE]
+                .map((puuid) => ({ puuid })),
+            },
+          }
+        }
+        if (endpoint.includes('/matches?')) {
+          const target = endpoint.split('/products/lol/')[1]?.split('/matches?')[0]
+          return {
+            games: {
+              games: Array.from({ length: 12 }, () => ({
+                gameDuration: 900,
+                participants: [{ puuid: target, stats: { win: true, kills: 8, deaths: 2, assists: 10 } }],
+              })),
+            },
+          }
+        }
+        return null
+      }),
+    }) as any
+    client.credentials = { port: 2999, token: 'secret', source: 'process' }
+    client.state = { connected: true, source: 'process', lastError: null, lastConnectedAt: Date.now() }
+    client.snapshot = {
+      phase: 'InProgress', locale: 'zh_CN', queueId: 3270, modeActive: true,
+      matchStage: 'active', matchGeneration: 21, currentChampionId: 103,
+      benchChampionIds: [], benchEnabled: false, updatedAt: Date.now(),
+    }
+    client.currentSummonerPuuid = SELF
+
+    const result = await client.scoutOpponents(21)
+    expect(result.status).toBe('ready')
+    expect(requests.filter((endpoint) => endpoint.includes('/matches?'))).toHaveLength(9)
+    expect(JSON.stringify(result)).not.toContain(SELF)
   })
 
   it('keeps all nine history reads within a global concurrency of two', async () => {

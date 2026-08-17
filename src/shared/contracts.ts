@@ -17,7 +17,6 @@ export type VisualModePreference = VisualMode | 'auto'
 export type MatchContextStage = 'none' | 'selecting' | 'launching' | 'active'
 export type RecommendationDataSource = 'dtodo' | 'tencent101'
 export type TencentHeroRecommendationBasis = 'lowest_rank_runes' | 'bestHeroes_pick_rank'
-export type LiveClientDiagnosticStep = 'no-card' | 'cards-visible' | 'selection-complete'
 export type WallpaperEngineTargetType = 'profile' | 'playlist'
 
 export interface WallpaperEngineTarget {
@@ -559,38 +558,6 @@ export interface RuntimeState {
   diagnostics: RuntimeDiagnostics
 }
 
-export interface LiveClientDiagnosticSample {
-  sessionId: string
-  step: LiveClientDiagnosticStep
-  clientVersion: string
-  matchStage: MatchContextStage
-  matchGeneration: number
-  currentChampionLevel: number | null
-  endpointStatus: Array<{
-    endpoint: 'activeplayer' | 'eventdata' | 'gamestats' | 'allgamedata'
-    status: 'ready' | 'unavailable' | 'invalid' | 'aborted'
-    fields: Array<{
-      path: string
-      type: 'boolean' | 'number' | 'string' | 'null' | 'object' | 'array'
-      value?: boolean | number | string
-    }>
-  }>
-  ocrSurface: AugmentCompanionPresentationStatus
-}
-
-export interface LiveClientDiagnosticSampleResult {
-  ok: boolean
-  message: string
-  sample: LiveClientDiagnosticSample | null
-}
-
-export interface LiveClientPrivateCaptureResult {
-  ok: boolean
-  message: string
-  fileName: string | null
-  bytes: number | null
-}
-
 export interface HexBridgeApi {
   getState(): Promise<RuntimeState>
   onStateChanged(callback: (state: RuntimeState) => void): () => void
@@ -611,9 +578,6 @@ export interface HexBridgeApi {
   saveWallpaperEnginePreferences(preferences: WallpaperEnginePreferences): Promise<{ ok: boolean; message: string }>
   retryWallpaperEngine(): Promise<{ ok: boolean; message: string }>
   clearDiagnosticScreenshots(): Promise<{ ok: boolean; message: string }>
-  sampleLiveClientDiagnostics(step: LiveClientDiagnosticStep): Promise<LiveClientDiagnosticSampleResult>
-  captureLiveClientPrivateData(step: LiveClientDiagnosticStep): Promise<LiveClientPrivateCaptureResult>
-  clearLiveClientPrivateData(): Promise<{ ok: boolean; message: string }>
   retryLcuConnection(): Promise<{ ok: boolean; message: string }>
   startCalibration(): Promise<void>
   getCalibrationContext(): Promise<CalibrationContext | null>

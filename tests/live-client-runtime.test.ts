@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
-  app: { getVersion: () => '0.1.67' },
+  app: { getVersion: () => '0.1.68' },
   screen: {},
   safeStorage: {},
   BrowserWindow: class {},
@@ -29,10 +29,6 @@ function makeRuntime() {
   runtime.liveClient = {
     readActivePlayerLevel: vi.fn(async () => ({ level: 12, code: 'ready' })),
     abort: vi.fn(),
-    sampleDiagnostics: vi.fn(async () => ({
-      level: 10,
-      endpoints: [{ endpoint: 'activeplayer', status: 'ready', fields: [] }],
-    })),
   }
   runtime.windows = { getPresentationDiagnostics: () => ({ augmentCompanion: 'inactive' }) }
   return runtime
@@ -68,27 +64,4 @@ describe('Runtime Live Client level guards', () => {
     expect(runtime.liveClientLevelTimer).toBeNull()
   })
 
-  it('returns a redacted one-shot diagnostic sample only for the current generation', async () => {
-    const runtime = makeRuntime()
-    const result = await runtime.sampleLiveClientDiagnostics('cards-visible')
-    expect(result.ok).toBe(true)
-    expect(result.sample).toMatchObject({
-      step: 'cards-visible',
-      clientVersion: '0.1.67',
-      currentChampionLevel: 10,
-      matchGeneration: 2,
-      ocrSurface: 'inactive',
-    })
-    expect(result.sample?.sessionId).toMatch(/^[a-f0-9]{12}$/)
-  })
-
-  it('does not publish a sample after the match generation changes', async () => {
-    let resolveRead: ((value: unknown) => void) | undefined
-    const runtime = makeRuntime()
-    runtime.liveClient.sampleDiagnostics = vi.fn(() => new Promise((resolve) => { resolveRead = resolve }))
-    const pending = runtime.sampleLiveClientDiagnostics('no-card')
-    runtime.snapshot = { ...runtime.snapshot, matchGeneration: 3 }
-    resolveRead?.({ level: 3, endpoints: [] })
-    await expect(pending).resolves.toEqual({ ok: false, message: '对局已变化，已丢弃迟到采样', sample: null })
-  })
 })
