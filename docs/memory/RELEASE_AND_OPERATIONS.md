@@ -4,7 +4,7 @@
 
 ## 当前候选 / 正式基线
 
-- 当前正式版为 `v0.1.69`；本版修复英雄详情 hydration 误判来源变化，以及来源快照刷新后不自动重读当前英雄。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
+- 当前候选为 `v0.1.70`，公开正式版仍为 `v0.1.69`；本候选移除英雄榜/备战席的英雄选取率徽标并收缩榜单卡片、图标。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 
 - 当前正式版为 `v0.1.69`；workflow `32021793525` / 重跑 job `95364778122` 成功，Release ID `RE_kwDOT1eQs84WJ4XN`，Windows 全量测试、打包 UI / bridge、差分、公网 packaged 与最近五个 Release 保留均通过。五资产已上传，公开滚动窗口为 v0.1.64、v0.1.66、v0.1.67、v0.1.68、v0.1.69；真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 - 历史 v0.1.68、v0.1.67、v0.1.66、v0.1.64 保留 tag 与 Release；更早版本按滚动保留策略移除公开 Release、tag 仍保留。

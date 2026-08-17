@@ -48,7 +48,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.69'")
+    expect(rendererState).toContain("currentVersion: '0.1.70'")
   })
 
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
@@ -137,6 +137,17 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('championSecondaryLabel(item)')
     expect(appSource).not.toContain('胜率</small><b>{{ winRate(item.winRate) }}')
     expect(appSource).not.toContain('选取率</small><b>{{ state.recommendation.source')
+  })
+
+  it('keeps hero ranking cards compact and removes hero pick-rate badges', () => {
+    expect(appSource).not.toContain('<small>英雄选取率</small>')
+    expect(appSource).not.toContain('英雄选取率 {{ championPickRate')
+    expect(appSource).toContain("'ranking-border-card'")
+    expect(stylesSource).toContain('grid-template-columns: repeat(auto-fill, minmax(96px, 1fr))')
+    expect(stylesSource).toContain('min-height: 126px')
+    expect(stylesSource).toContain('.ranking-list article::after')
+    expect(stylesSource).toContain('border:1px solid color-mix(in srgb,var(--tier-color) 40%,transparent)')
+    expect(stylesSource).toContain('.champion-augment-card img { width: 58px; height: 58px;')
   })
 
   it('keeps diagnostics deletion and LCU rediscovery behind the Main sender guard', () => {

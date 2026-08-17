@@ -110,6 +110,7 @@
 | HB-096 | 实时 OCR 推荐未及时按当前英雄特化、选卡后残留标签 | FIXED / UNVERIFIED（v0.1.67 已发布；真实同机未验） |
 | HB-097 | 英雄榜过度展示统计、详情不够简洁、队友历史易因身份接口短暂失败而缺失 | FIXED / UNVERIFIED（v0.1.68 已发布；真实同机未验） |
 | HB-098 | 英雄详情初始化被误判为来源变化并清空推荐与出装 | FIXED / UNVERIFIED（v0.1.69 已发布；真实同机未验） |
+| HB-099 | 英雄榜英雄选取率徽标口径混淆、榜单卡片过大 | IN PROGRESS / UNVERIFIED（v0.1.70 候选；未完成 Windows / 真实同机验收） |
 
 ## 当前重点验收
 
@@ -404,6 +405,12 @@
 - 队友 / 对手历史解析新增唯一直接 PUUID 关联；当同一局 Main 已缓存当前召唤师 PUUID 且 current-summoner 端点短暂失败时，仅复用该局缓存，不把身份写入公开状态或日志。
 - Live Client 的三时间点字段摘要和完整 `allgamedata` 保存入口已移除；当前英雄等级仍只从本机 `activeplayer` 读取。历史 release notes 中关于旧实验的记录保留作追溯，不代表当前 UI 或运行时入口。
 - 本地候选门禁需覆盖全量测试、typecheck、lint、source bridge / UI 与 Windows workflow；真实英雄榜、出装、腾讯推荐、国服队友历史和选卡后撤条仍需用户同机验收。
+
+### HB-099：英雄榜指标口径与视觉密度
+
+- v0.1.70 候选移除当前英雄与备战席中的英雄选取率徽标，避免把英雄总体指标误读为海克斯全局选取率；推荐 provider 的内部字段、来源隔离和排序规则不变，腾讯海克斯卡片的全局指标仍保留明确口径。
+- 英雄榜、英雄详情海克斯图标和 Tier 卡片缩小；榜单从大面积光晕改为轻量 Tier 边框高亮，键盘选择、OP/T1–T5 分组和点击详情保持不变。
+- 本地候选需完成全量、typecheck、lint、source bridge / UI 与 Windows workflow；真实 Windows 多分辨率、长中文和 Tencent 同机视觉仍未验，不能升级为 `VERIFIED`。
 
 ## 追溯
 

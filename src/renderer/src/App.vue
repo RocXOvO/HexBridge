@@ -249,10 +249,6 @@ function winRate(value: number | null): string {
   return value == null ? '—' : `${(value * 100).toFixed(1)}%`
 }
 
-function championPickRate(value: number | null | undefined): string {
-  return value == null ? '暂无数据' : `${(value * 100).toFixed(1)}%`
-}
-
 function championPrimaryLabel(champion: ChampionSummary | null): string {
   if (!champion) return '未知英雄'
   return champion.searchAliases?.find((alias) => alias.trim())?.trim() || champion.alias || champion.name
@@ -918,7 +914,6 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                     <div><small>{{ championStrengthLabel() }}</small><b class="tier-value">{{ championStrengthValue(current.tier) }}</b></div>
                     <div><small>{{ championWinRateLabel() }}</small><b>{{ winRate(current.winRate) }}</b></div>
                     <div><small>当前等级</small><b>{{ state.currentChampionLevel ?? '—' }}</b></div>
-                    <div v-if="state.recommendation.source === 'tencent101'"><small>英雄选取率</small><b>{{ championPickRate(current.championPickRate) }}</b></div>
                   </div>
                   <span v-if="current.isBest" class="best-badge">首选</span>
                 </div>
@@ -1035,7 +1030,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <Transition name="assistant-reveal">
               <section v-if="augmentAssistantVisible" class="augment-assistant" aria-live="polite">
                 <header>
-                  <div><small>实时推荐 · {{ recommendationSourceName }}</small><h2>海克斯推荐</h2><p v-if="state.recommendation.source === 'tencent101'">前 3 项使用英雄推荐顺序，其余命中该英雄的 bestHeroes 按全局选取排名扩展；选取率与胜率均为全局统计，不是该英雄专属统计。{{ state.recommendation.statisticsDate || '统计日期未就绪' }}<template v-if="state.recommendation.stale"> · 旧缓存</template></p><p v-else>优先采用上游提供的英雄专属推荐顺序；该英雄选取率仅作参考。{{ state.api.gamePatch || '补丁未标注' }} · {{ state.recommendation.dataVersion || '数据未就绪' }}<template v-if="state.recommendation.stale"> · 已过期</template></p></div>
+                  <div><small>实时推荐 · {{ recommendationSourceName }}</small><h2>海克斯推荐</h2><p v-if="state.recommendation.source === 'tencent101'">前 3 项使用英雄推荐顺序，其余命中该英雄的 bestHeroes 按全局选取排名扩展；选取率与胜率均为全局统计，不是该英雄专属统计。{{ state.recommendation.statisticsDate || '统计日期未就绪' }}<template v-if="state.recommendation.stale"> · 旧缓存</template></p><p v-else>优先采用上游提供的英雄专属推荐顺序；卡片指标按当前数据源口径展示。{{ state.api.gamePatch || '补丁未标注' }} · {{ state.recommendation.dataVersion || '数据未就绪' }}<template v-if="state.recommendation.stale"> · 已过期</template></p></div>
                   <button class="ghost" :disabled="state.diagnostics.ocrBusy" @click="triggerOcr">
                     {{ state.diagnostics.ocrBusy ? '识别中…' : (state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别') }}
                   </button>
@@ -1071,7 +1066,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                 <article v-for="item in bench" :key="item.id" :class="['bench-card', { best: item.isBest }]">
                   <img :src="item.iconUrl" :alt="championAlt(item)" />
                   <div class="bench-info"><b>{{ championPrimaryLabel(item) }}</b><small>{{ championSecondaryLabel(item) || '可选英雄' }}</small></div>
-                  <div class="bench-stats"><b>{{ championStrengthValue(item.tier) }}</b><span>{{ winRate(item.winRate) }}</span><span v-if="state.recommendation.source === 'tencent101'">英雄选取率 {{ championPickRate(item.championPickRate) }}</span></div>
+                  <div class="bench-stats"><b>{{ championStrengthValue(item.tier) }}</b><span>{{ winRate(item.winRate) }}</span></div>
                   <div v-if="item.isBest" class="best-strip">首选 · 较当前 {{ item.winRateDelta != null && item.winRateDelta >= 0 ? '+' : '' }}{{ item.winRateDelta == null ? '—' : (item.winRateDelta * 100).toFixed(1) + '%' }}</div>
                 </article>
               </TransitionGroup>
@@ -1087,7 +1082,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <section v-for="group in rankingGroups" :key="group.key" class="ranking-group">
               <header class="ranking-group-header"><div><span class="tier-badge" :class="`tier-badge-${group.key.toLowerCase()}`">{{ group.label }}</span><div><h2>{{ group.label }}</h2><small>{{ group.items.length }} 位英雄</small></div></div><span v-if="group.key === 'OP'" class="ranking-group-note">当前来源榜单中的优先候选</span></header>
               <div class="ranking-list">
-                <article v-for="(item, index) in group.items" :key="item.id" :class="['tier-row', `tier-${group.key.toLowerCase()}`, { selected: selectedChampionId === item.id }]" role="button" tabindex="0" :aria-label="`查看 ${championPrimaryLabel(item)} 的推荐海克斯与出装`" @click="selectRankingChampion(item.id)" @keydown.enter.prevent="selectRankingChampion(item.id)" @keydown.space.prevent="selectRankingChampion(item.id)">
+                <article v-for="(item, index) in group.items" :key="item.id" :class="['tier-row', 'ranking-border-card', `tier-${group.key.toLowerCase()}`, { selected: selectedChampionId === item.id }]" role="button" tabindex="0" :aria-label="`查看 ${championPrimaryLabel(item)} 的推荐海克斯与出装`" @click="selectRankingChampion(item.id)" @keydown.enter.prevent="selectRankingChampion(item.id)" @keydown.space.prevent="selectRankingChampion(item.id)">
                   <span class="rank-index">{{ String(index + 1).padStart(2, '0') }}</span><img :src="item.iconUrl" :alt="championAlt(item)" /><b class="rank-name">{{ championPrimaryLabel(item) }}</b><small class="rank-title">{{ championSecondaryLabel(item) || '海克斯大乱斗英雄' }}</small>
                 </article>
               </div>

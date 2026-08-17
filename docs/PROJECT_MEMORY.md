@@ -5,7 +5,7 @@
 
 ## 当前基线
 
-- 当前正式版为 v0.1.69；本版修复英雄详情 hydration 误判来源变化，以及来源快照刷新后不自动重读当前英雄。真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
+- 当前候选为 v0.1.70，公开正式版仍为 v0.1.69；本候选移除英雄榜/备战席的英雄选取率徽标并收缩榜单卡片、图标，真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
 
 - 当前正式版为 [v0.1.69](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.69)，tag 解引用 commit `4951e1d3440b5b10c669a4127c286008674c5fa7`；workflow `32021793525` / 重跑 job `95364778122` 成功，Windows 全量测试、打包 UI / bridge、差分、公网双通道、packaged 更新检查与最近五个 Release 保留均通过。Release ID `RE_kwDOT1eQs84WJ4XN`，publishedAt `2026-08-17T10:53:08Z`，artifact `9285988993` / `473555517` bytes；EXE `199297918` bytes，blockmap `201257` bytes，ZIP `274468696` bytes，latest.yml `346` bytes，SHA256SUMS `182` bytes。公开滚动窗口为 v0.1.64、v0.1.66、v0.1.67、v0.1.68、v0.1.69；真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
 - 历史 v0.1.66 仍保留 tag 与 Release；v0.1.65 仅保留 tag、因旧 smoke 选择器 fail closed 未创建公开 Release。HB-093/HB-094/HB-095/HB-096 的真实 Tencent 与用户同机验收不由 CI 外推，仍保持 `UNVERIFIED`。
