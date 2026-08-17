@@ -1,13 +1,13 @@
 # HexBridge 项目记忆索引
 
-> 最后更新：2026-08-16
+> 最后更新：2026-08-17
 > 本文件只保存当前基线、模块入口和待办优先级。缺陷细节、稳定架构契约与发布规则分别维护，避免重复和历史流水膨胀。
 
 ## 当前基线
 
-- 当前候选为 v0.1.68，公开正式版仍为 v0.1.67；本候选包含简洁 OP/T1–T5 英雄榜、昵称主导的英雄详情、队友历史 direct-PUUID / Main 缓存兼容，以及移除不可行的 Live Client 选卡状态采样入口。未完成 Windows / tag / Release 前不得预写外部验证结果。
+- 当前正式版为 v0.1.68；本版包含简洁 OP/T1–T5 英雄榜、昵称主导的英雄详情、队友历史 direct-PUUID / Main 缓存兼容，以及移除不可行的 Live Client 选卡状态采样入口。真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
 
-- 当前正式版为 [v0.1.67](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.67)，tag 解引用 commit `2e15619b3e3017b26ee749f2494f7459fbceef2e`；workflow `31948637363`（重跑 job `95169405811`）成功，Windows `51` files / `648` passed，打包 UI / bridge、差分、双通道、公网 packaged 与最近五个 Release 保留均通过。Release ID `371327696`，artifact `9264160747` / `473562497` bytes；差分 smoke 传输 `1330835` bytes、10 个 Range / 3 个 redirect，基于 v0.1.66。公开滚动窗口为 v0.1.61、v0.1.62、v0.1.64、v0.1.66、v0.1.67；真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
+- 当前正式版为 [v0.1.68](https://github.com/RocXOvO/HexBridge/releases/tag/v0.1.68)，tag 解引用 commit `0dbaab6e5208e3422a17f8d954eff590c58e5eb0`；workflow `32019641851` / job `95358336053` 成功，Windows 全量测试、打包 UI / bridge、差分、公网双通道、packaged 更新检查与最近五个 Release 保留均通过。Release ID `RE_kwDOT1eQs84WJ1Kc`，publishedAt `2026-08-17T10:25:36Z`，artifact `9285195167` / `473554604` bytes；EXE `199297646` bytes，blockmap `201315` bytes，ZIP `274468172` bytes，latest.yml `346` bytes，SHA256SUMS `182` bytes。公开滚动窗口为 v0.1.62、v0.1.64、v0.1.66、v0.1.67、v0.1.68；真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
 - 历史 v0.1.66 仍保留 tag 与 Release；v0.1.65 仅保留 tag、因旧 smoke 选择器 fail closed 未创建公开 Release。HB-093/HB-094/HB-095/HB-096 的真实 Tencent 与用户同机验收不由 CI 外推，仍保持 `UNVERIFIED`。
 - v0.1.64 workflow `31944699823` / 重跑 job `95159756249` 于 `2026-08-16T11:43:17Z–11:49:12Z` 成功；Release ID `371309425`，Windows `51` files / `641` passed + `1` skipped，packaged UI / bridge、差分、双通道、公网 packaged 更新检查和最近五个 Release 保留均通过。首次尝试只在 root 通道传播窗口超时，幂等重跑成功；Node 20 弃用提示和既有 AugmentOverlay 缩进警告不阻断。
 - v0.1.64 五资产：EXE `199299824` / `4efc477357f12c6027fae33e05d8a986cf49eef4c131fe8ee24956c33b7ee477`；blockmap `201466` / `0078478d0fc3ba89deb6642684bb5b145f219d3dda1f03448705b020e7acf634`；ZIP `274471588` / `1347b2fd229883f13c36f624bb9a17cea163fb11c3b82b68d14f51e35338facd`；latest.yml `346` / `623670a2c16f918bb2e566e14044b62609e77ec8770fe70af0aa02bf428c17ef`；SHA256SUMS `182` / `6eb3086f48dd67ec68a65aec47c9e1cf28da086fa8c3b3803c6e16f3ca6b6e82`。artifact `9263119526` / `473561441` bytes；公开滚动窗口为 v0.1.59、v0.1.60、v0.1.61、v0.1.62、v0.1.64（v0.1.63 无 Release），tag 保留。
@@ -89,7 +89,7 @@
 16. HB-094：确认 OP/T1–T5 分组在两种来源下的可读性；点击英雄时海克斯与独立出装请求不互相阻塞，换源 / 换代后不残留旧详情。
 17. HB-095：v0.1.66 已发布；Windows 自动化确认英雄详情推荐与独立出装分离、来源卡可进入 data.dtodo Key 页面；真实 Tencent 与同机视觉仍不由自动化外推。
 18. HB-096：v0.1.67 已发布；实时 OCR 结果在当前英雄详情迟到时按同一来源重排，可靠 surface 下的部分标题门控按连续 absence 撤条；真实选卡后撤条与 FPS 仍待 Windows / WeGame 验收。
-19. HB-097：v0.1.68 候选收敛英雄榜 / 详情文案与布局，保留昵称主标题、独立海克斯与出装；LCU 历史支持唯一直接 PUUID 和同局 Main 缓存兜底；撤销无法稳定判定选卡状态的三时间点 / allgamedata 采样入口，仅保留当前英雄等级。Windows / 国服同机验收仍为 `UNVERIFIED`。
+19. HB-097：v0.1.68 已发布，收敛英雄榜 / 详情文案与布局，保留昵称主标题、独立海克斯与出装；LCU 历史支持唯一直接 PUUID 和同局 Main 缓存兜底；撤销无法稳定判定选卡状态的三时间点 / allgamedata 采样入口，仅保留当前英雄等级。Windows / 国服同机验收仍为 `UNVERIFIED`。
 
 ## 当前任务边界
 
