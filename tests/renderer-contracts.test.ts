@@ -48,7 +48,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.68'")
+    expect(rendererState).toContain("currentVersion: '0.1.69'")
   })
 
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
@@ -172,6 +172,15 @@ describe('main-window recommendation presentation', () => {
     expect(preloadSource).toContain("ipcRenderer.invoke('hexbridge:get-champion-recommendation', championId)")
     expect(ipcSource).toContain("ipcMain.handle('hexbridge:get-champion-recommendation'")
     expect(ipcSource).toContain("requireSender(event, 'main')")
+  })
+
+  it('does not turn renderer hydration into a false source-change error', () => {
+    expect(appSource).toContain('let lastRecommendationContextKey: string | null = null')
+    expect(appSource).toContain('if (lastRecommendationContextKey === null)')
+    expect(appSource).toContain("if (page.value === 'champion-detail' && selectedChampionId.value != null)")
+    expect(appSource).toContain('void selectRankingChampion(selectedChampionId.value)')
+    expect(appSource).toContain("championRecommendationMessage.value = '选择英雄后查看推荐海克斯'")
+    expect(appSource).not.toContain("championRecommendationMessage.value = '推荐来源已变化，请重新选择英雄'")
   })
 
   it('keeps hero recommendations visible when the independent build request fails', () => {

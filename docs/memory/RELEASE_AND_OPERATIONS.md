@@ -4,7 +4,7 @@
 
 ## 当前候选 / 正式基线
 
-- 当前正式版为 `v0.1.68`；本版包含简洁英雄榜 / 详情、队友历史兼容与撤销不可行的 Live Client 选卡采样入口。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
+- 当前候选为 `v0.1.69`，公开正式版为 `v0.1.68`；本候选修复英雄详情 hydration 误判来源变化，以及来源快照刷新后不自动重读当前英雄。Windows / tag / Release 尚未发生前不得写成已发布。
 
 - 当前正式版为 `v0.1.68`；workflow `32019641851` / job `95358336053` 成功，Release ID `RE_kwDOT1eQs84WJ1Kc`，Windows 全量测试、打包 UI / bridge、差分、公网 packaged 与最近五个 Release 保留均通过。五资产已上传，公开滚动窗口为 v0.1.62、v0.1.64、v0.1.66、v0.1.67、v0.1.68；真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 - 历史 v0.1.67、v0.1.66、v0.1.64、v0.1.62 保留 tag 与 Release；更早版本按滚动保留策略移除公开 Release、tag 仍保留。

@@ -372,6 +372,18 @@ describe('stable Release notes', () => {
     expect(body).toContain('/compare/v0.1.67...v0.1.68')
   })
 
+  it('renders the detail hydration guard fix for v0.1.69', () => {
+    const body = renderStableReleaseNotes({
+      repository: 'RocXOvO/HexBridge',
+      version: '0.1.69',
+      releases: [...releases, { tag_name: 'v0.1.64', draft: false, prerelease: false }, { tag_name: 'v0.1.66', draft: false, prerelease: false }, { tag_name: 'v0.1.67', draft: false, prerelease: false }, { tag_name: 'v0.1.68', draft: false, prerelease: false }],
+    })
+    expect(body).toContain('### 相较 v0.1.68 的更新')
+    expect(body).toContain('hydration')
+    expect(body).toContain('自动重读当前英雄')
+    expect(body).toContain('/compare/v0.1.68...v0.1.69')
+  })
+
   it('includes every missing intermediate version when the previous stable Release is not adjacent', () => {
     const body = renderStableReleaseNotes({
       repository: 'RocXOvO/HexBridge',

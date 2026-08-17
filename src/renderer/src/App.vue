@@ -21,6 +21,7 @@ const championBuild = ref<ChampionBuildRecommendation | null>(null)
 const championBuildBusy = ref(false)
 const championBuildMessage = ref('')
 let championRecommendationSequence = 0
+let lastRecommendationContextKey: string | null = null
 const apiKey = ref('')
 const toast = ref('')
 const toastIsError = ref(false)
@@ -805,15 +806,35 @@ watch(
     state.value.recommendation.dataVersion,
     state.value.recommendation.statisticsDate,
   ],
-  () => {
+  (next) => {
+    const contextKey = next.join('\u001f')
+    // The first real RuntimeState replaces the bridge-unavailable placeholder
+    // during renderer hydration. That is not a user source change and must not
+    // leave every detail page in the “source changed” empty state.
+    if (lastRecommendationContextKey === null) {
+      lastRecommendationContextKey = contextKey
+      return
+    }
+    if (lastRecommendationContextKey === contextKey) return
+    lastRecommendationContextKey = contextKey
+
+    if (page.value === 'champion-detail' && selectedChampionId.value != null) {
+      // A provider becoming ready or rotating its snapshot while a detail page
+      // is open should transparently restart the same hero request with the new
+      // token, rather than invalidating it and asking the user to click again.
+      void selectRankingChampion(selectedChampionId.value)
+      return
+    }
+
     championRecommendationSequence += 1
     championRecommendation.value = null
     championBuild.value = null
     championRecommendationBusy.value = false
     championBuildBusy.value = false
-    championRecommendationMessage.value = '推荐来源已变化，请重新选择英雄'
-    championBuildMessage.value = '推荐来源已变化；出装仍独立使用 data.dtodo'
+    championRecommendationMessage.value = '选择英雄后查看推荐海克斯'
+    championBuildMessage.value = ''
   },
+  { immediate: true },
 )
 
 watch(
