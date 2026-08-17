@@ -4,10 +4,10 @@
 
 ## 当前候选 / 正式基线
 
-- 当前候选为 `v0.1.69`，公开正式版为 `v0.1.68`；本候选修复英雄详情 hydration 误判来源变化，以及来源快照刷新后不自动重读当前英雄。Windows / tag / Release 尚未发生前不得写成已发布。
+- 当前正式版为 `v0.1.69`；本版修复英雄详情 hydration 误判来源变化，以及来源快照刷新后不自动重读当前英雄。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 
-- 当前正式版为 `v0.1.68`；workflow `32019641851` / job `95358336053` 成功，Release ID `RE_kwDOT1eQs84WJ1Kc`，Windows 全量测试、打包 UI / bridge、差分、公网 packaged 与最近五个 Release 保留均通过。五资产已上传，公开滚动窗口为 v0.1.62、v0.1.64、v0.1.66、v0.1.67、v0.1.68；真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
-- 历史 v0.1.67、v0.1.66、v0.1.64、v0.1.62 保留 tag 与 Release；更早版本按滚动保留策略移除公开 Release、tag 仍保留。
+- 当前正式版为 `v0.1.69`；workflow `32021793525` / 重跑 job `95364778122` 成功，Release ID `RE_kwDOT1eQs84WJ4XN`，Windows 全量测试、打包 UI / bridge、差分、公网 packaged 与最近五个 Release 保留均通过。五资产已上传，公开滚动窗口为 v0.1.64、v0.1.66、v0.1.67、v0.1.68、v0.1.69；真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
+- 历史 v0.1.68、v0.1.67、v0.1.66、v0.1.64 保留 tag 与 Release；更早版本按滚动保留策略移除公开 Release、tag 仍保留。
 
 - v0.1.64 workflow `31944699823` / 重跑 job `95159756249` 于 `2026-08-16T11:43:17Z–11:49:12Z` 成功，Release ID `371309425`，tag commit `1c3f831d9a251b9c8e14bcb8d5c5443a544e3793`；Windows `51` files / `641` passed + `1` skipped、packaged UI / bridge、差分、v2/root、public packaged 与最近五个 Release 保留均通过。首次尝试因 root 通道 100s 传播窗口超时，幂等重跑成功。
 - v0.1.64 五资产：EXE `199299824` / `4efc477357f12c6027fae33e05d8a986cf49eef4c131fe8ee24956c33b7ee477`；blockmap `201466` / `0078478d0fc3ba89deb6642684bb5b145f219d3dda1f03448705b020e7acf634`；ZIP `274471588` / `1347b2fd229883f13c36f624bb9a17cea163fb11c3b82b68d14f51e35338facd`；latest.yml `346` / `623670a2c16f918bb2e566e14044b62609e77ec8770fe70af0aa02bf428c17ef`；SHA256SUMS `182` / `6eb3086f48dd67ec68a65aec47c9e1cf28da086fa8c3b3803c6e16f3ca6b6e82`。artifact `9263119526` / `473561441` bytes；滚动窗口为 v0.1.59、v0.1.60、v0.1.61、v0.1.62、v0.1.64，v0.1.63 只保留 tag。
