@@ -101,12 +101,17 @@ function augmentRankKey(
   meta: AugmentMeta | undefined,
   source: RecommendationDataSource,
 ): RankKey | null {
+  // The in-game Tencent ranking must stay hero-specific.  The adapter also
+  // carries global statistics for the browse/detail page, but those values
+  // are not a safe fallback when ordering the three cards on the live
+  // surface.
+  if (source === 'tencent101' && rank?.heroRecommendationBasis !== 'lowest_rank_runes') {
+    return null
+  }
   if (rank?.heroRecommendationRank != null) {
     return [0, rank.heroRecommendationRank, rank.heroTier ?? Number.POSITIVE_INFINITY]
   }
-  if (source === 'tencent101' && rank?.globalPickRank != null) {
-    return [1, rank.globalPickRank, Number.POSITIVE_INFINITY]
-  }
+  if (source === 'tencent101') return null
   if (rank?.heroTier != null) return [1, rank.heroTier, Number.POSITIVE_INFINITY]
   if (meta?.globalTier != null) return [2, meta.globalTier, Number.POSITIVE_INFINITY]
   return null
@@ -131,13 +136,9 @@ function rankReason(
   source: RecommendationDataSource,
 ): string {
   if (source === 'tencent101') {
-    if (rank?.heroRecommendationRank != null) {
-      return rank.heroRecommendationBasis === 'bestHeroes_pick_rank'
-        ? `腾讯英雄适配榜·全局选取排名第 ${rank.globalPickRank ?? rank.heroRecommendationRank}`
-        : `腾讯英雄推荐第 ${rank.heroRecommendationRank}`
-    }
-    if (rank?.globalPickRank != null) return `腾讯全局排名第 ${rank.globalPickRank}`
-    return '腾讯数据站暂无可靠的推荐依据'
+    return rank?.heroRecommendationBasis === 'lowest_rank_runes' && rank.heroRecommendationRank != null
+      ? `腾讯英雄推荐第 ${rank.heroRecommendationRank}`
+      : '腾讯数据站暂无该英雄专属推荐依据'
   }
   if (rank?.heroRecommendationRank != null) {
     return rank.heroRecommendationTotal
@@ -161,8 +162,11 @@ export function rankRecommendationSlots(
 
   const enriched = slots.map((slot) => {
     const rank = slot.augmentId ? ranksById.get(slot.augmentId) : undefined
+    const usableRank = source === 'tencent101' && rank?.heroRecommendationBasis !== 'lowest_rank_runes'
+      ? undefined
+      : rank
     const meta = slot.augmentId ? augmentsById.get(slot.augmentId) : undefined
-    return { slot, rank, meta, key: augmentRankKey(rank, meta, source) }
+    return { slot, rank: usableRank, meta, key: augmentRankKey(usableRank, meta, source) }
   })
 
   const sorted = [...enriched].sort((a, b) => compareRankKey(a.key, b.key))
@@ -203,14 +207,14 @@ export function rankRecommendationSlots(
       iconUrl: meta?.iconUrl ?? '',
       rarityName: meta?.rarityName ?? '',
       pickRate: rank?.championPickRate ?? null,
-      globalPickRate: rank?.globalPickRate ?? null,
-      globalWinRate: rank?.globalWinRate ?? null,
-      globalPickRank: rank?.globalPickRank ?? null,
-      globalWinRank: rank?.globalWinRank ?? null,
+      globalPickRate: source === 'tencent101' ? null : rank?.globalPickRate ?? null,
+      globalWinRate: source === 'tencent101' ? null : rank?.globalWinRate ?? null,
+      globalPickRank: source === 'tencent101' ? null : rank?.globalPickRank ?? null,
+      globalWinRank: source === 'tencent101' ? null : rank?.globalWinRank ?? null,
       recommendationSource: source,
       statisticsDate: detail?.statisticsDate ?? '',
       metricScope: source === 'tencent101'
-        ? rank?.globalPickRate != null || rank?.globalWinRate != null ? 'global' : null
+        ? null
         : rank?.championPickRate != null ? 'champion' : null,
       statsSource: rank?.statsSource ?? null,
       statsRegion: rank?.statsRegion ?? null,

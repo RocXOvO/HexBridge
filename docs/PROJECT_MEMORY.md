@@ -5,7 +5,7 @@
 
 ## 当前基线
 
-- 当前正式版为 v0.1.70（tag `v0.1.70`，commit `b728453136e6409360b1c7ba36c8073e1706d0e6`）；本版移除英雄榜/备战席的英雄选取率徽标并收缩榜单卡片、图标，改用克制的 Tier 边框高亮。真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
+- 当前候选为 v0.1.71，公开正式版为 v0.1.70；本候选让实时对局三卡只使用当前英雄专属推荐，并将英雄榜边框改为炫彩卡牌渐变高亮。真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
 
 - v0.1.70 已正式发布：workflow `32024534498` / 成功重跑 job `95373245840`（attempt 2）完成 Windows 全量门禁、打包 UI / bridge、差分、public packaged 更新检查和五版滚动保留。Release ID `RE_kwDOT1eQs84WJ8f0`，publishedAt `2026-08-17T11:27:22Z`；artifact `9286989776` / `473555854` bytes；EXE `199298053` bytes，blockmap `201392` bytes，ZIP `274468675` bytes，latest.yml `346` bytes，SHA256SUMS `182` bytes。v2/root 稳定更新通道均为 `0.1.70`，公开滚动窗口为 v0.1.66、v0.1.67、v0.1.68、v0.1.69、v0.1.70；真实 Windows / Tencent 同机验收仍保持 `UNVERIFIED`。
 - 历史 v0.1.66 仍保留 tag 与 Release；v0.1.65 仅保留 tag、因旧 smoke 选择器 fail closed 未创建公开 Release。HB-093/HB-094/HB-095/HB-096 的真实 Tencent 与用户同机验收不由 CI 外推，仍保持 `UNVERIFIED`。

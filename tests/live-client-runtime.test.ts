@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
-  app: { getVersion: () => '0.1.70' },
+  app: { getVersion: () => '0.1.71' },
   screen: {},
   safeStorage: {},
   BrowserWindow: class {},

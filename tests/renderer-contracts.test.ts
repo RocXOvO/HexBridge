@@ -48,7 +48,7 @@ describe('main-window recommendation presentation', () => {
   })
 
   it('keeps the safe Renderer fallback version aligned with the packaged product', () => {
-    expect(rendererState).toContain("currentVersion: '0.1.70'")
+    expect(rendererState).toContain("currentVersion: '0.1.71'")
   })
 
   it('exposes only bounded OCR scheduler telemetry in the diagnostics page', () => {
@@ -146,7 +146,8 @@ describe('main-window recommendation presentation', () => {
     expect(stylesSource).toContain('grid-template-columns: repeat(auto-fill, minmax(96px, 1fr))')
     expect(stylesSource).toContain('min-height: 126px')
     expect(stylesSource).toContain('.ranking-list article::after')
-    expect(stylesSource).toContain('border:1px solid color-mix(in srgb,var(--tier-color) 40%,transparent)')
+    expect(stylesSource).toContain('conic-gradient(from 140deg,#f0c66f,#72dac8 24%,#8e87e8 50%,#c8796b 76%,#f0c66f)')
+    expect(stylesSource).toContain('@keyframes ranking-chroma')
     expect(stylesSource).toContain('.champion-augment-card img { width: 58px; height: 58px;')
   })
 
@@ -165,6 +166,14 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).toContain('全局胜率')
     expect(appSource).toContain('不是该英雄专属统计')
     expect(appSource).toContain('state.currentRecommendation.cards.slice(0, 3)')
+  })
+
+  it('keeps the in-game Tencent surface hero-specific without global metric fallbacks', () => {
+    expect(appSource).toContain('游戏内只按当前英雄的专属推荐顺序排序')
+    expect(appSource).toContain('v-if="slot.recommendationSource === \'dtodo\'" class="augment-pick-rate"')
+    expect(augmentOverlaySource).toContain("v-if=\"slot.recommendationSource === 'dtodo'\" class=\"overlay-pick-rate\"")
+    expect(augmentOverlaySource).not.toContain('全局选取率')
+    expect(augmentOverlaySource).not.toContain('全局胜率')
   })
 
   it('keeps Tencent browsing source-bound, keyboard reachable and locally filterable', () => {
@@ -261,11 +270,11 @@ describe('main-window recommendation presentation', () => {
     expect(appSource).not.toContain('请求受限，稍后自动恢复')
   })
 
-  it('shows both recommendation order and champion-specific pick rate in the in-game strip', () => {
+  it('shows hero-specific recommendation order and hides global metrics in the in-game strip', () => {
     expect(augmentOverlaySource).toContain('该英雄选取率')
-    expect(augmentOverlaySource).toContain('全局选取率')
-    expect(augmentOverlaySource).toContain('全局胜率')
-    expect(augmentOverlaySource).toContain('(value * 100).toFixed(1)')
+    expect(augmentOverlaySource).not.toContain('全局选取率')
+    expect(augmentOverlaySource).not.toContain('全局胜率')
+    expect(augmentOverlaySource).toContain('(slot.pickRate * 100).toFixed(1)')
     expect(augmentOverlaySource).toContain('rankLabel')
     expect(augmentOverlaySource).toContain('overlay-rank')
     expect(augmentOverlaySource).toContain('slot.reason')

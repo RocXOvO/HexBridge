@@ -84,7 +84,7 @@ describe('augment recommendations', () => {
     expect(result.map((slot) => slot.position)).toEqual([1, 1, null])
   })
 
-  it('orders Tencent cards by hero recommendation first, then global rank without using rates', () => {
+  it('orders live Tencent cards only by the hero-specific lowest_rank_runes order', () => {
     const detail: RecommendationDetail = {
       source: 'tencent101',
       championId: 1,
@@ -94,11 +94,11 @@ describe('augment recommendations', () => {
       ranks: [
         { augmentId: 1, heroRecommendationRank: null, heroRecommendationTotal: null, heroTier: null, championPickRate: null, globalPickRate: .99, globalWinRate: .9, globalPickRank: 2, globalWinRank: 1, globalPickRankChange: 0, globalWinRankChange: 0, statsSource: 'tencent', statsRegion: 'CN' },
         { augmentId: 2, heroRecommendationRank: 2, heroRecommendationTotal: 3, heroRecommendationBasis: 'bestHeroes_pick_rank', heroTier: null, championPickRate: null, globalPickRate: .01, globalWinRate: .1, globalPickRank: 80, globalWinRank: 80, globalPickRankChange: 0, globalWinRankChange: 0, statsSource: 'tencent', statsRegion: 'CN' },
-        { augmentId: 3, heroRecommendationRank: 1, heroRecommendationTotal: 3, heroTier: null, championPickRate: null, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, globalPickRankChange: null, globalWinRankChange: null, statsSource: null, statsRegion: null },
+        { augmentId: 3, heroRecommendationRank: 1, heroRecommendationTotal: 3, heroRecommendationBasis: 'lowest_rank_runes', heroTier: null, championPickRate: null, globalPickRate: null, globalWinRate: null, globalPickRank: null, globalWinRank: null, globalPickRankChange: null, globalWinRankChange: null, statsSource: null, statsRegion: null },
       ],
     }
     const result = rankRecommendationSlots(slots, detail, augments, 'tencent101')
-    expect(result.map((slot) => slot.position)).toEqual([3, 2, 1])
+    expect(result.map((slot) => slot.position)).toEqual([null, null, 1])
     expect(result[2]).toMatchObject({
       reason: '腾讯英雄推荐第 1',
       globalPickRate: null,
@@ -106,11 +106,11 @@ describe('augment recommendations', () => {
       recommendationSource: 'tencent101',
       statisticsDate: '20260814',
     })
-    expect(result[1]?.reason).toBe('腾讯英雄适配榜·全局选取排名第 80')
-    expect(result[0]).toMatchObject({ reason: '腾讯全局排名第 2', globalPickRate: .99, globalWinRate: .9, metricScope: 'global' })
+    expect(result[1]).toMatchObject({ reason: '腾讯数据站暂无该英雄专属推荐依据', globalPickRate: null, globalWinRate: null, metricScope: null })
+    expect(result[0]).toMatchObject({ reason: '腾讯数据站暂无该英雄专属推荐依据', globalPickRate: null, globalWinRate: null, metricScope: null })
   })
 
-  it('keeps Tencent global-rank ties and refuses to mix a detail from another provider', () => {
+  it('does not use Tencent global rank or rates as a live fallback', () => {
     const detail: RecommendationDetail = {
       source: 'tencent101', championId: 1, snapshotId: 'snapshot', dataVersion: '20260814', statisticsDate: '20260814',
       ranks: [1, 2].map((augmentId) => ({
@@ -121,9 +121,8 @@ describe('augment recommendations', () => {
       })),
     }
     const tied = rankRecommendationSlots(slots, detail, augments.map((item) => ({ ...item, globalTier: null })), 'tencent101')
-    expect(tied.map((slot) => slot.position)).toEqual([1, 1, null])
-    expect(tied[0]?.tied).toBe(true)
-    expect(tied[1]?.tied).toBe(true)
+    expect(tied.map((slot) => slot.position)).toEqual([null, null, null])
+    expect(tied.every((slot) => slot.tied === false && slot.globalPickRate == null && slot.globalWinRate == null)).toBe(true)
 
     const isolated = rankRecommendationSlots(slots, { ...detail, source: 'dtodo' }, augments.map((item) => ({ ...item, globalTier: null })), 'tencent101')
     expect(isolated.every((slot) => slot.position == null && slot.globalPickRate == null)).toBe(true)

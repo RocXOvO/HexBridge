@@ -4,7 +4,7 @@
 
 ## 当前候选 / 正式基线
 
-- 当前正式版为 `v0.1.70`；本版移除英雄榜/备战席的英雄选取率徽标并收缩榜单卡片、图标，改用克制的 Tier 边框高亮。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
+- 当前候选为 `v0.1.71`，公开正式版为 `v0.1.70`；本候选让实时对局三卡只使用当前英雄专属推荐，并将英雄榜边框改为炫彩卡牌渐变高亮。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 
 - `v0.1.70` 已正式发布；workflow `32024534498` / 成功重跑 job `95373245840`（attempt 2），Release ID `RE_kwDOT1eQs84WJ8f0`。Windows 全量门禁、打包 UI / bridge、差分、公网 packaged 更新检查和最近五个 Release 保留均通过；v2/root 稳定更新通道均为 `0.1.70`，公开滚动窗口为 `v0.1.66`–`v0.1.70`。真实 Windows / Tencent 同机验收仍为 `UNVERIFIED`。
 - 历史 v0.1.68、v0.1.67、v0.1.66、v0.1.64 保留 tag 与 Release；更早版本按滚动保留策略移除公开 Release、tag 仍保留。

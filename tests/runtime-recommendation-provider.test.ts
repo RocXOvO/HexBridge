@@ -144,7 +144,7 @@ describe('Runtime recommendation provider guards', () => {
           augmentId: 2,
           heroRecommendationRank: 2,
           heroRecommendationTotal: 2,
-          heroRecommendationBasis: null,
+          heroRecommendationBasis: 'lowest_rank_runes',
           heroTier: null,
           championPickRate: null,
           globalPickRate: .2,
@@ -160,7 +160,7 @@ describe('Runtime recommendation provider guards', () => {
           augmentId: 3,
           heroRecommendationRank: 1,
           heroRecommendationTotal: 2,
-          heroRecommendationBasis: null,
+          heroRecommendationBasis: 'lowest_rank_runes',
           heroTier: null,
           championPickRate: null,
           globalPickRate: .1,
@@ -216,9 +216,9 @@ describe('Runtime recommendation provider guards', () => {
     await runtime.refreshCurrentDetail(103, 12)
 
     expect(runtime.recommendationDetail).toEqual(recommendation)
-    expect(runtime.overlay.slots.map((slot: any) => slot.position)).toEqual([3, 2, 1])
+    expect(runtime.overlay.slots.map((slot: any) => slot.position)).toEqual([null, 2, 1])
     expect(runtime.overlay.slots.map((slot: any) => slot.reason)).toEqual([
-      '腾讯全局排名第 3',
+      '腾讯数据站暂无该英雄专属推荐依据',
       '腾讯英雄推荐第 2',
       '腾讯英雄推荐第 1',
     ])

@@ -346,14 +346,6 @@ function augmentReason(value: string): string {
     : value
 }
 
-function slotPickRate(slot: RankedAugmentSlot): number | null {
-  return slot.recommendationSource === 'tencent101' ? slot.globalPickRate : slot.pickRate
-}
-
-function slotPickRateLabel(slot: RankedAugmentSlot): string {
-  return slot.recommendationSource === 'tencent101' ? '全局选取率' : '该英雄选取率'
-}
-
 type ChampionDetailRequestContext = {
   source: RecommendationDataSource
   snapshotId: string
@@ -1030,7 +1022,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
             <Transition name="assistant-reveal">
               <section v-if="augmentAssistantVisible" class="augment-assistant" aria-live="polite">
                 <header>
-                  <div><small>实时推荐 · {{ recommendationSourceName }}</small><h2>海克斯推荐</h2><p v-if="state.recommendation.source === 'tencent101'">前 3 项使用英雄推荐顺序，其余命中该英雄的 bestHeroes 按全局选取排名扩展；选取率与胜率均为全局统计，不是该英雄专属统计。{{ state.recommendation.statisticsDate || '统计日期未就绪' }}<template v-if="state.recommendation.stale"> · 旧缓存</template></p><p v-else>优先采用上游提供的英雄专属推荐顺序；卡片指标按当前数据源口径展示。{{ state.api.gamePatch || '补丁未标注' }} · {{ state.recommendation.dataVersion || '数据未就绪' }}<template v-if="state.recommendation.stale"> · 已过期</template></p></div>
+                  <div><small>实时推荐 · {{ recommendationSourceName }}</small><h2>海克斯推荐</h2><p v-if="state.recommendation.source === 'tencent101'">游戏内只按当前英雄的专属推荐顺序排序；没有英雄专属依据的卡片不参与排序，也不显示全局指标。{{ state.recommendation.statisticsDate || '统计日期未就绪' }}<template v-if="state.recommendation.stale"> · 旧缓存</template></p><p v-else>优先采用上游提供的英雄专属推荐顺序；卡片指标按当前数据源口径展示。{{ state.api.gamePatch || '补丁未标注' }} · {{ state.recommendation.dataVersion || '数据未就绪' }}<template v-if="state.recommendation.stale"> · 已过期</template></p></div>
                   <button class="ghost" :disabled="state.diagnostics.ocrBusy" @click="triggerOcr">
                     {{ state.diagnostics.ocrBusy ? '识别中…' : (state.settings.hotkey ? `${state.settings.hotkey} 立即识别` : '手动立即识别') }}
                   </button>
@@ -1047,7 +1039,7 @@ const championAlt = (champion: ChampionSummary | null) => champion ? `${champion
                       <img v-if="slot.iconUrl" :src="slot.iconUrl" alt="" />
                       <span v-else class="augment-icon" aria-hidden="true">◇</span>
                       <div class="augment-card-copy"><small>{{ slot.rarityName || '海克斯强化' }}</small><b>{{ slot.name || '未识别' }}</b><p>{{ slot.augmentId ? augmentReason(slot.reason) : '该位置尚未可靠识别' }}</p></div>
-                      <div class="augment-pick-rate" :title="slot.recommendationSource === 'tencent101' ? `腾讯英雄联盟数据站 · 全局统计 · ${slot.statisticsDate || '日期未标注'}` : `data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>{{ slotPickRateLabel(slot) }}<template v-if="slot.recommendationSource === 'dtodo'"> · {{ augmentStatsScope(slot) }}</template></small><b>{{ augmentPickRate(slotPickRate(slot)) }}</b><em v-if="slot.recommendationSource === 'tencent101'">全局胜率 {{ augmentPickRate(slot.globalWinRate) }}</em></div>
+                      <div v-if="slot.recommendationSource === 'dtodo'" class="augment-pick-rate" :title="`data.dtodo 单英雄详情 · ${augmentStatsScope(slot)} · ${state.api.gamePatch || state.api.dataVersion || '版本未标注'}`"><small>该英雄选取率 · {{ augmentStatsScope(slot) }}</small><b>{{ augmentPickRate(slot.pickRate) }}</b></div>
                     </article>
                   </div>
                   <div v-else-if="state.overlay.slots.length" key="refreshing" class="augment-refreshing" aria-live="polite">
